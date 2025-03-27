@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Effective Page Time Analyzer</title>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega@5.22.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-lite@5.6.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.21.0"></script>
+    <style>
+        /* Ensure DataTables respects Tailwind styling */
+        .dataTables_wrapper .dataTables_length, 
+        .dataTables_wrapper .dataTables_filter {
+            margin-bottom: 1rem;
+        }
+        .dataTables_wrapper .dataTables_paginate {
+            margin-top: 1rem;
+        }
+        .dataTables_wrapper .dataTables_paginate .paginate_button {
+            padding: 0.5rem 1rem;
+            margin-left: 0.25rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.25rem;
+            background-color: #fff;
+        }
+        .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+            background-color: #e5e7eb;
+        }
+        .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+            background-color: #10b981;
+            color: #fff;
+            border-color: #10b981;
+        }
+        /* Spinner styling */
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left: 4px solid #10b981;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Pill box styling */
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            background-color: #e5e7eb;
+            color: #374151;
+            padding: 0.5rem 1rem;
+            margin: 0.25rem;
+            border-radius: 9999px;
+            cursor: pointer;
+        }
+        .pill.selected {
+            background-color: #10b981;
+            color: #fff;
+        }
+        .pill .remove {
+            margin-left: 0.5rem;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        /* Toggle switch styling */
+        .toggle-checkbox {
+            display: none;
+        }
+        .toggle-label {
+            display: inline-flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        .toggle-switch {
+            width: 40px;
+            height: 20px;
+            background-color: #d1d5db;
+            border-radius: 9999px;
+            position: relative;
+            transition: background-color 0.2s;
+            margin-right: 0.5rem;
+        }
+        .toggle-switch::before {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background-color: #fff;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.2s;
+        }
+        .toggle-checkbox:checked + .toggle-label .toggle-switch {
+            background-color: #10b981;
+        }
+        .toggle-checkbox:checked + .toggle-label .toggle-switch::before {
+            transform: translateX(20px);
+        }
+        /* KPI card styling */
+        .kpi-card {
+            background-color: #fff;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        /* Chart container */
+        .chart-container {
+            min-height: 200px;
+            width: 100%;
+            background-color: #f9fafb;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Sticky Navbar -->
+    <nav class="bg-green-600 text-white p-4 sticky top-0 z-10 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold">Effective Page Time Analyzer</h1>
+            <div>
+                <button id="downloadCsv" class="bg-blue-600 hover:bg-blue-800 text-white font-bold py-2 px-4 rounded hidden">
+                    Download as CSV
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="container mx-auto py-6">
+        <!-- Upload and Configuration Section -->
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-lg font-semibold mb-4">Upload CSV and Configure</h2>
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2" for="csvFile">Upload CSV File:</label>
+                <input type="file" id="csvFile" accept=".csv" class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2">Group Fields:</label>
+                <div id="groupFieldsContainer" class="flex flex-wrap border rounded p-2 min-h-[100px]"></div>
+                <div id="groupFieldsOptions" class="mt-2 flex flex-wrap"></div>
+                <p class="text-sm text-gray-500 mt-1">Click to select/deselect group fields</p>
+            </div>
+            <div class="mb-4">
+                <label class="block text-gray-700 mb-2" for="threshold">Threshold (ms):</label>
+                <input type="number" id="threshold" value="5000" min="0" step="1" class="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-green-500">
+            </div>
+            <div class="mb-4 flex items-center">
+                <input type="checkbox" id="debugToggle" class="toggle-checkbox">
+                <label for="debugToggle" class="toggle-label">
+                    <span class="toggle-switch"></span>
+                    <span class="text-gray-700">Enable Debug Mode</span>
+                </label>
+            </div>
+            <button id="analyzeBtn" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded w-full flex justify-center items-center" disabled>
+                <span id="analyzeText">Analyze</span>
+                <div id="spinner" class="spinner ml-2 hidden"></div>
+            </button>
+        </div>
+
+        <!-- KPI Section -->
+        <div id="kpiSection" class="bg-white p-6 rounded-lg shadow-md mb-6 hidden">
+            <h2 class="text-lg font-semibold mb-4">Effective Page Time KPIs</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                <div class="kpi-card">
+                    <h3 class="text-gray-600 text-sm font-medium">Total Groups</h3>
+                    <p id="totalGroups" class="text-2xl font-bold text-green-600">0</p>
+                </div>
+                <div class="kpi-card">
+                    <h3 class="text-gray-600 text-sm font-medium">Average Time (s)</h3>
+                    <p id="avgTime" class="text-2xl font-bold text-green-600">0.00</p>
+                </div>
+                <div class="kpi-card">
+                    <h3 class="text-gray-600 text-sm font-medium">Min Time (s)</h3>
+                    <p id="minTime" class="text-2xl font-bold text-green-600">0.00</p>
+                </div>
+                <div class="kpi-card">
+                    <h3 class="text-gray-600 text-sm font-medium">Max Time (s)</h3>
+                    <p id="maxTime" class="text-2xl font-bold text-green-600">0.00</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-gray-600 text-sm font-medium mb-2">Count Distribution</h3>
+                    <div id="countChart" class="chart-container">...</div>
+                </div>
+                <div>
+                    <h3 class="text-gray-600 text-sm font-medium mb-2">Average Time by Group</h3>
+                    <div id="avgChart" class="chart-container">...</div>
+                </div>
+                <div>
+                    <h3 class="text-gray-600 text-sm font-medium mb-2">Min Time by Group</h3>
+                    <div id="minChart" class="chart-container">...</div>
+                </div>
+                <div>
+                    <h3 class="text-gray-600 text-sm font-medium mb-2">Max Time by Group</h3>
+                    <div id="maxChart" class="chart-container">...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="results" class="bg-white p-6 rounded-lg shadow-md hidden">
+            <h2 class="text-lg font-semibold mb-4">Results</h2>
+            <div class="overflow-x-auto">
+                <table id="resultsTable" class="min-w-full bg-white border border-gray-300">
+                    <thead class="bg-green-500 text-white">
+                        <tr>
+                            <th class="py-3 px-4 text-left">Group</th>
+                            <th class="py-3 px-4 text-right">Effective Page Time (ms)</th>
+                            <th class="py-3 px-4 text-left">OS Name</th>
+                            <th class="py-3 px-4 text-left">Page URL</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Debug Section -->
+        <div id="debug" class="bg-white p-6 rounded-lg shadow-md mt-6 hidden">
+            <h2 class="text-lg font-semibold mb-4">Debug Information</h2>
+            <pre id="debugOutput" class="text-sm text-gray-700"></pre>
+        </div>
+    </div>
+
+    <script>
+    // Utility to format numbers with thousand separators
+    function formatWithThousands(n) {
+        return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    }
+
+    // Debug logging
+    function logDebug(message) {
+        const debugToggle = document.getElementById('debugToggle');
+        if (!debugToggle.checked) return; // Only log if debug is enabled
+
+        const debugOutput = document.getElementById('debugOutput');
+        debugOutput.textContent += message + '\n';
+        document.getElementById('debug').classList.remove('hidden');
+    }
+
+    // Toggle debug section visibility
+    document.getElementById('debugToggle').addEventListener('change', function() {
+        const debugSection = document.getElementById('debug');
+        if (this.checked) {
+            debugSection.classList.remove('hidden');
+        } else {
+            debugSection.classList.add('hidden');
+        }
+    });
+
+    // Show/hide spinner
+    function showSpinner() {
+        document.getElementById('spinner').classList.remove('hidden');
+        document.getElementById('analyzeText').textContent = 'Analyzing...';
+        document.getElementById('analyzeBtn').disabled = true;
+    }
+
+    function hideSpinner() {
+        document.getElementById('spinner').classList.add('hidden');
+        document.getElementById('analyzeText').textContent = 'Analyze';
+        document.getElementById('analyzeBtn').disabled = false;
+    }
+
+    // Handle CSV file upload with Papa Parse
+    document.getElementById('csvFile').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        logDebug(`Uploading file: ${file.name}, size: ${file.size} bytes`);
+
+        Papa.parse(file, {
+            complete: function(results) {
+                const rows = results.data;
+                const headers = rows[0];
+
+                logDebug(`Parsed CSV: ${rows.length} rows (including header)`);
+                logDebug(`Headers: ${headers.join(', ')}`);
+
+                // Populate group fields options (sorted alphabetically)
+                const groupFieldsOptions = document.getElementById('groupFieldsOptions');
+                groupFieldsOptions.innerHTML = '';
+                const validHeaders = headers
+                    .filter(header => header && header !== 'EFFECTIVEPAGETIME' && header !== 'PAGEURL' && header !== 'OSNAME')
+                    .sort(); // Sort headers alphabetically
+                validHeaders.forEach(header => {
+                    const pill = document.createElement('div');
+                    pill.className = 'pill';
+                    pill.textContent = header;
+                    pill.dataset.value = header;
+                    pill.addEventListener('click', toggleGroupField);
+                    groupFieldsOptions.appendChild(pill);
+                });
+
+                document.getElementById('analyzeBtn').disabled = false;
+
+                // Store CSV data globally
+                window.csvData = rows;
+                window.csvHeaders = headers;
+            },
+            header: false,
+            skipEmptyLines: true,
+            error: function(error) {
+                logDebug(`Error parsing CSV: ${error.message}`);
+                alert('Error parsing CSV file. Please check the file format.');
+            }
+        });
+    });
+
+    // Toggle group field selection
+    function toggleGroupField(e) {
+        const pill = e.target;
+        const value = pill.dataset.value;
+        const container = document.getElementById('groupFieldsContainer');
+        const existingPill = container.querySelector(`[data-value="${value}"]`);
+
+        if (existingPill) {
+            // Remove pill
+            container.removeChild(existingPill);
+            pill.classList.remove('selected');
+        } else {
+            // Add pill
+            const selectedPill = document.createElement('div');
+            selectedPill.className = 'pill selected';
+            selectedPill.dataset.value = value;
+            selectedPill.innerHTML = `${value} <span class="remove">×</span>`;
+            selectedPill.querySelector('.remove').addEventListener('click', (e) => {
+                e.stopPropagation();
+                container.removeChild(selectedPill);
+                const originalPill = document.querySelector(`#groupFieldsOptions .pill[data-value="${value}"]`);
+                originalPill.classList.remove('selected');
+            });
+            container.appendChild(selectedPill);
+            pill.classList.add('selected');
+        }
+    }
+
+    // Handle Analyze button click
+    document.getElementById('analyzeBtn').addEventListener('click', function() {
+        const selectedFields = Array.from(document.querySelectorAll('#groupFieldsContainer .pill')).map(pill => pill.dataset.value);
+        const threshold = parseInt(document.getElementById('threshold').value);
+
+        logDebug(`Selected group fields: ${selectedFields.join(', ')}`);
+        logDebug(`Threshold: ${threshold}`);
+
+        if (selectedFields.length === 0) {
+            logDebug('Validation failed: No group fields selected');
+            alert('Please select at least one group field.');
+            return;
+        }
+        if (isNaN(threshold) || threshold < 0) {
+            logDebug('Validation failed: Invalid threshold');
+            alert('Please enter a valid threshold.');
+            return;
+        }
+
+        // Show spinner
+        showSpinner();
+
+        // Process CSV data
+        setTimeout(() => {
+            const headers = window.csvHeaders;
+            const data = window.csvData.slice(1); // Skip header row
+            const groupIndices = selectedFields.map(field => headers.indexOf(field));
+            const eptIndex = headers.indexOf('EFFECTIVEPAGETIME');
+            const pageUrlIndex = headers.indexOf('PAGEURL');
+            const osNameIndex = headers.indexOf('OSNAME');
+
+            logDebug(`Group indices: ${groupIndices}`);
+            logDebug(`EFFECTIVEPAGETIME index: ${eptIndex}`);
+            logDebug(`PAGEURL index: ${pageUrlIndex}`);
+            logDebug(`OSNAME index: ${osNameIndex}`);
+
+            if (eptIndex === -1 || pageUrlIndex === -1 || osNameIndex === -1 || groupIndices.includes(-1)) {
+                logDebug('Validation failed: Required columns missing');
+                alert('CSV must contain EFFECTIVEPAGETIME, PAGEURL, OSNAME, and the selected group fields.');
+                hideSpinner();
+                return;
+            }
+
+            // Process data for table and KPIs
+            const highestEPT = {};
+            const groupStats = {};
+            let processedRows = 0;
+
+            data.forEach((row, index) => {
+                if (row.length <= Math.max(eptIndex, pageUrlIndex, osNameIndex)) {
+                    logDebug(`Skipping row ${index + 2}: Incomplete data - ${row.join(', ')}`);
+                    return;
+                }
+                const ept = parseFloat(row[eptIndex]);
+                if (isNaN(ept)) {
+                    logDebug(`Skipping row ${index + 2}: Invalid EFFECTIVEPAGETIME - ${row[eptIndex]}`);
+                    return;
+                }
+
+                const groupKey = groupIndices.map(i => row[i]).join(' | ');
+                const pageUrl = row[pageUrlIndex];
+                const osName = row[osNameIndex];
+                const key = `${groupKey}|${pageUrl}`;
+                const eptInt = Math.floor(ept); // Truncate to integer
+
+                // For table: Keep highest EPT per group-URL if above threshold
+                if (ept > threshold) {
+                    if (!highestEPT[key] || eptInt > highestEPT[key].EffectivePageTime) {
+                        highestEPT[key] = { GroupKey: groupKey, EffectivePageTime: eptInt, OSName: osName, PageURL: pageUrl };
+                    }
+                }
+
+                // For KPIs: Collect stats per group (include all rows)
+                if (!groupStats[groupKey]) {
+                    groupStats[groupKey] = { count: 0, total: 0, min: Infinity, max: -Infinity };
+                }
+                groupStats[groupKey].count += 1;
+                groupStats[groupKey].total += ept;
+                groupStats[groupKey].min = Math.min(groupStats[groupKey].min, ept);
+                groupStats[groupKey].max = Math.max(groupStats[groupKey].max, ept);
+
+                processedRows++;
+            });
+
+            logDebug(`Processed ${processedRows} rows out of ${data.length}`);
+            logDebug(`Unique group-URL combinations: ${Object.keys(highestEPT).length}`);
+
+            // Populate table
+            const tableData = Object.values(highestEPT);
+            const tbody = document.querySelector('#resultsTable tbody');
+            tbody.innerHTML = '';
+            tableData.forEach((entry, index) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-100';
+                tr.innerHTML = `
+                    <td class="py-2 px-4 border-t">${entry.GroupKey}</td>
+                    <td class="py-2 px-4 border-t text-right">${formatWithThousands(entry.EffectivePageTime)}</td>
+                    <td class="py-2 px-4 border-t">${entry.OSName}</td>
+                    <td class="py-2 px-4 border-t">${entry.PageURL}</td>
+                `;
+                tbody.appendChild(tr);
+                if (index < 5) { // Log first 5 rows for debugging
+                    logDebug(`Table row ${index + 1}: ${entry.GroupKey}, ${entry.EffectivePageTime}, ${entry.OSName}, ${entry.PageURL}`);
+                }
+            });
+
+            if (tableData.length === 0) {
+                logDebug('No data to display in table: No rows met the threshold criteria');
+            }
+
+            // Initialize DataTable
+            if ($.fn.DataTable.isDataTable('#resultsTable')) {
+                $('#resultsTable').DataTable().destroy();
+            }
+            $('#resultsTable').DataTable({
+                pageLength: 10,
+                lengthMenu: [10, 25, 50, 100],
+                order: [[1, 'desc']],
+                columnDefs: [{ type: 'num-fmt', targets: 1 }]
+            });
+
+            // Populate KPI section
+            const kpiData = Object.keys(groupStats).map(group => ({
+                Group: group,
+                Count: groupStats[group].count,
+                Average: groupStats[group].total / groupStats[group].count / 1000, // Convert to seconds
+                Min: groupStats[group].min / 1000, // Convert to seconds
+                Max: groupStats[group].max / 1000  // Convert to seconds
+            }));
+
+            logDebug(`KPI Data: ${JSON.stringify(kpiData, null, 2)}`);
+
+            // Update KPI cards
+            const totalGroups = kpiData.length;
+            const avgTime = kpiData.reduce((sum, d) => sum + d.Average, 0) / (totalGroups || 1);
+            const minTime = Math.min(...kpiData.map(d => d.Min), Infinity) || 0;
+            const maxTime = Math.max(...kpiData.map(d => d.Max), 0);
+
+            document.getElementById('totalGroups').textContent = totalGroups;
+            document.getElementById('avgTime').textContent = avgTime.toFixed(2);
+            document.getElementById('minTime').textContent = minTime.toFixed(2);
+            document.getElementById('maxTime').textContent = formatWithThousands(maxTime.toFixed(2));
+
+            // Render charts with Vega-Lite
+            if (kpiData.length > 0) {
+                logDebug('Attempting to render charts...');
+
+                // Clear chart containers
+                document.getElementById('countChart').innerHTML = '';
+                document.getElementById('avgChart').innerHTML = '';
+                document.getElementById('minChart').innerHTML = '';
+                document.getElementById('maxChart').innerHTML = '';
+
+                // Donut chart for count distribution with tooltip
+                const countSpec = {
+                    $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+                    data: { values: kpiData },
+                    mark: { type: 'arc', innerRadius: 50, tooltip: true },
+                    encoding: {
+                        theta: { field: 'Count', type: 'quantitative' },
+                        color: { field: 'Group', type: 'nominal', scale: { scheme: 'category20' } },
+                        tooltip: [
+                            { field: 'Group', type: 'nominal', title: 'Group' },
+                            { field: 'Count', type: 'quantitative', title: 'Count' }
+                        ]
+                    },
+                    width: 300,
+                    height: 200
+                };
+                vegaEmbed('#countChart', countSpec)
+                    .then(() => logDebug('Count chart rendered successfully'))
+                    .catch(err => logDebug(`Error rendering count chart: ${err}`));
+
+                // Bar chart for average time with tooltip
+                const avgSpec = {
+                    $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+                    data: { values: kpiData },
+                    mark: { type: 'bar', tooltip: true },
+                    encoding: {
+                        x: { field: 'Average', type: 'quantitative', title: 'Average Time (s)' },
+                        y: { field: 'Group', type: 'nominal', sort: '-x' },
+                        color: { value: '#10b981' },
+                        tooltip: [
+                            { field: 'Group', type: 'nominal', title: 'Group' },
+                            { field: 'Average', type: 'quantitative', title: 'Average (s)', format: '.2f' }
+                        ]
+                    },
+                    width: 300,
+                    height: 200
+                };
+                vegaEmbed('#avgChart', avgSpec)
+                    .then(() => logDebug('Average chart rendered successfully'))
+                    .catch(err => logDebug(`Error rendering avg chart: ${err}`));
+
+                // Bar chart for min time with tooltip
+                const minSpec = {
+                    $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+                    data: { values: kpiData },
+                    mark: { type: 'bar', tooltip: true },
+                    encoding: {
+                        x: { field: 'Min', type: 'quantitative', title: 'Min Time (s)' },
+                        y: { field: 'Group', type: 'nominal', sort: '-x' },
+                        color: { value: '#34d399' },
+                        tooltip: [
+                            { field: 'Group', type: 'nominal', title: 'Group' },
+                            { field: 'Min', type: 'quantitative', title: 'Min (s)', format: '.2f' }
+                        ]
+                    },
+                    width: 300,
+                    height: 200
+                };
+                vegaEmbed('#minChart', minSpec)
+                    .then(() => logDebug('Min chart rendered successfully'))
+                    .catch(err => logDebug(`Error rendering min chart: ${err}`));
+
+                // Bar chart for max time with tooltip
+                const maxSpec = {
+                    $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
+                    data: { values: kpiData },
+                    mark: { type: 'bar', tooltip: true },
+                    encoding: {
+                        x: { field: 'Max', type: 'quantitative', title: 'Max Time (s)' },
+                        y: { field: 'Group', type: 'nominal', sort: '-x' },
+                        color: { value: '#059669' },
+                        tooltip: [
+                            { field: 'Group', type: 'nominal', title: 'Group' },
+                            { field: 'Max', type: 'quantitative', title: 'Max (s)', format: '.2f' }
+                        ]
+                    },
+                    width: 300,
+                    height: 200
+                };
+                vegaEmbed('#maxChart', maxSpec)
+                    .then(() => logDebug('Max chart rendered successfully'))
+                    .catch(err => logDebug(`Error rendering max chart: ${err}`));
+            } else {
+                logDebug('No KPI data to render charts');
+                document.getElementById('countChart').textContent = 'No data available';
+                document.getElementById('avgChart').textContent = 'No data available';
+                document.getElementById('minChart').textContent = 'No data available';
+                document.getElementById('maxChart').textContent = 'No data available';
+            }
+
+            // Show KPI section, results, and download button
+            document.getElementById('kpiSection').classList.remove('hidden');
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('downloadCsv').classList.remove('hidden');
+            hideSpinner();
+        }, 100); // Small delay to ensure spinner is visible
+    });
+
+    // Download CSV functionality
+    document.getElementById('downloadCsv').addEventListener('click', function() {
+        const table = $('#resultsTable').DataTable();
+        const data = table.rows({ search: 'applied' }).data().toArray();
+        let csvContent = "Group,Effective Page Time (ms),OS Name,Page URL\n";
+        
+        data.forEach(row => {
+            const rowData = [
+                `"${row[0].replace(/"/g, '""')}"`, // Group
+                row[1].replace(/,/g, ''),           // Effective Page Time (remove commas for CSV)
+                `"${row[2].replace(/"/g, '""')}"`, // OS Name
+                `"${row[3].replace(/"/g, '""')}"`  // Page URL
+            ];
+            csvContent += rowData.join(',') + "\n";
+        });
+
+        logDebug(`Downloading CSV with ${data.length} rows`);
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'threshold_urls.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
+
+    // Custom sorting for numbers with thousand separators
+    jQuery.extend(jQuery.fn.dataTableExt.oSort, {
+        "num-fmt-pre": function(a) {
+            return parseInt(a.replace(/,/g, ''), 10);
+        },
+        "num-fmt-asc": function(a, b) {
+            return ((a < b) ? -1 : ((a > b) ? 1 : 0));
+        },
+        "num-fmt-desc": function(a, b) {
+            return ((a < b) ? 1 : ((a > b) ? -1 : 0));
+        }
+    });
+    </script>
+</body>
+</html>
