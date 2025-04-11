@@ -1,5 +1,12 @@
 # Bring Your Own Large Language Model (BYOLLM)
 
+
+## Topics
+
+- [Overview](#overview)
+- [Set Up Einstein Generative AI](#SetUpEinsteinGenerativeAI)
+
+<a name='overview'></a>
 - The Bring Your Own Large Language Model (BYOLLM) capability enables you to add a foundation model hosted on an external platform and connect it with Einstein Studio. You can use the foundation model to create a model configuration to power your generative AI. Evaluate the model’s response to your prompts in Model Playground with different settings before you deploy the model to production.
 
 Some common reasons companies want to use different models with Einstein include:
@@ -20,6 +27,7 @@ Some common reasons companies want to use different models with Einstein include
 ![Trust Layer](./img/trust_layer_full.png)
 
 
+<a name="SetUpEinsteinGenerativeAI" ></a>
 ## Set Up Einstein Generative AI
 
 ### Step 1: Verify Data Cloud in Your Org
