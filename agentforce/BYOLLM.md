@@ -91,7 +91,6 @@ Setup >  Einstein Setup
     - Enter the endpoint name and URL ( a standard HTTPS 443 port is required.)
     - Enter your authentication details (named credential)
     - Enter the model information.
-    - 
 
 
 
@@ -223,5 +222,7 @@ Data Queries|Usage is calculated based on the number of records processed. The c
 - [LLM Open Connector + Hugging Face](https://opensource.salesforce.com/einstein-platform/huggingface)
 
 - [Git hub repo for einstein-platform ](https://github.com/salesforce/einstein-platform)
+
+- [Salesforce’s In-House LLMs](https://www.salesforce.com/blog/agentforce-developers-llms/#:~:text=Agentforce%20for%20Developers%20uses%20the,our%20new%20xGen%2DCode%20model.)
 
 
