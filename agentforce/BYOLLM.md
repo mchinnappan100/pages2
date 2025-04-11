@@ -8,6 +8,7 @@
 - [Set Up Einstein Generative AI](#SetUpEinsteinGenerativeAI)
 - [LLM Open Connector](#llmoc)
 - [Billing](#billing)
+- [References](#ref)
 
 <a name='overview'></a>
 - The Bring Your Own Large Language Model (BYOLLM) capability enables you to add a foundation model hosted on an external platform and connect it with Einstein Studio. You can use the foundation model to create a model configuration to power your generative AI. Evaluate the model’s response to your prompts in Model Playground with different settings before you deploy the model to production.
@@ -203,6 +204,7 @@ Data Queries|Usage is calculated based on the number of records processed. The c
 - Features like Prompt Builder and the Models API allow you to customize AI implementations with different models and use them in your apps. Salesforce-managed models are enabled by default to speed up the configuration process.
 
 
+<a name='ref'></a>
 ## References
 
 - [Bring Your Own Large Language Model](https://help.salesforce.com/s/articleView?id=data.c360_a_ai_foundation_models.htm&type=5)
