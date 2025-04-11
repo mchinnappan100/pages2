@@ -4,6 +4,7 @@
 ## Topics
 
 - [Overview](#overview)
+- [Einstein Trust Layer](#trustlayer)
 - [Set Up Einstein Generative AI](#SetUpEinsteinGenerativeAI)
 
 <a name='overview'></a>
@@ -24,6 +25,7 @@ Some common reasons companies want to use different models with Einstein include
     - Vertex AI (Google) Gemini 1.5 Pro
 
 
+<a name='trustlayer'></a>
 ![Trust Layer](./img/trust_layer_full.png)
 
 
