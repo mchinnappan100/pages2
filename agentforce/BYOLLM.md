@@ -7,6 +7,7 @@
 - [Einstein Trust Layer](#trustlayer)
 - [Set Up Einstein Generative AI](#SetUpEinsteinGenerativeAI)
 - [LLM Open Connector](#llmoc)
+- [Video How To Bring Your Own LLM With LLM Open Connector](#video)
 - [Billing](#billing)
 - [References](#ref)
 
@@ -192,6 +193,9 @@ Data Queries|Usage is calculated based on the number of records processed. The c
 - ![Using in Apex](img/llm-apex-code-2.png)
 
 
+<a name='demo'></a>
+
+#### Video How To Bring Your Own LLM With LLM Open Connector
 [![IMAGE_ALT_TEXT_HERE](http://img.youtube.com/vi/CQdJxKZl0Y4/0.jpg)](https://www.youtube.com/watch?v=CQdJxKZl0Y4)
 
 
