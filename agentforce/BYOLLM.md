@@ -6,6 +6,8 @@
 - [Overview](#overview)
 - [Einstein Trust Layer](#trustlayer)
 - [Set Up Einstein Generative AI](#SetUpEinsteinGenerativeAI)
+- [LLM Open Connector](#llmoc)
+- [Billing](#billing)
 
 <a name='overview'></a>
 - The Bring Your Own Large Language Model (BYOLLM) capability enables you to add a foundation model hosted on an external platform and connect it with Einstein Studio. You can use the foundation model to create a model configuration to power your generative AI. Evaluate the model’s response to your prompts in Model Playground with different settings before you deploy the model to production.
@@ -97,7 +99,7 @@ Setup >  Einstein Setup
 ---
 
 
-<a name="DataCloudBillableUsageTypes"></a>
+<a name="billing"></a>
 
 ## Data Cloud Billable Usage Types
 
@@ -124,6 +126,7 @@ Data Queries|Usage is calculated based on the number of records processed. The c
 |Ad Audiences Service Usage|Usage is calculated based on the number of ad audience targets.|
 |Data Cloud Real-Time Profile|Usage is calculated based on the total number of unique real time data graph records (Profiles for users) that appeared in real time record cache during the billing month. Even if a single unique record appears more than once, it’s only counted once.For example, if a real-time data graph’s primary data model object has 10 million rows cached on the first day of the month, and 1 million unique records are added to the real time cache daily for 30 days, the total count is 40 million|
 
+<a name='llmoc'></a>
 
 ##  LLM Open Connector
 - The LLM Open Connector is an [API specification](https://opensource.salesforce.com/einstein-platform/docs/apis/llm-open-connector), closely based on the OpenAI API, that lets you create API gateways and proxy servers that connect any language model to the Einstein AI Platform. Any service that implements the API specification can be connected to Einstein Studio using the Bring Your Own LLM (BYOLLM) feature.
