@@ -7,7 +7,7 @@
 - [Einstein Trust Layer](#trustlayer)
 - [Set Up Einstein Generative AI](#SetUpEinsteinGenerativeAI)
 - [LLM Open Connector](#llmoc)
-- [Video How To Bring Your Own LLM With LLM Open Connector](#video)
+- [Video How To Bring Your Own LLM With LLM Open Connector](#demo)
 - [Billing](#billing)
 - [References](#ref)
 
