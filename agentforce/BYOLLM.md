@@ -192,8 +192,8 @@ Data Queries|Usage is calculated based on the number of records processed. The c
 - ![Using in Apex](img/llm-apex-code-2.png)
 
 
+[![IMAGE_ALT_TEXT_HERE](http://img.youtube.com/vi/CQdJxKZl0Y4/0.jpg)](https://www.youtube.com/watch?v=CQdJxKZl0Y4)
 
-- [Video How To Bring Your Own LLM With LLM Open Connector](https://www.youtube.com/watch?v=CQdJxKZl0Y4&t=16s)
 
 
 ---
@@ -212,7 +212,11 @@ Data Queries|Usage is calculated based on the number of records processed. The c
 - [LLM Support](https://help.salesforce.com/s/articleView?id=ai.generative_ai_large_language_model_support.htm&type=5)
 - [ LLM Open Connector](https://opensource.salesforce.com/einstein-platform/open-connector)
 
+- [Video How To Bring Your Own LLM With LLM Open Connector](https://www.youtube.com/watch?v=CQdJxKZl0Y4&t=16s)
+
+
 - [LLM Open Connector + Hugging Face](https://opensource.salesforce.com/einstein-platform/huggingface)
 
 - [Git hub repo for einstein-platform ](https://github.com/salesforce/einstein-platform)
+
 
