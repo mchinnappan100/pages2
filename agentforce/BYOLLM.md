@@ -227,4 +227,6 @@ Data Queries|Usage is calculated based on the number of records processed. The c
 
 - [Salesforce’s In-House LLMs](https://www.salesforce.com/blog/agentforce-developers-llms/#:~:text=Agentforce%20for%20Developers%20uses%20the,our%20new%20xGen%2DCode%20model.)
 
+- [Inside the Einstein Trust Layer](https://developer.salesforce.com/blogs/2023/10/inside-the-einstein-trust-layer)
+
 
