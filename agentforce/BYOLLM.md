@@ -9,12 +9,12 @@ Some common reasons companies want to use different models with Einstein include
 
 - BYOLLM supports all the Salesforce-managed models and these additional models:
 
-- Anthropic Claude 3 Opus
-- Anthropic Claude 3 Sonnet
-- Anthropic Claude 3.5 Sonnet
-- Azure Open AI GPT-4o
-- OpenAI GPT-4o
-- Vertex AI (Google) Gemini 1.5 Pro
+    - Anthropic Claude 3 Opus
+    - Anthropic Claude 3 Sonnet
+    - Anthropic Claude 3.5 Sonnet
+    - Azure Open AI GPT-4o
+    - OpenAI GPT-4o
+    - Vertex AI (Google) Gemini 1.5 Pro
 
 
 ![Trust Layer](./img/trust_layer_full.png)
