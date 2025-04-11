@@ -199,14 +199,12 @@ Data Queries|Usage is calculated based on the number of records processed. The c
 ---
 
 
-## Salesforce-Managed Models
-
-- Features like Prompt Builder and the Models API allow you to customize AI implementations with different models and use them in your apps. Salesforce-managed models are enabled by default to speed up the configuration process.
 
 
 <a name='ref'></a>
-## References
 
+## References
+- [Use the LLM Open Connector to Build Generative AI Solutions Using Your Preferred Models and Platforms](https://developer.salesforce.com/blogs/2024/10/build-generative-ai-solutions-with-llm-open-connector)
 - [Bring Your Own Large Language Model](https://help.salesforce.com/s/articleView?id=data.c360_a_ai_foundation_models.htm&type=5)
 - [Set Up Einstein Generative AI](https://help.salesforce.com/s/articleView?id=ai.generative_ai_enable.htm&type=5)
 - [Data Cloud Billable Usage Types](https://help.salesforce.com/s/articleView?id=data.c360_a_data_usage_types.htm&type=5)
