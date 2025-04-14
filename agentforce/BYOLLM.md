@@ -30,6 +30,7 @@ Some common reasons companies want to use different models with Einstein include
     - OpenAI GPT-4o
     - Vertex AI (Google) Gemini 1.5 Pro
 
+[![Watch the video](https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg)](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
 
 <a name='trustlayer'></a>
 ![Trust Layer](./img/trust_layer_full.png)
