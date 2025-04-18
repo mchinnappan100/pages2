@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>XLIFF to CSV Converter with SQL Query</title>
+  <!-- Preload critical CSS to reduce CLS -->
+  <link rel="preload" href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" as="style">
+  <link rel="preload" href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" as="style">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link href="https://cdn.datatables.net/1.13.4/css/jquery.dataTables.min.css" rel="stylesheet">
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.4/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.3.6/js/dataTables.buttons.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.1.3/jszip.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.3.6/js/buttons.html5.min.js"></script>
+  <script src="https://requirejs.org/docs/release/2.3.5/minified/require.js"></script>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    main {
+      flex: 1;
+    }
+    html {
+      scroll-behavior: smooth;
+    }
+    #xliff-editor, #sql-editor {
+      width: 100%;
+      height: 400px; /* Fixed height to prevent CLS */
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+    .saved-queries li {
+      cursor: pointer;
+      padding: 0.5rem;
+      border-radius: 4px;
+    }
+    .saved-queries li:hover {
+      background-color: #f0f0f0;
+    }
+    .delete-btn {
+      margin-left: 0.5rem;
+      color: red;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans">
+  <!-- Sticky Navbar -->
+  <nav class="bg-blue-600 text-white shadow-lg sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+      <div class="text-2xl font-bold">
+        <a href="#home">XLIFF to CSV Converter</a>
+      </div>
+      <div class="space-x-4">
+        <a href="#home" class="hover:text-blue-200">Home</a>
+        <a href="#query" class="hover:text-blue-200">Query</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Hero Section -->
+    <section id="home" class="bg-gradient-to-r from-blue-500 to-blue-700 text-white py-20">
+      <div class="max-w-6xl mx-auto px-4 text-center">
+        <h1 class="text-5xl font-bold mb-4">XLIFF to CSV Converter</h1>
+        <p class="text-xl mb-8">Upload an XLIFF file, convert it to CSV, and query the data with SQL.</p>
+        <input type="file" id="xliff-upload" accept=".xlf" class="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-200 cursor-pointer">
+      </div>
+    </section>
+
+    <!-- XLIFF Editor and Conversion -->
+    <section class="py-16">
+      <div class="max-w-6xl mx-auto px-4">
+        <h2 class="text-3xl font-bold text-gray-800 mb-8">XLIFF File</h2>
+        <div class="bg-white p-6 rounded-lg shadow-md mb-4">
+          <div id="xliff-editor"></div>
+          <button id="convert-btn" disabled class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Convert to CSV</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- CSV DataTable Section -->
+    <section class="py-16">
+      <div class="max-w-6xl mx-auto px-4">
+        <h2 class="text-3xl font-bold text-gray-800 mb-8">CSV Data</h2>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+          <table id="csv-table" class="display" style="width:100%">
+            <thead>
+              <tr>
+                <th>id</th>
+                <th>maxwidth</th>
+                <th>size-unit</th>
+                <th>source</th>
+                <th>target</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SQL Query Section -->
+    <section id="query" class="py-16">
+      <div class="max-w-6xl mx-auto px-4">
+        <h2 class="text-3xl font-bold text-gray-800 mb-8">SQL Query</h2>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+          <div id="sql-editor"></div>
+          <button id="run-query-btn" class="mt-4 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Run Query</button>
+          <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-4">Saved Queries</h3>
+          <ul id="saved-queries" class="saved-queries"></ul>
+          <h3 class="text-xl font-semibold text-gray-800 mt-6 mb-4">Query Results</h3>
+          <table id="query-results-table" class="display" style="width:100%">
+            <thead>
+              <tr>
+                <th>id</th>
+                <th>maxwidth</th>
+                <th>size-unit</th>
+                <th>source</th>
+                <th>target</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-blue-600 text-white py-6">
+    <div class="max-w-6xl mx-auto px-4 text-center">
+      <p>Made with ❤️ in <a href="https://en.wikipedia.org/wiki/New_Hampshire" class="text-blue-200 hover:underline">New Hampshire</a> by <a href="https://mohan-chinnappan-n.github.io/about/cv.html" class="text-blue-200 hover:underline">mc</a></p>
+    </div>
+  </footer>
+
+  <!-- Monaco Editor Setup -->
+  <script>
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.33.0/min/vs' }});
+    let xliffEditor, sqlEditor;
+    let csvData = [];
+
+    // Initialize Editors
+    require(['vs/editor/editor.main'], function() {
+      xliffEditor = monaco.editor.create(document.getElementById('xliff-editor'), {
+        value: '// Upload an XLIFF (.xlf) file to view here',
+        language: 'xml',
+        theme: 'vs-dark',
+        readOnly: true
+      });
+
+      sqlEditor = monaco.editor.create(document.getElementById('sql-editor'), {
+        value: 'SELECT * FROM csv WHERE source LIKE \'%\'',
+        language: 'sql',
+        theme: 'vs-dark'
+      });
+
+      // Autocomplete for CSV columns including target
+      monaco.languages.registerCompletionItemProvider('sql', {
+        provideCompletionItems: function(model, position) {
+          const suggestions = [
+            { label: 'id', kind: monaco.languages.CompletionItemKind.Field, insertText: 'id' },
+            { label: 'maxwidth', kind: monaco.languages.CompletionItemKind.Field, insertText: 'maxwidth' },
+            { label: 'size-unit', kind: monaco.languages.CompletionItemKind.Field, insertText: 'size-unit' },
+            { label: 'source', kind: monaco.languages.CompletionItemKind.Field, insertText: 'source' },
+            { label: 'target', kind: monaco.languages.CompletionItemKind.Field, insertText: 'target' }
+          ];
+          return { suggestions: suggestions };
+        }
+      });
+    });
+
+    // Handle XLIFF File Upload
+    document.getElementById('xliff-upload').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) {
+        alert('Please select a valid XLIFF file.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const content = e.target.result;
+        if (!content) {
+          alert('Failed to read the XLIFF file.');
+          return;
+        }
+        xliffEditor.setValue(content);
+        document.getElementById('convert-btn').disabled = false;
+      };
+      reader.onerror = function() {
+        alert('Error reading the XLIFF file.');
+      };
+      reader.readAsText(file);
+    });
+
+    // Convert XLIFF to CSV
+    document.getElementById('convert-btn').addEventListener('click', function() {
+      if (!xliffEditor) {
+        alert('Editor not initialized. Please try again.');
+        return;
+      }
+
+      const xmlContent = xliffEditor.getValue();
+      if (!xmlContent || xmlContent.includes('// Upload an XLIFF')) {
+        alert('Please upload a valid XLIFF file first.');
+        return;
+      }
+
+      const parser = new DOMParser();
+      const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
+      if (xmlDoc.getElementsByTagName('parsererror').length) {
+        alert('Invalid XLIFF file format.');
+        return;
+      }
+
+      const transUnits = xmlDoc.getElementsByTagName('trans-unit');
+      csvData = [];
+
+      for (let transUnit of transUnits) {
+        const id = transUnit.getAttribute('id') || '';
+        const maxwidth = transUnit.getAttribute('maxwidth') || '';
+        const sizeUnit = transUnit.getAttribute('size-unit') || '';
+        const source = transUnit.getElementsByTagName('source')[0]?.textContent || '';
+        const target = transUnit.getElementsByTagName('target')[0]?.textContent || '';
+        csvData.push({ id, maxwidth, sizeUnit, source, target });
+      }
+
+      if (csvData.length === 0) {
+        alert('No trans-unit elements found in the XLIFF file.');
+        return;
+      }
+
+      // Initialize CSV DataTable
+      $('#csv-table').DataTable().destroy();
+      $('#csv-table').DataTable({
+        data: csvData,
+        columns: [
+          { data: 'id' },
+          { data: 'maxwidth' },
+          { data: 'sizeUnit' },
+          { data: 'source' },
+          { data: 'target' }
+        ],
+        dom: 'Bfrtip',
+        buttons: [
+          {
+            extend: 'csv',
+            text: 'Save to CSV',
+            filename: 'xliff_data'
+          }
+        ],
+        pageLength: 10,
+        lengthMenu: [10, 25, 50, 100],
+        searching: true,
+        ordering: true
+      });
+    });
+
+    // Run SQL Query
+    document.getElementById('run-query-btn').addEventListener('click', function() {
+      if (!sqlEditor) {
+        alert('SQL editor not initialized. Please try again.');
+        return;
+      }
+
+      const query = sqlEditor.getValue().toLowerCase();
+      let filteredData = [...csvData];
+
+      // Basic SQL-like filtering (supports SELECT ... WHERE ... LIKE)
+      if (query.includes('where')) {
+        const whereClause = query.split('where')[1]?.trim();
+        if (!whereClause) {
+          alert('Invalid WHERE clause in query.');
+          return;
+        }
+
+        const [field, condition] = whereClause.split('like');
+        const fieldName = field?.trim();
+        if (!fieldName || !['id', 'maxwidth', 'size-unit', 'source', 'target'].includes(fieldName)) {
+          alert('Invalid field in query. Use: id, maxwidth, size-unit, source, target.');
+          return;
+        }
+
+        const pattern = condition?.replace(/['%]/g, '').trim();
+        if (!pattern) {
+          alert('Invalid LIKE pattern in query.');
+          return;
+        }
+
+        filteredData = csvData.filter(row => {
+          const value = row[fieldName]?.toLowerCase() || '';
+          return value.includes(pattern.toLowerCase());
+        });
+      }
+
+      // Initialize Query Results DataTable
+      $('#query-results-table').DataTable().destroy();
+      $('#query-results-table').DataTable({
+        data: filteredData,
+        columns: [
+          { data: 'id' },
+          { data: 'maxwidth' },
+          { data: 'sizeUnit' },
+          { data: 'source' },
+          { data: 'target' }
+        ],
+        dom: 'Bfrtip',
+        buttons: [
+          {
+            extend: 'csv',
+            text: 'Save to CSV',
+            filename: 'query_results'
+          }
+        ],
+        pageLength: 10,
+        lengthMenu: [10, 25, 50, 100],
+        searching: true,
+        ordering: true
+      });
+
+      // Save query to localStorage
+      let savedQueries = JSON.parse(localStorage.getItem('savedQueries') || '[]');
+      if (!savedQueries.includes(query)) {
+        savedQueries.push(query);
+        localStorage.setItem('savedQueries', JSON.stringify(savedQueries));
+        updateSavedQueries();
+      }
+    });
+
+    // Update Saved Queries List
+    function updateSavedQueries() {
+      const savedQueries = JSON.parse(localStorage.getItem('savedQueries') || '[]');
+      const ul = document.getElementById('saved-queries');
+      ul.innerHTML = '';
+      savedQueries.forEach((query, index) => {
+        const li = document.createElement('li');
+        li.textContent = query;
+        li.addEventListener('click', () => {
+          sqlEditor.setValue(query);
+          document.getElementById('run-query-btn').click();
+        });
+        const deleteBtn = document.createElement('span');
+        deleteBtn.textContent = '[X]';
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          savedQueries.splice(index, 1);
+          localStorage.setItem('savedQueries', JSON.stringify(savedQueries));
+          updateSavedQueries();
+        });
+        li.appendChild(deleteBtn);
+        ul.appendChild(li);
+      });
+    }
+
+    // Initialize Saved Queries
+    updateSavedQueries();
+  </script>
+</body>
+</html>
