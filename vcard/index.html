@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visiting Card Scanner</title>
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css" rel="stylesheet">
+    <link href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css" rel="stylesheet">
+    <!-- Prism.js CSS for syntax highlighting -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet">
+    <!-- jsQR for QR code scanning -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body class="bg-gray-100 flex flex-col min-h-screen">
+    <!-- Sticky Navbar -->
+    <nav class="bg-blue-600 text-white p-4 sticky top-0 z-10 shadow-md">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-  text-2xl font-bold">Visiting Card Scanner</h1>
+            <ul class="flex space-x-6">
+                <li><a href="#" class="hover:underline">Home</a></li>
+                <li><a href="#" class="hover:underline">About</a></li>
+                <li><a href="#" id="help-link" class="hover:underline">Help</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container mx-auto p-6 flex-grow">
+        <!-- Camera Section -->
+        <section class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <h2 class="text-xl font-semibold mb-4">Scan Visiting Card or QR Code</h2>
+            <!-- Model Selection -->
+            <div class="mb-4">
+                <label for="model-select" class="block text-gray-700 font-medium mb-2">Select Ollama Model:</label>
+                <select id="model-select" class="w-full max-w-xs p-2 border rounded">
+                    <option value="" disabled selected>Loading models...</option>
+                </select>
+            </div>
+            <video id="video" class="w-full max-w-md mx-auto mb-4" autoplay></video>
+            <canvas id="canvas" class="hidden"></canvas>
+            <div class="flex space-x-4 mb-4">
+                <button id="capture-btn" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Capture Image</button>
+                <label for="upload-image" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 cursor-pointer">Upload Image (QRC or Visting Card)</label>
+                <input type="file" id="upload-image" accept="image/*" class="hidden">
+            </div>
+            <div class="flex flex-col md:flex-row md:space-x-4 mt-4">
+                <div id="scanned-image" class="flex-1"></div>
+                <div id="json-payload" class="flex-1">
+                    <h3 class="text-lg font-medium mb-2">Extracted JSON Payload</h3>
+                    <div class="relative">
+                        <button id="copy-btn" class="absolute top-2 right-2 bg-gray-200 text-gray-800 px-3 py-1 rounded hover:bg-gray-300 hidden">Copy</button>
+                        <pre><code id="json-code" class="language-json"></code></pre>
+                    </div>
+                </div>
+            </div>
+            <div id="status" class="mt-4 flex items-center">
+                <div id="spinner" class="hidden animate-spin h-5 w-5 border-4 border-blue-500 border-t-transparent rounded-full mr-2"></div>
+                <span id="status-text"></span>
+            </div>
+        </section>
+
+        <!-- Addresses Table Section -->
+        <section class="bg-white p-6 rounded-lg shadow-md">
+            <h2 class="text-xl font-semibold mb-4">Scanned Addresses</h2>
+            <table id="address-table" class="display w-full">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Address</th>
+                        <th>City</th>
+                        <th>State</th>
+                        <th>Zip</th>
+                        <th>Country</th>
+                        <th>Phone</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </section>
+    </main>
+
+    <!-- Edit Modal -->
+    <div id="edit-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h3 class="text-lg font-semibold mb-4">Edit Address</h3>
+            <form id="edit-form">
+                <div class="mb-4">
+                    <label for="edit-name" class="block text-gray-700 font-medium mb-1">Name</label>
+                    <input id="edit-name" name="name" class="w-full p-2 border rounded" required>
+                </div>
+                <div class="mb-4">
+                    <label for="edit-address" class="block text-gray-700 font-medium mb-1">Address</label>
+                    <input id="edit-address" name="address" class="w-full p-2 border rounded" required>
+                </div>
+                <div class="mb-4">
+                    <label for="edit-city" class="block text-gray-700 font-medium mb-1">City</label>
+                    <input id="edit-city" name="city" class="w-full p-2 border rounded">
+                </div>
+                <div class="mb-4">
+                    <label for="edit-state" class="block text-gray-700 font-medium mb-1">State</label>
+                    <input id="edit-state" name="state" class="w-full p-2 border rounded">
+                </div>
+                <div class="mb-4">
+                    <label for="edit-zip" class="block text-gray-700 font-medium mb-1">Zip</label>
+                    <input id="edit-zip" name="zip" class="w-full p-2 border rounded">
+                </div>
+                <div class="mb-4">
+                    <label for="edit-country" class="block text-gray-700 font-medium mb-1">Country</label>
+                    <input id="edit-country" name="country" class="w-full p-2 border rounded">
+                </div>
+                <div class="mb-4">
+                    <label for="edit-phone" class="block text-gray-700 font-medium mb-1">Phone</label>
+                    <input id="edit-phone" name="phone" class="w-full p-2 border rounded">
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button type="button" id="cancel-edit-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400">Cancel</button>
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="help-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+            <h3 class="text-lg font-semibold mb-4">Help: Running Ollama Models</h3>
+            <div class="prose">
+                <h4>1. Install Ollama</h4>
+                <p>Download and install Ollama from the official website: <a href="https://ollama.com" target="_blank" class="text-blue-600 hover:underline">https://ollama.com</a>. Follow the instructions for your operating system (Windows, macOS, or Linux).</p>
+
+                <h4>2. Pull Vision-Capable Models</h4>
+                <p>This app requires vision-capable models to process images. Open your terminal and run the following commands to pull recommended models:</p>
+                <pre><code class="language-bash">ollama pull gemma3:latest </code></pre>
+
+                <h4>3. Start the Ollama Server</h4>
+                <p>Run the Ollama server on your local machine so the app can communicate with it. In your terminal, execute:</p>
+                <pre><code class="language-bash">ollama serve</code></pre>
+                <p>Ensure the server is running on <code>http://localhost:11434</code> (the default port).</p>
+
+                <h4>4. Select a Model in the App</h4>
+                <p>Once the server is running, the app will automatically fetch the list of available models. Select a vision-capable model (e.g., <code>llava</code> or <code>bakllava</code>) from the dropdown menu before scanning a visiting card.</p>
+
+                <h4>5. Troubleshooting</h4>
+                <ul>
+                    <li><strong>Model not found:</strong> Ensure you have pulled the model using <code>ollama pull <model-name></code>.</li>
+                    <li><strong>Server not running:</strong> Verify that <code>ollama serve</code> is active and the server is accessible at <code>http://localhost:11434</code>.</li>
+                    <li><strong>Poor extraction:</strong> Try a different model or ensure the visiting card image is clear and well-lit.</li>
+                </ul>
+            </div>
+            <div class="flex justify-end mt-4">
+                <button id="close-help-btn" class="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-blue-600 text-white p-4 mt-auto">
+        <div class="container mx-auto text-center">
+            <p>MC -  Visiting Card Scanner</p>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Prism.js for syntax highlighting -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <!-- Prism.js for bash syntax highlighting in help section -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
