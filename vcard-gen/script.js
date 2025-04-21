@@ -31,6 +31,9 @@ document.addEventListener('DOMContentLoaded', () => {
         correctLevel: QRCode.CorrectLevel.H
     });
 
+    // Store the last saved card
+    let lastSavedCard = null;
+
     // Initialize DataTable
     let table = $('#card-table').DataTable({
         pageLength: 5,
@@ -86,6 +89,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         localStorage.setItem('visitingCards', JSON.stringify(cards));
         loadCardsFromStorage();
+        // Update the last saved card
+        lastSavedCard = { ...card };
     }
 
     // Delete card from localStorage
@@ -95,41 +100,59 @@ document.addEventListener('DOMContentLoaded', () => {
         cards = cards.filter(card => card.id !== id);
         localStorage.setItem('visitingCards', JSON.stringify(cards));
         loadCardsFromStorage();
+        // If the deleted card is the last saved card, clear the preview
+        if (lastSavedCard && lastSavedCard.id === id) {
+            lastSavedCard = null;
+            updatePreviewAndQRCode();
+        }
     }
 
     // Update visiting card and QR code dynamically
     function updatePreviewAndQRCode() {
-        const name = nameInput.value.trim();
-        const title = titleInput.value.trim();
-        const company = companyInput.value.trim();
-        const phone = phoneInput.value.trim();
-        const email = emailInput.value.trim();
-        const address = addressInput.value.trim();
+        // Use form inputs if the modal is open, otherwise use lastSavedCard
+        const isModalOpen = cardModal.classList.contains('show');
+        const data = isModalOpen
+            ? {
+                  name: nameInput.value.trim(),
+                  title: titleInput.value.trim(),
+                  company: companyInput.value.trim(),
+                  phone: phoneInput.value.trim(),
+                  email: emailInput.value.trim(),
+                  address: addressInput.value.trim()
+              }
+            : lastSavedCard || {
+                  name: '',
+                  title: '',
+                  company: '',
+                  phone: '',
+                  email: '',
+                  address: ''
+              };
 
         // Update visiting card preview
-        cardName.textContent = name || 'John Doe';
-        cardTitle.textContent = title || 'Software Engineer';
-        cardCompany.textContent = company || 'Tech Corp';
-        cardPhone.textContent = `Phone: ${phone || '+1 234 567 890'}`;
-        cardEmail.textContent = email ? `Email: ${email}` : 'Email: john.doe@techcorp.com';
-        cardAddress.textContent = address ? `Address: ${address}` : 'Address: 123 Main St, Springfield, IL';
+        cardName.textContent = data.name || 'John Doe';
+        cardTitle.textContent = data.title || 'Software Engineer';
+        cardCompany.textContent = data.company || 'Tech Corp';
+        cardPhone.textContent = `Phone: ${data.phone || '+1 234 567 890'}`;
+        cardEmail.textContent = data.email ? `Email: ${data.email}` : 'Email: john.doe@techcorp.com';
+        cardAddress.textContent = data.address ? `Address: ${data.address}` : 'Address: 123 Main St, Springfield, IL';
 
         // Hide empty fields
-        cardTitle.style.display = title ? 'block' : 'none';
-        cardCompany.style.display = company ? 'block' : 'none';
-        cardEmail.style.display = email ? 'block' : 'none';
-        cardAddress.style.display = address ? 'block' : 'none';
+        cardTitle.style.display = data.title ? 'block' : 'none';
+        cardCompany.style.display = data.company ? 'block' : 'none';
+        cardEmail.style.display = data.email ? 'block' : 'none';
+        cardAddress.style.display = data.address ? 'block' : 'none';
 
         // Generate vCard string for QR code
         const vCard = [
             'BEGIN:VCARD',
             'VERSION:3.0',
-            `FN:${name}`,
-            title ? `TITLE:${title}` : '',
-            company ? `ORG:${company}` : '',
-            `TEL;TYPE=WORK:${phone}`,
-            email ? `EMAIL:${email}` : '',
-            address ? `ADR;TYPE=WORK:;;${address}` : '',
+            `FN:${data.name}`,
+            data.title ? `TITLE:${data.title}` : '',
+            data.company ? `ORG:${data.company}` : '',
+            `TEL;TYPE=WORK:${data.phone}`,
+            data.email ? `EMAIL:${data.email}` : '',
+            data.address ? `ADR;TYPE=WORK:;;${data.address}` : '',
             'END:VCARD'
         ].filter(line => line).join('\n');
 
@@ -288,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
             link.href = qrCanvas.toDataURL('image/png');
             link.click();
         } else {
-            alert('Please generate a QR code first by entering details in the form.');
+            alert('Please generate a QR code first by saving a card.');
         }
     });
 
