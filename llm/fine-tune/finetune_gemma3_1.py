@@ -13,8 +13,8 @@ from google.colab import userdata
 # Note: `userdata.get` is a Colab API. If you're not using Colab, set the env
 # vars as appropriate for your system.
 
-os.environ["KAGGLE_USERNAME"] = 'mohanchinnappan'
-os.environ["KAGGLE_KEY"]  ='b47ea74619d39bf9f894368bd8d0330e'
+os.environ["KAGGLE_USERNAME"] = 'your_username'
+os.environ["KAGGLE_KEY"]  ='your_key'
 
 !pip install -q -U keras-hub
 !pip install  -q -U keras
