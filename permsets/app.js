@@ -1,6 +1,6 @@
 // app.js
 // Import JSZip for ZIP file creation
-// autorhor: mohan chinnappan
+// mohan chinnappan
 
 // -- This script processes XML files, modifies them based on user input,
 //  and allows downloading the modified files as a ZIP archive.
