@@ -56,6 +56,8 @@ let table = $('#permissionsTable').DataTable({
 // Store parsed data for CSV export
 let parsedData = [];
 let uploadedFileName = ''; // Store uploaded file name
+let uploadedFiles = []; // Store uploaded files
+
 
 
 // Initialize Split.js
@@ -82,18 +84,55 @@ window.addEventListener('resize', function () {
 
 // Handle File Upload
 document.getElementById('xmlFileInput').addEventListener('change', function (event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  uploadedFileName = file.name; // Save file name
+  uploadedFiles = Array.from(event.target.files); // Store all uploaded files
+  if (!uploadedFiles.length) return;
 
+  // Populate file selector dropdown
+  const fileSelector = document.getElementById('fileSelector');
+  fileSelector.innerHTML = '<option value="">Select a file</option>';
+  uploadedFiles.forEach(file => {
+    const option = document.createElement('option');
+    option.value = file.name;
+    option.textContent = file.name;
+    fileSelector.appendChild(option);
+  });
 
-  const reader = new FileReader();
-  reader.onload = function (e) {
-    const xmlText = e.target.result;
-    editor.setValue(xmlText);
-    parseXmlAndUpdateTable(xmlText);
-  };
-  reader.readAsText(file);
+  // Automatically select the first file
+  if (uploadedFiles.length > 0) {
+    fileSelector.value = uploadedFiles[0].name;
+    uploadedFileName = uploadedFiles[0].name;
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const xmlText = e.target.result;
+      editor.setValue(xmlText);
+      parseXmlAndUpdateTable(xmlText);
+    };
+    reader.readAsText(uploadedFiles[0]);
+  }
+});
+
+// Handle File Selection
+document.getElementById('fileSelector').addEventListener('change', function () {
+  const selectedFileName = this.value;
+  if (!selectedFileName) {
+    editor.setValue('// Select a file to view its contents');
+    table.clear().draw();
+    parsedData = [];
+    uploadedFileName = '';
+    return;
+  }
+
+  const selectedFile = uploadedFiles.find(file => file.name === selectedFileName);
+  if (selectedFile) {
+    uploadedFileName = selectedFile.name; // Update for XML download
+    const reader = new FileReader();
+    reader.onload = function (e) {
+      const xmlText = e.target.result;
+      editor.setValue(xmlText);
+      parseXmlAndUpdateTable(xmlText);
+    };
+    reader.readAsText(selectedFile);
+  }
 });
 
 // Define tag-to-attribute mapping
