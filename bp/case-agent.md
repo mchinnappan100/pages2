@@ -1,0 +1,5 @@
+- write a MCP (Model Context Protocol) server for getting cases in Salesforce in python
+    - get the cases which have unresloved status
+    - write a email to the customer about we are working this case to solve this as soon as possible
+- use "sf force org display -u username --json" to get accessToken, instanceUrl and apiVersion
+- also write a MCP client to test this MCP Server
