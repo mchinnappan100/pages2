@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCNotes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'sf': ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'Segoe UI', 'Roboto', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 font-sf text-gray-900 h-screen flex flex-col">
+    <!-- Sticky Navbar -->
+    <nav class="sticky top-0 z-50 bg-white border-b border-gray-200 px-6 py-4 shadow-sm">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <h1 class="text-2xl font-semibold text-gray-900">MCNotes</h1>
+                <span class="text-sm text-gray-500" id="noteCount">0 notes</span>
+            </div>
+            <div class="flex items-center space-x-3">
+                <button onclick="insertDateTime()" class="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 transition-colors text-sm font-medium" title="Insert Date/Time">
+                    📅 Date/Time
+                </button>
+                <input type="file" id="uploadInput" accept=".json" class="hidden">
+                <button onclick="uploadNotes()" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium">
+                    Upload
+                </button>
+                <button onclick="downloadNotes()" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-medium">
+                    Download
+                </button>
+                <button onclick="createNewNote()" class="px-4 py-2 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors text-sm font-medium">
+                    + New Note
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex overflow-hidden">
+        <!-- Sidebar -->
+        <div class="w-80 bg-white border-r border-gray-200 flex flex-col">
+            <!-- Search -->
+            <div class="p-4 border-b border-gray-100">
+                <input type="text" id="searchInput" placeholder="Search notes..." 
+                       class="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                       oninput="filterNotes()">
+            </div>
+            
+            <!-- Notes List -->
+            <div class="flex-1 overflow-y-auto">
+                <div id="notesList" class="p-2">
+                    <div class="text-center py-8 text-gray-500">
+                        <div class="text-4xl mb-2">📝</div>
+                        <p>No notes yet</p>
+                        <p class="text-sm">Click "New Note" to get started</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Note Editor -->
+        <div class="flex-1 flex flex-col bg-white">
+            <div id="noteEditor" class="flex-1 p-6 flex flex-col">
+                <div class="text-center py-16 text-gray-500">
+                    <div class="text-6xl mb-4">📄</div>
+                    <h2 class="text-xl font-medium mb-2">Select a note to edit</h2>
+                    <p class="text-gray-400">Choose a note from the sidebar or create a new one</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sticky Footer -->
+    <footer class="sticky bottom-0 bg-white border-t border-gray-200 px-6 py-3">
+        <div class="flex items-center justify-between text-sm text-gray-500">
+            <div>
+                <span id="lastModified">Ready</span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <span id="wordCount">0 words</span>
+                <span id="charCount">0 characters</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // LocalStorage key for MCNotes
+        const STORAGE_KEY = 'mcnotes_data';
+        const COUNTER_KEY = 'mcnotes_counter';
+        
+        // Load data from localStorage
+        let notesData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        let currentNoteId = null;
+        let noteIdCounter = parseInt(localStorage.getItem(COUNTER_KEY) || '1');
+
+        // Save data to localStorage
+        function saveToStorage() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(notesData));
+            localStorage.setItem(COUNTER_KEY, noteIdCounter.toString());
+        }
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            renderNotesList();
+            updateNoteCount();
+        });
+
+        function createNewNote() {
+            const newNote = {
+                id: noteIdCounter++,
+                title: 'Untitled Note',
+                content: '',
+                createdAt: new Date().toISOString(),
+                modifiedAt: new Date().toISOString()
+            };
+            
+            notesData.unshift(newNote);
+            saveToStorage();
+            renderNotesList();
+            selectNote(newNote.id);
+            updateNoteCount();
+            
+            // Focus on title input
+            setTimeout(() => {
+                const titleInput = document.getElementById('noteTitle');
+                if (titleInput) {
+                    titleInput.focus();
+                    titleInput.select();
+                }
+            }, 100);
+        }
+
+        function selectNote(noteId) {
+            currentNoteId = noteId;
+            const note = notesData.find(n => n.id === noteId);
+            if (!note) return;
+
+            const editor = document.getElementById('noteEditor');
+            editor.innerHTML = `
+                <div class="flex-1 flex flex-col">
+                    <input type="text" id="noteTitle" value="${note.title}" 
+                           class="text-2xl font-semibold border-none outline-none bg-transparent mb-4 text-gray-900"
+                           placeholder="Note title..."
+                           oninput="updateNoteTitle()">
+                    
+                    <!-- Formatting Toolbar -->
+                    <div class="flex items-center space-x-2 mb-3 pb-3 border-b border-gray-100">
+                        <button onclick="insertBulletList()" 
+                                class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded transition-colors flex items-center space-x-1"
+                                title="Insert Bullet List (Ctrl/Cmd+Shift+8)">
+                            <span>•</span>
+                            <span>List</span>
+                        </button>
+                        <button onclick="insertNumberedList()" 
+                                class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded transition-colors flex items-center space-x-1"
+                                title="Insert Numbered List (Ctrl/Cmd+Shift+7)">
+                            <span>1.</span>
+                            <span>List</span>
+                        </button>
+                        <div class="w-px h-4 bg-gray-300"></div>
+                        <button onclick="insertDateTime()" 
+                                class="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded transition-colors flex items-center space-x-1"
+                                title="Insert Date/Time (Ctrl/Cmd+D)">
+                            <span>📅</span>
+                            <span>Date</span>
+                        </button>
+                    </div>
+                    
+                    <textarea id="noteContent" 
+                              class="flex-1 resize-none border-none outline-none bg-transparent text-gray-700 leading-relaxed font-mono"
+                              placeholder="Start writing your note..."
+                              oninput="updateNoteContent()"
+                              onkeydown="handleTextareaKeydown(event)">${note.content}</textarea>
+                </div>
+            `;
+
+            updateWordCount();
+            updateLastModified();
+            highlightSelectedNote(noteId);
+        }
+
+        function updateNoteTitle() {
+            if (!currentNoteId) return;
+            
+            const titleInput = document.getElementById('noteTitle');
+            const note = notesData.find(n => n.id === currentNoteId);
+            
+            if (note && titleInput) {
+                note.title = titleInput.value || 'Untitled Note';
+                note.modifiedAt = new Date().toISOString();
+                saveToStorage();
+                renderNotesList();
+                updateLastModified();
+                highlightSelectedNote(currentNoteId);
+            }
+        }
+
+        function updateNoteContent() {
+            if (!currentNoteId) return;
+            
+            const contentTextarea = document.getElementById('noteContent');
+            const note = notesData.find(n => n.id === currentNoteId);
+            
+            if (note && contentTextarea) {
+                note.content = contentTextarea.value;
+                note.modifiedAt = new Date().toISOString();
+                saveToStorage();
+                renderNotesList();
+                updateWordCount();
+                updateLastModified();
+                highlightSelectedNote(currentNoteId);
+            }
+        }
+
+        function deleteNote(noteId) {
+            if (confirm('Are you sure you want to delete this note?')) {
+                notesData = notesData.filter(n => n.id !== noteId);
+                saveToStorage();
+                
+                if (currentNoteId === noteId) {
+                    currentNoteId = null;
+                    showEmptyState();
+                }
+                
+                renderNotesList();
+                updateNoteCount();
+            }
+        }
+
+        function showEmptyState() {
+            const editor = document.getElementById('noteEditor');
+            editor.innerHTML = `
+                <div class="text-center py-16 text-gray-500">
+                    <div class="text-6xl mb-4">📄</div>
+                    <h2 class="text-xl font-medium mb-2">Select a note to edit</h2>
+                    <p class="text-gray-400">Choose a note from the sidebar or create a new one</p>
+                </div>
+            `;
+            updateWordCount();
+        }
+
+        function renderNotesList() {
+            const notesList = document.getElementById('notesList');
+            
+            if (notesData.length === 0) {
+                notesList.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <div class="text-4xl mb-2">📝</div>
+                        <p>No notes yet</p>
+                        <p class="text-sm">Click "New Note" to get started</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const filteredNotes = notesData.filter(note => 
+                note.title.toLowerCase().includes(searchTerm) || 
+                note.content.toLowerCase().includes(searchTerm)
+            );
+
+            notesList.innerHTML = filteredNotes.map(note => `
+                <div class="note-item p-3 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors border-l-4 border-transparent ${currentNoteId === note.id ? 'bg-blue-50 border-l-blue-500' : ''}"
+                     onclick="selectNote(${note.id})">
+                    <div class="flex items-start justify-between">
+                        <div class="flex-1 min-w-0">
+                            <h3 class="font-medium text-gray-900 truncate">${note.title}</h3>
+                            <p class="text-sm text-gray-500 mt-1 line-clamp-2">${note.content.substring(0, 100)}${note.content.length > 100 ? '...' : ''}</p>
+                            <p class="text-xs text-gray-400 mt-2">${formatDate(note.modifiedAt)}</p>
+                        </div>
+                        <button onclick="event.stopPropagation(); deleteNote(${note.id})" 
+                                class="ml-2 text-gray-400 hover:text-red-500 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function highlightSelectedNote(noteId) {
+            document.querySelectorAll('.note-item').forEach(item => {
+                item.classList.remove('bg-blue-50', 'border-l-blue-500');
+                item.classList.add('border-l-transparent');
+            });
+            
+            const selectedItem = document.querySelector(`[onclick="selectNote(${noteId})"]`);
+            if (selectedItem) {
+                selectedItem.classList.add('bg-blue-50', 'border-l-blue-500');
+                selectedItem.classList.remove('border-l-transparent');
+            }
+        }
+
+        function filterNotes() {
+            renderNotesList();
+        }
+
+        function updateNoteCount() {
+            document.getElementById('noteCount').textContent = `${notesData.length} notes`;
+        }
+
+        function updateWordCount() {
+            const contentTextarea = document.getElementById('noteContent');
+            const wordCountEl = document.getElementById('wordCount');
+            const charCountEl = document.getElementById('charCount');
+            
+            if (contentTextarea) {
+                const content = contentTextarea.value;
+                const words = content.trim() ? content.trim().split(/\s+/).length : 0;
+                const chars = content.length;
+                
+                wordCountEl.textContent = `${words} words`;
+                charCountEl.textContent = `${chars} characters`;
+            } else {
+                wordCountEl.textContent = '0 words';
+                charCountEl.textContent = '0 characters';
+            }
+        }
+
+        function updateLastModified() {
+            const lastModifiedEl = document.getElementById('lastModified');
+            if (currentNoteId) {
+                const note = notesData.find(n => n.id === currentNoteId);
+                if (note) {
+                    lastModifiedEl.textContent = `Modified ${formatDate(note.modifiedAt)}`;
+                }
+            } else {
+                lastModifiedEl.textContent = 'Ready';
+            }
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffTime = Math.abs(now - date);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            
+            if (diffDays === 1) {
+                return 'Today';
+            } else if (diffDays === 2) {
+                return 'Yesterday';
+            } else if (diffDays <= 7) {
+                return `${diffDays - 1} days ago`;
+            } else {
+                return date.toLocaleDateString();
+            }
+        }
+
+        function downloadNotes() {
+            const dataStr = JSON.stringify(notesData, null, 2);
+            const dataBlob = new Blob([dataStr], {type: 'application/json'});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `notes-backup-${new Date().toISOString().split('T')[0]}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function uploadNotes() {
+            document.getElementById('uploadInput').click();
+        }
+
+        document.getElementById('uploadInput').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const uploadedNotes = JSON.parse(e.target.result);
+                    if (Array.isArray(uploadedNotes)) {
+                        // Update noteIdCounter to avoid conflicts
+                        const maxId = Math.max(0, ...uploadedNotes.map(n => n.id || 0));
+                        noteIdCounter = maxId + 1;
+                        
+                        notesData = uploadedNotes;
+                        saveToStorage();
+                        currentNoteId = null;
+                        renderNotesList();
+                        updateNoteCount();
+                        showEmptyState();
+                        alert('Notes imported successfully!');
+                    } else {
+                        alert('Invalid file format. Please upload a valid notes backup file.');
+                    }
+                } catch (error) {
+                    alert('Error reading file. Please make sure it\'s a valid JSON file.');
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        function insertBulletList() {
+            if (!currentNoteId) {
+                alert('Please select a note first to insert a list');
+                return;
+            }
+
+            const contentTextarea = document.getElementById('noteContent');
+            if (!contentTextarea) return;
+
+            const start = contentTextarea.selectionStart;
+            const end = contentTextarea.selectionEnd;
+            const currentContent = contentTextarea.value;
+            
+            // Check if we're at the beginning of a line or need a new line
+            const beforeCursor = currentContent.substring(0, start);
+            const needsNewlineBefore = beforeCursor.length > 0 && !beforeCursor.endsWith('\n');
+            
+            const listTemplate = `${needsNewlineBefore ? '\n' : ''}• \n• \n• `;
+            
+            const newContent = currentContent.substring(0, start) + listTemplate + currentContent.substring(end);
+            contentTextarea.value = newContent;
+            
+            // Position cursor after the first bullet point
+            const newCursorPos = start + (needsNewlineBefore ? 3 : 2);
+            contentTextarea.setSelectionRange(newCursorPos, newCursorPos);
+            contentTextarea.focus();
+            
+            updateNoteContent();
+        }
+
+        function insertNumberedList() {
+            if (!currentNoteId) {
+                alert('Please select a note first to insert a list');
+                return;
+            }
+
+            const contentTextarea = document.getElementById('noteContent');
+            if (!contentTextarea) return;
+
+            const start = contentTextarea.selectionStart;
+            const end = contentTextarea.selectionEnd;
+            const currentContent = contentTextarea.value;
+            
+            // Check if we're at the beginning of a line or need a new line
+            const beforeCursor = currentContent.substring(0, start);
+            const needsNewlineBefore = beforeCursor.length > 0 && !beforeCursor.endsWith('\n');
+            
+            const listTemplate = `${needsNewlineBefore ? '\n' : ''}1. \n2. \n3. `;
+            
+            const newContent = currentContent.substring(0, start) + listTemplate + currentContent.substring(end);
+            contentTextarea.value = newContent;
+            
+            // Position cursor after the first number
+            const newCursorPos = start + (needsNewlineBefore ? 4 : 3);
+            contentTextarea.setSelectionRange(newCursorPos, newCursorPos);
+            contentTextarea.focus();
+            
+            updateNoteContent();
+        }
+
+        function handleTextareaKeydown(event) {
+            const textarea = event.target;
+            const start = textarea.selectionStart;
+            const content = textarea.value;
+            
+            if (event.key === 'Enter') {
+                // Get the current line
+                const beforeCursor = content.substring(0, start);
+                const currentLineStart = beforeCursor.lastIndexOf('\n') + 1;
+                const currentLine = content.substring(currentLineStart, start);
+                
+                // Check for bullet list continuation
+                const bulletMatch = currentLine.match(/^(\s*)(•|\*|-)\s/);
+                if (bulletMatch) {
+                    event.preventDefault();
+                    const indent = bulletMatch[1];
+                    const bullet = bulletMatch[2] === '•' ? '•' : bulletMatch[2];
+                    
+                    // If the line only contains the bullet (empty item), remove it and outdent
+                    if (currentLine.trim() === bullet) {
+                        const lineStart = beforeCursor.lastIndexOf('\n') + 1;
+                        textarea.value = content.substring(0, lineStart) + content.substring(start);
+                        textarea.setSelectionRange(lineStart, lineStart);
+                    } else {
+                        // Continue the list
+                        const newBullet = `\n${indent}${bullet} `;
+                        textarea.value = content.substring(0, start) + newBullet + content.substring(start);
+                        textarea.setSelectionRange(start + newBullet.length, start + newBullet.length);
+                    }
+                    updateNoteContent();
+                    return;
+                }
+                
+                // Check for numbered list continuation
+                const numberMatch = currentLine.match(/^(\s*)(\d+)\.\s/);
+                if (numberMatch) {
+                    event.preventDefault();
+                    const indent = numberMatch[1];
+                    const currentNumber = parseInt(numberMatch[2]);
+                    
+                    // If the line only contains the number (empty item), remove it and outdent
+                    if (currentLine.trim() === `${currentNumber}.`) {
+                        const lineStart = beforeCursor.lastIndexOf('\n') + 1;
+                        textarea.value = content.substring(0, lineStart) + content.substring(start);
+                        textarea.setSelectionRange(lineStart, lineStart);
+                    } else {
+                        // Continue the list with next number
+                        const nextNumber = currentNumber + 1;
+                        const newNumber = `\n${indent}${nextNumber}. `;
+                        textarea.value = content.substring(0, start) + newNumber + content.substring(start);
+                        textarea.setSelectionRange(start + newNumber.length, start + newNumber.length);
+                    }
+                    updateNoteContent();
+                    return;
+                }
+            }
+            
+            // Handle Tab for indenting list items
+            if (event.key === 'Tab') {
+                const beforeCursor = content.substring(0, start);
+                const currentLineStart = beforeCursor.lastIndexOf('\n') + 1;
+                const currentLine = content.substring(currentLineStart, start + (content.substring(start).indexOf('\n') > -1 ? content.substring(start).indexOf('\n') : content.length - start));
+                
+                if (currentLine.match(/^\s*(•|\*|-|\d+\.)\s/) || currentLine.match(/^\s*$/)) {
+                    event.preventDefault();
+                    const indent = event.shiftKey ? '' : '  '; // 2 spaces for indent
+                    
+                    if (event.shiftKey) {
+                        // Shift+Tab: Remove indentation
+                        const newLine = currentLine.replace(/^  /, '');
+                        const lineEnd = currentLineStart + currentLine.length;
+                        textarea.value = content.substring(0, currentLineStart) + newLine + content.substring(lineEnd);
+                        textarea.setSelectionRange(start - Math.min(2, currentLine.length - newLine.length), start - Math.min(2, currentLine.length - newLine.length));
+                    } else {
+                        // Tab: Add indentation
+                        textarea.value = content.substring(0, currentLineStart) + indent + currentLine + content.substring(currentLineStart + currentLine.length);
+                        textarea.setSelectionRange(start + indent.length, start + indent.length);
+                    }
+                    updateNoteContent();
+                }
+            }
+        }
+
+        function insertDateTime() {
+            if (!currentNoteId) {
+                alert('Please select a note first to insert date/time');
+                return;
+            }
+
+            const contentTextarea = document.getElementById('noteContent');
+            if (!contentTextarea) return;
+
+            const now = new Date();
+            const dateTimeOptions = [
+                { label: 'Full Date & Time', value: now.toLocaleString() },
+                { label: 'Date Only', value: now.toLocaleDateString() },
+                { label: 'Time Only', value: now.toLocaleTimeString() },
+                { label: 'ISO Format', value: now.toISOString() },
+                { label: 'Custom Format', value: now.toLocaleDateString('en-US', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                })}
+            ];
+
+            // Create a simple selection dialog
+            let selection = '';
+            const options = dateTimeOptions.map((opt, index) => `${index + 1}. ${opt.label}: ${opt.value}`).join('\n');
+            const choice = prompt(`Choose date/time format:\n\n${options}\n\nEnter number (1-${dateTimeOptions.length}):`);
+            
+            if (choice && choice >= 1 && choice <= dateTimeOptions.length) {
+                selection = dateTimeOptions[choice - 1].value;
+            } else if (choice) {
+                alert('Invalid selection');
+                return;
+            } else {
+                return; // User canceled
+            }
+
+            // Insert at cursor position
+            const start = contentTextarea.selectionStart;
+            const end = contentTextarea.selectionEnd;
+            const currentContent = contentTextarea.value;
+            
+            const newContent = currentContent.substring(0, start) + selection + currentContent.substring(end);
+            contentTextarea.value = newContent;
+            
+            // Set cursor position after inserted text
+            const newCursorPos = start + selection.length;
+            contentTextarea.setSelectionRange(newCursorPos, newCursorPos);
+            contentTextarea.focus();
+            
+            // Update the note
+            updateNoteContent();
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.metaKey || e.ctrlKey) {
+                if (e.key === 'n') {
+                    e.preventDefault();
+                    createNewNote();
+                } else if (e.key === 's') {
+                    e.preventDefault();
+                    downloadNotes();
+                } else if (e.key === 'd') {
+                    e.preventDefault();
+                    insertDateTime();
+                }
+            }
+            
+            // List shortcuts
+            if ((e.metaKey || e.ctrlKey) && e.shiftKey) {
+                if (e.key === '*' || e.code === 'Digit8') {
+                    e.preventDefault();
+                    insertBulletList();
+                } else if (e.key === '&' || e.code === 'Digit7') {
+                    e.preventDefault();
+                    insertNumberedList();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

@@ -91,8 +91,8 @@
     <div class="container">
         <h1>📄 Dynamic Table Viewer</h1>
         <div class="upload-section">
-            <label for="fileInput">Upload CSV or JSON:</label>
-            <input type="file" id="fileInput" accept=".csv,.json">
+            <label for="fileInput">Upload CSV, JSON, or JSONL:</label>
+            <input type="file" id="fileInput" accept=".csv,.json,.jsonl">
         </div>
         <div class="download-section" id="downloadSection" style="display:none;">
             <button id="downloadCSV">Download CSV</button>
@@ -122,6 +122,7 @@
             if (dataTable) {
                 dataTable.destroy();
                 $('#docTable thead tr').empty();
+                $('#docTable tbody').empty();
             }
             // Set dynamic headers
             columns.forEach(col => {
@@ -204,6 +205,11 @@
             const file = e.target.files[0];
             if (!file) return;
             const ext = file.name.split('.').pop().toLowerCase();
+            if (dataTable) {
+                dataTable.destroy();
+                $('#docTable thead tr').empty();
+                $('#docTable tbody').empty();
+            }
             if (ext === 'csv') {
                 Papa.parse(file, {
                     header: true,
@@ -244,8 +250,26 @@
                     }
                 };
                 reader.readAsText(file);
+            } else if (ext === 'jsonl') {
+                const reader = new FileReader();
+                reader.onload = function(evt) {
+                    try {
+                        const lines = evt.target.result.split('\n').filter(l => l.trim());
+                        const jsonArr = lines.map(line => JSON.parse(line));
+                        if (!jsonArr.length) {
+                            alert("JSONL file is empty or invalid.");
+                            return;
+                        }
+                        const columns = Object.keys(jsonArr[0]);
+                        const data = jsonArr.map(row => columns.map(col => row[col]));
+                        initDataTable(columns, data);
+                    } catch (err) {
+                        alert("Invalid JSONL file.");
+                    }
+                };
+                reader.readAsText(file);
             } else {
-                alert("Please upload a CSV or JSON file.");
+                alert("Please upload a CSV, JSON, or JSONL file.");
             }
         });
     </script>
