@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Whiteboard App</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+        .app-container {
+            display: flex;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            margin: 10px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+        .left-panel {
+            width: 280px;
+            background: linear-gradient(180deg, #f8f9ff 0%, #e8ecff 100%);
+            border-radius: 20px 0 0 20px;
+            padding: 20px;
+            border-right: 2px solid #e0e7ff;
+            overflow-y: auto;
+        }
+        .panel-section {
+            margin-bottom: 25px;
+            background: white;
+            border-radius: 15px;
+            padding: 15px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .section-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #4c1d95;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .tool-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        .tool-btn {
+            padding: 12px;
+            border: 2px solid #e0e7ff;
+            background: white;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            position: relative;
+            overflow: hidden;
+        }
+        .tool-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.3);
+            border-color: #6366f1;
+        }
+        .tool-btn.active {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            border-color: #6366f1;
+            transform: scale(0.95);
+        }
+        .color-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .color-group { text-align: center; }
+        .color-label {
+            font-size: 12px;
+            color: #6b7280;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        .color-picker {
+            width: 100%;
+            height: 40px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .size-control { margin-top: 10px; }
+        .size-slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #e0e7ff;
+            outline: none;
+            cursor: pointer;
+        }
+        .size-display {
+            text-align: center;
+            margin-top: 8px;
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+        .action-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .action-btn {
+            padding: 10px;
+            border: 2px solid #e0e7ff;
+            background: white;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            color: #4c1d95;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .action-btn:hover {
+            background: #f3f4f6;
+            transform: translateY(-1px);
+        }
+        .action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            border-radius: 0 20px 20px 0;
+            overflow: hidden;
+        }
+        .canvas-header {
+            background: linear-gradient(90deg, #6366f1, #8b5cf6);
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .canvas-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .header-btn {
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .header-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+        .canvas-area {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+            background: #fafafa;
+        }
+        #canvas {
+            display: block;
+            cursor: crosshair;
+            background: white;
+            width: 100%;
+            height: 100%;
+        }
+        .file-input { display: none; }
+        .status-bar {
+            background: #f8f9fa;
+            padding: 8px 20px;
+            border-top: 1px solid #e9ecef;
+            font-size: 12px;
+            color: #6c757d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .selection-handles {
+            position: absolute;
+            pointer-events: none;
+            border: 2px dashed #6366f1;
+            background: rgba(99, 102, 241, 0.1);
+        }
+        .handle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #6366f1;
+            border: 2px solid white;
+            border-radius: 50%;
+            pointer-events: all;
+            cursor: pointer;
+        }
+        .handle { z-index: 10; }
+        .handle.tl { top: -4px; left: -4px; }
+        .handle.tr { top: -4px; right: -4px; }
+        .handle.bl { bottom: -4px; left: -4px; }
+        .handle.br { bottom: -4px; right: -4px; }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        .tool-btn.active { animation: pulse 2s infinite; }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Panel -->
+        <div class="left-panel">
+            <!-- Drawing Tools -->
+            <div class="panel-section">
+                <div class="section-title">Drawing Tools</div>
+                <div class="tool-grid">
+                    <button class="tool-btn active" data-tool="pencil" title="Pencil">✏️</button>
+                    <button class="tool-btn" data-tool="line" title="Line">📏</button>
+                    <button class="tool-btn" data-tool="rectangle" title="Rectangle">⬜</button>
+                    <button class="tool-btn" data-tool="circle" title="Circle">🔵</button>
+                    <button class="tool-btn" data-tool="arrow" title="Arrow">↗️</button>
+                    <button class="tool-btn" data-tool="text" title="Text">🔤</button>
+                    <button class="tool-btn" data-tool="eraser" title="Eraser">🧽</button>
+                    <button class="tool-btn" data-tool="select" title="Select">👆</button>
+                    <button class="tool-btn" data-tool="pan" title="Pan">✋</button>
+                </div>
+            </div>
+            <!-- Colors -->
+            <div class="panel-section">
+                <div class="section-title">Colors</div>
+                <div class="color-controls">
+                    <div class="color-group">
+                        <div class="color-label">Stroke</div>
+                        <input type="color" class="color-picker" id="strokeColor" value="#000000">
+                    </div>
+                    <div class="color-group">
+                        <div class="color-label">Fill</div>
+                        <input type="color" class="color-picker" id="fillColor" value="#ffffff">
+                    </div>
+                </div>
+            </div>
+            <!-- Brush Size -->
+            <div class="panel-section">
+                <div class="section-title">Brush Size</div>
+                <div class="size-control">
+                    <input type="range" class="size-slider" id="brushSize" min="1" max="50" value="3">
+                    <div class="size-display" id="sizeDisplay">3px</div>
+                </div>
+            </div>
+            <!-- Actions -->
+            <div class="panel-section">
+                <div class="section-title">Actions</div>
+                <div class="action-grid">
+                    <button class="action-btn" id="undoBtn">Undo</button>
+                    <button class="action-btn" id="redoBtn">Redo</button>
+                    <button class="action-btn" id="clearBtn">Clear</button>
+                    <button class="action-btn" id="deleteBtn">Delete</button>
+                    <button class="action-btn" id="exportJsonBtn">Export JSON</button>
+                    <button class="action-btn" id="importJsonBtn">Import JSON</button>
+                    <input type="file" id="importJsonFile" class="file-input" accept=".json">
+                </div>
+            </div>
+        </div>
+        <!-- Canvas Area -->
+        <div class="canvas-container">
+            <div class="canvas-header">
+                <div class="canvas-title">✨ Creative Whiteboard</div>
+                <div class="header-actions">
+                    <button class="header-btn" id="uploadBtn">📁 Upload</button>
+                    <button class="header-btn" id="downloadBtn">💾 Download</button>
+                    <button class="header-btn" id="newBtn">🆕 New</button>
+                </div>
+            </div>
+            <div class="canvas-area">
+                <canvas id="canvas"></canvas>
+                <div id="selectionBox" class="selection-handles" style="display: none;">
+                    <div class="handle tl"></div>
+                    <div class="handle tr"></div>
+                    <div class="handle bl"></div>
+                    <div class="handle br"></div>
+                </div>
+            </div>
+            <div class="status-bar">
+                <span id="statusText">Ready to draw</span>
+                <span id="coordinates">x: 0, y: 0</span>
+            </div>
+        </div>
+        <input type="file" id="fileInput" class="file-input" accept="image/*">
+    </div>
+    <script>
+        class WhiteboardApp {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.isDrawing = false;
+                this.startX = 0;
+                this.startY = 0;
+                this.currentTool = 'pencil';
+                this.strokeColor = '#000000';
+                this.fillColor = '#ffffff';
+                this.brushSize = 3;
+                this.history = [];
+                this.historyStep = -1;
+                this.elements = [];
+                this.selectedElement = null;
+                this.isDragging = false;
+                this.panOffset = { x: 0, y: 0 };
+                this.isPanning = false;
+                this.panStart = { x: 0, y: 0 };
+                this.resizing = false;
+                this.resizeHandle = null;
+
+                this.initCanvas();
+                this.bindEvents();
+                this.loadFromLocal();
+                this.saveState();
+            }
+
+            initCanvas() {
+                this.resizeCanvas();
+                window.addEventListener('resize', () => this.resizeCanvas());
+            }
+
+            resizeCanvas() {
+                const rect = this.canvas.parentElement.getBoundingClientRect();
+                this.canvas.width = rect.width;
+                this.canvas.height = rect.height;
+                this.redrawCanvas();
+            }
+
+            bindEvents() {
+                // Tool selection
+                document.querySelectorAll('.tool-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        this.currentTool = btn.dataset.tool;
+                        this.updateCursor();
+                        this.updateStatus(`${this.currentTool} tool selected`);
+                    });
+                });
+
+                // Color controls
+                document.getElementById('strokeColor').addEventListener('change', (e) => {
+                    this.strokeColor = e.target.value;
+                });
+                document.getElementById('fillColor').addEventListener('change', (e) => {
+                    this.fillColor = e.target.value;
+                });
+
+                // Brush size
+                const brushSize = document.getElementById('brushSize');
+                const sizeDisplay = document.getElementById('sizeDisplay');
+                brushSize.addEventListener('input', (e) => {
+                    this.brushSize = parseInt(e.target.value);
+                    sizeDisplay.textContent = `${this.brushSize}px`;
+                });
+
+                // Canvas events
+                this.canvas.addEventListener('mousedown', (e) => this.startDrawing(e));
+                this.canvas.addEventListener('mousemove', (e) => this.draw(e));
+                this.canvas.addEventListener('mouseup', (e) => this.stopDrawing(e));
+                this.canvas.addEventListener('mouseleave', (e) => this.stopDrawing(e));
+                this.canvas.addEventListener('mousemove', (e) => this.updateCoordinates(e));
+
+                // Double-click to edit text
+                this.canvas.addEventListener('dblclick', (e) => {
+                    if (this.currentTool === 'select' && this.selectedElement && this.selectedElement.type === 'text') {
+                        const pos = this.getMousePos(e);
+                        const el = this.selectedElement;
+                        this.ctx.font = `${el.fontSize}px Arial`;
+                        const textWidth = this.ctx.measureText(el.text).width;
+                        const textHeight = el.fontSize;
+                        if (
+                            pos.x - this.panOffset.x >= el.x &&
+                            pos.x - this.panOffset.x <= el.x + textWidth &&
+                            pos.y - this.panOffset.y >= el.y - textHeight &&
+                            pos.y - this.panOffset.y <= el.y
+                        ) {
+                            const newText = prompt('Edit text:', el.text);
+                            if (newText !== null) {
+                                el.text = newText;
+                                this.redrawCanvas();
+                                this.saveState();
+                                this.updateStatus('Text edited');
+                            }
+                        }
+                    }
+                });
+
+                // Selection handle events for resizing
+                document.getElementById('selectionBox').addEventListener('mousedown', (e) => {
+                    if (this.selectedElement) {
+                        const handle = e.target.classList.contains('handle') ? e.target : null;
+                        if (handle) {
+                            this.resizing = true;
+                            this.resizeHandle = handle;
+                            e.stopPropagation();
+                        }
+                    }
+                });
+                window.addEventListener('mousemove', (e) => this.handleResize(e));
+                window.addEventListener('mouseup', (e) => {
+                    if (this.resizing) {
+                        this.resizing = false;
+                        this.resizeHandle = null;
+                        this.saveState();
+                    }
+                });
+
+                // Action buttons
+                document.getElementById('undoBtn').addEventListener('click', () => this.undo());
+                document.getElementById('redoBtn').addEventListener('click', () => this.redo());
+                document.getElementById('clearBtn').addEventListener('click', () => this.clearCanvas());
+                document.getElementById('deleteBtn').addEventListener('click', () => this.deleteSelected());
+
+                // JSON Export/Import
+                document.getElementById('exportJsonBtn').addEventListener('click', () => this.exportJson());
+                document.getElementById('importJsonBtn').addEventListener('click', () => {
+                    document.getElementById('importJsonFile').click();
+                });
+                document.getElementById('importJsonFile').addEventListener('change', (e) => this.importJson(e));
+
+                // File operations
+                document.getElementById('uploadBtn').addEventListener('click', () => this.uploadImage());
+                document.getElementById('downloadBtn').addEventListener('click', () => this.downloadCanvas());
+                document.getElementById('newBtn').addEventListener('click', () => this.newCanvas());
+                document.getElementById('fileInput').addEventListener('change', (e) => this.handleFileUpload(e));
+            }
+
+            updateCursor() {
+                const cursors = {
+                    pencil: 'crosshair',
+                    line: 'crosshair',
+                    rectangle: 'crosshair',
+                    circle: 'crosshair',
+                    arrow: 'crosshair',
+                    text: 'text',
+                    eraser: 'grab',
+                    select: 'pointer',
+                    pan: 'grab'
+                };
+                this.canvas.style.cursor = cursors[this.currentTool] || 'crosshair';
+            }
+
+            updateStatus(message) {
+                document.getElementById('statusText').textContent = message;
+            }
+
+            updateCoordinates(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                const x = Math.round(e.clientX - rect.left);
+                const y = Math.round(e.clientY - rect.top);
+                document.getElementById('coordinates').textContent = `x: ${x}, y: ${y}`;
+            }
+
+            getMousePos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                return {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+            }
+
+            startDrawing(e) {
+                const pos = this.getMousePos(e);
+                this.isDrawing = true;
+                this.startX = pos.x;
+                this.startY = pos.y;
+
+                if (this.currentTool === 'pencil' || this.currentTool === 'eraser') {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(pos.x - this.panOffset.x, pos.y - this.panOffset.y);
+                }
+
+                if (this.currentTool === 'select') {
+                    this.selectedElement = this.getElementAt(pos.x - this.panOffset.x, pos.y - this.panOffset.y);
+                    if (this.selectedElement) {
+                        this.isDragging = true;
+                        this.showSelection(this.selectedElement);
+                    } else {
+                        this.hideSelection();
+                    }
+                }
+
+                if (this.currentTool === 'pan') {
+                    this.isPanning = true;
+                    this.panStart = { x: pos.x, y: pos.y };
+                }
+            }
+
+            draw(e) {
+                if (!this.isDrawing) return;
+
+                const pos = this.getMousePos(e);
+                this.ctx.lineWidth = this.brushSize;
+                this.ctx.lineCap = 'round';
+                this.ctx.lineJoin = 'round';
+
+                if (this.currentTool === 'pencil') {
+                    this.ctx.globalCompositeOperation = 'source-over';
+                    this.ctx.strokeStyle = this.strokeColor;
+                    this.ctx.lineTo(pos.x - this.panOffset.x, pos.y - this.panOffset.y);
+                    this.ctx.stroke();
+                } else if (this.currentTool === 'eraser') {
+                    this.ctx.globalCompositeOperation = 'destination-out';
+                    this.ctx.arc(pos.x - this.panOffset.x, pos.y - this.panOffset.y, this.brushSize, 0, Math.PI * 2);
+                    this.ctx.fill();
+                } else if (this.currentTool === 'select' && this.isDragging && this.selectedElement) {
+                    const deltaX = pos.x - this.startX;
+                    const deltaY = pos.y - this.startY;
+                    this.moveElement(this.selectedElement, deltaX, deltaY);
+                    this.startX = pos.x;
+                    this.startY = pos.y;
+                    this.redrawCanvas();
+                    this.showSelection(this.selectedElement);
+                } else if (this.currentTool === 'pan' && this.isPanning) {
+                    const dx = pos.x - this.panStart.x;
+                    const dy = pos.y - this.panStart.y;
+                    this.panOffset.x += dx;
+                    this.panOffset.y += dy;
+                    this.panStart = { x: pos.x, y: pos.y };
+                    this.redrawCanvas();
+                }
+            }
+
+            stopDrawing(e) {
+                if (!this.isDrawing) return;
+                this.isDrawing = false;
+                this.isDragging = false;
+
+                if (this.currentTool === 'pan') {
+                    this.isPanning = false;
+                    return;
+                }
+
+                if (e) {
+                    const pos = this.getMousePos(e);
+
+                    if (['line', 'rectangle', 'circle', 'arrow'].includes(this.currentTool)) {
+                        this.drawShape(
+                            this.startX - this.panOffset.x,
+                            this.startY - this.panOffset.y,
+                            pos.x - this.panOffset.x,
+                            pos.y - this.panOffset.y
+                        );
+                    } else if (this.currentTool === 'text') {
+                        this.addText(pos.x - this.panOffset.x, pos.y - this.panOffset.y);
+                    }
+                }
+
+                this.saveState();
+            }
+
+            addText(x, y) {
+                const text = prompt('Enter text:');
+                if (text) {
+                    const fontSize = 24;
+                    this.ctx.font = `${fontSize}px Arial`;
+                    this.ctx.fillStyle = this.strokeColor;
+                    this.ctx.fillText(text, x, y);
+                    this.elements.push({
+                        type: 'text',
+                        text,
+                        x,
+                        y,
+                        fontSize,
+                        color: this.strokeColor
+                    });
+                    this.saveState();
+                    this.updateStatus('Text added');
+                }
+            }
+
+            drawShape(startX, startY, endX, endY) {
+                this.ctx.globalCompositeOperation = 'source-over';
+                this.ctx.strokeStyle = this.strokeColor;
+                this.ctx.fillStyle = this.fillColor;
+                this.ctx.lineWidth = this.brushSize;
+
+                switch (this.currentTool) {
+                    case 'line':
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(startX, startY);
+                        this.ctx.lineTo(endX, endY);
+                        this.ctx.stroke();
+                        break;
+                    case 'rectangle':
+                        const width = endX - startX;
+                        const height = endY - startY;
+                        this.ctx.fillRect(startX, startY, width, height);
+                        this.ctx.strokeRect(startX, startY, width, height);
+                        break;
+                    case 'circle':
+                        const radius = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+                        this.ctx.beginPath();
+                        this.ctx.arc(startX, startY, radius, 0, 2 * Math.PI);
+                        this.ctx.fill();
+                        this.ctx.stroke();
+                        break;
+                    case 'arrow':
+                        this.drawArrow(startX, startY, endX, endY);
+                        break;
+                }
+
+                // Store element for selection
+                this.elements.push({
+                    type: this.currentTool,
+                    startX, startY, endX, endY,
+                    strokeColor: this.strokeColor,
+                    fillColor: this.fillColor,
+                    brushSize: this.brushSize
+                });
+            }
+
+            drawArrow(startX, startY, endX, endY) {
+                const headlen = 15;
+                const dx = endX - startX;
+                const dy = endY - startY;
+                const angle = Math.atan2(dy, dx);
+
+                this.ctx.beginPath();
+                this.ctx.moveTo(startX, startY);
+                this.ctx.lineTo(endX, endY);
+                this.ctx.lineTo(endX - headlen * Math.cos(angle - Math.PI / 6), endY - headlen * Math.sin(angle - Math.PI / 6));
+                this.ctx.moveTo(endX, endY);
+                this.ctx.lineTo(endX - headlen * Math.cos(angle + Math.PI / 6), endY - headlen * Math.sin(angle + Math.PI / 6));
+                this.ctx.stroke();
+            }
+
+            // --- Improved Undo/Redo: Save/restore elements and panOffset ---
+            saveState() {
+                this.historyStep++;
+                if (this.historyStep < this.history.length) {
+                    this.history.length = this.historyStep;
+                }
+                this.history.push({
+                    elements: JSON.parse(JSON.stringify(this.elements)),
+                    panOffset: { ...this.panOffset }
+                });
+                this.saveToLocal();
+            }
+
+            undo() {
+                if (this.historyStep > 0) {
+                    this.historyStep--;
+                    this.restoreState();
+                    this.updateStatus('Undo performed');
+                }
+            }
+
+            redo() {
+                if (this.historyStep < this.history.length - 1) {
+                    this.historyStep++;
+                    this.restoreState();
+                    this.updateStatus('Redo performed');
+                }
+            }
+
+            restoreState() {
+                const state = this.history[this.historyStep];
+                if (!state) return;
+                this.elements = JSON.parse(JSON.stringify(state.elements));
+                this.panOffset = { ...state.panOffset };
+                this.hideSelection();
+                this.redrawCanvas();
+                this.saveToLocal();
+            }
+
+            clearCanvas() {
+                if (confirm('Are you sure you want to clear the canvas?')) {
+                    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                    this.elements = [];
+                    this.hideSelection();
+                    this.saveState();
+                    this.updateStatus('Canvas cleared');
+                }
+            }
+
+            newCanvas() {
+                if (confirm('Create a new canvas? This will clear all current work.')) {
+                    this.clearCanvas();
+                }
+            }
+
+            downloadCanvas() {
+                const link = document.createElement('a');
+                link.download = `whiteboard-${new Date().getTime()}.png`;
+                link.href = this.canvas.toDataURL();
+                link.click();
+                this.updateStatus('Canvas downloaded');
+            }
+
+            uploadImage() {
+                document.getElementById('fileInput').click();
+            }
+
+            handleFileUpload(e) {
+                const file = e.target.files[0];
+                if (file && file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            this.ctx.drawImage(img, 0, 0);
+                            this.saveState();
+                            this.updateStatus('Image uploaded');
+                        };
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+
+            getElementAt(x, y) {
+                // Check elements in reverse order (last drawn first)
+                for (let i = this.elements.length - 1; i >= 0; i--) {
+                    const el = this.elements[i];
+                    if (el.type === 'text') {
+                        this.ctx.font = `${el.fontSize}px Arial`;
+                        const textWidth = this.ctx.measureText(el.text).width;
+                        const textHeight = el.fontSize;
+                        if (x >= el.x && x <= el.x + textWidth &&
+                            y >= el.y - textHeight && y <= el.y) {
+                            return el;
+                        }
+                    } else if (el.type === 'circle') {
+                        const radius = Math.sqrt(Math.pow(el.endX - el.startX, 2) + Math.pow(el.endY - el.startY, 2));
+                        const distance = Math.sqrt(Math.pow(x - el.startX, 2) + Math.pow(y - el.startY, 2));
+                        if (distance <= radius + 5) {
+                            return el;
+                        }
+                    } else {
+                        const minX = Math.min(el.startX, el.endX) - 10;
+                        const maxX = Math.max(el.startX, el.endX) + 10;
+                        const minY = Math.min(el.startY, el.endY) - 10;
+                        const maxY = Math.max(el.startY, el.endY) + 10;
+                        if (x >= minX && x <= maxX && y >= minY && y <= maxY) {
+                            return el;
+                        }
+                    }
+                }
+                return null;
+            }
+
+            showSelection(element) {
+                const selectionBox = document.getElementById('selectionBox');
+                let minX, maxX, minY, maxY;
+                if (element.type === 'text') {
+                    this.ctx.font = `${element.fontSize}px Arial`;
+                    const textWidth = this.ctx.measureText(element.text).width;
+                    minX = element.x;
+                    maxX = element.x + textWidth;
+                    minY = element.y - element.fontSize;
+                    maxY = element.y;
+                } else if (element.type === 'circle') {
+                    const radius = Math.sqrt(Math.pow(element.endX - element.startX, 2) + Math.pow(element.endY - element.startY, 2));
+                    minX = element.startX - radius;
+                    maxX = element.startX + radius;
+                    minY = element.startY - radius;
+                    maxY = element.startY + radius;
+                } else {
+                    minX = Math.min(element.startX, element.endX);
+                    maxX = Math.max(element.startX, element.endX);
+                    minY = Math.min(element.startY, element.endY);
+                    maxY = Math.max(element.startY, element.endY);
+                }
+                selectionBox.style.display = 'block';
+                selectionBox.style.left = `${minX + this.panOffset.x - 10}px`;
+                selectionBox.style.top = `${minY + this.panOffset.y - 10}px`;
+                selectionBox.style.width = `${maxX - minX + 20}px`;
+                selectionBox.style.height = `${maxY - minY + 20}px`;
+                selectionBox.querySelector('.tl').style.display = 'block';
+                selectionBox.querySelector('.tr').style.display = 'block';
+                selectionBox.querySelector('.bl').style.display = 'block';
+                selectionBox.querySelector('.br').style.display = 'block';
+                this.updateStatus(`Selected ${element.type}`);
+            }
+
+            hideSelection() {
+                document.getElementById('selectionBox').style.display = 'none';
+                this.selectedElement = null;
+            }
+
+            moveElement(element, deltaX, deltaY) {
+                if (element.type === 'text') {
+                    element.x += deltaX;
+                    element.y += deltaY;
+                } else {
+                    element.startX += deltaX;
+                    element.startY += deltaY;
+                    if (element.endX !== undefined) element.endX += deltaX;
+                    if (element.endY !== undefined) element.endY += deltaY;
+                }
+            }
+
+            handleResize(e) {
+                if (!this.resizing || !this.selectedElement) return;
+                const pos = this.getMousePos(e);
+                const el = this.selectedElement;
+                // Only for rectangle, circle, line
+                if (['rectangle', 'circle', 'line'].includes(el.type)) {
+                    // Which handle? (top-left, top-right, bottom-left, bottom-right)
+                    const handleIdx = Array.from(document.querySelectorAll('#selectionBox .handle')).indexOf(this.resizeHandle);
+                    // Handles: 0=tl, 1=tr, 2=bl, 3=br
+                    switch (handleIdx) {
+                        case 0: // top-left
+                            el.startX = pos.x - this.panOffset.x;
+                            el.startY = pos.y - this.panOffset.y;
+                            break;
+                        case 1: // top-right
+                            el.endX = pos.x - this.panOffset.x;
+                            el.startY = pos.y - this.panOffset.y;
+                            break;
+                        case 2: // bottom-left
+                            el.startX = pos.x - this.panOffset.x;
+                            el.endY = pos.y - this.panOffset.y;
+                            break;
+                        case 3: // bottom-right
+                            el.endX = pos.x - this.panOffset.x;
+                            el.endY = pos.y - this.panOffset.y;
+                            break;
+                    }
+                    this.redrawCanvas();
+                    this.showSelection(el);
+                }
+            }
+
+            deleteSelected() {
+                if (this.selectedElement) {
+                    const index = this.elements.indexOf(this.selectedElement);
+                    if (index > -1) {
+                        this.elements.splice(index, 1);
+                        this.redrawCanvas();
+                        this.hideSelection();
+                        this.saveState();
+                        this.updateStatus('Element deleted');
+                    }
+                }
+            }
+
+            redrawCanvas() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.ctx.save();
+                this.ctx.translate(this.panOffset.x, this.panOffset.y);
+                // Redraw all stored elements
+                this.elements.forEach(element => {
+                    this.ctx.globalCompositeOperation = 'source-over';
+                    if (element.type === 'text') {
+                        this.ctx.font = `${element.fontSize}px Arial`;
+                        this.ctx.fillStyle = element.color;
+                        this.ctx.fillText(element.text, element.x, element.y);
+                    } else {
+                        this.ctx.strokeStyle = element.strokeColor;
+                        this.ctx.fillStyle = element.fillColor;
+                        this.ctx.lineWidth = element.brushSize;
+                        switch (element.type) {
+                            case 'line':
+                                this.ctx.beginPath();
+                                this.ctx.moveTo(element.startX, element.startY);
+                                this.ctx.lineTo(element.endX, element.endY);
+                                this.ctx.stroke();
+                                break;
+                            case 'rectangle':
+                                const width = element.endX - element.startX;
+                                const height = element.endY - element.startY;
+                                this.ctx.fillRect(element.startX, element.startY, width, height);
+                                this.ctx.strokeRect(element.startX, element.startY, width, height);
+                                break;
+                            case 'circle':
+                                const radius = Math.sqrt(Math.pow(element.endX - element.startX, 2) + Math.pow(element.endY - element.startY, 2));
+                                this.ctx.beginPath();
+                                this.ctx.arc(element.startX, element.startY, radius, 0, 2 * Math.PI);
+                                this.ctx.fill();
+                                this.ctx.stroke();
+                                break;
+                            case 'arrow':
+                                this.drawArrowElement(element);
+                                break;
+                        }
+                    }
+                });
+                this.ctx.restore();
+            }
+
+            drawArrowElement(element) {
+                const headlen = 15;
+                const dx = element.endX - element.startX;
+                const dy = element.endY - element.startY;
+                const angle = Math.atan2(dy, dx);
+
+                this.ctx.beginPath();
+                this.ctx.moveTo(element.startX, element.startY);
+                this.ctx.lineTo(element.endX, element.endY);
+                this.ctx.lineTo(element.endX - headlen * Math.cos(angle - Math.PI / 6), element.endY - headlen * Math.sin(angle - Math.PI / 6));
+                this.ctx.moveTo(element.endX, element.endY);
+                this.ctx.lineTo(element.endX - headlen * Math.cos(angle + Math.PI / 6), element.endY - headlen * Math.sin(angle + Math.PI / 6));
+                this.ctx.stroke();
+            }
+
+            // --- Local Storage ---
+            saveToLocal() {
+                const data = {
+                    elements: this.elements,
+                    panOffset: this.panOffset
+                };
+                localStorage.setItem('whiteboardData', JSON.stringify(data));
+            }
+
+            loadFromLocal() {
+                const data = localStorage.getItem('whiteboardData');
+                if (data) {
+                    const obj = JSON.parse(data);
+                    this.elements = obj.elements || [];
+                    this.panOffset = obj.panOffset || { x: 0, y: 0 };
+                    this.redrawCanvas();
+                    this.saveState();
+                    this.updateStatus('Loaded from local storage');
+                }
+            }
+
+            // --- Export/Import JSON ---
+            exportJson() {
+                const data = {
+                    elements: this.elements,
+                    panOffset: this.panOffset
+                };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'whiteboard.json';
+                a.click();
+                URL.revokeObjectURL(url);
+                this.updateStatus('Exported as JSON');
+            }
+
+            importJson(e) {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    try {
+                        const data = JSON.parse(evt.target.result);
+                        this.elements = data.elements || [];
+                        this.panOffset = data.panOffset || { x: 0, y: 0 };
+                        this.redrawCanvas();
+                        this.saveState();
+                        this.updateStatus('Imported from JSON');
+                    } catch (err) {
+                        alert('Invalid JSON file.');
+                    }
+                };
+                reader.readAsText(file);
+            }
+        }
+        // Initialize the whiteboard app
+        new WhiteboardApp();
+    </script>
+</body>
+</html>
