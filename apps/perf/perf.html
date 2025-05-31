@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MC Performance Feedback</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif');
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .glass-effect {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        .apple-button {
+            background: linear-gradient(145deg, #007AFF, #0051D5);
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        
+        .apple-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 122, 255, 0.3);
+        }
+        
+        .rating-button {
+            transition: all 0.2s ease;
+            border: 2px solid transparent;
+        }
+        
+        .rating-button:hover {
+            transform: scale(1.1);
+        }
+        
+        .rating-button.selected {
+            background: linear-gradient(145deg, #34D399, #10B981);
+            border-color: #059669;
+            color: white;
+        }
+        
+        .upload-zone {
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .upload-zone:hover {
+            border-color: rgba(255, 255, 255, 0.6);
+            background: rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-400 via-purple-500 to-purple-600">
+    <!-- Sticky Header -->
+    <header class="sticky top-0 z-50 glass-effect">
+        <div class="max-w-6xl mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                        <span class="text-white font-bold text-sm">PF</span>
+                    </div>
+                    <h1 class="text-xl font-semibold text-white">MC Performance Feedback</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="text-white text-sm">
+                        Total Score: <span id="totalScore" class="font-bold">0/50</span>
+                    </div>
+                    <div class="text-white text-sm">
+                        Progress: <span id="progressPercent" class="font-bold">0%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-4xl mx-auto px-6 py-8">
+        <!-- Candidate Information Section -->
+        <div class="glass-effect rounded-2xl p-6 mb-8">
+            <h2 class="text-lg font-semibold text-white mb-4">Candidate Information</h2>
+            <div class="space-y-4">
+                <div>
+                    <label for="candidateName" class="block text-sm font-medium text-white mb-2">Candidate Name</label>
+                    <input 
+                        type="text" 
+                        id="candidateName" 
+                        placeholder="Enter candidate's full name"
+                        class="w-full px-4 py-3 bg-white bg-opacity-20 border border-white border-opacity-30 rounded-xl text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-300"
+                        onchange="updateCandidateName()"
+                    >
+                </div>
+                <div class="flex items-center space-x-4 text-sm text-gray-200">
+                    <span>Evaluation Date: <span class="font-medium" id="evaluationDate"></span></span>
+                    <span>•</span>
+                    <span>Evaluator: <input type="text" id="evaluatorName" placeholder="Your name" class="bg-transparent border-b border-gray-300 px-2 py-1 text-white placeholder-gray-300 focus:outline-none focus:border-white transition-colors duration-300" onchange="updateEvaluatorName()"></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Section -->
+        <div class="glass-effect rounded-2xl p-6 mb-8">
+            <h2 class="text-lg font-semibold text-white mb-4">Upload Custom Performance Items</h2>
+            <div class="upload-zone rounded-xl p-6 text-center">
+                <input type="file" id="jsonUpload" accept=".json" class="hidden">
+                <div class="cursor-pointer" onclick="document.getElementById('jsonUpload').click()">
+                    <div class="w-12 h-12 mx-auto mb-3 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                    </div>
+                    <p class="text-white text-sm">Click to upload JSON file or drag and drop</p>
+                    <p class="text-gray-200 text-xs mt-1">Expected format: [{"item": "Description", "description": "Details"}]</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Items -->
+        <div id="performanceItems" class="space-y-6">
+            <!-- Items will be populated here -->
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex justify-center space-x-4 mt-8">
+            <button onclick="resetForm()" class="px-6 py-3 bg-gray-500 bg-opacity-20 text-white rounded-xl hover:bg-opacity-30 transition-all duration-300">
+                Reset All
+            </button>
+            <button onclick="downloadResults()" class="apple-button px-6 py-3 text-white rounded-xl font-medium">
+                Download JSON
+            </button>
+            <button onclick="downloadPDF()" class="px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-xl font-medium hover:from-red-600 hover:to-pink-600 transition-all duration-300">
+                Download PDF
+            </button>
+        </div>
+    </main>
+
+    <!-- Sticky Footer -->
+    <footer class="sticky bottom-0 glass-effect mt-16">
+        <div class="max-w-6xl mx-auto px-6 py-4">
+            <div class="flex items-center justify-between text-sm text-white">
+                <div>Performance Feedback System v1.0</div>
+                <div class="flex items-center space-x-4">
+                    <span>Completed: <span id="completedCount">0</span>/<span id="totalCount">10</span></span>
+                    <div class="w-32 bg-white bg-opacity-20 rounded-full h-2">
+                        <div id="progressBar" class="bg-gradient-to-r from-green-400 to-green-500 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Default performance items
+        const defaultItems = [
+            { item: "Communication Skills", description: "Ability to communicate effectively with team members and stakeholders" },
+            { item: "Technical Expertise", description: "Proficiency in required technical skills and knowledge" },
+            { item: "Problem Solving", description: "Capability to identify and resolve issues efficiently" },
+            { item: "Time Management", description: "Ability to prioritize tasks and meet deadlines consistently" },
+            { item: "Teamwork", description: "Collaboration and support provided to team members" },
+            { item: "Initiative", description: "Proactive approach to work and taking on new challenges" },
+            { item: "Quality of Work", description: "Accuracy, attention to detail, and overall work quality" },
+            { item: "Adaptability", description: "Flexibility in handling changes and new situations" },
+//            { item: "Leadership", description: "Ability to guide and mentor others when needed" },
+//           { item: "Professional Development", description: "Commitment to continuous learning and skill improvement" }
+        ];
+
+        let currentItems = [...defaultItems];
+        let ratings = {};
+        let candidateName = '';
+        let evaluatorName = '';
+
+        // Initialize the app
+        function init() {
+            renderItems();
+            updateKPIs();
+            setupFileUpload();
+            setEvaluationDate();
+        }
+
+        // Set current date
+        function setEvaluationDate() {
+            const today = new Date();
+            const formattedDate = today.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric' 
+            });
+            document.getElementById('evaluationDate').textContent = formattedDate;
+        }
+
+        // Update candidate name
+        function updateCandidateName() {
+            candidateName = document.getElementById('candidateName').value;
+        }
+
+        // Update evaluator name
+        function updateEvaluatorName() {
+            evaluatorName = document.getElementById('evaluatorName').value;
+        }
+
+        // Render performance items
+        function renderItems() {
+            const container = document.getElementById('performanceItems');
+            container.innerHTML = '';
+
+            currentItems.forEach((item, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'glass-effect rounded-2xl p-6';
+                itemDiv.innerHTML = `
+                    <div class="mb-4">
+                        <h3 class="text-lg font-semibold text-white mb-2">${item.item}</h3>
+                        <p class="text-gray-200 text-sm">${item.description}</p>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <span class="text-white text-sm font-medium">Rating:</span>
+                        <div class="flex space-x-2">
+                            ${[1, 2, 3, 4, 5].map(rating => `
+                                <button 
+                                    onclick="setRating(${index}, ${rating})"
+                                    class="rating-button w-10 h-10 rounded-full bg-white bg-opacity-20 text-white font-medium hover:bg-opacity-30 ${ratings[index] === rating ? 'selected' : ''}"
+                                >
+                                    ${rating}
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(itemDiv);
+            });
+
+            document.getElementById('totalCount').textContent = currentItems.length;
+        }
+
+        // Set rating for an item
+        function setRating(index, rating) {
+            ratings[index] = rating;
+            renderItems();
+            updateKPIs();
+        }
+
+        // Update KPIs
+        function updateKPIs() {
+            const totalPossible = currentItems.length * 5;
+            const currentTotal = Object.values(ratings).reduce((sum, rating) => sum + rating, 0);
+            const completedCount = Object.keys(ratings).length;
+            const progressPercent = Math.round((completedCount / currentItems.length) * 100);
+
+            document.getElementById('totalScore').textContent = `${currentTotal}/${totalPossible}`;
+            document.getElementById('progressPercent').textContent = `${progressPercent}%`;
+            document.getElementById('completedCount').textContent = completedCount;
+            document.getElementById('progressBar').style.width = `${progressPercent}%`;
+        }
+
+        // Setup file upload
+        function setupFileUpload() {
+            const fileInput = document.getElementById('jsonUpload');
+            fileInput.addEventListener('change', handleFileUpload);
+
+            // Drag and drop functionality
+            const uploadZone = document.querySelector('.upload-zone');
+            uploadZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadZone.style.borderColor = 'rgba(255, 255, 255, 0.8)';
+            });
+
+            uploadZone.addEventListener('dragleave', () => {
+                uploadZone.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+            });
+
+            uploadZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadZone.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFile(files[0]);
+                }
+            });
+        }
+
+        // Handle file upload
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        // Handle file processing
+        function handleFile(file) {
+            if (file.type !== 'application/json') {
+                alert('Please upload a valid JSON file.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const jsonData = JSON.parse(e.target.result);
+                    if (Array.isArray(jsonData) && jsonData.length > 0) {
+                        currentItems = jsonData.map(item => ({
+                            item: item.item || 'Untitled Item',
+                            description: item.description || 'No description provided'
+                        }));
+                        ratings = {};
+                        renderItems();
+                        updateKPIs();
+                        
+                        // Show success message
+                        showNotification('Performance items loaded successfully!', 'success');
+                    } else {
+                        throw new Error('Invalid JSON format');
+                    }
+                } catch (error) {
+                    alert('Error parsing JSON file. Please check the format.');
+                    console.error('JSON parsing error:', error);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // Reset form
+        function resetForm() {
+            if (confirm('Are you sure you want to reset all ratings?')) {
+                ratings = {};
+                renderItems();
+                updateKPIs();
+                showNotification('All ratings have been reset.', 'info');
+            }
+        }
+
+        // Download PDF report
+        function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Set up colors and fonts
+            const primaryColor = [0, 122, 255]; // Apple blue
+            const darkColor = [51, 51, 51];
+            const lightGray = [128, 128, 128];
+            
+            let yPosition = 20;
+            const lineHeight = 7;
+            const pageWidth = doc.internal.pageSize.getWidth();
+            
+            // Header
+            doc.setFontSize(24);
+            doc.setTextColor(...primaryColor);
+            doc.text('Performance Feedback Report', pageWidth / 2, yPosition, { align: 'center' });
+            
+            yPosition += 15;
+            
+            // Add a line separator
+            doc.setDrawColor(...primaryColor);
+            doc.setLineWidth(0.5);
+            doc.line(20, yPosition, pageWidth - 20, yPosition);
+            
+            yPosition += 15;
+            
+            // Candidate Information
+            doc.setFontSize(16);
+            doc.setTextColor(...darkColor);
+            doc.text('Candidate Information', 20, yPosition);
+            yPosition += 10;
+            
+            doc.setFontSize(11);
+            doc.setTextColor(...darkColor);
+            const candidateInfo = [
+                `Candidate Name: ${candidateName || 'Not specified'}`,
+                `Evaluator: ${evaluatorName || 'Not specified'}`,
+                `Evaluation Date: ${document.getElementById('evaluationDate').textContent}`,
+                `Report Generated: ${new Date().toLocaleString()}`
+            ];
+            
+            candidateInfo.forEach(info => {
+                doc.text(info, 25, yPosition);
+                yPosition += lineHeight;
+            });
+            
+            yPosition += 10;
+            
+            // Summary Section
+            const totalScore = Object.values(ratings).reduce((sum, rating) => sum + rating, 0);
+            const maxScore = currentItems.length * 5;
+            const completedItems = Object.keys(ratings).length;
+            const scorePercentage = Math.round((totalScore / maxScore) * 100);
+            const completionPercentage = Math.round((completedItems / currentItems.length) * 100);
+            
+            doc.setFontSize(16);
+            doc.setTextColor(...darkColor);
+            doc.text('Performance Summary', 20, yPosition);
+            yPosition += 10;
+            
+            doc.setFontSize(11);
+            const summaryInfo = [
+                `Total Score: ${totalScore} / ${maxScore} (${scorePercentage}%)`,
+                `Completed Items: ${completedItems} / ${currentItems.length} (${completionPercentage}%)`,
+                `Average Rating: ${completedItems > 0 ? (totalScore / completedItems).toFixed(2) : '0.00'} / 5.00`
+            ];
+            
+            summaryInfo.forEach(info => {
+                doc.text(info, 25, yPosition);
+                yPosition += lineHeight;
+            });
+            
+            yPosition += 15;
+            
+            // Performance Items Details
+            doc.setFontSize(16);
+            doc.setTextColor(...darkColor);
+            doc.text('Detailed Performance Ratings', 20, yPosition);
+            yPosition += 10;
+            
+            currentItems.forEach((item, index) => {
+                // Check if we need a new page
+                if (yPosition > 250) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                const rating = ratings[index] || 0;
+                const ratingText = rating > 0 ? `${rating}/5` : 'Not Rated';
+                
+                // Item name
+                doc.setFontSize(12);
+                doc.setTextColor(...darkColor);
+                doc.text(`${index + 1}. ${item.item}`, 25, yPosition);
+                
+                // Rating with color coding
+                doc.setFontSize(11);
+                if (rating >= 4) {
+                    doc.setTextColor(34, 197, 94); // Green
+                } else if (rating >= 3) {
+                    doc.setTextColor(251, 191, 36); // Yellow
+                } else if (rating > 0) {
+                    doc.setTextColor(239, 68, 68); // Red
+                } else {
+                    doc.setTextColor(...lightGray); // Gray
+                }
+                
+                doc.text(ratingText, pageWidth - 40, yPosition);
+                yPosition += 5;
+                
+                // Description
+                doc.setFontSize(10);
+                doc.setTextColor(...lightGray);
+                const lines = doc.splitTextToSize(item.description, pageWidth - 50);
+                doc.text(lines, 30, yPosition);
+                yPosition += lines.length * 4 + 8;
+                
+                // Add separator line
+                doc.setDrawColor(220, 220, 220);
+                doc.setLineWidth(0.2);
+                doc.line(25, yPosition - 3, pageWidth - 25, yPosition - 3);
+                yPosition += 5;
+            });
+            
+            // Performance Scale Legend
+            if (yPosition > 220) {
+                doc.addPage();
+                yPosition = 20;
+            } else {
+                yPosition += 10;
+            }
+            
+            doc.setFontSize(12);
+            doc.setTextColor(...darkColor);
+            doc.text('Rating Scale', 20, yPosition);
+            yPosition += 8;
+            
+            const scale = [
+                { rating: '5', description: 'Exceptional - Consistently exceeds expectations', color: [34, 197, 94] },
+                { rating: '4', description: 'Above Average - Often exceeds expectations', color: [34, 197, 94] },
+                { rating: '3', description: 'Meets Expectations - Satisfactory performance', color: [251, 191, 36] },
+                { rating: '2', description: 'Below Average - Needs improvement', color: [239, 68, 68] },
+                { rating: '1', description: 'Poor - Significant improvement required', color: [239, 68, 68] }
+            ];
+            
+            doc.setFontSize(10);
+            scale.forEach(item => {
+                doc.setTextColor(...item.color);
+                doc.text(item.rating, 25, yPosition);
+                doc.setTextColor(...darkColor);
+                doc.text(`- ${item.description}`, 35, yPosition);
+                yPosition += 6;
+            });
+            
+            // Footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(...lightGray);
+                doc.text(`MC Performance Feedback System - Page ${i} of ${pageCount}`, pageWidth / 2, 285, { align: 'center' });
+            }
+            
+            // Save the PDF
+            const candidateNamePart = candidateName ? `-${candidateName.replace(/\s+/g, '-').toLowerCase()}` : '';
+            doc.save(`performance-feedback${candidateNamePart}-${new Date().toISOString().split('T')[0]}.pdf`);
+            
+            showNotification('PDF report downloaded successfully!', 'success');
+        }
+
+        // Download results (JSON)
+        function downloadResults() {
+            const results = currentItems.map((item, index) => ({
+                item: item.item,
+                description: item.description,
+                rating: ratings[index] || 0
+            }));
+
+            const totalScore = Object.values(ratings).reduce((sum, rating) => sum + rating, 0);
+            const maxScore = currentItems.length * 5;
+            const completedItems = Object.keys(ratings).length;
+
+            const report = {
+                candidateInfo: {
+                    name: candidateName || 'Not specified',
+                    evaluator: evaluatorName || 'Not specified',
+                    evaluationDate: document.getElementById('evaluationDate').textContent
+                },
+                timestamp: new Date().toISOString(),
+                summary: {
+                    totalScore: totalScore,
+                    maxPossibleScore: maxScore,
+                    scorePercentage: Math.round((totalScore / maxScore) * 100),
+                    completedItems: completedItems,
+                    totalItems: currentItems.length,
+                    completionPercentage: Math.round((completedItems / currentItems.length) * 100)
+                },
+                results: results
+            };
+
+            const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            const candidateNamePart = candidateName ? `-${candidateName.replace(/\s+/g, '-').toLowerCase()}` : '';
+            a.download = `performance-feedback${candidateNamePart}-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            showNotification('Results downloaded successfully!', 'success');
+        }
+
+        // Show notification
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `fixed top-20 right-6 z-50 p-4 rounded-xl text-white transform translate-x-full transition-transform duration-300 ${
+                type === 'success' ? 'bg-green-500' : 
+                type === 'error' ? 'bg-red-500' : 'bg-blue-500'
+            }`;
+            notification.textContent = message;
+            document.body.appendChild(notification);
+
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+            }, 100);
+
+            setTimeout(() => {
+                notification.style.transform = 'translateX(full)';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 300);
+            }, 3000);
+        }
+
+        // Initialize the app when the page loads
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
