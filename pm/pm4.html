@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MC Project Planner</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+    .task-bar {
+      height: 2rem;
+      border-radius: 0.375rem;
+      background-color: #3b82f6;
+      color: white;
+      font-size: 0.875rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: absolute;
+      cursor: grab;
+      padding: 0.25rem;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+    .timeline {
+      display: flex;
+      position: relative;
+      border-bottom: 1px solid #ccc;
+      flex-direction: column;
+      height: 100%;
+    }
+    .day-cell {
+      flex: 1;
+      border-left: 1px solid #e5e7eb;
+      height: 3rem;
+      position: relative;
+    }
+    .date-labels {
+      display: flex;
+      font-size: 0.75rem;
+      background-color: #f3f4f6;
+      border-top: 1px solid #e5e7eb;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .date-label {
+      flex: 1;
+      text-align: center;
+      padding: 0.25rem;
+      border-left: 1px solid #e5e7eb;
+    }
+    #gantt {
+      height: calc(100vh - 300px);
+      min-height: 400px;
+    }
+    .sticky-footer {
+      position: fixed;
+      left: 0;
+      bottom: 0;
+      width: 100vw;
+      background: linear-gradient(90deg, #6366f1 0%, #3b82f6 100%);
+      color: white;
+      text-align: center;
+      padding: 1rem 0;
+      font-weight: 600;
+      font-size: 1.1rem;
+      z-index: 50;
+    }
+    .header-gradient {
+      background: linear-gradient(90deg, #6366f1 0%, #3b82f6 100%);
+    }
+  </style>
+</head>
+<body class="bg-gray-100 p-6">
+  <div class="max-w-7xl mx-auto">
+    <div class="rounded-lg mb-6 header-gradient">
+      <h1 class="text-3xl font-bold py-6 text-center text-white drop-shadow-lg">MC Project Planner</h1>
+    </div>
+
+    <div class="flex justify-between items-center mb-4">
+      <select id="project-select" class="p-2 border rounded"></select>
+      <div class="flex gap-2">
+        <input type="text" id="search-box" placeholder="Search tasks or users..." class="p-2 border rounded">
+        <select id="bar-font-size" class="p-2 border rounded" title="Gantt Bar Font Size">
+          <option value="0.75rem">Small</option>
+          <option value="0.875rem" selected>Normal</option>
+          <option value="1rem">Large</option>
+          <option value="1.25rem">X-Large</option>
+        </select>
+        <button id="save-json" class="bg-green-500 text-white px-4 py-2 rounded">Download JSON</button>
+        <input type="file" id="load-json" accept="application/json" class="hidden">
+        <button onclick="document.getElementById('load-json').click()" class="bg-yellow-500 text-white px-4 py-2 rounded">Upload JSON</button>
+        <button id="download-png" class="bg-indigo-500 text-white px-4 py-2 rounded">Download PNG</button>
+      </div>
+    </div>
+
+    <form id="task-form" class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+      <input type="text" id="task-name" placeholder="Task Name" class="p-2 border rounded">
+      <input type="date" id="start-date" class="p-2 border rounded">
+      <input type="date" id="end-date" class="p-2 border rounded">
+      <input type="text" id="assigned-to" placeholder="Assigned To" class="p-2 border rounded">
+      <button type="submit" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Add Task</button>
+    </form>
+
+    <div class="overflow-x-auto border rounded" id="gantt"></div>
+  </div>
+
+  <footer class="sticky-footer">
+    MC - Project Planner 2025
+  </footer>
+
+  <script>
+    let projects = JSON.parse(localStorage.getItem('projects') || '{}');
+    let currentProject = localStorage.getItem('currentProject') || 'Default';
+    if (!projects[currentProject]) projects[currentProject] = [];
+
+    const projectSelect = document.getElementById('project-select');
+    const taskForm = document.getElementById('task-form');
+    const gantt = document.getElementById('gantt');
+    const searchBox = document.getElementById('search-box');
+    const fontSizeSelect = document.getElementById('bar-font-size');
+
+    let ganttBarFontSize = fontSizeSelect.value;
+
+    fontSizeSelect.addEventListener('change', () => {
+      ganttBarFontSize = fontSizeSelect.value;
+      renderGantt();
+    });
+
+    function saveToStorage() {
+      localStorage.setItem('projects', JSON.stringify(projects));
+      localStorage.setItem('currentProject', currentProject);
+    }
+
+    function renderProjectOptions() {
+      projectSelect.innerHTML = '';
+      Object.keys(projects).forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        if (name === currentProject) opt.selected = true;
+        projectSelect.appendChild(opt);
+      });
+      const newOpt = document.createElement('option');
+      newOpt.value = '__new';
+      newOpt.textContent = '+ New Project';
+      projectSelect.appendChild(newOpt);
+    }
+
+    function renderGantt() {
+      gantt.innerHTML = '';
+
+      let filtered = projects[currentProject];
+      const query = searchBox.value.trim().toLowerCase();
+      if (query) {
+        filtered = filtered.filter(task =>
+          task.name.toLowerCase().includes(query) ||
+          (task.assigned && task.assigned.toLowerCase().includes(query))
+        );
+      }
+
+      // Find min start and max end date
+      let minDate, maxDate;
+      if (filtered.length > 0) {
+        minDate = new Date(filtered[0].start);
+        maxDate = new Date(filtered[0].end);
+        filtered.forEach(task => {
+          const s = new Date(task.start);
+          const e = new Date(task.end);
+          if (s < minDate) minDate = s;
+          if (e > maxDate) maxDate = e;
+        });
+      } else {
+        // fallback to today if no tasks
+        minDate = new Date();
+        maxDate = new Date();
+      }
+
+      // Always show the full range from minDate to maxDate, or at least 30 days
+      let days = Math.ceil((maxDate - minDate) / (1000 * 3600 * 24)) + 1;
+      if (days < 30) {
+        days = 30;
+        maxDate = new Date(minDate);
+        maxDate.setDate(minDate.getDate() + days - 1);
+      }
+
+      // Date labels
+      const dateLabels = document.createElement('div');
+      dateLabels.className = 'date-labels';
+      for (let i = 0; i < days; i++) {
+        const date = new Date(minDate);
+        date.setDate(minDate.getDate() + i);
+        const label = document.createElement('div');
+        label.className = 'date-label';
+        label.textContent = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        dateLabels.appendChild(label);
+      }
+      gantt.appendChild(dateLabels);
+
+      const container = document.createElement('div');
+      container.className = 'timeline';
+      container.style.width = `${days * 40}px`;
+
+      const timelineRow = document.createElement('div');
+      timelineRow.style.display = 'flex';
+
+      for (let i = 0; i < days; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'day-cell';
+        timelineRow.appendChild(cell);
+      }
+      container.appendChild(timelineRow);
+
+      filtered.forEach((task, idx) => {
+        const bar = document.createElement('div');
+        const startDate = new Date(task.start);
+        const endDate = new Date(task.end);
+        const duration = (endDate - startDate) / (1000 * 3600 * 24);
+        const offset = (startDate - minDate) / (1000 * 3600 * 24);
+
+        bar.className = 'task-bar';
+        bar.style.left = `${offset * 40}px`;
+        bar.style.width = `${(duration + 1) * 40}px`;
+        bar.style.top = `${(idx + 1) * 50}px`;
+        bar.style.setProperty('font-size', ganttBarFontSize);
+        bar.innerHTML = `<div>${task.name}</div><div class="text-sm font-semibold text-yellow-200">${task.assigned}</div>`;
+        bar.draggable = true;
+
+        bar.ondragstart = e => {
+          e.dataTransfer.setData('text/plain', idx);
+        };
+
+        bar.ondragend = e => {
+          const delta = Math.round(e.pageX / 40) - offset;
+          const newStart = new Date(startDate);
+          newStart.setDate(newStart.getDate() + delta);
+          const newEnd = new Date(endDate);
+          newEnd.setDate(newEnd.getDate() + delta);
+
+          task.start = newStart.toISOString().split('T')[0];
+          task.end = newEnd.toISOString().split('T')[0];
+          saveToStorage();
+          renderGantt();
+        };
+
+        container.appendChild(bar);
+      });
+
+      gantt.appendChild(container);
+    }
+
+    taskForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const name = document.getElementById('task-name').value;
+      const start = document.getElementById('start-date').value;
+      const end = document.getElementById('end-date').value;
+      const assigned = document.getElementById('assigned-to').value;
+      if (!name || !start || !end) return;
+      projects[currentProject].push({ name, start, end, assigned });
+      saveToStorage();
+      taskForm.reset();
+      renderGantt();
+    });
+
+    projectSelect.addEventListener('change', e => {
+      if (e.target.value === '__new') {
+        const name = prompt('Enter new project name:');
+        if (name && !projects[name]) {
+          projects[name] = [];
+          currentProject = name;
+          saveToStorage();
+          renderProjectOptions();
+          renderGantt();
+        } else {
+          projectSelect.value = currentProject;
+        }
+      } else {
+        currentProject = e.target.value;
+        saveToStorage();
+        renderGantt();
+      }
+    });
+
+    document.getElementById('save-json').onclick = () => {
+      const blob = new Blob([JSON.stringify(projects, null, 2)], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'projects.json';
+      link.click();
+    };
+
+    document.getElementById('load-json').onchange = e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = evt => {
+        try {
+          projects = JSON.parse(evt.target.result);
+          currentProject = Object.keys(projects)[0] || 'Default';
+          saveToStorage();
+          renderProjectOptions();
+          renderGantt();
+        } catch (err) {
+          alert('Invalid JSON file.');
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    // Optional: Download PNG functionality (requires html2canvas or similar library)
+    document.getElementById('download-png').onclick = () => {
+      alert('PNG export not implemented in this version.');
+    };
+
+    searchBox.addEventListener('input', renderGantt);
+
+    // Initial render
+    renderProjectOptions();
+    renderGantt();
+  </script>
+</body>
+</html>

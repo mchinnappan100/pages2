@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project Planner</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+    .task-bar {
+      height: 1.5rem;
+      border-radius: 0.25rem;
+      background-color: #4f46e5;
+      color: white;
+      font-size: 0.875rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: absolute;
+      cursor: grab;
+    }
+    .timeline {
+      display: flex;
+      position: relative;
+      border-bottom: 1px solid #ccc;
+      flex-direction: column;
+      height: 100%;
+    }
+    .day-cell {
+      flex: 1;
+      border-left: 1px solid #e5e7eb;
+      height: 3rem;
+      position: relative;
+    }
+    .date-labels {
+      display: flex;
+      font-size: 0.75rem;
+      background-color: #f9fafb;
+      border-top: 1px solid #e5e7eb;
+      border-bottom: 1px solid #e5e7eb;
+    }
+    .date-label {
+      flex: 1;
+      text-align: center;
+      padding: 0.25rem;
+      border-left: 1px solid #e5e7eb;
+    }
+    #gantt {
+      height: calc(100vh - 300px);
+      min-height: 400px;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 p-6">
+  <div class="max-w-7xl mx-auto">
+    <h1 class="text-3xl font-bold mb-6 text-center">Project Planner</h1>
+
+    <div class="flex justify-between items-center mb-4">
+      <select id="project-select" class="p-2 border rounded"></select>
+      <div class="flex gap-2">
+        <button id="save-json" class="bg-green-500 text-white px-4 py-2 rounded">Download JSON</button>
+        <input type="file" id="load-json" accept="application/json" class="hidden">
+        <button onclick="document.getElementById('load-json').click()" class="bg-yellow-500 text-white px-4 py-2 rounded">Upload JSON</button>
+      </div>
+    </div>
+
+    <form id="task-form" class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+      <input type="text" id="task-name" placeholder="Task Name" class="p-2 border rounded">
+      <input type="date" id="start-date" class="p-2 border rounded">
+      <input type="date" id="end-date" class="p-2 border rounded">
+      <input type="text" id="assigned-to" placeholder="Assigned To" class="p-2 border rounded">
+      <button type="submit" class="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Add Task</button>
+    </form>
+
+    <div class="overflow-x-auto border rounded" id="gantt"></div>
+  </div>
+
+  <script>
+    let projects = JSON.parse(localStorage.getItem('projects') || '{}');
+    let currentProject = localStorage.getItem('currentProject') || 'Default';
+    if (!projects[currentProject]) projects[currentProject] = [];
+
+    const projectSelect = document.getElementById('project-select');
+    const taskForm = document.getElementById('task-form');
+    const gantt = document.getElementById('gantt');
+
+    function saveToStorage() {
+      localStorage.setItem('projects', JSON.stringify(projects));
+      localStorage.setItem('currentProject', currentProject);
+    }
+
+    function renderProjectOptions() {
+      projectSelect.innerHTML = '';
+      Object.keys(projects).forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        if (name === currentProject) opt.selected = true;
+        projectSelect.appendChild(opt);
+      });
+      const newOpt = document.createElement('option');
+      newOpt.value = '__new';
+      newOpt.textContent = '+ New Project';
+      projectSelect.appendChild(newOpt);
+    }
+
+    function renderGantt() {
+      gantt.innerHTML = '';
+      const start = new Date();
+      const days = 30;
+
+      const dateLabels = document.createElement('div');
+      dateLabels.className = 'date-labels';
+
+      for (let i = 0; i < days; i++) {
+        const date = new Date(start);
+        date.setDate(start.getDate() + i);
+        const label = document.createElement('div');
+        label.className = 'date-label';
+        label.textContent = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+        dateLabels.appendChild(label);
+      }
+      gantt.appendChild(dateLabels);
+
+      const container = document.createElement('div');
+      container.className = 'timeline';
+      container.style.width = `${days * 40}px`;
+
+      const timelineRow = document.createElement('div');
+      timelineRow.style.display = 'flex';
+
+      for (let i = 0; i < days; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'day-cell';
+        timelineRow.appendChild(cell);
+      }
+
+      container.appendChild(timelineRow);
+
+      projects[currentProject].forEach((task, idx) => {
+        const bar = document.createElement('div');
+        const startDate = new Date(task.start);
+        const endDate = new Date(task.end);
+        const duration = (endDate - startDate) / (1000 * 3600 * 24);
+        const offset = (startDate - start) / (1000 * 3600 * 24);
+
+        bar.className = 'task-bar';
+        bar.style.left = `${offset * 40}px`;
+        bar.style.width = `${(duration + 1) * 40}px`;
+        bar.style.top = `${(idx + 1) * 40}px`;
+        bar.innerText = task.name;
+        bar.draggable = true;
+
+        bar.ondragstart = e => {
+          e.dataTransfer.setData('text/plain', idx);
+        };
+
+        bar.ondragend = e => {
+          const delta = Math.round(e.pageX / 40) - offset;
+          const newStart = new Date(startDate);
+          newStart.setDate(newStart.getDate() + delta);
+          const newEnd = new Date(endDate);
+          newEnd.setDate(newEnd.getDate() + delta);
+
+          task.start = newStart.toISOString().split('T')[0];
+          task.end = newEnd.toISOString().split('T')[0];
+          saveToStorage();
+          renderGantt();
+        };
+
+        container.appendChild(bar);
+      });
+
+      gantt.appendChild(container);
+    }
+
+    taskForm.addEventListener('submit', e => {
+      e.preventDefault();
+      const name = document.getElementById('task-name').value;
+      const start = document.getElementById('start-date').value;
+      const end = document.getElementById('end-date').value;
+      const assigned = document.getElementById('assigned-to').value;
+      if (!name || !start || !end) return;
+      projects[currentProject].push({ name, start, end, assigned });
+      saveToStorage();
+      taskForm.reset();
+      renderGantt();
+    });
+
+    projectSelect.addEventListener('change', e => {
+      if (e.target.value === '__new') {
+        const name = prompt('Enter new project name:');
+        if (name && !projects[name]) {
+          projects[name] = [];
+          currentProject = name;
+          saveToStorage();
+          renderProjectOptions();
+          renderGantt();
+        }
+      } else {
+        currentProject = e.target.value;
+        saveToStorage();
+        renderGantt();
+      }
+    });
+
+    document.getElementById('save-json').onclick = () => {
+      const blob = new Blob([JSON.stringify(projects, null, 2)], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'projects.json';
+      link.click();
+    };
+
+    document.getElementById('load-json').onchange = e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        try {
+          const data = JSON.parse(e.target.result);
+          projects = data;
+          currentProject = Object.keys(projects)[0];
+          saveToStorage();
+          renderProjectOptions();
+          renderGantt();
+        } catch (err) {
+          alert('Invalid JSON file');
+        }
+      };
+      reader.readAsText(file);
+    };
+
+    renderProjectOptions();
+    renderGantt();
+  </script>
+</body>
+</html>
