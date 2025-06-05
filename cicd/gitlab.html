@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitLab CI/CD Pipeline Viewer</title>
+  <link
+    rel="icon"
+    type="image/x-icon"
+    href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"
+  />
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <<!-- Mermaid CDN -->
+  <script src="https://unpkg.com/mermaid@10.9.1/dist/mermaid.min.js"></script>
+  <!-- js-yaml CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+
+  <!-- Monaco Editor CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs/loader.min.js"></script>
+  
+
+  <style>
+    .monaco-editor {
+      height: 100%;
+      width: 100%;
+    }
+    header, footer {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    footer {
+      bottom: 0;
+      top: auto;
+    }
+    .split-pane {
+      display: flex;
+      height: calc(100vh - 12rem); /* Adjust for header, footer, and bottom row */
+      overflow: hidden;
+    }
+    .pane {
+      overflow: hidden;
+      min-width: 200px;
+    }
+    .pane.left {
+      flex: 1;
+    }
+    .pane.right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .splitter {
+      width: 8px;
+      background-color: #e5e7eb;
+      cursor: col-resize;
+      transition: background-color 0.2s;
+      z-index: 5;
+    }
+    .splitter:hover, .splitter.active {
+      background-color: #3b82f6;
+    }
+    #mermaid-editor-container {
+      flex: 1;
+      background: white;
+      border: 1px solid #e5e7eb;
+    }
+    #download-buttons {
+      padding: 1rem;
+    }
+    #mermaid-graph-container {
+      height: 300px;
+      overflow: auto;
+    }
+    #mermaid-graph {
+      min-height: 100%;
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <!-- Sticky Header -->
+  <header class="bg-blue-600 text-white p-4 shadow-md">
+    <h1 class="text-2xl font-bold">GitLab CI/CD Pipeline Viewer</h1>
+    <p class="text-sm">Upload and visualize .gitlab-ci.yml as Mermaid code and graph</p>
+  </header>
+
+  <!-- Main Content -->
+  <div class="container mx-auto p-4">
+    <!-- File Upload -->
+    <div class="mb-4">
+      <label for="yamlFile" class="block text-sm font-medium text-gray-700">Upload .gitlab-ci.yml file:</label>
+      <input type="file" id="yamlFile" accept=".yml,.yaml" class="mt-1 block w-full text-sm text-gray-500
+        file:mr-4 file:py-2 file:px-4
+        file:rounded-full file:border-0
+        file:text-sm file:font-semibold
+        file:bg-blue-50 file:text-blue-700
+        hover:file:bg-blue-100">
+    </div>
+
+    <!-- Split Pane for Editors -->
+    <div class="split-pane">
+      <!-- Left Pane: YAML Monaco Editor -->
+      <div class="pane left bg-white">
+        <div id="yaml-editor" class="monaco-editor border rounded"></div>
+      </div>
+      <!-- Splitter -->
+      <div class="splitter" id="splitter"></div>
+      <!-- Right Pane: Mermaid Monaco Editor -->
+      <div class="pane right bg-white flex flex-col">
+        <div id="mermaid-editor-container">
+          <div id="mermaid-editor" class="monaco-editor"></div>
+        </div>
+        <div id="download-buttons" class="flex space-x-2">
+          <button id="downloadPng" class="py-2 px-4 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>Download PNG</button>
+          <button id="downloadSvg" class="py-2 px-4 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>Download SVG</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom Row for Mermaid Graphical View -->
+    <div class="mt-4 bg-white p-4 border rounded" id="mermaid-graph-container">
+      <h2 class="text-lg font-semibold mb-2">Pipeline Graphical View</h2>
+      <div id="mermaid-graph"></div>
+    </div>
+  </div>
+
+  <!-- Sticky Footer -->
+  <footer class="bg-blue-600 text-white p-4 text-center">
+    <p>MC GitLab CI/CD Pipeline Viewer</p>
+  </footer>
+
+  <!-- JavaScript for Functionality -->
+  <script>
+    // Initialize Mermaid globally
+    mermaid.initialize({ startOnLoad: false, theme: 'default' });
+
+    // Generate Mermaid code from YAML
+    function generateMermaidCode(yamlContent) {
+      try {
+        // Strip inline comments (lines starting with #)
+        const cleanYaml = yamlContent.split('\n')
+          .filter(line => !line.trim().startsWith('#'))
+          .join('\n');
+        
+        // Parse YAML using jsyaml
+        const yaml = jsyaml.load(cleanYaml);
+        let mermaidCode = 'graph TD\n';
+        const stages = yaml.stages || [];
+        const jobs = Object.keys(yaml).filter(key => !['stages', 'image', 'variables', 'before_script', 'after_script'].includes(key));
+
+        // Map stages to nodes
+        stages.forEach((stage, i) => {
+          mermaidCode += `S${i}["${stage}"]:::stageClass\n`;
+        });
+
+        // Connect stages sequentially
+        for (let i = 0; i < stages.length - 1; i++) {
+          mermaidCode += `S${i} --> S${i + 1}\n`;
+        }
+
+        // Add jobs under their stages
+        jobs.forEach((job, i) => {
+          const stage = yaml[job]?.stage || 'unknown';
+          const stageIndex = stages.indexOf(stage);
+          const conditions = [];
+          if (yaml[job]?.only?.refs) {
+            conditions.push(`only: ${yaml[job].only.refs.join(', ')}`);
+          } else if (yaml[job]?.only) {
+            conditions.push(`only: ${Array.isArray(yaml[job].only) ? yaml[job].only.join(', ') : yaml[job].only}`);
+          }
+          if (yaml[job]?.when) conditions.push(`when: ${yaml[job].when}`);
+          const label = conditions.length ? `${job}\n${conditions.join('\n')}` : job;
+          if (stageIndex >= 0) {
+            mermaidCode += `J${i}["${label}"] --> S${stageIndex}\n`;
+          } else {
+            mermaidCode += `J${i}["${label}"]:::jobClass\n`; // Orphan job
+          }
+        });
+
+        // Style for stages and jobs
+        mermaidCode += 'classDef stageClass fill:#bbdefb,stroke:#333,stroke-width:2px;\n';
+        mermaidCode += 'classDef jobClass fill:#e6e6e6,stroke:#333,stroke-width:1px;\n';
+
+        return { code: mermaidCode, valid: true };
+      } catch (err) {
+        return { code: `# Error: ${err.message}\n`, valid: false };
+      }
+    }
+
+    // Render Mermaid graph
+    function renderMermaidGraph(mermaidCode) {
+      const mermaidDiv = document.getElementById('mermaid-graph');
+      if (!mermaidCode || mermaidCode.startsWith('# Error')) {
+        mermaidDiv.innerHTML = `<p class="text-red-500">${mermaidCode}</p>`;
+        return;
+      }
+      // Ensure div is in DOM
+      if (!mermaidDiv.isConnected) {
+        document.getElementById('mermaid-graph-container').appendChild(mermaidDiv);
+      }
+      mermaidDiv.innerHTML = `<div class="mermaid">${mermaidCode}</div>`;
+      // Increase delay for DOM readiness
+      setTimeout(() => {
+        try {
+          mermaid.render('mermaidGraph', mermaidCode, (svgCode, bindFunctions) => {
+            mermaidDiv.innerHTML = svgCode;
+            if (bindFunctions) bindFunctions(mermaidDiv);
+          }, mermaidDiv).catch(err => {
+            console.error('Mermaid rendering error:', err);
+            mermaidDiv.innerHTML = `<p class="text-red-500">Error rendering graph: ${err.message}</p>`;
+          });
+        } catch (err) {
+          console.error('Mermaid rendering exception:', err);
+          mermaidDiv.innerHTML = `<p class="text-red-500">Error rendering graph: ${err.message}</p>`;
+        }
+      }, 200); // Increased from 100ms to 200ms
+    }
+
+    // Initialize Monaco Editors
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs' } });
+    require(['vs/editor/editor.main'], function () {
+      // YAML Editor (Left Pane)
+      const yamlEditor = monaco.editor.create(document.getElementById('yaml-editor'), {
+        value: `# Upload a .gitlab-ci.yml file to view and edit\n`,
+        language: 'yaml',
+        theme: 'vs-dark',
+        automaticLayout: true,
+        minimap: { enabled: false }
+      });
+
+      // Mermaid Editor (Right Pane)
+      const mermaidEditor = monaco.editor.create(document.getElementById('mermaid-editor'), {
+        value: `# Generated Mermaid code will appear here\n`,
+        language: 'mermaid',
+        theme: 'vs-dark',
+        automaticLayout: true,
+        minimap: { enabled: false }
+      });
+
+      // Handle file upload
+      document.getElementById('yamlFile').addEventListener('change', function (event) {
+        const file = event.target.files[0];
+        if (!file || !file.name.match(/\.(yml|yaml)$/)) {
+          alert('Please upload a valid .yml or .yaml file');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          try {
+            const yamlContent = e.target.result;
+            yamlEditor.setValue(yamlContent);
+            const { code: mermaidCode, valid } = generateMermaidCode(yamlContent);
+            mermaidEditor.setValue(mermaidCode);
+            if (valid) {
+              enableDownloadButtons(mermaidCode);
+              renderMermaidGraph(mermaidCode);
+            } else {
+              disableDownloadButtons();
+              renderMermaidGraph(mermaidCode);
+            }
+          } catch (err) {
+            alert('Error processing YAML file: ' + err.message);
+            mermaidEditor.setValue(`# Error: ${err.message}\n`);
+            disableDownloadButtons();
+            renderMermaidGraph(`# Error: ${err.message}\n`);
+          }
+        };
+        reader.readAsText(file);
+      });
+
+      // Update Mermaid code and graph on YAML changes
+      yamlEditor.onDidChangeModelContent(() => {
+        try {
+          const yamlContent = yamlEditor.getValue();
+          const { code: mermaidCode, valid } = generateMermaidCode(yamlContent);
+          mermaidEditor.setValue(mermaidCode);
+          if (valid) {
+            enableDownloadButtons(mermaidCode);
+            renderMermaidGraph(mermaidCode);
+          } else {
+            disableDownloadButtons();
+            renderMermaidGraph(mermaidCode);
+          }
+        } catch (err) {
+          mermaidEditor.setValue(`# Error: ${err.message}\n`);
+          disableDownloadButtons();
+          renderMermaidGraph(`# Error: ${err.message}\n`);
+        }
+      });
+
+      // Update graph on Mermaid code changes
+      mermaidEditor.onDidChangeModelContent(() => {
+        const mermaidCode = mermaidEditor.getValue();
+        if (!mermaidCode.startsWith('# Error')) {
+          enableDownloadButtons(mermaidCode);
+          renderMermaidGraph(mermaidCode);
+        } else {
+          disableDownloadButtons();
+          renderMermaidGraph(mermaidCode);
+        }
+      });
+
+      // Enable download buttons and set up handlers
+      function enableDownloadButtons(mermaidCode) {
+        const downloadPng = document.getElementById('downloadPng');
+        const downloadSvg = document.getElementById('downloadSvg');
+        downloadPng.disabled = false;
+        downloadSvg.disabled = false;
+
+        // Create a temporary div for Mermaid rendering
+        const tempDiv = document.createElement('div');
+        tempDiv.style.display = 'none';
+        document.body.appendChild(tempDiv);
+
+        // Download PNG
+        downloadPng.onclick = () => {
+          mermaid.render('tempGraph', mermaidCode, (svgCode, bindFunctions) => {
+            tempDiv.innerHTML = svgCode;
+            const svg = tempDiv.querySelector('svg');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+            img.onload = () => {
+              canvas.width = svg.width.baseVal.value * 2;
+              canvas.height = svg.height.baseVal.value * 2;
+              ctx.scale(2, 2);
+              ctx.drawImage(img, 0, 0);
+              const link = document.createElement('a');
+              link.href = canvas.toDataURL('image/png');
+              link.download = 'pipeline.png';
+              link.click();
+              tempDiv.remove();
+            };
+            img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgCode)));
+          }, tempDiv);
+        };
+
+        // Download SVG
+        downloadSvg.onclick = () => {
+          mermaid.render('tempGraph', mermaidCode, (svgCode, bindFunctions) => {
+            const link = document.createElement('a');
+            link.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgCode);
+            link.download = 'pipeline.svg';
+            link.click();
+            tempDiv.remove();
+          }, tempDiv);
+        };
+      }
+
+      // Disable download buttons
+      function disableDownloadButtons() {
+        document.getElementById('downloadPng').disabled = true;
+        document.getElementById('downloadSvg').disabled = true;
+      }
+
+      // Splitter functionality
+      const splitter = document.getElementById('splitter');
+      const leftPane = document.querySelector('.pane.left');
+      const rightPane = document.querySelector('.pane.right');
+      let isDragging = false;
+
+      splitter.addEventListener('mousedown', function (e) {
+        isDragging = true;
+        splitter.classList.add('active');
+        e.preventDefault();
+      });
+
+      document.addEventListener('mousemove', function (e) {
+        if (!isDragging) return;
+        const container = document.querySelector('.split-pane');
+        const containerRect = container.getBoundingClientRect();
+        const newLeftWidth = e.clientX - containerRect.left;
+        const minWidth = 200;
+        const maxWidth = containerRect.width - minWidth - splitter.offsetWidth;
+
+        if (newLeftWidth >= minWidth && newLeftWidth <= maxWidth) {
+          leftPane.style.flex = `0 0 ${newLeftWidth}px`;
+          rightPane.style.flex = `1 0 ${containerRect.width - newLeftWidth - splitter.offsetWidth}px`;
+          yamlEditor.layout();
+          mermaidEditor.layout();
+        }
+      });
+
+      document.addEventListener('mouseup', function () {
+        isDragging = false;
+        splitter.classList.remove('active');
+      });
+
+      // Handle window resize
+      window.addEventListener('resize', () => {
+        yamlEditor.layout();
+        mermaidEditor.layout();
+      });
+    });
+  </script>
+</body>
+</html>
