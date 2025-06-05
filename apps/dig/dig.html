@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MC Diagram Editor</title>
+      <link
+    rel="icon"
+    type="image/x-icon"
+    href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"
+  />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/viz.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/viz.js/2.1.2/full.render.js"></script>
+ 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+       <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            margin: 10px;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 15px 15px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin: 0;
+            background: linear-gradient(45deg, #fff, #e0e7ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .diagram-type-selector {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 25px;
+            padding: 8px 20px;
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+
+        .diagram-type-selector:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            font-size: 14px;
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .hidden-input {
+            position: absolute;
+            left: -9999px;
+            opacity: 0;
+        }
+
+        .main-content {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+        }
+
+        .editor-pane {
+            width: 50%;
+            border-right: 3px solid #e5e7eb;
+            display: flex;
+            flex-direction: column;
+            background: #f8fafc;
+        }
+
+        .editor-header {
+            background: linear-gradient(135deg, #4f46e5, #7c3aed);
+            color: white;
+            padding: 15px 20px;
+            font-weight: 600;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .editor-container {
+            flex: 1;
+            position: relative;
+        }
+
+        .preview-pane {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            background: #ffffff;
+        }
+
+        .preview-header {
+            background: linear-gradient(135deg, #059669, #0d9488);
+            color: white;
+            padding: 15px 20px;
+            font-weight: 600;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .export-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .export-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .export-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        .preview-container {
+            flex: 1;
+            padding: 20px;
+            overflow: auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: radial-gradient(circle at center, #f8fafc 0%, #e2e8f0 100%);
+        }
+
+        .diagram-output {
+            max-width: 100%;
+            max-height: 100%;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            background: white;
+            padding: 20px;
+        }
+
+        .error-message {
+            color: #ef4444;
+            background: #fef2f2;
+            border: 2px solid #fecaca;
+            padding: 20px;
+            border-radius: 10px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            max-width: 600px;
+        }
+
+        .loading {
+            color: #6b7280;
+            font-style: italic;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e5e7eb;
+            border-top: 2px solid #6b7280;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .status-indicator {
+            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+
+        .status-success {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-error {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .editor-pane, .preview-pane {
+                width: 100%;
+                height: 50%;
+            }
+            
+            .controls {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .header h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✨ MC Diagram Editor</h1>
+            <div class="controls">
+                <select class="diagram-type-selector" id="diagramType">
+                    <option value="mermaid">Mermaid Diagram</option>
+                    <option value="graphviz">Graphviz Diagram</option>
+                </select>
+                <button class="btn" id="uploadBtn">📁 Upload</button>
+                <button class="btn" id="downloadBtn">💾 Download</button>
+                <input type="file" id="fileInput" class="hidden-input" accept=".txt,.md,.mermaid,.dot,.gv">
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="editor-pane">
+                <div class="editor-header">
+                    <span>📝 Code Editor</span>
+                    <span class="status-indicator status-success" id="editorStatus">Ready</span>
+                </div>
+                <div class="editor-container" id="editor"></div>
+            </div>
+            
+            <div class="preview-pane">
+                <div class="preview-header">
+                    <span>🎨 Preview</span>
+                    <div class="export-controls">
+                        <button class="export-btn" id="exportSvg">SVG</button>
+                        <button class="export-btn" style="display: none;"  id="exportPng">PNG</button>
+                    </div>
+                </div>
+                <div class="preview-container">
+                    <div id="diagramOutput" class="diagram-output"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let editor;
+        let currentDiagramType = 'mermaid';
+        let viz;
+
+        // Sample diagrams
+        const sampleDiagrams = {
+            mermaid: `graph TD
+    A[Start] --> B{Decision}
+    B -->|Yes| C[Action 1]
+    B -->|No| D[Action 2]
+    C --> E[End]
+    D --> E`,
+            graphviz: `digraph G {
+    rankdir=TB;
+    node [shape=box, style=filled, fillcolor=lightblue];
+    
+    Start -> Decision [label="begin"];
+    Decision -> Action1 [label="yes"];
+    Decision -> Action2 [label="no"];
+    Action1 -> End;
+    Action2 -> End;
+    
+    Start [fillcolor=lightgreen];
+    End [fillcolor=lightcoral];
+}`
+        };
+
+        // Initialize Monaco Editor
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            editor = monaco.editor.create(document.getElementById('editor'), {
+                value: sampleDiagrams.mermaid,
+                language: 'markdown',
+                theme: 'vs-light',
+                automaticLayout: true,
+                fontSize: 14,
+                lineNumbers: 'on',
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                wordWrap: 'on'
+            });
+
+            editor.onDidChangeModelContent(() => {
+                renderDiagram();
+            });
+        });
+
+        // Initialize Viz.js for Graphviz
+        viz = new window.Viz();
+
+        // Initialize Mermaid
+        mermaid.initialize({ 
+            startOnLoad: false,
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#667eea',
+                primaryTextColor: '#fff',
+                primaryBorderColor: '#764ba2',
+                lineColor: '#666',
+                secondaryColor: '#f0f0f0',
+                tertiaryColor: '#fff'
+            }
+        });
+
+        // Event listeners
+        document.getElementById('diagramType').addEventListener('change', (e) => {
+            currentDiagramType = e.target.value;
+            editor.setValue(sampleDiagrams[currentDiagramType]);
+            updateEditorLanguage();
+            renderDiagram();
+        });
+
+        document.getElementById('uploadBtn').addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    editor.setValue(e.target.result);
+                    updateStatus('File loaded successfully', 'success');
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        document.getElementById('downloadBtn').addEventListener('click', () => {
+            const content = editor.getValue();
+            const extension = currentDiagramType === 'mermaid' ? 'md' : 'dot';
+            downloadFile(content, `diagram.${extension}`, 'text/plain');
+        });
+
+        document.getElementById('exportSvg').addEventListener('click', () => {
+            exportDiagram('svg');
+        });
+
+        document.getElementById('exportPng').addEventListener('click', () => {
+            exportDiagram('png');
+        });
+
+        function updateEditorLanguage() {
+            const language = currentDiagramType === 'mermaid' ? 'markdown' : 'dot';
+            monaco.editor.setModelLanguage(editor.getModel(), language);
+        }
+
+        function updateStatus(message, type) {
+            const statusEl = document.getElementById('editorStatus');
+            statusEl.textContent = message;
+            statusEl.className = `status-indicator status-${type}`;
+        }
+
+        async function renderDiagram() {
+            const code = editor.getValue().trim();
+            const outputEl = document.getElementById('diagramOutput');
+            
+            if (!code) {
+                outputEl.innerHTML = '<div class="loading">Enter your diagram code to see the preview</div>';
+                return;
+            }
+
+            outputEl.innerHTML = '<div class="loading"><div class="spinner"></div>Rendering diagram...</div>';
+            updateStatus('Rendering...', 'success');
+
+            try {
+                if (currentDiagramType === 'mermaid') {
+                    await renderMermaid(code, outputEl);
+                } else {
+                    await renderGraphviz(code, outputEl);
+                }
+                updateStatus('Rendered successfully', 'success');
+            } catch (error) {
+                outputEl.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+                updateStatus('Render error', 'error');
+            }
+        }
+
+        async function renderMermaid(code, outputEl) {
+            const id = 'mermaid-' + Date.now();
+            outputEl.innerHTML = `<div id="${id}"></div>`;
+            
+            const { svg } = await mermaid.render(id, code);
+            outputEl.innerHTML = svg;
+        }
+
+        async function renderGraphviz(code, outputEl) {
+            const svg = await viz.renderString(code, { format: 'svg' });
+            outputEl.innerHTML = svg;
+        }
+
+        function exportDiagram(format) {
+            const outputEl = document.getElementById('diagramOutput');
+            const svgEl = outputEl.querySelector('svg');
+            
+            if (!svgEl) {
+                alert('No diagram to export. Please render a diagram first.');
+                return;
+            }
+
+            if (format === 'svg') {
+                const svgData = new XMLSerializer().serializeToString(svgEl);
+                const svgBlob = new Blob([svgData], { type: 'image/svg+xml' });
+                const url = URL.createObjectURL(svgBlob);
+                downloadFile(url, 'diagram.svg', null, true);
+            } else if (format === 'png') {
+                svgToPng(svgEl, (dataUrl) => {
+                    downloadFile(dataUrl, 'diagram.png', null, true);
+                });
+            }
+        }
+
+        function svgToPng(svgElement, callback) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const img = new Image();
+
+            // Serialize SVG and remove font-family attributes
+            let svgData = new XMLSerializer().serializeToString(svgElement);
+            svgData = svgData.replace(/font-family="[^"]*"/g, 'font-family="sans-serif"');
+
+            const svgBlob = new Blob([svgData], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(svgBlob);
+
+            img.onload = function() {
+                canvas.width = img.width * 2;
+                canvas.height = img.height * 2;
+                ctx.scale(2, 2);
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+
+                const dataUrl = canvas.toDataURL('image/png');
+                callback(dataUrl);
+                URL.revokeObjectURL(url);
+            };
+
+            img.crossOrigin = 'anonymous';
+            img.src = url;
+        }
+
+        function downloadFile(content, filename, mimeType, isUrl = false) {
+            const a = document.createElement('a');
+            if (isUrl) {
+                a.href = content;
+            } else {
+                const blob = new Blob([content], { type: mimeType });
+                a.href = URL.createObjectURL(blob);
+            }
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            if (!isUrl) {
+                URL.revokeObjectURL(a.href);
+            }
+        }
+
+        // Initial render
+        setTimeout(() => {
+            renderDiagram();
+        }, 500);
+    </script>
+</body>
+</html>
