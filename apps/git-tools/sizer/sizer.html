@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Git-Sizer JSON Viewer</title>
+  <link
+    rel="icon"
+    type="image/x-icon"
+    href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"
+  />
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <!-- Monaco Editor CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs/loader.min.js"></script>
+  <style>
+    /* Ensure Monaco Editor takes full height */
+    #editor {
+      height: 100%;
+      width: 100%;
+    }
+    /* Sticky header and footer */
+    header, footer {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    footer {
+      bottom: 0;
+      top: auto;
+    }
+    /* Split pane layout */
+    .split-pane {
+      display: flex;
+      height: calc(100vh - 8rem);
+      overflow: hidden;
+    }
+    .pane {
+      overflow: auto;
+      min-width: 200px; /* Prevent panes from collapsing too small */
+    }
+    .pane.left {
+      flex: 1; /* Initial flex ratio */
+    }
+    .pane.right {
+      flex: 1; /* Initial flex ratio */
+    }
+    /* Splitter styles */
+    .splitter {
+      width: 8px;
+      background-color: #e5e7eb;
+      cursor: col-resize;
+      transition: background-color 0.2s;
+      z-index: 5;
+    }
+    .splitter:hover, .splitter.active {
+      background-color: #3b82f6;
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <!-- Sticky Header -->
+  <header class="bg-blue-600 text-white p-4 shadow-md">
+    <h1 class="text-2xl font-bold">Git-Sizer JSON Viewer</h1>
+    <p class="text-sm">Upload and visualize git-sizer JSON output</p>
+  </header>
+
+  <!-- Main Content -->
+  <div class="container mx-auto p-4">
+    <!-- File Upload -->
+    <div class="mb-4">
+      <label for="jsonFile" class="block text-sm font-medium text-gray-700">Upload git-sizer JSON file:</label>
+      <input type="file" id="jsonFile" accept=".json" class="mt-1 block w-full text-sm text-gray-500
+        file:mr-4 file:py-2 file:px-4
+        file:rounded-full file:border-0
+        file:text-sm file:font-semibold
+        file:bg-blue-50 file:text-blue-700
+        hover:file:bg-blue-100">
+    </div>
+
+    <!-- Split Pane for Editor and Chart -->
+    <div class="split-pane">
+      <!-- Left Pane: Monaco Editor -->
+      <div class="pane left bg-white">
+        <div id="editor" class="border rounded"></div>
+      </div>
+      <!-- Splitter -->
+      <div class="splitter" id="splitter"></div>
+      <!-- Right Pane: Chart -->
+      <div class="pane right bg-white p-4">
+        <canvas id="sizeChart"></canvas>
+        <div class="mt-4">
+          <button id="downloadChart" class="py-2 px-4 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"  style="display: none;">Download Graph</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sticky Footer -->
+  <footer class="bg-blue-600 text-white p-4 text-center">
+    <p>MC Git-Sizer JSON Viewer</p>
+  </footer>
+
+  <!-- JavaScript for Functionality -->
+  <script>
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.36.1/min/vs' } });
+    require(['vs/editor/editor.main'], function () {
+      const editor = monaco.editor.create(document.getElementById('editor'), {
+        value: `
+{"Notes": "Upload a git-sizer JSON file to view",
+ "Run": "git-sizer --json > sizer.output",
+ "InstallmacOS": "brew install git-sizer"
+}
+`,
+        language: 'json',
+        theme: 'vs-dark',
+        automaticLayout: true,
+        minimap: { enabled: false },
+      });
+
+      // Handle file upload
+      document.getElementById('jsonFile').addEventListener('change', function (event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        if (!file.name.endsWith('.json')) {
+          alert('Please upload a valid .json file');
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          try {
+            const jsonContent = JSON.parse(e.target.result);
+            editor.setValue(JSON.stringify(jsonContent, null, 2));
+            renderChart(jsonContent);
+          } catch (err) {
+            alert('Invalid JSON file: ' + err.message);
+          }
+        };
+        reader.readAsText(file);
+      });
+
+      // Update chart on editor changes
+      editor.onDidChangeModelContent(() => {
+        try {
+          const jsonContent = JSON.parse(editor.getValue());
+          renderChart(jsonContent);
+        } catch (err) {
+          // Ignore invalid JSON during editing
+        }
+      });
+
+      // Render chart with Chart.js
+      let chartInstance = null;
+      function renderChart(jsonData) {
+        if (chartInstance) {
+          chartInstance.destroy();
+        }
+        const metrics = jsonData;
+        const labels = Object.keys(metrics).filter(key => typeof metrics[key] === 'number');
+        const data = labels.map(key => metrics[key]);
+        const formattedData = data.map(value => value >= 1000000 ? value / 1000000 : value);
+        const yAxisLabel = data.some(value => value >= 1000000) ? 'Value (Millions)' : 'Value';
+
+        const ctx = document.getElementById('sizeChart').getContext('2d');
+        chartInstance = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: labels.map(label => label.replace(/([A-Z])/g, ' $1').trim()),
+            datasets: [{
+              label: 'Git-Sizer Metrics',
+              data: formattedData,
+              backgroundColor: 'rgba(59, 130, 246, 0.5)',
+              borderColor: 'rgba(59, 130, 246, 1)',
+              borderWidth: 1
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: {
+                beginAtZero: true,
+                title: { display: true, text: yAxisLabel }
+              },
+              x: {
+                title: { display: true, text: 'Metric' }
+              }
+            }
+          }
+        });
+
+        // Enable download button when chart is created
+        const downloadButton = document.getElementById('downloadChart');
+        downloadButton.disabled = false;
+        downloadButton.style.display = 'inline-block';
+      }
+
+      // Download chart as PNG
+      document.getElementById('downloadChart').addEventListener('click', function () {
+        if (chartInstance) {
+          const link = document.createElement('a');
+          link.href = chartInstance.toBase64Image();
+          link.download = 'git-sizer-chart.png';
+          link.click();
+        } else {
+          alert('No chart available to download. Please upload a valid JSON file first.');
+        }
+      });
+
+      // Splitter functionality
+      const splitter = document.getElementById('splitter');
+      const leftPane = document.querySelector('.pane.left');
+      const rightPane = document.querySelector('.pane.right');
+      let isDragging = false;
+
+      splitter.addEventListener('mousedown', function (e) {
+        isDragging = true;
+        splitter.classList.add('active');
+        e.preventDefault(); // Prevent text selection
+      });
+
+      document.addEventListener('mousemove', function (e) {
+        if (!isDragging) return;
+        const container = document.querySelector('.split-pane');
+        const containerRect = container.getBoundingClientRect();
+        const newLeftWidth = e.clientX - containerRect.left;
+        const minWidth = 200;
+        const maxWidth = containerRect.width - minWidth - splitter.offsetWidth;
+
+        if (newLeftWidth >= minWidth && newLeftWidth <= maxWidth) {
+          leftPane.style.flex = `0 0 ${newLeftWidth}px`;
+          rightPane.style.flex = `1 0 ${containerRect.width - newLeftWidth - splitter.offsetWidth}px`;
+          editor.layout();
+        }
+      });
+
+      document.addEventListener('mouseup', function () {
+        isDragging = false;
+        splitter.classList.remove('active');
+      });
+
+      // Handle window resize to maintain proportions
+      window.addEventListener('resize', () => {
+        editor.layout();
+        if (chartInstance) {
+          chartInstance.resize();
+        }
+      });
+    });
+  </script>
+</body>
+</html>
