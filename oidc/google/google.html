@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Google as OpenID Connect Provider for Salesforce</title>
+   <link
+      rel="icon"
+      type="image/x-icon"
+      href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"
+    />
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      line-height: 1.6;
+      margin: 0;
+      padding: 0;
+      background: #f4f4f9;
+      color: #333;
+    }
+    header {
+      background: #4285F4;
+      color: white;
+      padding: 1em 2em;
+    }
+    header h1 {
+      margin: 0;
+    }
+    .container {
+      padding: 2em;
+      max-width: 1000px;
+      margin: auto;
+      background: white;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+      color: #4285F4;
+      border-bottom: 2px solid #ccc;
+      padding-bottom: 0.3em;
+    }
+    pre {
+      background: #eee;
+      padding: 1em;
+      overflow-x: auto;
+    }
+    code {
+      font-family: SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace;
+    }
+    ul {
+      padding-left: 1.5em;
+    }
+    .note {
+      background: #e7f3ff;
+      border-left: 5px solid #2196F3;
+      padding: 1em;
+      margin: 1em 0;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Use Google as OpenID Connect (OIDC) Provider for Salesforce</h1>
+  </header>
+
+  <div class="container">
+    <h2>Overview</h2>
+    <p>
+      This guide explains how to configure Google as an OpenID Connect Identity Provider (IdP)
+      to allow Salesforce users to log in using their Google accounts.
+    </p>
+
+    <h2>Step 1: Create a Google Cloud Project and OAuth Client</h2>
+    <ol>
+      <li>Go to <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a>.</li>
+      <li>Create a new project or select an existing one.</li>
+      <li>Enable the <strong>“OAuth 2.0 Client ID”</strong> under <strong>APIs & Services &gt; Credentials</strong>.</li>
+      <li>Click <strong>Create Credentials</strong> &gt; <strong>OAuth client ID</strong>.</li>
+      <li>Set:
+        <ul>
+          <li><strong>Application Type:</strong> Web application</li>
+          <li><strong>Authorized redirect URIs:</strong> Paste Salesforce’s <em>Callback URL</em> (you’ll get this from Salesforce Auth Provider page after initial save)</li>
+        </ul>
+      </li>
+      <li>Click <strong>Create</strong>.
+      <img src="img/oidc-google-1.png" width="800" alt="Google OAuth Client Creation" />
+      </li>
+    </ol>
+
+    <div class="note">
+      <strong>Note:</strong> After creation, save the <strong>Client ID</strong> and <strong>Client Secret</strong>. You will need these in Salesforce.
+    </div>
+
+    <h2>Step 2: Configure Auth. Provider in Salesforce</h2>
+    <ol>
+      <li>Go to <strong>Setup &gt; Auth. Providers</strong>.</li>
+      <li>Click <strong>New</strong>.</li>
+      <li>Configure the following:
+        <ul>
+          <li><strong>Provider Type:</strong> OpenID Connect</li>
+          <li><strong>Name:</strong> GoogleOIDC</li>
+          <li><strong>Consumer Key:</strong> (Paste your Google Client ID)</li>
+          <li><strong>Consumer Secret:</strong> (Paste your Google Client Secret)</li>
+          <li><strong>Authorize Endpoint URL:</strong><br/>
+            <code>https://accounts.google.com/o/oauth2/v2/auth</code></li>
+          <li><strong>Token Endpoint URL:</strong><br/>
+            <code>https://accounts.google.com/o/oauth2/auth2/token</code></li>
+          <li><strong>User Info Endpoint URL:</strong><br/>
+            <code>https://www.googleapis.com/oauth2/userinfo</code></li>
+          <li><strong>Issuer:</strong><br/>
+            <code>https://accounts.google.com</code></li>
+          <li><strong>Default Scopes:</strong><br/>
+            <code>openid email profile</code></li>
+          <li><strong>Registration Handler:</strong> Custom Apex class (see below)</li>
+          <li><strong>Execute Registration As:</strong> Choose an admin user</li>
+        </ul>
+      </li>
+      <li>Click <strong>Save</strong>.
+      <img src="img/oidc-google-2.png" width="800" alt="Google OAuth Provider at Salesforce" />
+      </li>
+      <li>Copy the generated <strong>Callback URL</strong> and add it to Google’s OAuth settings.</li>
+    </ol>
+
+    <h2>Step 3: Create a Registration Handler Apex Class</h2>
+    <p>
+      To prevent automatic user creation and allow only existing users to log in:
+    </p>
+    <pre><code>global class GoogleOIDCRegistrationHandler implements Auth.RegistrationHandler {
+    global User createUser(Id portalId, Auth.UserData data) {
+        throw new Auth.AuthException('User creation is not allowed.');
+    }
+
+    global void updateUser(Id userId, Id portalId, Auth.UserData data) {
+        User u = [SELECT Id, Email FROM User WHERE Id = :userId];
+        u.Email = data.email;
+        update u;
+    }
+}</code></pre>
+
+    <h2>Step 4: Add Login Option to My Domain</h2>
+    <ol>
+      <li>Go to <strong>Setup &gt; My Domain</strong>.</li>
+      <li>Edit the Login Page settings.</li>
+      <li>Add the new <strong>GoogleOIDC</strong> Auth Provider as a login option.</li>
+      <li>Save and deploy your domain if not already done.
+
+      <img src="img/oidc-google-3.png" width="800" alt="My Domain Login Settings" />
+      </li>
+    </ol>
+
+    <h2>Step 5: Test the Login</h2>
+    <ul>
+      <li>Go to your My Domain login page.
+        <img src="img/oidc-google-4.png" width="800" alt="My Domain Login Page" />
+
+
+      </li>
+      <li>Click the Google login button.</li>
+      <li>You should be redirected to the Google Sign-In screen, then back to Salesforce if the user exists.</li>
+    </ul>
+
+    <h2>Troubleshooting</h2>
+    <ul>
+      <li><strong>NO_ACCESS: Unable to find a user</strong> – means user does not exist in Salesforce and creation is not allowed.</li>
+      <li>Ensure that your callback URL in Google matches exactly what Salesforce provided.</li>
+      <li>Check for scope and endpoint typos.</li>
+    </ul>
+    <h2>Demo and docs</h2>
+    <a href="https://github.com/mohan-chinnappan-n/cli-dx/blob/master/oid/openId-connect.md" target="_blank">View more docs and Watch the demo video</a> for a step-by-step walkthrough.
+
+    <h2>References</h2>
+    <ul>
+      <li><a href="https://developers.google.com/identity/protocols/oauth2/openid-connect" target="_blank">Google OpenID Docs</a></li>
+      <li><a href="https://help.salesforce.com/s/articleView?id=sf.sso_provider_openid_connect.htm" target="_blank">Salesforce OIDC Docs</a></li>
+    </ul>
+  </div>
+</body>
+</html>
