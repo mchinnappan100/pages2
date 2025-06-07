@@ -310,27 +310,6 @@
           this.setupEventListeners();
           this.saveState();
         }
-        loadFromJSON(jsonData) {
-          try {
-            const data = JSON.parse(jsonData);
-            if (!data.elements || !Array.isArray(data.elements)) {
-              throw new Error(
-                "Invalid JSON format: missing or invalid elements array"
-              );
-            }
-            this.elements = data.elements.map((element) => ({
-              ...element,
-              // Ensure backward compatibility for text elements
-              fontSize:
-                element.type === "text" ? element.fontSize || 16 : undefined,
-            }));
-            this.saveState();
-            this.redraw();
-          } catch (error) {
-            alert(`Error loading JSON: ${error.message}`);
-            console.error("JSON load error:", error);
-          }
-        }
 
         setupCanvas() {
           this.canvas.width = window.innerWidth;
@@ -622,14 +601,23 @@
         }
 
         createTextInput(x, y) {
+          console.log("Creating text input at:", {
+            x,
+            y,
+            zoom: this.zoom,
+            panX: this.panX,
+            panY: this.panY,
+          });
+
           const input = document.createElement("textarea");
           input.className = "text-input";
-          input.style.left = x * this.zoom + this.panX + "px";
-          input.style.top = y * this.zoom + this.panY + "px";
+          // Position input accounting for zoom and pan
+          input.style.left = `${x * this.zoom + this.panX}px`;
+          input.style.top = `${y * this.zoom + this.panY}px`;
           input.style.transform = `scale(${this.zoom})`;
           input.style.transformOrigin = "top left";
           input.style.color = this.color;
-          input.style.fontSize = `${16 / this.zoom}px`; // Adjust font size for zoom
+          input.style.fontSize = `${16 / this.zoom}px`; // Normalize font size for display
           input.placeholder = "Type text here...";
 
           document.body.appendChild(input);
@@ -637,6 +625,12 @@
 
           const finishText = () => {
             const text = input.value.trim();
+            console.log("Finishing text input:", {
+              text,
+              x,
+              y,
+              color: this.color,
+            });
             if (text) {
               this.elements.push({
                 type: "text",
@@ -644,28 +638,38 @@
                 y: y,
                 text: text,
                 color: this.color,
-                fontSize: 16 / this.zoom, // Store normalized font size
+                fontSize: 16, // Store fixed font size
               });
               this.saveState();
               this.redraw();
+              console.log(
+                "Text element added:",
+                this.elements[this.elements.length - 1]
+              );
             }
             if (document.body.contains(input)) {
               document.body.removeChild(input);
             }
           };
 
-          input.addEventListener("blur", finishText);
+          input.addEventListener("blur", () => {
+            console.log("Text input blurred");
+            finishText();
+          });
           input.addEventListener("keydown", (e) => {
             if (e.key === "Escape") {
+              console.log("Text input cancelled via Escape");
               if (document.body.contains(input)) {
                 document.body.removeChild(input);
               }
             } else if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
+              console.log("Text input submitted via Enter");
               finishText();
             }
           });
         }
+
         drawElement(element) {
           this.ctx.save();
           this.ctx.strokeStyle = element.color;
@@ -720,17 +724,17 @@
               break;
 
             case "text":
+              console.log("Drawing text element:", element);
               this.ctx.fillStyle = element.color;
-              this.ctx.font = `${element.fontSize * this.zoom}px Arial`; // Scale font size with zoom
+              this.ctx.font = `${(element.fontSize || 16) * this.zoom}px Arial`; // Fallback fontSize
               this.ctx.textBaseline = "top";
-
               // Handle multi-line text
               const lines = element.text.split("\n");
               lines.forEach((line, index) => {
                 this.ctx.fillText(
                   line,
                   element.x,
-                  element.y + index * element.fontSize * 1.2
+                  element.y + index * (element.fontSize || 16) * 1.2
                 );
               });
               break;
@@ -783,8 +787,8 @@
           this.ctx.stroke();
           this.ctx.restore();
         }
-
         redraw() {
+          console.log("Redrawing canvas with elements:", this.elements.length);
           this.ctx.save();
           this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
@@ -1122,29 +1126,6 @@
       }
 
       // Initialize the whiteboard
-      function handleFileUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          whiteboard.loadFromJSON(e.target.result);
-          // Reset file input to allow re-upload of same file
-          document.getElementById("uploadJSON").value = "";
-        };
-        reader.onerror = (e) => {
-          alert("Error reading file");
-          console.error("File read error:", e);
-        };
-        reader.readAsText(file);
-      }
-
-      // Add event listener for file upload
-      document.addEventListener("DOMContentLoaded", () => {
-        document
-          .getElementById("uploadJSON")
-          .addEventListener("change", handleFileUpload);
-      });
       document.addEventListener("DOMContentLoaded", () => {
         whiteboard = new Whiteboard();
       });
