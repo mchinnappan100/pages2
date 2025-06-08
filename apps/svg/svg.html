@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG Editor Pro</title>
+     <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            margin: 10px;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 20px 24px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 4px 20px rgba(79, 172, 254, 0.3);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .btn-primary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #495057;
+            border: 1px solid #dee2e6;
+        }
+
+        .btn-secondary:hover {
+            background: #e9ecef;
+            transform: translateY(-2px);
+        }
+
+        .toolbar {
+            padding: 16px 24px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .shape-palette {
+            display: flex;
+            gap: 8px;
+            padding: 8px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .shape-btn {
+            width: 44px;
+            height: 44px;
+            border: none;
+            border-radius: 8px;
+            background: #f8f9fa;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            position: relative;
+        }
+
+        .shape-btn:hover {
+            background: #e9ecef;
+            transform: scale(1.05);
+        }
+
+        .shape-btn.active {
+            background: #007bff;
+            color: white;
+        }
+
+        .shape-btn svg {
+            width: 20px;
+            height: 20px;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            position: relative;
+            min-height: 0;
+        }
+
+        .editor-pane {
+            flex: 1;
+            min-width: 0;
+            background: white;
+            position: relative;
+        }
+
+        .splitter {
+            width: 6px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            cursor: col-resize;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+
+        .splitter:hover {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            box-shadow: 0 0 20px rgba(79, 172, 254, 0.5);
+        }
+
+        .splitter::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 3px;
+            height: 30px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 2px;
+        }
+
+        .preview-pane {
+            flex: 1;
+            min-width: 0;
+            background: #f8f9fa;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: auto;
+        }
+
+        .preview-content {
+            max-width: 100%;
+            max-height: 100%;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            margin: 20px;
+        }
+
+        .preview-content svg {
+            max-width: 100%;
+            max-height: 100%;
+            display: block;
+        }
+
+        .file-input {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .tooltip {
+            position: absolute;
+            bottom: 120%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+            z-index: 1000;
+        }
+
+        .tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 4px solid transparent;
+            border-top-color: #333;
+        }
+
+        .shape-btn:hover .tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .error-message {
+            color: #dc3545;
+            padding: 16px;
+            background: #f8d7da;
+            border: 1px solid #f5c2c7;
+            border-radius: 8px;
+            margin: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .splitter {
+                width: 100%;
+                height: 6px;
+                cursor: row-resize;
+            }
+            
+            .toolbar {
+                padding: 12px 16px;
+            }
+            
+            .shape-palette {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+                SVG Editor Pro
+            </h1>
+            <div class="header-controls">
+                <button class="btn btn-primary" onclick="uploadFile()">
+                    📁 Upload SVG
+                </button>
+                <button class="btn btn-primary" onclick="downloadSVG()">
+                    💾 Download
+                </button>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <div class="shape-palette">
+                <button class="shape-btn" onclick="insertShape('rectangle')" title="Rectangle">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                        <rect x="3" y="6" width="14" height="8" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                    </svg>
+                    <div class="tooltip">Rectangle</div>
+                </button>
+                <button class="shape-btn" onclick="insertShape('circle')" title="Circle">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                        <circle cx="10" cy="10" r="6" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                    </svg>
+                    <div class="tooltip">Circle</div>
+                </button>
+                <button class="shape-btn" onclick="insertShape('line')" title="Line">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                        <line x1="3" y1="17" x2="17" y2="3" stroke="currentColor" stroke-width="1.5"/>
+                    </svg>
+                    <div class="tooltip">Line</div>
+                </button>
+                <button class="shape-btn" onclick="insertShape('polygon')" title="Polygon">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                        <polygon points="10,3 17,7 17,13 10,17 3,13 3,7" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                    </svg>
+                    <div class="tooltip">Polygon</div>
+                </button>
+                <button class="shape-btn" onclick="insertShape('path')" title="Path">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                        <path d="M3 10 Q 10 3 17 10 T 17 15" stroke="currentColor" stroke-width="1.5" fill="none"/>
+                    </svg>
+                    <div class="tooltip">Path</div>
+                </button>
+                <button class="shape-btn" onclick="insertShape('text')" title="Text">
+                    <svg viewBox="0 0 20 20" fill="currentColor">
+                        <text x="10" y="12" text-anchor="middle" font-size="8" font-family="Arial">Aa</text>
+                    </svg>
+                    <div class="tooltip">Text</div>
+                </button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <div class="editor-pane">
+                <div id="monaco-editor" style="height: 100%; width: 100%;"></div>
+            </div>
+            <div class="splitter" id="splitter"></div>
+            <div class="preview-pane">
+                <div class="preview-content" id="preview">
+                    <svg width="200" height="200" viewBox="0 0 200 200">
+                        <rect x="50" y="50" width="100" height="100" fill="#4facfe" stroke="#00f2fe" stroke-width="2"/>
+                        <circle cx="100" cy="100" r="30" fill="rgba(255,255,255,0.3)"/>
+                        <text x="100" y="170" text-anchor="middle" font-family="Arial" font-size="14" fill="#333">Welcome to SVG Editor</text>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" class="file-input" accept=".svg" onchange="handleFileUpload(event)">
+
+    <script>
+        let editor;
+        let isResizing = false;
+
+        // Initialize Monaco Editor
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
+        require(['vs/editor/editor.main'], function () {
+            editor = monaco.editor.create(document.getElementById('monaco-editor'), {
+                value: `<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <rect x="50" y="50" width="100" height="100" fill="#4facfe" stroke="#00f2fe" stroke-width="2"/>
+  <circle cx="100" cy="100" r="30" fill="rgba(255,255,255,0.3)"/>
+  <text x="100" y="170" text-anchor="middle" font-family="Arial" font-size="14" fill="#333">Welcome to SVG Editor</text>
+</svg>`,
+                language: 'xml',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                wordWrap: 'on',
+                fontSize: 14,
+                lineNumbers: 'on',
+                roundedSelection: false,
+                scrollbar: {
+                    vertical: 'auto',
+                    horizontal: 'auto'
+                }
+            });
+
+            // Update preview when editor content changes
+            editor.onDidChangeModelContent(() => {
+                updatePreview();
+            });
+
+            // Initial preview update
+            updatePreview();
+        });
+
+        // Splitter functionality
+        const splitter = document.getElementById('splitter');
+        const container = document.querySelector('.main-content');
+
+        splitter.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.addEventListener('mousemove', handleResize);
+            document.addEventListener('mouseup', stopResize);
+            e.preventDefault();
+        });
+
+        function handleResize(e) {
+            if (!isResizing) return;
+            
+            const containerRect = container.getBoundingClientRect();
+            const percentage = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+            
+            if (percentage > 20 && percentage < 80) {
+                const editorPane = container.querySelector('.editor-pane');
+                const previewPane = container.querySelector('.preview-pane');
+                
+                editorPane.style.flex = `0 0 ${percentage}%`;
+                previewPane.style.flex = `0 0 ${100 - percentage}%`;
+            }
+        }
+
+        function stopResize() {
+            isResizing = false;
+            document.removeEventListener('mousemove', handleResize);
+            document.removeEventListener('mouseup', stopResize);
+        }
+
+        // Update SVG preview
+        function updatePreview() {
+            if (!editor) return;
+            
+            const svgContent = editor.getValue();
+            const previewDiv = document.getElementById('preview');
+            
+            try {
+                // Validate SVG by creating a temporary element
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = svgContent;
+                
+                if (tempDiv.querySelector('svg')) {
+                    previewDiv.innerHTML = svgContent;
+                } else {
+                    previewDiv.innerHTML = '<div class="error-message">Invalid SVG content. Please check your syntax.</div>';
+                }
+            } catch (error) {
+                previewDiv.innerHTML = '<div class="error-message">Error parsing SVG: ' + error.message + '</div>';
+            }
+        }
+
+        // File upload functionality
+        function uploadFile() {
+            document.getElementById('fileInput').click();
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file && file.type === 'image/svg+xml') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    if (editor) {
+                        editor.setValue(e.target.result);
+                        updatePreview();
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                alert('Please select a valid SVG file.');
+            }
+        }
+
+        // Download functionality
+        function downloadSVG() {
+            if (!editor) return;
+            
+            const svgContent = editor.getValue();
+            const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'edited-svg.svg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Shape insertion functionality
+        const shapeTemplates = {
+            rectangle: '<rect x="50" y="50" width="100" height="60" fill="#4facfe" stroke="#00f2fe" stroke-width="2"/>',
+            circle: '<circle cx="100" cy="100" r="40" fill="#4facfe" stroke="#00f2fe" stroke-width="2"/>',
+            line: '<line x1="50" y1="50" x2="150" y2="150" stroke="#4facfe" stroke-width="3"/>',
+            polygon: '<polygon points="100,30 150,100 100,170 50,100" fill="#4facfe" stroke="#00f2fe" stroke-width="2"/>',
+            path: '<path d="M 50 100 Q 100 50 150 100 T 250 100" stroke="#4facfe" stroke-width="3" fill="none"/>',
+            text: '<text x="100" y="100" font-family="Arial" font-size="18" fill="#4facfe" text-anchor="middle">Your Text</text>'
+        };
+
+        function insertShape(shapeType) {
+            if (!editor) return;
+            
+            const template = shapeTemplates[shapeType];
+            if (template) {
+                const position = editor.getPosition();
+                const range = new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column);
+                
+                editor.executeEdits('insert-shape', [{
+                    range: range,
+                    text: '\n  ' + template
+                }]);
+                
+                // Highlight the inserted shape
+                setTimeout(() => {
+                    const newPosition = editor.getPosition();
+                    const startLine = position.lineNumber + 1;
+                    const endLine = startLine;
+                    const startCol = 3;
+                    const endCol = template.length + 3;
+                    
+                    editor.setSelection(new monaco.Range(startLine, startCol, endLine, endCol));
+                    editor.focus();
+                }, 100);
+                
+                // Visual feedback
+                const buttons = document.querySelectorAll('.shape-btn');
+                buttons.forEach(btn => btn.classList.remove('active'));
+                event.target.closest('.shape-btn').classList.add('active');
+                setTimeout(() => {
+                    event.target.closest('.shape-btn').classList.remove('active');
+                }, 1000);
+            }
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey || e.metaKey) {
+                switch(e.key) {
+                    case 's':
+                        e.preventDefault();
+                        downloadSVG();
+                        break;
+                    case 'o':
+                        e.preventDefault();
+                        uploadFile();
+                        break;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
