@@ -1,0 +1,1453 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HAR File Viewer</title>
+    <link
+      rel="icon"
+      type="image/x-icon"
+      href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+      }
+
+      .container {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+      }
+
+      .header {
+        background: linear-gradient(90deg, #15487c, #7c3aed);
+        color: white;
+        padding: 1rem 2rem;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+
+      .header h1 {
+        font-size: 1.5rem;
+        font-weight: 600;
+      }
+
+      .upload-section {
+        padding: 1rem 2rem;
+        background: white;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      .upload-area {
+        border: 2px dashed #d1d5db;
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+      }
+
+      .upload-area:hover,
+      .upload-area.dragover {
+        border-color: #4f46e5;
+        background: #f8faff;
+      }
+
+      .upload-area input {
+        display: none;
+      }
+
+      .upload-icon {
+        font-size: 3rem;
+        color: #9ca3af;
+        margin-bottom: 1rem;
+      }
+
+      .main-content {
+        flex: 1;
+        display: flex;
+        overflow: hidden;
+      }
+
+      .left-pane {
+        width: 50%;
+        background: white;
+        border-right: 1px solid #e5e7eb;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .right-pane {
+        width: 50%;
+        background: white;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .splitter {
+        width: 4px;
+        background: #e5e7eb;
+        cursor: col-resize;
+        transition: background 0.2s;
+      }
+
+      .splitter:hover {
+        background: #4f46e5;
+      }
+
+      .pane-header {
+        padding: 1rem;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        font-weight: 600;
+        color: #374151;
+      }
+
+      #monaco-editor {
+        flex: 1;
+        min-height: 0;
+      }
+
+      .table-container {
+        flex: 1;
+        padding: 1rem;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .table-controls {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        gap: 1rem;
+      }
+
+      .search-box {
+        flex: 1;
+        max-width: 300px;
+        padding: 0.5rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 0.875rem;
+      }
+
+      .btn {
+        padding: 0.5rem 1rem;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .btn-primary {
+        background: #4f46e5;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #4338ca;
+      }
+
+      .btn-secondary {
+        background: #6b7280;
+        color: white;
+      }
+
+      .btn-secondary:hover {
+        background: #4b5563;
+      }
+
+      .data-table {
+        flex: 1;
+        overflow: auto;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.875rem;
+      }
+
+      th,
+      td {
+        padding: 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      th {
+        background: #f9fafb;
+        font-weight: 600;
+        color: #374151;
+        cursor: pointer;
+        user-select: none;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      th:hover {
+        background: #f3f4f6;
+      }
+
+      tr:hover {
+        background: #f9fafb;
+      }
+
+      .selected-row {
+        background: #eff6ff !important;
+      }
+
+      .multi-selected-row {
+        background: #dbeafe !important;
+      }
+
+      .checkbox-column {
+        width: 40px;
+        text-align: center;
+      }
+
+      .row-checkbox {
+        cursor: pointer;
+      }
+
+      .pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 0;
+        border-top: 1px solid #e5e7eb;
+      }
+
+      .pagination-info {
+        color: #6b7280;
+        font-size: 0.875rem;
+      }
+
+      .pagination-controls {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .page-btn {
+        padding: 0.25rem 0.75rem;
+        border: 1px solid #d1d5db;
+        background: white;
+        cursor: pointer;
+        border-radius: 4px;
+        font-size: 0.875rem;
+      }
+
+      .page-btn:hover {
+        background: #f9fafb;
+      }
+
+      .page-btn.active {
+        background: #4f46e5;
+        color: white;
+        border-color: #4f46e5;
+      }
+
+      .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 1000;
+      }
+
+      .modal-content {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border-radius: 12px;
+        width: 90%;
+        max-width: 1200px;
+        height: 80%;
+        overflow: hidden;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
+      }
+
+      .modal-header {
+        padding: 1rem 2rem;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+
+      .modal-body {
+        padding: 0;
+        height: calc(100% - 80px);
+        overflow: auto;
+      }
+
+      .close-btn {
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        color: #6b7280;
+      }
+
+      .close-btn:hover {
+        color: #374151;
+      }
+
+      .waterfall-chart {
+        width: 100%;
+        min-height: 400px;
+        background: white;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+      }
+
+      .status-200 {
+        color: #059669;
+      }
+      .status-300 {
+        color: #d97706;
+      }
+      .status-400,
+      .status-500 {
+        color: #dc2626;
+      }
+
+      .method-get {
+        background: #dbeafe;
+        color: #1e40af;
+      }
+      .method-post {
+        background: #dcfce7;
+        color: #166534;
+      }
+      .method-put {
+        background: #fef3c7;
+        color: #92400e;
+      }
+      .method-delete {
+        background: #fee2e2;
+        color: #991b1b;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      .no-data {
+        text-align: center;
+        color: #6b7280;
+        padding: 3rem;
+        font-style: italic;
+      }
+
+      .waterfall-legend {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        font-size: 12px;
+        z-index: 10;
+      }
+
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+
+      .legend-color {
+        width: 16px;
+        height: 12px;
+        border-radius: 2px;
+      }
+
+      .waterfall-info {
+        position: absolute;
+        bottom: 20px;
+        left: 20px;
+        background: rgba(255, 255, 255, 0.95);
+        padding: 1rem;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        font-size: 12px;
+        max-width: 300px;
+      }
+      .tooltip {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 20;
+    line-height: 1.4; /* Improve readability for multi-line tooltips */
+    max-width: 300px; /* Prevent overly wide tooltips */
+    white-space: nowrap; /* Prevent wrapping within lines */
+}
+.loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    color: white;
+    font-size: 1.2rem;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #4f46e5;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+     
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header class="header">
+        <h1><i class="fas fa-chart-line"></i> HAR File Viewer</h1>
+      </header>
+
+      <div class="upload-section">
+        <div class="upload-area" id="uploadArea">
+          <input type="file" id="fileInput" accept=".har" />
+          <div class="upload-icon">
+            <i class="fas fa-cloud-upload-alt"></i>
+          </div>
+          <h3>Drop HAR file here or click to browse</h3>
+          <p>Supports HTTP Archive (.har) files</p>
+        </div>
+        <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+    <div class="spinner"></div>
+    <p>Loading HAR file...</p>
+</div>
+      </div>
+
+      <div class="main-content hidden" id="mainContent">
+        <div class="left-pane" id="leftPane">
+          <div class="pane-header"><i class="fas fa-code"></i> HAR Content</div>
+          <div id="monaco-editor"></div>
+        </div>
+
+        <div class="splitter" id="splitter"></div>
+
+        <div class="right-pane" id="rightPane">
+          <div class="pane-header">
+            <i class="fas fa-table"></i> Requests Overview
+          </div>
+          <div class="table-container">
+            <div class="table-controls">
+              <input
+                type="text"
+                class="search-box"
+                id="searchBox"
+                placeholder="Search requests..."
+              />
+              <div style="display: flex; align-items: center; gap: 1rem">
+                <label style="font-size: 0.875rem; color: #6b7280">
+                  <i class="fas fa-info-circle"></i> Click row for timing chart
+                </label>
+                <button
+                  class="btn btn-primary"
+                  id="showMultiWaterfall"
+                  style="display: none"
+                >
+                  <i class="fas fa-chart-bar"></i> Show Multi Waterfall (<span
+                    id="selectedCount"
+                    >0</span
+                  >)
+                </button>
+                <button class="btn btn-secondary" id="downloadCsv">
+                  <i class="fas fa-download"></i> Download CSV
+                </button>
+              </div>
+            </div>
+
+            <div class="data-table" id="dataTable">
+              <table>
+                <thead>
+                  <tr id="tableHeader"></tr>
+                </thead>
+                <tbody id="tableBody"></tbody>
+              </table>
+            </div>
+
+            <div class="pagination">
+              <div class="pagination-info" id="paginationInfo"></div>
+              <div class="pagination-controls" id="paginationControls"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Waterfall Modal -->
+    <div class="modal" id="waterfallModal">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h3>
+            <i class="fas fa-chart-bar"></i>
+            <span id="waterfallTitle">Request Waterfall</span>
+          </h3>
+          <div>
+            <button class="btn btn-primary" id="downloadWaterfall">
+              <i class="fas fa-download"></i> Download PNG
+            </button>
+            <button class="close-btn" id="closeModal">×</button>
+          </div>
+        </div>
+        <div class="modal-body">
+          <canvas class="waterfall-chart" id="waterfallChart"></canvas>
+          <div class="waterfall-legend" id="waterfallLegend"></div>
+          <div class="waterfall-info" id="waterfallInfo"></div>
+          <div id="waterfallTooltip" class="tooltip" style="display: none;"></div>
+
+
+        
+        </div>
+      </div>
+    </div>
+
+    <script>
+      let monacoEditor;
+      let harData = null;
+      let currentData = [];
+      let filteredData = [];
+      let currentPage = 1;
+      let pageSize = 50;
+      let sortColumn = "";
+      let sortDirection = "asc";
+      let selectedRows = new Set();
+
+      // Initialize Monaco Editor
+      require.config({
+        paths: {
+          vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs",
+        },
+      });
+      require(["vs/editor/editor.main"], function () {
+        monacoEditor = monaco.editor.create(
+          document.getElementById("monaco-editor"),
+          {
+            value: "",
+            language: "json",
+            theme: "vs-dark",
+            automaticLayout: true,
+            readOnly: true,
+            wordWrap: "on",
+            minimap: { enabled: false },
+          }
+        );
+      });
+
+      // File upload handling
+      const fileInput = document.getElementById("fileInput");
+      const uploadArea = document.getElementById("uploadArea");
+      const mainContent = document.getElementById("mainContent");
+
+      uploadArea.addEventListener("click", () => fileInput.click());
+      uploadArea.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        uploadArea.classList.add("dragover");
+      });
+      uploadArea.addEventListener("dragleave", () => {
+        uploadArea.classList.remove("dragover");
+      });
+      uploadArea.addEventListener("drop", (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove("dragover");
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          handleFile(files[0]);
+        }
+      });
+
+      fileInput.addEventListener("change", (e) => {
+        if (e.target.files.length > 0) {
+          handleFile(e.target.files[0]);
+        }
+      });
+
+      function handleFile(file) {
+    if (!file.name.endsWith('.har')) {
+        alert('Please select a valid HAR file');
+        return;
+    }
+
+    // Show loading overlay
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    if (loadingOverlay) {
+        loadingOverlay.style.display = 'flex';
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            harData = JSON.parse(e.target.result);
+            if (!harData.log || !harData.log.entries) {
+                throw new Error('Missing log or entries in HAR file');
+            }
+            displayHarData();
+            mainContent.classList.remove('hidden');
+        } catch (error) {
+            alert(`Error parsing HAR file: ${error.message}`);
+            console.error('Error parsing HAR file:', error);
+        } finally {
+            // Hide loading overlay
+            if (loadingOverlay) {
+                loadingOverlay.style.display = 'none';
+            }
+        }
+    };
+    reader.onerror = () => {
+        alert('Error reading file');
+        console.error('File read error');
+        // Hide loading overlay
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
+    };
+    reader.readAsText(file);
+}
+           function displayHarData() {
+        // Display in Monaco Editor
+        monacoEditor.setValue(JSON.stringify(harData, null, 2));
+
+        // Extract entries for table
+        currentData = harData.log.entries.map((entry, index) => ({
+          index,
+          method: entry.request.method || "N/A",
+          url: entry.request.url || "",
+          status: entry.response.status || 0,
+          statusText: entry.response.statusText || "",
+          type: entry.response.content.mimeType || "unknown",
+          size: entry.response.bodySize || 0,
+          time: Math.round(entry.time) || 0,
+          startedDateTime: new Date(entry.startedDateTime).toLocaleString(),
+          startedDateTimeRaw: new Date(entry.startedDateTime),
+          timings: entry.timings || {},
+          originalEntry: entry,
+        }));
+
+        filteredData = [...currentData];
+        selectedRows.clear();
+        updateSelectedRowsUI();
+        renderTable();
+      }
+      function renderTable() {
+        const tableHeader = document.getElementById("tableHeader");
+        const tableBody = document.getElementById("tableBody");
+
+        // Create header
+        const columns = [
+          { key: "select", label: '<input type="checkbox" id="selectAll">' },
+          { key: "method", label: "Method" },
+          { key: "url", label: "URL" },
+          { key: "status", label: "Status" },
+          { key: "type", label: "Type" },
+          { key: "size", label: "Size (B)" },
+          { key: "time", label: "Time (ms)" },
+          { key: "startedDateTime", label: "Started" },
+        ];
+
+        tableHeader.innerHTML = columns
+          .map((col) =>
+            col.key === "select"
+              ? `<th class="checkbox-column">${col.label}</th>`
+              : `<th data-column="${col.key}">${
+                  col.label
+                } <i class="fas fa-sort${
+                  sortColumn === col.key
+                    ? sortDirection === "asc"
+                      ? "-up"
+                      : "-down"
+                    : ""
+                }"></i></th>`
+          )
+          .join("");
+
+        // Add sort listeners
+        tableHeader.querySelectorAll("th[data-column]").forEach((th) => {
+          th.addEventListener("click", () => {
+            const column = th.dataset.column;
+            if (sortColumn === column) {
+              sortDirection = sortDirection === "asc" ? "desc" : "asc";
+            } else {
+              sortColumn = column;
+              sortDirection = "asc";
+            }
+            renderTable();
+          });
+        });
+
+        // Add select all listener
+        const selectAllCheckbox = document.getElementById("selectAll");
+        if (selectAllCheckbox) {
+          selectAllCheckbox.checked = false; // Reset checkbox state
+          selectAllCheckbox.addEventListener("change", (e) => {
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = Math.min(
+              startIndex + pageSize,
+              filteredData.length
+            );
+            const pageData = sortedData.slice(startIndex, endIndex);
+            if (e.target.checked) {
+              pageData.forEach((row) => selectedRows.add(row.index));
+            } else {
+              pageData.forEach((row) => selectedRows.delete(row.index));
+            }
+            updateSelectedRowsUI();
+            renderTable();
+          });
+        }
+
+        // Sort data
+        const sortedData = [...filteredData].sort((a, b) => {
+          if (!sortColumn) return 0;
+          let aVal = a[sortColumn];
+          let bVal = b[sortColumn];
+
+          if (sortColumn === "startedDateTime") {
+            aVal = a.startedDateTimeRaw.getTime();
+            bVal = b.startedDateTimeRaw.getTime();
+          } else if (typeof aVal === "string") {
+            aVal = aVal.toLowerCase();
+            bVal = bVal.toLowerCase();
+          }
+
+          if (aVal < bVal) return sortDirection === "asc" ? -1 : 1;
+          if (aVal > bVal) return sortDirection === "asc" ? 1 : -1;
+          return 0;
+        });
+
+        // Pagination
+        const startIndex = (currentPage - 1) * pageSize;
+        const endIndex = Math.min(startIndex + pageSize, sortedData.length);
+        const pageData = sortedData.slice(startIndex, endIndex);
+
+        // Render rows
+        tableBody.innerHTML =
+          pageData.length === 0
+            ? `
+        <tr><td colspan="${columns.length}" class="no-data">No requests found</td></tr>
+    `
+            : pageData
+                .map(
+                  (row) => `
+        <tr data-index="${row.index}" class="table-row${
+                    selectedRows.has(row.index) ? " multi-selected-row" : ""
+                  }">
+            <td class="checkbox-column">
+                <input type="checkbox" class="row-checkbox" data-index="${
+                  row.index
+                }" ${selectedRows.has(row.index) ? "checked" : ""}>
+            </td>
+            <td><span class="method-${row.method.toLowerCase()}">${
+                    row.method
+                  }</span></td>
+            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;" title="${
+              row.url
+            }">${row.url}</td>
+            <td><span class="status-${Math.floor(row.status / 100)}00">${
+                    row.status
+                  } ${row.statusText}</span></td>
+            <td>${row.type}</td>
+            <td>${row.size.toLocaleString()}</td>
+            <td>${row.time}</td>
+            <td>${row.startedDateTime}</td>
+        </tr>
+    `
+                )
+                .join("");
+
+        // Add row click listeners
+        tableBody.querySelectorAll(".table-row").forEach((row) => {
+          row.addEventListener("click", (e) => {
+            if (e.target.type === "checkbox") return;
+            document
+              .querySelectorAll(".selected-row")
+              .forEach((r) => r.classList.remove("selected-row"));
+            row.classList.add("selected-row");
+            const index = parseInt(row.dataset.index);
+            showWaterfall(currentData[index]);
+          });
+        });
+
+        // Add checkbox listeners
+        tableBody.querySelectorAll(".row-checkbox").forEach((checkbox) => {
+          checkbox.addEventListener("change", (e) => {
+            const index = parseInt(e.target.dataset.index);
+            if (e.target.checked) {
+              selectedRows.add(index);
+            } else {
+              selectedRows.delete(index);
+            }
+            updateSelectedRowsUI();
+            renderTable();
+          });
+        });
+
+        renderPagination();
+      }
+      function updateSelectedRowsUI() {
+        const selectedCount = selectedRows.size;
+        document.getElementById("selectedCount").textContent = selectedCount;
+        const multiWaterfallBtn = document.getElementById("showMultiWaterfall");
+        multiWaterfallBtn.style.display =
+          selectedCount > 1 ? "inline-flex" : "none";
+        // Moved selectAll checkbox reset to renderTable to avoid null reference
+      }
+
+      function renderPagination() {
+        const totalPages = Math.ceil(filteredData.length / pageSize);
+        const paginationInfo = document.getElementById("paginationInfo");
+        const paginationControls =
+          document.getElementById("paginationControls");
+
+        const startItem =
+          filteredData.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+        const endItem = Math.min(currentPage * pageSize, filteredData.length);
+
+        paginationInfo.textContent = `Showing ${startItem}-${endItem} of ${filteredData.length} requests`;
+
+        let controlsHTML = "";
+        if (currentPage > 1) {
+          controlsHTML += `<button class="page-btn" data-page="${
+            currentPage - 1
+          }">Previous</button>`;
+        }
+
+        for (
+          let i = Math.max(1, currentPage - 2);
+          i <= Math.min(totalPages, currentPage + 2);
+          i++
+        ) {
+          controlsHTML += `<button class="page-btn ${
+            i === currentPage ? "active" : ""
+          }" data-page="${i}">${i}</button>`;
+        }
+
+        if (currentPage < totalPages) {
+          controlsHTML += `<button class="page-btn" data-page="${
+            currentPage + 1
+          }">Next</button>`;
+        }
+
+        paginationControls.innerHTML = controlsHTML;
+
+        paginationControls.querySelectorAll(".page-btn").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            currentPage = parseInt(btn.dataset.page);
+            renderTable();
+          });
+        });
+      }
+
+      // Search functionality
+      document.getElementById("searchBox").addEventListener("input", (e) => {
+        const searchTerm = e.target.value.toLowerCase();
+        filteredData = currentData.filter(
+          (row) =>
+            row.method.toLowerCase().includes(searchTerm) ||
+            row.url.toLowerCase().includes(searchTerm) ||
+            row.status.toString().includes(searchTerm) ||
+            row.type.toLowerCase().includes(searchTerm)
+        );
+        currentPage = 1;
+        renderTable();
+      });
+
+      // CSV Download
+      document.getElementById("downloadCsv").addEventListener("click", () => {
+        const csvContent = [
+          ["Method", "URL", "Status", "Type", "Size", "Time", "Started"],
+          ...filteredData.map((row) => [
+            row.method,
+            row.url.replace(/"/g, '""'), // Escape quotes
+            `${row.status} ${row.statusText}`,
+            row.type,
+            row.size,
+            row.time,
+            row.startedDateTime,
+          ]),
+        ]
+          .map((row) => row.map((cell) => `"${cell}"`).join(","))
+          .join("\n");
+
+        const blob = new Blob([csvContent], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "har-requests.csv";
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      // Multi-waterfall button handler
+      document
+        .getElementById("showMultiWaterfall")
+        .addEventListener("click", () => {
+          const selectedData = Array.from(selectedRows).map(
+            (index) => currentData[index]
+          );
+          showMultiWaterfall(selectedData);
+        });
+
+      // Waterfall functionality
+
+      function showWaterfall(requestData) {
+    const modal = document.getElementById('waterfallModal');
+    const canvas = document.getElementById('waterfallChart');
+    const tooltip = document.getElementById('waterfallTooltip');
+
+    // Error handling for missing elements
+    if (!modal || !canvas || !tooltip) {
+        console.error('Waterfall DOM elements missing:', { modal, canvas, tooltip });
+        alert('Error: Unable to render waterfall chart');
+        return;
+    }
+
+    document.getElementById('waterfallTitle').textContent = 'Single Request Waterfall';
+    modal.style.display = 'block';
+
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = canvas.offsetWidth * dpr;
+    canvas.height = 400 * dpr;
+    canvas.style.width = `${canvas.offsetWidth}px`;
+    canvas.style.height = '400px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const segments = drawSingleWaterfall(ctx, requestData, canvas.width / dpr, canvas.height / dpr) || [];
+
+    // Remove existing listeners to prevent duplicates
+    canvas.onmousemove = null;
+    canvas.onmouseleave = null;
+
+    canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const modalRect = modal.getBoundingClientRect();
+        const x = (e.clientX - rect.left) * dpr / canvas.offsetWidth * canvas.width / dpr;
+        const y = (e.clientY - rect.top) * dpr / canvas.offsetHeight * canvas.height / dpr;
+
+        let tooltipText = '';
+        for (const segment of segments) {
+            if (x >= segment.x && x <= segment.x + segment.width && y >= segment.y && y <= segment.y + segment.height) {
+                tooltipText = `${segment.phase}: ${segment.time.toFixed(0)}ms`;
+                break;
+            }
+        }
+
+        if (tooltipText) {
+            tooltip.style.display = 'block';
+            tooltip.textContent = tooltipText;
+
+            // Position tooltip, ensuring it stays within modal bounds
+            let tooltipX = e.clientX + 10;
+            let tooltipY = e.clientY + 10;
+            const tooltipWidth = tooltip.offsetWidth || 100; // Estimate if not visible
+            const tooltipHeight = tooltip.offsetHeight || 20;
+
+            if (tooltipX + tooltipWidth > modalRect.right - 10) {
+                tooltipX = e.clientX - tooltipWidth - 10;
+            }
+            if (tooltipY + tooltipHeight > modalRect.bottom - 10) {
+                tooltipY = e.clientY - tooltipHeight - 10;
+            }
+
+            tooltip.style.left = `${tooltipX}px`;
+            tooltip.style.top = `${tooltipY}px`;
+        } else {
+            tooltip.style.display = 'none';
+        }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        tooltip.style.display = 'none';
+    });
+}
+      function showWaterfall2(requestData) {
+        const modal = document.getElementById("waterfallModal");
+        const canvas = document.getElementById("waterfallChart");
+        const ctx = canvas.getContext("2d");
+        const tooltip = document.getElementById('waterfallTooltip');
+
+
+        document.getElementById("waterfallTitle").textContent =
+          "Single Request Waterfall";
+        modal.style.display = "block";
+
+        // Set canvas size with device pixel ratio
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = canvas.offsetWidth * dpr;
+        canvas.height = 400 * dpr;
+        canvas.style.width = `${canvas.offsetWidth}px`;
+        canvas.style.height = "400px";
+        ctx.scale(dpr, dpr);
+
+        drawSingleWaterfall(
+          ctx,
+          requestData,
+          canvas.width / dpr,
+          canvas.height / dpr
+        );
+      }
+      function drawSingleWaterfall(ctx, data, width, height) {
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "#f9fafb";
+        ctx.fillRect(0, 0, width, height);
+
+        const timings = data.timings;
+        const totalTime = data.time || 100;
+        const barHeight = 40;
+        const barY = height / 2 - barHeight / 2;
+        const marginLeft = 200;
+        const marginRight = 50;
+        const marginBottom = 50;
+
+        const colors = {
+          blocked: "#9ca3af",
+          dns: "#3b82f6",
+          connect: "#10b981",
+          send: "#f59e0b",
+          wait: "#ef4444",
+          receive: "#8b5cf6",
+        };
+
+        // Store segment boundaries for tooltips
+        const segments = [];
+
+        ctx.fillStyle = "#374151";
+        ctx.font = "14px Arial";
+        ctx.textAlign = "left";
+        ctx.fillText(
+          data.url.slice(0, 80) + (data.url.length > 80 ? "..." : ""),
+          20,
+          barY - 10
+        );
+
+        const scale = (width - marginLeft - marginRight) / totalTime;
+        let currentX = marginLeft;
+
+        Object.entries(timings).forEach(([phase, time]) => {
+          if (time >= 0 && colors[phase]) {
+            const phaseWidth = time * scale;
+            ctx.fillStyle = colors[phase];
+            ctx.fillRect(currentX, barY, phaseWidth, barHeight);
+
+            // Store segment for hit detection
+            segments.push({
+              phase,
+              time,
+              x: currentX,
+              y: barY,
+              width: phaseWidth,
+              height: barHeight,
+            });
+
+            if (phaseWidth > 30) {
+              ctx.fillStyle = "white";
+              ctx.font = "12px Arial";
+              ctx.textAlign = "center";
+              ctx.fillText(
+                phase,
+                currentX + phaseWidth / 2,
+                barY + barHeight / 2 + 4
+              );
+            }
+
+            currentX += phaseWidth;
+          }
+        });
+
+        ctx.strokeStyle = "#d1d5db";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(marginLeft, barY + barHeight + 20);
+        ctx.lineTo(width - marginRight, barY + barHeight + 20);
+        ctx.stroke();
+
+        ctx.fillStyle = "#6b7280";
+        ctx.font = "11px Arial";
+        ctx.textAlign = "center";
+        for (let i = 0; i <= 5; i++) {
+          const x = marginLeft + (width - marginLeft - marginRight) * (i / 5);
+          const time = (totalTime * (i / 5)).toFixed(0);
+          ctx.fillText(`${time}ms`, x, barY + barHeight + 35);
+          ctx.beginPath();
+          ctx.moveTo(x, barY + barHeight + 15);
+          ctx.lineTo(x, barY + barHeight + 25);
+          ctx.stroke();
+        }
+
+        const legend = document.getElementById("waterfallLegend");
+        legend.innerHTML = Object.entries(colors)
+          .map(
+            ([phase, color]) => `
+        <div class="legend-item">
+            <div class="legend-color" style="background: ${color};"></div>
+            <span>${phase.charAt(0).toUpperCase() + phase.slice(1)}</span>
+        </div>
+    `
+          )
+          .join("");
+
+        const info = document.getElementById("waterfallInfo");
+        info.innerHTML = `
+        <strong>Request Details:</strong><br>
+        Method: ${data.method}<br>
+        Status: ${data.status} ${data.statusText}<br>
+        Total Time: ${data.time}ms<br>
+        Size: ${data.size.toLocaleString()} bytes<br>
+        Started: ${data.startedDateTime}
+    `;
+
+        // Return segments for tooltip handling
+        return segments;
+      }
+      function showMultiWaterfall(requestsData) {
+    const modal = document.getElementById('waterfallModal');
+    const canvas = document.getElementById('waterfallChart');
+    const tooltip = document.getElementById('waterfallTooltip');
+
+    // Error handling for missing elements
+    if (!modal || !canvas || !tooltip) {
+        console.error('Waterfall DOM elements missing:', { modal, canvas, tooltip });
+        alert('Error: Unable to render multi-request waterfall chart');
+        return;
+    }
+
+    document.getElementById('waterfallTitle').textContent = `Multi-Request Waterfall (${requestsData.length} requests)`;
+    modal.style.display = 'block';
+
+    // Set canvas size with device pixel ratio
+    const dpr = window.devicePixelRatio || 1;
+    const canvasHeight = Math.max(600, requestsData.length * 50 + 200);
+    canvas.width = canvas.offsetWidth * dpr;
+    canvas.height = canvasHeight * dpr;
+    canvas.style.width = `${canvas.offsetWidth}px`;
+    canvas.style.height = `${canvasHeight}px`;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const segments = drawMultiWaterfall(ctx, requestsData, canvas.width / dpr, canvas.height / dpr) || [];
+
+    // Remove existing listeners to prevent duplicates
+    canvas.onmousemove = null;
+    canvas.onmouseleave = null;
+
+    canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const modalRect = modal.getBoundingClientRect();
+        const x = (e.clientX - rect.left) * dpr / canvas.offsetWidth * canvas.width / dpr;
+        const y = (e.clientY - rect.top) * dpr / canvas.offsetHeight * canvas.height / dpr;
+
+        let tooltipText = '';
+        for (const segment of segments) {
+            if (x >= segment.x && x <= segment.x + segment.width && y >= segment.y && y <= segment.y + segment.height) {
+                tooltipText = `Request ${segment.requestIndex + 1}<br>URL: ${segment.url}<br>${segment.phase}: ${segment.time.toFixed(0)}ms`;
+                break;
+            }
+        }
+
+        if (tooltipText) {
+            tooltip.style.display = 'block';
+            tooltip.innerHTML = tooltipText; // Use innerHTML for <br> rendering
+
+            // Position tooltip, ensuring it stays within modal bounds
+            let tooltipX = e.clientX + 10;
+            let tooltipY = e.clientY + 10;
+            const tooltipWidth = tooltip.offsetWidth || 150; // Estimate if not visible
+            const tooltipHeight = tooltip.offsetHeight || 50;
+
+            if (tooltipX + tooltipWidth > modalRect.right - 10) {
+                tooltipX = e.clientX - tooltipWidth - 10;
+            }
+            if (tooltipY + tooltipHeight > modalRect.bottom - 10) {
+                tooltipY = e.clientY - tooltipHeight - 10;
+            }
+
+            tooltip.style.left = `${tooltipX}px`;
+            tooltip.style.top = `${tooltipY}px`;
+        } else {
+            tooltip.style.display = 'none';
+        }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        tooltip.style.display = 'none';
+    });
+}
+
+      function showMultiWaterfall2(requestsData) {
+        const modal = document.getElementById("waterfallModal");
+        const canvas = document.getElementById("waterfallChart");
+        const ctx = canvas.getContext("2d");
+        const tooltip = document.getElementById('waterfallTooltip');
+
+
+
+        document.getElementById(
+          "waterfallTitle"
+        ).textContent = `Multi-Request Waterfall (${requestsData.length} requests)`;
+        modal.style.display = "block";
+
+        // Set canvas size with device pixel ratio
+        const dpr = window.devicePixelRatio || 1;
+        const canvasHeight = Math.max(600, requestsData.length * 50 + 200);
+        canvas.width = canvas.offsetWidth * dpr;
+        canvas.height = canvasHeight * dpr;
+        canvas.style.width = `${canvas.offsetWidth}px`;
+        canvas.style.height = `${canvasHeight}px`;
+        ctx.scale(dpr, dpr);
+
+        drawMultiWaterfall(
+          ctx,
+          requestsData,
+          canvas.width / dpr,
+          canvas.height / dpr
+        );
+      }
+      function drawMultiWaterfall(ctx, requestsData, width, height) {
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "#f9fafb";
+        ctx.fillRect(0, 0, width, height);
+
+        const barHeight = 30;
+        const barSpacing = 10;
+        const marginLeft = 200;
+        const marginRight = 50;
+        const marginTop = 50;
+        const marginBottom = 50;
+
+        const maxTime = Math.max(
+          ...requestsData.map((data) => data.time || 100)
+        );
+        const scale = (width - marginLeft - marginRight) / maxTime;
+
+        const colors = {
+          blocked: "#9ca3af",
+          dns: "#3b82f6",
+          connect: "#10b981",
+          send: "#f59e0b",
+          wait: "#ef4444",
+          receive: "#8b5cf6",
+        };
+
+        // Store segments for tooltips
+        const segments = [];
+
+        const earliestStart = Math.min(
+          ...requestsData.map((data) => data.startedDateTimeRaw.getTime())
+        );
+        requestsData.forEach((data, index) => {
+          const barY = marginTop + index * (barHeight + barSpacing);
+
+          ctx.fillStyle = "#374151";
+          ctx.font = "12px Arial";
+          ctx.textAlign = "left";
+          ctx.fillText(
+            data.url.slice(0, 60) + (data.url.length > 60 ? "..." : ""),
+            20,
+            barY + barHeight / 2 + 4
+          );
+
+          const startOffset =
+            ((data.startedDateTimeRaw.getTime() - earliestStart) * scale) /
+            1000;
+          let currentX = marginLeft + startOffset;
+
+          Object.entries(data.timings).forEach(([phase, time]) => {
+            if (time >= 0 && colors[phase]) {
+              const phaseWidth = time * scale;
+              ctx.fillStyle = colors[phase];
+              ctx.fillRect(currentX, barY, phaseWidth, barHeight);
+
+              // Store segment for hit detection
+              segments.push({
+                phase,
+                time,
+                x: currentX,
+                y: barY,
+                width: phaseWidth,
+                height: barHeight,
+                requestIndex: index,
+                url:
+                  data.url.slice(0, 60) + (data.url.length > 60 ? "..." : ""),
+              });
+
+              if (phaseWidth > 30) {
+                ctx.fillStyle = "white";
+                ctx.font = "10px Arial";
+                ctx.textAlign = "center";
+                ctx.fillText(
+                  phase,
+                  currentX + phaseWidth / 2,
+                  barY + barHeight / 2 + 3
+                );
+              }
+
+              currentX += phaseWidth;
+            }
+          });
+        });
+
+        ctx.strokeStyle = "#d1d5db";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(marginLeft, height - marginBottom);
+        ctx.lineTo(width - marginRight, height - marginBottom);
+        ctx.stroke();
+
+        ctx.fillStyle = "#6b7280";
+        ctx.font = "11px Arial";
+        ctx.textAlign = "center";
+        for (let i = 0; i <= 5; i++) {
+          const x = marginLeft + (width - marginLeft - marginRight) * (i / 5);
+          const time = (maxTime * (i / 5)).toFixed(0);
+          ctx.fillText(`${time}ms`, x, height - marginBottom + 15);
+          ctx.beginPath();
+          ctx.moveTo(x, height - marginBottom - 5);
+          ctx.lineTo(x, height - marginBottom + 5);
+          ctx.stroke();
+        }
+
+        const legend = document.getElementById("waterfallLegend");
+        legend.innerHTML = Object.entries(colors)
+          .map(
+            ([phase, color]) => `
+        <div class="legend-item">
+            <div class="legend-color" style="background: ${color};"></div>
+            <span>${phase.charAt(0).toUpperCase() + phase.slice(1)}</span>
+        </div>
+    `
+          )
+          .join("");
+
+        const info = document.getElementById("waterfallInfo");
+        info.innerHTML = `
+        <strong>Multi-Request Summary:</strong><br>
+        Total Requests: ${requestsData.length}<br>
+        Total Time Span: ${maxTime.toFixed(0)}ms<br>
+        Earliest Start: ${new Date(earliestStart).toLocaleString()}
+    `;
+
+        // Return segments for tooltip handling
+        return segments;
+      }
+
+      // Splitter functionality
+      const splitter = document.getElementById("splitter");
+      const leftPane = document.getElementById("leftPane");
+      const rightPane = document.getElementById("rightPane");
+
+      splitter.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const leftWidth = leftPane.offsetWidth;
+        const totalWidth = leftPane.offsetWidth + rightPane.offsetWidth;
+
+        const onMouseMove = (moveEvent) => {
+          const deltaX = moveEvent.clientX - startX;
+          const newLeftWidth = Math.max(
+            200,
+            Math.min(leftWidth + deltaX, totalWidth - 200)
+          );
+          leftPane.style.width = `${newLeftWidth}px`;
+          rightPane.style.width = `${totalWidth - newLeftWidth}px`;
+          if (monacoEditor) monacoEditor.layout();
+        };
+
+        const onMouseUp = () => {
+          document.removeEventListener("mousemove", onMouseMove);
+          document.removeEventListener("mouseup", onMouseUp);
+        };
+
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+      });
+
+      // Modal interactions
+      document.getElementById("closeModal").addEventListener("click", () => {
+        document.getElementById("waterfallModal").style.display = "none";
+      });
+
+      document
+        .getElementById("downloadWaterfall")
+        .addEventListener("click", () => {
+          const canvas = document.getElementById("waterfallChart");
+          canvas.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `waterfall-${new Date()
+              .toISOString()
+              .slice(0, 19)
+              .replace(/:/g, "-")}.png`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }, "image/png");
+        });
+
+      document.addEventListener("keydown", (e) => {
+        if (
+          e.key === "Escape" &&
+          document.getElementById("waterfallModal").style.display === "block"
+        ) {
+          document.getElementById("waterfallModal").style.display = "none";
+        }
+      });
+    </script>
+  </body>
+</html>
