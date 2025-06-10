@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salesforce Permission Set Creation CLI Setup and Usage</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+  <!-- Prism.js CSS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    main {
+      flex: 1;
+    }
+    html {
+      scroll-behavior: smooth;
+    }
+    /* Style for the copy button */
+    .copy-btn {
+      transition: background-color 0.3s;
+    }
+    .copy-btn:hover {
+      background-color: #2563eb !important;
+    }
+    /* Adjust Prism.js code block styling */
+    pre[class*="language-"] {
+      position: relative;
+      background: #f5f2f0 !important;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      overflow-x: auto;
+      font-size: 0.875rem;
+    }
+    code[class*="language-"] {
+      background: none !important;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans">
+  <!-- Sticky Navbar -->
+  <nav class="bg-blue-600 text-white shadow-lg sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+      <div class="text-2xl font-bold">
+        <a href="#home">Salesforce Permission Set Creation CLI</a>
+      </div>
+      <div class="space-x-4">
+        <a href="#home" class="hover:text-blue-200">Home</a>
+        <a href="#overview" class="hover:text-blue-200">Overview</a>
+        <a href="#setup" class="hover:text-blue-200">Setup Steps</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Hero Section -->
+    <section id="home" class="bg-gradient-to-r from-blue-500 to-blue-700 text-white py-20">
+      <div class="max-w-6xl mx-auto px-4 text-center">
+        <h1 class="text-5xl font-bold mb-4">Salesforce Permission Set Creation CLI Setup and Usage</h1>
+        <p class="text-xl mb-8">A step-by-step guide to using a Bash script to create a Salesforce Permission Set with object and field permissions, deploy it, and assign it to users via the Salesforce CLI.</p>
+        <a href="#setup" class="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-200">Get Started</a>
+      </div>
+    </section>
+
+    <!-- Overview Section -->
+    <section id="overview" class="py-16">
+      <div class="max-w-6xl mx-auto px-4">
+        <h2 class="text-3xl font-bold text-gray-800 text-center mb-12">Overview</h2>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+          <p class="text-gray-600">
+            The <code>create_and_apply_permset.sh</code> Bash script automates the creation, deployment, and assignment of a Salesforce Permission Set. It uses the Salesforce CLI (<code>sf</code>) to generate a Permission Set metadata file with specified object and field permissions, deploy it to the target org, and optionally assign it to users. The script supports object-level permissions (e.g., Read, Edit) and field-level permissions (e.g., Read, Edit) via command-line arguments. It also offers JSON output for integration with automation workflows. This guide covers setup, usage, and verification on macOS or Linux environments.
+          </p>
+          <p class="text-gray-600 mt-4">
+            <strong>Author:</strong> Mohan Chinnappan
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Setup Steps Section -->
+    <section id="setup" class="py-16">
+      <div class="max-w-6xl mx-auto px-4">
+        <h2 class="text-3xl font-bold text-gray-800 mb-8">Setup Steps</h2>
+        <p class="text-gray-600 mb-6">Follow these steps to set up and use the Salesforce Permission Set Creation CLI:</p>
+        <div class="space-y-6">
+          <!-- Step 1: Install Dependencies -->
+          <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">🔹 Step 1: Install Dependencies</h3>
+            <p class="text-gray-600 mb-4">Ensure you have Homebrew and Salesforce CLI installed:</p>
+            <div class="relative">
+              <pre class="language-bash"><code id="code-step1">/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew install salesforcecli
+sf --version</code></pre>
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-step1')">Copy</button>
+            </div>
+          </div>
+          <!-- Step 2: Create the Script -->
+          <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">🔹 Step 2: Create the Script</h3>
+            <p class="text-gray-600 mb-4">Save the script as <code>create_and_apply_permset.sh</code> and make it executable:</p>
+            <div class="relative">
+              <pre class="language-bash"><code id="code-step2">touch create_and_apply_permset.sh
+chmod +x create_and_apply_permset.sh</code></pre>
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-step2')">Copy</button>
+            </div>
+            <p class="text-gray-600 mb-2 mt-4">Script content (<code>create_and_apply_permset.sh</code>):</p>
+            <div class="relative">
+              <pre class="language-bash"><code id="code-script">#!/usr/bin/env bash
+# ------------------------------------------------------------
+# Usage:
+# ./create_and_apply_permset.sh \
+#   --org myOrgAlias \
+#   --name MyCustomPS \
+#   --label "My Custom Perm Set" \
+#   --object_perms "Account:Read:Edit,Contact:Read:" \
+#   --field_perms "Account.Phone:Read:Edit" \
+#   --users "user1@example.com,user2@example.com" \
+#   [--json]
+# This script creates a Salesforce Permission Set with specified object and field permissions,
+# deploys it, and optionally assigns it to specified users.
+# author: Mohan Chinnappan
+# ------------------------------------------------------------
+
+set -euo pipefail
+JSON_FLAG=""
+
+# Parse CLI args
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --org) ORG="$2"; shift 2;;
+    --name) API_NAME="$2"; shift 2;;
+    --label) LABEL="$2"; shift 2;;
+    --object_perms) IFS=',' read -r -a OBJ_PERMS <<< "${2//\"/}"; shift 2;;
+    --field_perms) IFS=',' read -r -a FIELD_PERMS <<< "${2//\"/}"; shift 2;;
+    --users) IFS=',' read -r -a USERS <<< "${2//\"/}"; shift 2;;
+    --json) JSON_FLAG="--json"; shift;;
+    *) echo "❌ Unknown arg: $1"; exit 1;;
+  esac
+done
+
+# Validate essential inputs
+if [[ -z "${ORG:-}" || -z "${API_NAME:-}" || -z "${LABEL:-}" ]]; then
+  echo "Usage: --org <orgAlias> --name <API_Name> --label <Label> [--object_perms ...] [--field_perms ...] [--users ...] [--json]"
+  exit 1
+fi
+
+# 1. Generate metadata XML file
+sf project generate --name mywork 
+PS_DIR="mywork/force-app/main/default/permissionsets"
+PS_FOLDER="force-app/main/default/permissionsets"
+mkdir -p "$PS_DIR"
+PS_FILE="${PS_DIR}/${API_NAME}.permissionset-meta.xml"
+
+cat > "$PS_FILE" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+  <label>${LABEL}</label>
+EOF
+
+# Add object permissions
+for entry in "${OBJ_PERMS[@]:-}"; do
+  IFS=':' read -r OBJ R E <<< "$entry"
+  READ_FLAG=$(echo "$R" | tr '[:upper:]' '[:lower:]')
+  EDIT_FLAG=$(echo "$E" | tr '[:upper:]' '[:lower:]')
+
+  if [[ "$READ_FLAG" == "read" ]]; then
+    READ_FLAG=true
+  else
+    READ_FLAG=false
+  fi
+
+  if [[ "$EDIT_FLAG" == "edit" ]]; then
+    EDIT_FLAG=true
+  else
+    EDIT_FLAG=false
+  fi
+
+  cat >> "$PS_FILE" <<EOF
+
+  <objectPermissions>
+    <object>${OBJ}</object>
+    <allowRead>${READ_FLAG}</allowRead>
+    <allowEdit>${EDIT_FLAG}</allowEdit>
+    <modifyAllRecords>false</modifyAllRecords>
+    <viewAllRecords>false</viewAllRecords>
+  </objectPermissions>
+EOF
+done
+
+# Add field-level permissions
+for entry in "${FIELD_PERMS[@]:-}"; do
+  IFS=':' read -r FF R F <<< "$entry"
+  READ_FLAG=$(echo "$R" | tr '[:upper:]' '[:lower:]')
+  EDIT_FLAG=$(echo "$F" | tr '[:upper:]' '[:lower:]')
+
+  if [[ "$READ_FLAG" == "read" ]]; then
+    READ_FLAG=true
+  else
+    READ_FLAG=false
+  fi
+
+  if [[ "$EDIT_FLAG" == "edit" ]]; then
+    EDIT_FLAG=true
+  else
+    EDIT_FLAG=false
+  fi
+
+  cat >> "$PS_FILE" <<EOF
+
+  <fieldPermissions>
+    <field>${FF}</field>
+    <readable>${READ_FLAG}</readable>
+    <editable>${EDIT_FLAG}</editable>
+  </fieldPermissions>
+EOF
+done
+
+echo "</PermissionSet>" >> "$PS_FILE"
+
+# 2. Deploy the Permission Set metadata
+echo "🛠 Deploying Permission Set '$API_NAME'..."
+cd mywork
+sf project deploy start -o "$ORG" -d "$PS_FOLDER" $JSON_FLAG
+
+# 3. Assign it to users, if provided
+if [[ ${#USERS[@]:-0} -gt 0 ]]; then
+  echo "🔐 Assigning Permission Set to users..."
+  CMD=(sf org assign permset --target-org "$ORG" --name "$API_NAME")
+  for U in "${USERS[@]}"; do
+    CMD+=(--on-behalf-of "$U")
+  done
+  "${CMD[@]}" $JSON_FLAG
+fi
+
+echo "🎉 Done! Permission Set '$API_NAME' created, configured, and assigned."</code></pre>
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-script')">Copy</button>
+            </div>
+          </div>
+          <!-- Step 3: Authenticate with Salesforce -->
+          <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">🔹 Step 3: Authenticate with Salesforce</h3>
+            <p class="text-gray-600 mb-4">Authenticate with your Salesforce org using the Salesforce CLI:</p>
+            <div class="relative">
+              <pre class="language-bash"><code id="code-auth">sf force auth web login [-r https://test.salesforce.com]</code></pre>
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-auth')">Copy</button>
+            </div>
+            <p class="text-gray-600 mt-4">Verify authentication:</p>
+            <div class="relative">
+              <pre class="language-bash"><code id="code-verify-auth">sf org list</code></pre>
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-verify-auth')">Copy</button>
+            </div>
+          </div>
+          <!-- Step 4: Run the Script -->
+          <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">🔹 Step 4: Run the Script</h3>
+            <p class="text-gray-600 mb-4">Execute the script with the required parameters:</p>
+            <div class="relative">
+              <pre class="language-bash"><code id="code-run">./create_and_apply_permset.sh \
+  --org myOrgAlias \
+  --name MCTestPS \
+  --label "MC Test PS" \
+  --object_perms "Account:Read:Edit,Contact:Read:" \
+  --field_perms "Account.Phone:Read:Edit" \
+  --users "user1@example.com,user2@example.com" \
+  --json</code></pre>
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-run')">Copy</button>
+            </div>
+            <p class="text-gray-600 mt-4">Parameters:</p>
+            <ul class="list-disc list-inside text-gray-600">
+              <li><code>--org</code>: Salesforce org alias (e.g., myOrgAlias).</li>
+              <li><code>--name</code>: API name of the Permission Set (e.g., MCTestPS).</li>
+              <li><code>--label</code>: Label for the Permission Set (e.g., "MC Test PS").</li>
+              <li><code>--object_perms</code>: Comma-separated list of object permissions in the format <code>Object:Read:Edit</code> (e.g., "Account:Read:Edit,Contact:Read:").</li>
+              <li><code>--field_perms</code>: Comma-separated list of field permissions in the format <code>Object.Field:Read:Edit</code> (e.g., "Account.Phone:Read:Edit").</li>
+              <li><code>--users</code>: Comma-separated list of usernames or email addresses (e.g., "user1@example.com,user2@example.com").</li>
+              <li><code>--json</code>: Optional flag to output results in JSON format.</li>
+            </ul>
+            <p class="text-gray-600 mt-4">Example output (JSON):</p>
+            <div class="relative">
+              <pre class="language-json"><code id="code-output">{
+  "status": 0,
+  "result": {
+    "success": true,
+    "details": {
+      "componentSuccesses": [
+        {
+          "componentType": "PermissionSet",
+          "fullName": "MCTestPS",
+          "success": true
+        }
+      ],
+      "componentFailures": []
+    }
+  }
+}</code>
+<hr>
+
+ ps git:(main) ✗ ./create_and_apply_permset.sh --org  mohan.chinnappan.n.ea10@gmail.com --name MCTestPS --label 'MC Test PS' --object_perms "Account:Read:Edit,Contact:Read" --field_perms "Account.Phone:Read:Edit" --users mohan.chinnappan.n.ea10@gmail.com
+target dir = /Users/mchinnappan/github-pages/pages2/sf-utils/ps
+  identical mywork/config/project-scratch-def.json
+  identical mywork/README.md
+  identical mywork/sfdx-project.json
+  identical mywork/.husky/pre-commit
+  identical mywork/.vscode/extensions.json
+  identical mywork/.vscode/launch.json
+  identical mywork/.vscode/settings.json
+  identical mywork/force-app/main/default/lwc/.eslintrc.json
+  identical mywork/force-app/main/default/aura/.eslintrc.json
+  identical mywork/scripts/soql/account.soql
+  identical mywork/scripts/apex/hello.apex
+  identical mywork/.forceignore
+  identical mywork/.gitignore
+  identical mywork/.prettierignore
+  identical mywork/.prettierrc
+  identical mywork/jest.config.js
+  identical mywork/package.json
+
+🛠 Deploying Permission Set 'MCTestPS'...
+
+ ─────────────── Deploying Metadata ───────────────
+
+ Deploying v62.0 metadata to mohan.chinnappan.n.ea10@gmail.com using the v63.0 SOAP API.
+
+ ✔ Preparing 77ms
+ ◯ Waiting for the org to respond - Skipped
+ ✔ Deploying Metadata 1.18s
+   ▸ Components: 1/1 (100%)
+ ◯ Running Tests - Skipped
+ ◯ Updating Source Tracking - Skipped
+ ✔ Done 0ms
+
+ Status: Succeeded
+ Deploy ID: 0AfHs00002vV3kUKAS
+ Target Org: mohan.chinnappan.n.ea10@gmail.com
+ Elapsed Time: 1.27s
+
+
+Deployed Source
+┌─────────┬──────────┬───────────────┬─────────────────────────────────────────────────────────────────────┐
+│ State   │ Name     │ Type          │ Path                                                                │
+├─────────┼──────────┼───────────────┼─────────────────────────────────────────────────────────────────────┤
+│ Created │ MCTestPS │ PermissionSet │ force-app/main/default/permissionsets/MCTestPS.permissionset-meta.x │
+│         │          │               │ ml                                                                  │
+└─────────┴──────────┴───────────────┴─────────────────────────────────────────────────────────────────────┘
+
+
+🔐 Assigning Permission Set to users...
+ ›   Warning: @salesforce/cli update available from 2.83.7 to 2.91.6.
+Permsets Assigned
+┌───────────────────────────────────┬───────────────────────────┐
+│ Username                          │ Permission Set Assignment │
+├───────────────────────────────────┼───────────────────────────┤
+│ mohan.chinnappan.n.ea10@gmail.com │ MCTestPS                  │
+└───────────────────────────────────┴───────────────────────────┘
+
+🎉 Done! Permission Set 'MCTestPS' created, configured, and assigned.
+</pre>
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-output')">Copy</button>
+            </div>
+          </div>
+          <!-- Step 5: Verify the Permission Set -->
+          <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">🔹 Step 5: Verify the Permission Set</h3>
+            <p class="text-gray-600 mb-4">Check the created Permission Set and its assignments:</p>
+            <div class="relative">
+              <pre class="language-bash"><code id="code-verify">sf data query -q "SELECT Name, Label FROM PermissionSet WHERE Name = 'MCTestPS'" -o myOrgAlias
+sf data query -q "SELECT PermissionSet.Name, Assignee.Username FROM PermissionSetAssignment WHERE PermissionSet.Name = 'MCTestPS'" -o myOrgAlias</code></pre>
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-verify')">Copy</button>
+            </div>
+
+              <pre class="language-bash"><code id="code-verify2">sf data query -q "SELECT Name, Label FROM PermissionSet WHERE Name = 'MCTestPS'" -o mohan.chinnappan.n.ea10@gmail.com
+Warning: The "-u" flag has been deprecated. Use "--target-org | -o" instead.
+┌──────────┬────────────┐
+│ NAME     │ LABEL      │
+├──────────┼────────────┤
+│ MCTestPS │ MC Test PS │
+└──────────┴────────────┘
+
+Total number of records retrieved: 1.
+Querying Data... done
+➜  ps git:(main) ✗ sf data query -q "SELECT Name, Label FROM PermissionSet WHERE Name = 'MCTestPS'" -o mohan.chinnappan.n.ea10@gmail.com 
+┌──────────┬────────────┐
+│ NAME     │ LABEL      │
+├──────────┼────────────┤
+│ MCTestPS │ MC Test PS │
+└──────────┴────────────┘
+
+Total number of records retrieved: 1.
+Querying Data... done
+➜  ps git:(main) ✗ sf data query -q "SELECT PermissionSet.Name, Assignee.Username FROM PermissionSetAssignment WHERE PermissionSet.Name = 'MCTestPS'" -o  mohan.chinnappan.n.ea10@gmail.com 
+┌────────────────────┬───────────────────────────────────┐
+│ PERMISSIONSET.NAME │ ASSIGNEE.USERNAME                 │
+├────────────────────┼───────────────────────────────────┤
+│ MCTestPS           │ mohan.chinnappan.n.ea10@gmail.com │
+└────────────────────┴───────────────────────────────────┘
+
+Total number of records retrieved: 1.
+Querying Data... done
+            </pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-blue-600 text-white py-6">
+    <div class="max-w-6xl mx-auto px-4 text-center">
+      <p> MC Salesforce Permission Set Creation CLI</p>
+    </div>
+  </footer>
+
+  <!-- Prism.js JavaScript -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+
+  <!-- JavaScript for Copy Functionality -->
+  <script>
+    function copyCode(elementId) {
+      const codeElement = document.getElementById(elementId);
+      const text = codeElement.innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Code copied to clipboard!');
+      }).catch(err => {
+        console.error('Failed to copy: ', err);
+      });
+    }
+  </script>
+</body>
+</html>
