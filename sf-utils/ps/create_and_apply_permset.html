@@ -62,7 +62,10 @@
     <section id="home" class="bg-gradient-to-r from-blue-500 to-blue-700 text-white py-20">
       <div class="max-w-6xl mx-auto px-4 text-center">
         <h1 class="text-5xl font-bold mb-4">Salesforce Permission Set Creation CLI Setup and Usage</h1>
-        <p class="text-xl mb-8">A step-by-step guide to using a Bash script to create a Salesforce Permission Set with object and field permissions, deploy it, and assign it to users via the Salesforce CLI.</p>
+        <p class="text-xl mb-8">A step-by-step guide to using a Bash script to create a Salesforce Permission Set with object and field permissions,
+          Application access, Apex class access, and Flow access. It generates the metadata XML file,
+         and deploys it to the specified org, and optionally assigns it to specified users.
+          deploy it, and assign it to users via the Salesforce CLI.</p>
         <a href="#setup" class="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-200">Get Started</a>
       </div>
     </section>
@@ -108,138 +111,8 @@ sf --version</code></pre>
 chmod +x create_and_apply_permset.sh</code></pre>
               <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-step2')">Copy</button>
             </div>
-            <p class="text-gray-600 mb-2 mt-4">Script content (<code>create_and_apply_permset.sh</code>):</p>
-            <div class="relative">
-              <pre class="language-bash"><code id="code-script">#!/usr/bin/env bash
-# ------------------------------------------------------------
-# Usage:
-# ./create_and_apply_permset.sh \
-#   --org myOrgAlias \
-#   --name MyCustomPS \
-#   --label "My Custom Perm Set" \
-#   --object_perms "Account:Read:Edit,Contact:Read:" \
-#   --field_perms "Account.Phone:Read:Edit" \
-#   --users "user1@example.com,user2@example.com" \
-#   [--json]
-# This script creates a Salesforce Permission Set with specified object and field permissions,
-# deploys it, and optionally assigns it to specified users.
-# author: Mohan Chinnappan
-# ------------------------------------------------------------
-
-set -euo pipefail
-JSON_FLAG=""
-
-# Parse CLI args
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    --org) ORG="$2"; shift 2;;
-    --name) API_NAME="$2"; shift 2;;
-    --label) LABEL="$2"; shift 2;;
-    --object_perms) IFS=',' read -r -a OBJ_PERMS <<< "${2//\"/}"; shift 2;;
-    --field_perms) IFS=',' read -r -a FIELD_PERMS <<< "${2//\"/}"; shift 2;;
-    --users) IFS=',' read -r -a USERS <<< "${2//\"/}"; shift 2;;
-    --json) JSON_FLAG="--json"; shift;;
-    *) echo "❌ Unknown arg: $1"; exit 1;;
-  esac
-done
-
-# Validate essential inputs
-if [[ -z "${ORG:-}" || -z "${API_NAME:-}" || -z "${LABEL:-}" ]]; then
-  echo "Usage: --org <orgAlias> --name <API_Name> --label <Label> [--object_perms ...] [--field_perms ...] [--users ...] [--json]"
-  exit 1
-fi
-
-# 1. Generate metadata XML file
-sf project generate --name mywork 
-PS_DIR="mywork/force-app/main/default/permissionsets"
-PS_FOLDER="force-app/main/default/permissionsets"
-mkdir -p "$PS_DIR"
-PS_FILE="${PS_DIR}/${API_NAME}.permissionset-meta.xml"
-
-cat > "$PS_FILE" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
-  <label>${LABEL}</label>
-EOF
-
-# Add object permissions
-for entry in "${OBJ_PERMS[@]:-}"; do
-  IFS=':' read -r OBJ R E <<< "$entry"
-  READ_FLAG=$(echo "$R" | tr '[:upper:]' '[:lower:]')
-  EDIT_FLAG=$(echo "$E" | tr '[:upper:]' '[:lower:]')
-
-  if [[ "$READ_FLAG" == "read" ]]; then
-    READ_FLAG=true
-  else
-    READ_FLAG=false
-  fi
-
-  if [[ "$EDIT_FLAG" == "edit" ]]; then
-    EDIT_FLAG=true
-  else
-    EDIT_FLAG=false
-  fi
-
-  cat >> "$PS_FILE" <<EOF
-
-  <objectPermissions>
-    <object>${OBJ}</object>
-    <allowRead>${READ_FLAG}</allowRead>
-    <allowEdit>${EDIT_FLAG}</allowEdit>
-    <modifyAllRecords>false</modifyAllRecords>
-    <viewAllRecords>false</viewAllRecords>
-  </objectPermissions>
-EOF
-done
-
-# Add field-level permissions
-for entry in "${FIELD_PERMS[@]:-}"; do
-  IFS=':' read -r FF R F <<< "$entry"
-  READ_FLAG=$(echo "$R" | tr '[:upper:]' '[:lower:]')
-  EDIT_FLAG=$(echo "$F" | tr '[:upper:]' '[:lower:]')
-
-  if [[ "$READ_FLAG" == "read" ]]; then
-    READ_FLAG=true
-  else
-    READ_FLAG=false
-  fi
-
-  if [[ "$EDIT_FLAG" == "edit" ]]; then
-    EDIT_FLAG=true
-  else
-    EDIT_FLAG=false
-  fi
-
-  cat >> "$PS_FILE" <<EOF
-
-  <fieldPermissions>
-    <field>${FF}</field>
-    <readable>${READ_FLAG}</readable>
-    <editable>${EDIT_FLAG}</editable>
-  </fieldPermissions>
-EOF
-done
-
-echo "</PermissionSet>" >> "$PS_FILE"
-
-# 2. Deploy the Permission Set metadata
-echo "🛠 Deploying Permission Set '$API_NAME'..."
-cd mywork
-sf project deploy start -o "$ORG" -d "$PS_FOLDER" $JSON_FLAG
-
-# 3. Assign it to users, if provided
-if [[ ${#USERS[@]:-0} -gt 0 ]]; then
-  echo "🔐 Assigning Permission Set to users..."
-  CMD=(sf org assign permset --target-org "$ORG" --name "$API_NAME")
-  for U in "${USERS[@]}"; do
-    CMD+=(--on-behalf-of "$U")
-  done
-  "${CMD[@]}" $JSON_FLAG
-fi
-
-echo "🎉 Done! Permission Set '$API_NAME' created, configured, and assigned."</code></pre>
-              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-script')">Copy</button>
-            </div>
+            <p class="text-gray-600 mb-2 mt-4">Download Script content : 
+              <a class="bg-green-600 text-white px-3 py-1 rounded hover:bg-blue-700" href="./create_and_apply_permset.sh">create_and_apply_permset.sh</a></p>
           </div>
           <!-- Step 3: Authenticate with Salesforce -->
           <div class="bg-white p-6 rounded-lg shadow-md">
@@ -261,13 +134,18 @@ echo "🎉 Done! Permission Set '$API_NAME' created, configured, and assigned."<
             <p class="text-gray-600 mb-4">Execute the script with the required parameters:</p>
             <div class="relative">
               <pre class="language-bash"><code id="code-run">./create_and_apply_permset.sh \
-  --org myOrgAlias \
-  --name MCTestPS \
-  --label "MC Test PS" \
-  --object_perms "Account:Read:Edit,Contact:Read:" \
-  --field_perms "Account.Phone:Read:Edit" \
-  --users "user1@example.com,user2@example.com" \
-  --json</code></pre>
+   --org myOrgAlias \
+   --name MyCustomPS \
+   --label "My Custom Perm Set" \
+   --object_perms "Account:Read:Edit,Contact:Read:" \
+   --field_perms "Account.Phone:Read:Edit" \
+
+   --app_perms "MyApp,AnotherApp" \
+   --classes "MyApexClass,AnotherClass" \
+   --flows "My_Flow_API,Another_Flow_API" \
+
+   --users "user1@example.com,user2@example.com" \
+   [--json]</code></pre>
               <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-run')">Copy</button>
             </div>
             <p class="text-gray-600 mt-4">Parameters:</p>
@@ -277,6 +155,11 @@ echo "🎉 Done! Permission Set '$API_NAME' created, configured, and assigned."<
               <li><code>--label</code>: Label for the Permission Set (e.g., "MC Test PS").</li>
               <li><code>--object_perms</code>: Comma-separated list of object permissions in the format <code>Object:Read:Edit</code> (e.g., "Account:Read:Edit,Contact:Read:").</li>
               <li><code>--field_perms</code>: Comma-separated list of field permissions in the format <code>Object.Field:Read:Edit</code> (e.g., "Account.Phone:Read:Edit").</li>
+              
+              <li><code>--app_perms</code>: Comma-separated list of application permissions (e.g., "MyApp,AnotherApp").</li>
+              <li><code>--classes</code>: Comma-separated list of Apex classes to grant access (e.g., "MyApexClass,AnotherClass").</li>
+              <li><code>--flows</code>: Comma-separated list of Flow API names to grant access (e.g., "My_Flow_API,Another_Flow_API").</li>
+              
               <li><code>--users</code>: Comma-separated list of usernames or email addresses (e.g., "user1@example.com,user2@example.com").</li>
               <li><code>--json</code>: Optional flag to output results in JSON format.</li>
             </ul>
