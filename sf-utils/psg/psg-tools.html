@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salesforce Permission Set Group CLI Setup and Usage</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+  <!-- Prism.js CSS -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
+  <style>
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    main {
+      flex: 1;
+    }
+    html {
+      scroll-behavior: smooth;
+    }
+    /* Style for the copy button */
+    .copy-btn {
+      transition: background-color 0.3s;
+    }
+    .copy-btn:hover {
+      background-color: #2563eb !important;
+    }
+    /* Adjust Prism.js code block styling */
+    pre[class*="language-"] {
+      position: relative;
+      background: #f5f2f0 !important;
+      border-radius: 0.5rem;
+      padding: 1rem;
+      overflow-x: auto;
+      font-size: 0.875rem;
+    }
+    code[class*="language-"] {
+      background: none !important;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 font-sans">
+  <!-- Sticky Navbar -->
+  <nav class="bg-blue-600 text-white shadow-lg sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex justify-between items-center">
+      <div class="text-2xl font-bold">
+        <a href="#home">Salesforce Permission Set Group CLI</a>
+      </div>
+      <div class="space-x-4">
+        <a href="#home" class="hover:text-blue-200">Home</a>
+        <a href="#overview" class="hover:text-blue-200">Overview</a>
+        <a href="#setup" class="hover:text-blue-200">Setup Steps</a>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main>
+    <!-- Hero Section -->
+    <section id="home" class="bg-gradient-to-r from-blue-500 to-blue-700 text-white py-20">
+      <div class="max-w-6xl mx-auto px-4 text-center">
+        <h1 class="text-5xl font-bold mb-4">Salesforce Permission Set Group CLI Setup and Usage</h1>
+        <p class="text-xl mb-8">A step-by-step guide to using a Bash script to create a Salesforce Permission Set Group (PSG) and assign Permission Sets to it via the Salesforce CLI.</p>
+        <a href="#setup" class="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-gray-200">Get Started</a>
+      </div>
+    </section>
+
+    <!-- Overview Section -->
+    <section id="overview" class="py-16">
+      <div class="max-w-6xl mx-auto px-4">
+        <h2 class="text-3xl font-bold text-gray-800 text-center mb-12">Overview</h2>
+        <div class="bg-white p-6 rounded-lg shadow-md">
+          <p class="text-gray-600">The <code>create_psg_add_permsets.sh</code> Bash script automates the creation of a Permission Set Group (PSG) in Salesforce and assigns specified Permission Sets to it. It uses the Salesforce CLI (<code>sf</code>) to interact with the Salesforce org, creates a PSG, waits for it to reach an 'Updated' status, and then links Permission Sets to the group. The script includes an optional delay parameter to handle asynchronous PSG updates. This guide covers setup, usage, and troubleshooting on macOS.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Setup Steps Section -->
+    <section id="setup" class="py-16">
+      <div class="max-w-6xl mx-auto px-4">
+        <h2 class="text-3xl font-bold text-gray-800 mb-8">Setup Steps</h2>
+        <p class="text-gray-600 mb-6">Follow these steps to set up and use the Salesforce Permission Set Group CLI on macOS:</p>
+        <div class="space-y-6">
+          <!-- Step 1: Install Dependencies -->
+          <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">🔹 Step 1: Install Dependencies</h3>
+            <p class="text-gray-600 mb-4">Ensure you have Homebrew, Salesforce CLI, and <code>jq</code> installed:</p>
+            <div class="relative">
+              <pre class="language-bash"><code id="code-step1">/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+brew install salesforcecli
+brew install jq
+sf --version
+jq --version</code></pre>
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-step1')">Copy</button>
+            </div>
+          </div>
+          <!-- Step 2: Create the Script -->
+          <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">🔹 Step 2: Create the Script</h3>
+            <p class="text-gray-600 mb-4">Save the script as <code>create_psg_add_permsets.sh</code> and make it executable:</p>
+            <div class="relative">
+              <pre class="language-bash"><code id="code-step2">touch create_psg_add_permsets.sh
+chmod +x create_psg_add_permsets.sh</code></pre>
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-step2')">Copy</button>
+            </div>
+            <p class="text-gray-600 mb-2 mt-4">Script content (<code>create_psg_add_permsets.sh</code>):</p>
+            <div class="relative">
+              <pre class="language-bash"><code id="code-script">#!/usr/bin/env bash
+# Usage example:
+# ./create_psg_add_permsets.sh \\
+#   --psg_dev_name DevTeamGroup \\
+#   --psg_master "Dev Team Group" \\
+#   --username myOrgAlias \\
+#   --permsets "0PSA0000000ABC1,0PSA0000000DEF2"
+#   --delay_ms 5000
+# This script creates a Permission Set Group (PSG) in Salesforce and adds specified Permission Sets to it.
+# It includes a delay option to wait for the PSG to be updated before adding Permission Sets.
+# author: Mohan Chinnappan
+#-----------------------------------------------------------
+
+set -euo pipefail
+
+# Default parameters
+DELAY_MS=0
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --psg_dev_name) PSG_DEV_NAME="$2"; shift 2;;
+    --psg_master) PSG_MASTER_LABEL="$2"; shift 2;;
+    --username) ORG_ALIAS="$2"; shift 2;;
+    --permsets) IFS=',' read -r -a PERMSET_IDS <<< "${2//\"/}"; shift 2;;
+    --delay_ms) DELAY_MS="$2"; shift 2;;
+    *) echo "❌ Unknown argument: $1"; exit 1;;
+  esac
+done
+
+# Validate input
+if [[ -z "${PSG_DEV_NAME:-}" || -z "${PSG_MASTER_LABEL:-}" || -z "${ORG_ALIAS:-}" || ${#PERMSET_IDS[@]} -eq 0 ]]; then
+  echo "❌ Usage: --psg_dev_name <devName> --psg_master <MasterLabel> \\
+--username <orgAlias> --permsets \"Id1,Id2,...\""
+  exit 1
+fi
+
+# 1. Create the Permission Set Group
+echo "➡️ Creating Permission Set Group..."
+RESP=$(sf data create record \\
+  -s PermissionSetGroup \\
+  -v "DeveloperName='$PSG_DEV_NAME' MasterLabel='$PSG_MASTER_LABEL'" \\
+  -u "$ORG_ALIAS" --json)
+PSG_ID=$(echo "$RESP" | jq -r '.result.id')
+echo "✅ Created PSG with ID: $PSG_ID"
+
+# 2. Optional initial delay
+if (( DELAY_MS > 0 )); then
+  D_SEC=$(bc <<< "scale=3; $DELAY_MS/1000")
+  echo "⏱️ Waiting ${D_SEC}s before polling..."
+  sleep "$D_SEC"
+fi
+
+# 2. Poll until Status == 'Updated'
+echo "⏳ Waiting for PSG to reach 'Updated' status..."
+while true; do
+  sleep 3
+  STATUS=$(sf data query \\
+    -q "SELECT Status FROM PermissionSetGroup WHERE Id = '$PSG_ID'" \\
+    -u "$ORG_ALIAS" --json | jq -r '.result.records[0].Status')
+  echo "  • Current Status: $STATUS"
+  if [[ "$STATUS" == "Updated" ]]; then
+    echo "✅ PSG status is 'Updated' — proceeding to add Permission Sets."
+    break
+  fi
+done
+
+# 3. Add Permission Sets to the Group
+for PS_ID in "${PERMSET_IDS[@]}"; do
+  echo "🔗 Linking PermissionSet ID=$PS_ID..."
+  sf data create record \\
+    -s PermissionSetGroupComponent \\
+    -v "PermissionSetGroupId='$PSG_ID' PermissionSetId='$PS_ID'" \\
+    -u "$ORG_ALIAS" >/dev/null
+  echo "✅ Added $PS_ID"
+done
+
+echo "🎉 All set! Permission Set Group ($PSG_ID) updated with Permission Sets."</code></pre>
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-script')">Copy</button>
+            </div>
+          </div>
+          <!-- Step 3: Authenticate with Salesforce -->
+          <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">🔹 Step 3: Authenticate with Salesforce</h3>
+            <p class="text-gray-600 mb-4">Authenticate with your Salesforce org using the Salesforce CLI:</p>
+            <div class="relative">
+              <pre class="language-bash"><code id="code-auth">sf force auth web login [-r https://test.salesforce.com]</code></pre>
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-auth')">Copy</button>
+            </div>
+            <p class="text-gray-600 mt-4">Verify authentication:</p>
+            <div class="relative">
+              <pre class="language-bash"><code id="code-verify-auth">sf org list</code></pre>
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-verify-auth')">Copy</button>
+            </div>
+          </div>
+          <!-- Step 4: Run the Script -->
+          <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">🔹 Step 4: Run the Script</h3>
+            <p class="text-gray-600 mb-4">Execute the script with the required parameters:</p>
+            <div class="relative">
+              <pre class="language-bash"><code id="code-run">./create_psg_add_permsets.sh \
+  --psg_dev_name DevTeamGroup \
+  --psg_master "Dev Team Group" \
+  --username myOrgAlias \
+  --permsets "0PSA0000000ABC1,0PSA0000000DEF2" \
+  --delay_ms 5000</code></pre>
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-run')">Copy</button>
+            </div>
+            <p class="text-gray-600 mt-4">Parameters:</p>
+            <ul class="list-disc list-inside text-gray-600">
+              <li><code>--psg_dev_name</code>: Developer name for the PSG (e.g., DevTeamGroup).</li>
+              <li><code>--psg_master</code>: Master label for the PSG (e.g., "Dev Team Group").</li>
+              <li><code>--username</code>: Salesforce org alias or username.</li>
+              <li><code>--permsets</code>: Comma-separated list of Permission Set IDs.</li>
+              <li><code>--delay_ms</code>: Optional delay in milliseconds before polling (e.g., 5000).</li>
+            </ul>
+          </div>
+          <!-- Step 5: Verify the Permission Set Group -->
+          <div class="bg-white p-6 rounded-lg shadow-md">
+            <h3 class="text-xl font-semibold text-gray-800 mb-2">🔹 Step 5: Verify the Permission Set Group</h3>
+            <p class="text-gray-600 mb-4">Check the created PSG and its components:</p>
+            <div class="relative">
+              <pre class="language-bash"><code id="code-verify">sf data query -q "SELECT Id, DeveloperName, MasterLabel, Status FROM PermissionSetGroup WHERE DeveloperName = 'DevTeamGroup'" -u myOrgAlias
+sf data query -q "SELECT PermissionSetId FROM PermissionSetGroupComponent WHERE PermissionSetGroupId = 'YOUR_PSG_ID'" -u myOrgAlias</code></pre>
+<img src="img/psg-1.png" style="border-radius: 5px; margin-top: 10px;" alt="">
+
+              <button class="copy-btn absolute top-2 right-2 bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" onclick="copyCode('code-verify')">Copy</button>
+            </div>
+          </div>
+       
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-blue-600 text-white py-6">
+    <div class="max-w-6xl mx-auto px-4 text-center">
+      <p>MC - 2025 Salesforce Permission Set Group CLI</p>
+    </div>
+  </footer>
+
+  <!-- Prism.js JavaScript -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-html.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-xml-doc.min.js"></script>
+
+  <!-- JavaScript for Copy Functionality -->
+  <script>
+    function copyCode(elementId) {
+      const codeElement = document.getElementById(elementId);
+      const text = codeElement.innerText;
+      navigator.clipboard.writeText(text).then(() => {
+        alert('Code copied to clipboard!');
+      }).catch(err => {
+        console.error('Failed to copy: ', err);
+      });
+    }
+  </script>
+</body>
+</html>
