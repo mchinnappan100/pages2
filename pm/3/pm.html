@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Management Software</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2"></script>
+    <style>
+        html {
+            scroll-behavior: smooth;
+            height: 100%;
+        }
+        body {
+            min-height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        #app {
+            flex: 1 0 auto;
+        }
+        footer {
+            flex-shrink: 0;
+        }
+        /* Ensure table is scrollable */
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        /* Style for Gantt chart canvas */
+        #ganttChart {
+            max-height: 300px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div id="app" class="flex flex-col min-h-screen">
+        <!-- Sticky Header with Gradient -->
+        <header class="bg-gradient-to-r from-blue-900 via-indigo-800 to-purple-900 text-white sticky top-0 z-50 shadow-md">
+            <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+                <h1 class="text-2xl font-bold">Project Management Software</h1>
+                <div class="flex items-center space-x-4">
+                    <select id="projectSelector" class="bg-white text-gray-800 p-2 rounded">
+                        <option value="Project 1">Project 1</option>
+                        <option value="Project 2">Project 2</option>
+                    </select>
+                    <nav>
+                        <ul class="flex space-x-4">
+                            <li><a href="#tasks" class="hover:text-blue-300">Tasks</a></li>
+                            <li><a href="#gantt" class="hover:text-blue-300">Gantt Chart</a></li>
+                            <li><a href="#status" class="hover:text-blue-300">Status</a></li>
+                            <li><a href="#kpis" class="hover:text-blue-300">KPIs</a></li>
+                        </ul>
+                    </nav>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="container mx-auto px-4 py-8 flex flex-1">
+            <!-- Sidebar: Team Management -->
+            <aside class="w-1/4 bg-white p-4 rounded-lg shadow-md mr-4">
+                <h2 class="text-xl font-bold mb-4">Team Management</h2>
+                <div class="mb-4">
+                    <input id="memberName" type="text" placeholder="Enter member name" class="w-full p-2 border rounded">
+                    <button id="addMember" class="mt-2 bg-blue-600 text-white p-2 rounded w-full hover:bg-blue-700">Add Member</button>
+                </div>
+                <h3 class="font-semibold mb-2">Team Members</h3>
+                <ul id="memberList" class="list-disc pl-5"></ul>
+            </aside>
+
+            <!-- Main Section: Tasks, Gantt, Status -->
+            <main class="w-3/4">
+                <!-- Task Grid -->
+                <section id="tasks" class="mb-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">Tasks</h2>
+                    <div class="mb-4 flex space-x-2">
+                        <input id="taskName" type="text" placeholder="Task name" class="p-2 border rounded flex-1">
+                        <button id="addTask" class="bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Add Task</button>
+                    </div>
+                    <div class="table-container">
+                        <table class="w-full bg-white rounded-lg shadow-md">
+                            <thead class="bg-gray-200 sticky top-0">
+                                <tr>
+                                    <th class="p-2"><input type="checkbox" id="selectAll"></th>
+                                    <th class="p-2">Task Name</th>
+                                    <th class="p-2">Assigned To</th>
+                                    <th class="p-2">Start Date</th>
+                                    <th class="p-2">End Date</th>
+                                    <th class="p-2">Status</th>
+                                    <th class="p-2">Progress (%)</th>
+                                    <th class="p-2">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="taskTable"></tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Gantt Chart -->
+                <section id="gantt" class="mb-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">Gantt Chart</h2>
+                    <canvas id="ganttChart"></canvas>
+                </section>
+
+                <!-- Project Status Chart -->
+                <section id="status" class="mb-8">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">Project Status</h2>
+                    <canvas id="statusChart" class="max-h-80"></canvas>
+                </section>
+            </main>
+        </div>
+
+        <!-- KPI Dashboard in Footer -->
+        <footer id="kpis" class="bg-gradient-to-r from-blue-900 via-indigo-800 to-purple-900 text-white py-8">
+            <div class="container mx-auto px-4">
+                <h2 class="text-2xl font-bold mb-4">KPI Dashboard (All Projects)</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">Completion Rate</h3>
+                        <canvas id="kpiCompletionChart" class="max-h-64"></canvas>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2">Overdue Tasks</h3>
+                        <canvas id="kpiOverdueChart" class="max-h-64"></canvas>
+                    </div>
+                </div>
+                <p class="mt-4 text-center text-sm">© 2025 Project Management Software. All rights reserved.</p>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+    // Data structures
+    let projects = (() => {
+        try {
+            const savedProjects = JSON.parse(localStorage.getItem('projects'));
+            // Validate structure
+            if (savedProjects && typeof savedProjects === 'object') {
+                // Ensure all projects have members and tasks arrays
+                Object.keys(savedProjects).forEach(key => {
+                    savedProjects[key].members = Array.isArray(savedProjects[key].members) ? savedProjects[key].members : [];
+                    savedProjects[key].tasks = Array.isArray(savedProjects[key].tasks) ? savedProjects[key].tasks : [];
+                });
+                return savedProjects;
+            }
+        } catch (e) {
+            console.warn('Invalid localStorage data, resetting to defaults:', e);
+        }
+        // Default structure if localStorage is invalid
+        return {
+            'Project 1': { tasks: [], members: [] },
+            'Project 2': { tasks: [], members: [] }
+        };
+    })();
+        let currentProject = 'Project 1';
+
+        // DOM Elements
+        const projectSelector = document.getElementById('projectSelector');
+        const taskTable = document.getElementById('taskTable');
+        const memberList = document.getElementById('memberList');
+        const addMemberBtn = document.getElementById('addMember');
+        const memberNameInput = document.getElementById('memberName');
+        const addTaskBtn = document.getElementById('addTask');
+        const taskNameInput = document.getElementById('taskName');
+        const selectAllCheckbox = document.getElementById('selectAll');
+        const ganttChartCanvas = document.getElementById('ganttChart');
+        const statusChartCanvas = document.getElementById('statusChart');
+        const kpiCompletionChartCanvas = document.getElementById('kpiCompletionChart');
+        const kpiOverdueChartCanvas = document.getElementById('kpiOverdueChart');
+
+        // Charts
+        let ganttChart, statusChart, kpiCompletionChart, kpiOverdueChart;
+
+        // Initialize
+        function init() {
+            projectSelector.value = currentProject;
+            renderMembers();
+            renderTasks();
+            initCharts();
+            updateCharts();
+            projectSelector.addEventListener('change', () => {
+                currentProject = projectSelector.value;
+                renderMembers();
+                renderTasks();
+                updateCharts();
+            });
+            addMemberBtn.addEventListener('click', addMember);
+            addTaskBtn.addEventListener('click', addTask);
+            selectAllCheckbox.addEventListener('change', toggleSelectAll);
+        }
+
+        // Render Team Members
+function renderMembers() {
+    if (!projects[currentProject]) {
+        console.error('Current project not found:', currentProject);
+        projects[currentProject] = { tasks: [], members: [] };
+        saveData();
+    }
+    memberList.innerHTML = projects[currentProject].members.map(member => `<li>${member}</li>`).join('');
+}
+
+        // Add Team Member
+        function addMember() {
+            const name = memberNameInput.value.trim();
+            if (name && !projects[currentProject].members.includes(name)) {
+                projects[currentProject].members.push(name);
+                saveData();
+                renderMembers();
+                renderTasks(); // Update task dropdowns
+                memberNameInput.value = '';
+            }
+        }
+
+        // Render Tasks
+        function renderTasks() {
+            taskTable.innerHTML = projects[currentProject].tasks.map((task, index) => `
+                <tr>
+                    <td class="p-2"><input type="checkbox" class="task-checkbox" data-index="${index}"></td>
+                    <td class="p-2">${task.name}</td>
+                    <td class="p-2">
+                        <select class="assigned-to w-full p-1 border rounded" data-index="${index}">
+                            <option value="">Unassigned</option>
+                            ${projects[currentProject].members.map(member => `<option value="${member}" ${task.assignedTo === member ? 'selected' : ''}>${member}</option>`).join('')}
+                        </select>
+                    </td>
+                    <td class="p-2"><input type="date" class="start-date w-full p-1 border rounded" data-index="${index}" value="${task.startDate}"></td>
+                    <td class="p-2"><input type="date" class="end-date w-full p-1 border rounded" data-index="${index}" value="${task.endDate}"></td>
+                    <td class="p-2">
+                        <select class="status w-full p-1 border rounded" data-index="${index}">
+                            <option value="Not Started" ${task.status === 'Not Started' ? 'selected' : ''}>Not Started</option>
+                            <option value="In Progress" ${task.status === 'In Progress' ? 'selected' : ''}>In Progress</option>
+                            <option value="Completed" ${task.status === 'Completed' ? 'selected' : ''}>Completed</option>
+                        </select>
+                    </td>
+                    <td class="p-2"><input type="number" class="progress w-full p-1 border rounded" data-index="${index}" value="${task.progress}" min="0" max="100"></td>
+                    <td class="p-2"><button class="delete-task bg-red-600 text-white p-1 rounded hover:bg-red-700" data-index="${index}">Delete</button></td>
+                </tr>
+            `).join('');
+
+            // Event listeners for task updates
+            document.querySelectorAll('.assigned-to').forEach(select => {
+                select.addEventListener('change', e => {
+                    const index = e.target.dataset.index;
+                    projects[currentProject].tasks[index].assignedTo = e.target.value;
+                    saveData();
+                    updateCharts();
+                });
+            });
+            document.querySelectorAll('.start-date').forEach(input => {
+                input.addEventListener('change', e => {
+                    const index = e.target.dataset.index;
+                    projects[currentProject].tasks[index].startDate = e.target.value;
+                    saveData();
+                    updateCharts();
+                });
+            });
+            document.querySelectorAll('.end-date').forEach(input => {
+                input.addEventListener('change', e => {
+                    const index = e.target.dataset.index;
+                    projects[currentProject].tasks[index].endDate = e.target.value;
+                    saveData();
+                    updateCharts();
+                });
+            });
+            document.querySelectorAll('.status').forEach(select => {
+                select.addEventListener('change', e => {
+                    const index = e.target.dataset.index;
+                    projects[currentProject].tasks[index].status = e.target.value;
+                    saveData();
+                    updateCharts();
+                });
+            });
+            document.querySelectorAll('.progress').forEach(input => {
+                input.addEventListener('change', e => {
+                    const index = e.target.dataset.index;
+                    projects[currentProject].tasks[index].progress = parseInt(e.target.value) || 0;
+                    saveData();
+                    updateCharts();
+                });
+            });
+            document.querySelectorAll('.delete-task').forEach(button => {
+                button.addEventListener('click', e => {
+                    const index = e.target.dataset.index;
+                    projects[currentProject].tasks.splice(index, 1);
+                    saveData();
+                    renderTasks();
+                    updateCharts();
+                });
+            });
+            document.querySelectorAll('.task-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', updateCharts);
+            });
+        }
+
+        // Add Task
+        function addTask() {
+            const name = taskNameInput.value.trim();
+            if (name) {
+                projects[currentProject].tasks.push({
+                    name,
+                    assignedTo: '',
+                    startDate: '',
+                    endDate: '',
+                    status: 'Not Started',
+                    progress: 0
+                });
+                saveData();
+                renderTasks();
+                updateCharts();
+                taskNameInput.value = '';
+            }
+        }
+
+        // Toggle Select All
+        function toggleSelectAll(e) {
+            document.querySelectorAll('.task-checkbox').forEach(checkbox => {
+                checkbox.checked = e.target.checked;
+            });
+            updateCharts();
+        }
+
+        // Save Data to LocalStorage
+        function saveData() {
+            localStorage.setItem('projects', JSON.stringify(projects));
+        }
+
+        // Initialize Charts
+        function initCharts() {
+            // Gantt Chart (Bar)
+            ganttChart = new Chart(ganttChartCanvas, {
+                type: 'bar',
+                data: { labels: [], datasets: [] },
+                options: {
+                    indexAxis: 'y',
+                    scales: {
+                        x: { type: 'time', time: { unit: 'day' }, title: { display: true, text: 'Timeline' } },
+                        y: { title: { display: true, text: 'Tasks' } }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            // Status Chart (Pie)
+            statusChart = new Chart(statusChartCanvas, {
+                type: 'pie',
+                data: {
+                    labels: ['Not Started', 'In Progress', 'Completed'],
+                    datasets: [{
+                        data: [0, 0, 0],
+                        backgroundColor: ['#ef4444', '#f59e0b', '#10b981']
+                    }]
+                },
+                options: { plugins: { legend: { position: 'bottom' } } }
+            });
+
+            // KPI Completion Chart (Bar)
+            kpiCompletionChart = new Chart(kpiCompletionChartCanvas, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(projects),
+                    datasets: [{
+                        label: 'Completion Rate (%)',
+                        data: [],
+                        backgroundColor: '#1e40af'
+                    }]
+                },
+                options: {
+                    scales: { y: { beginAtZero: true, max: 100 } },
+                    plugins: { legend: { display: true } }
+                }
+            });
+
+            // KPI Overdue Chart (Line)
+            kpiOverdueChart = new Chart(kpiOverdueChartCanvas, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(projects),
+                    datasets: [{
+                        label: 'Overdue Tasks',
+                        data: [],
+                        borderColor: '#ef4444',
+                        fill: false
+                    }]
+                },
+                options: {
+                    scales: { y: { beginAtZero: true } },
+                    plugins: { legend: { display: true } }
+                }
+            });
+        }
+
+        // Update Charts
+        function updateCharts() {
+            // Gantt Chart: Show only selected tasks
+            const selectedIndices = Array.from(document.querySelectorAll('.task-checkbox:checked')).map(cb => parseInt(cb.dataset.index));
+            const selectedTasks = selectedIndices.length ? projects[currentProject].tasks.filter((_, i) => selectedIndices.includes(i)) : projects[currentProject].tasks;
+            const ganttData = selectedTasks.filter(task => task.startDate && task.endDate).map(task => ({
+                label: task.name,
+                start: new Date(task.startDate),
+                end: new Date(task.endDate)
+            }));
+            ganttChart.data.labels = ganttData.map(d => d.label);
+            ganttChart.data.datasets = [{
+                data: ganttData.map(d => ({ x: [d.start, d.end], y: d.label })),
+                backgroundColor: '#1e40af'
+            }];
+            ganttChart.update();
+
+            // Status Chart
+            const statusCounts = { 'Not Started': 0, 'In Progress': 0, 'Completed': 0 };
+            projects[currentProject].tasks.forEach(task => statusCounts[task.status]++);
+            statusChart.data.datasets[0].data = [statusCounts['Not Started'], statusCounts['In Progress'], statusCounts['Completed']];
+            statusChart.update();
+
+            // KPI Charts
+            const today = new Date();
+            const completionRates = Object.keys(projects).map(project => {
+                const tasks = projects[project].tasks;
+                const completed = tasks.filter(t => t.status === 'Completed').length;
+                return tasks.length ? (completed / tasks.length) * 100 : 0;
+            });
+            const overdueCounts = Object.keys(projects).map(project => {
+                return projects[project].tasks.filter(t => t.endDate && new Date(t.endDate) < today && t.status !== 'Completed').length;
+            });
+            kpiCompletionChart.data.datasets[0].data = completionRates;
+            kpiOverdueChart.data.datasets[0].data = overdueCounts;
+            kpiCompletionChart.update();
+            kpiOverdueChart.update();
+        }
+
+        // Run Initialization
+        init();
+    </script>
+</body>
+</html>
