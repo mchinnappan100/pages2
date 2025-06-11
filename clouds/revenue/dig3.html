@@ -1,0 +1,978 @@
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Builder</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            padding: 15px 20px;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+
+        .btn.delete {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+            box-shadow: 0 4px 15px rgba(244, 67, 54, 0.3);
+        }
+
+        .btn.delete:hover {
+            box-shadow: 0 6px 20px rgba(244, 67, 54, 0.4);
+        }
+
+        .color-picker {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .workspace {
+            position: absolute;
+            top: 80px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+        }
+
+        .canvas {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+
+        .task {
+            position: absolute;
+            min-width: 120px;
+            min-height: 80px;
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            border: 2px solid #fff;
+            border-radius: 12px;
+            padding: 15px;
+            cursor: move;
+            user-select: none;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+            overflow: auto;
+            color: white;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .task .resize-handle {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            cursor: nw-resize;
+            bottom: -10px;
+            right: -10px;
+            z-index: 10;
+            transition: all 0.2s ease;
+        }
+
+        .task .resize-handle:hover {
+            background: #ffd700;
+            transform: scale(1.2);
+        }
+
+        .task:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 35px rgba(0, 0, 0, 0.3);
+        }
+
+        .task.selected {
+            border-color: #ffd700;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+
+        .task.connecting {
+            box-shadow: 0 0 20px rgba(255, 0, 0, 0.7);
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .connection {
+            position: absolute;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .connection-line {
+            stroke-width: 3;
+            fill: none;
+            filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.3));
+            transition: all 0.3s ease;
+        }
+
+        .connection-arrow {
+            fill: inherit;
+        }
+
+        .connection.selected {
+            filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.8));
+        }
+
+        .task-content {
+            width: 100%;
+            height: 100%;
+            background: transparent;
+            border: none;
+            color: inherit;
+            font: inherit;
+            text-align: center;
+            outline: none;
+            resize: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .connection-mode {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 600;
+            z-index: 2000;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0.1;
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.3) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.3) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .info-panel {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(10px);
+            font-size: 14px;
+            max-width: 300px;
+        }
+
+        .info-panel h3 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .info-panel ul {
+            list-style: none;
+            line-height: 1.6;
+            color: #666;
+        }
+
+        .info-panel li {
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="toolbar">
+        <button class="btn" onclick="createTask()">+ Add Task</button>
+        <button class="btn" onclick="toggleConnectionMode()">🔗 Connect Tasks</button>
+        <button class="btn delete" onclick="deleteSelected()">🗑️ Delete</button>
+        <label>Task Color:</label>
+        <input type="color" class="color-picker" id="taskColor" value="#3498db">
+        <label>Line Color:</label>
+        <input type="color" class="color-picker" id="lineColor" value="#e74c3c">
+        <button class="btn" onclick="undo()">↶ Undo</button>
+        <button class="btn" onclick="redo()">↷ Redo</button>
+        <button class="btn" onclick="downloadJSON()">💾 Save JSON</button>
+        <button class="btn" onclick="downloadPNG()">📷 Save PNG</button>
+        <button class="btn" onclick="clearAll()">Clear All</button>
+        <input type="file" id="fileInput" accept=".json" style="display: none;" onchange="loadJSON(event)">
+        <button class="btn" onclick="document.getElementById('fileInput').click()">📁 Load JSON</button>
+    </div>
+
+    <div class="workspace">
+        <div class="grid"></div>
+        <div class="canvas" id="canvas">
+            <svg id="connections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#e74c3c" />
+                    </marker>
+                </defs>
+            </svg>
+        </div>
+    </div>
+
+    <div class="info-panel">
+        <h3>Controls</h3>
+        <ul>
+            <li>• Click "Add Task" to create new tasks</li>
+            <li>• Drag tasks to move them</li>
+            <li>• Resize tasks by dragging corners</li>
+            <li>• Click "Connect Tasks" then click two tasks</li>
+            <li>• Click tasks/lines to select and change colors</li>
+            <li>• Double-click tasks to edit text</li>
+            <li>• Use Delete button to remove selected items</li>
+        </ul>
+    </div>
+
+    <script>
+        let tasks = [];
+        let connections = [];
+        let selectedTask = null;
+        let selectedConnection = null;
+        let isConnectionMode = false;
+        let firstTaskForConnection = null;
+        let draggedTask = null;
+        let isDragging = false;
+        let isResizing = false;
+        let dragOffset = { x: 0, y: 0 };
+        let taskCounter = 0;
+        
+        // Undo/Redo system
+        let history = [];
+        let historyIndex = -1;
+        const maxHistorySize = 50;
+
+        function saveState() {
+            // Remove states after current index if we're not at the end
+            if (historyIndex < history.length - 1) {
+                history = history.slice(0, historyIndex + 1);
+            }
+            
+            // Add current state
+            const state = {
+                tasks: JSON.parse(JSON.stringify(tasks)),
+                connections: JSON.parse(JSON.stringify(connections)),
+                taskCounter: taskCounter
+            };
+            
+            history.push(state);
+            
+            // Limit history size
+            if (history.length > maxHistorySize) {
+                history.shift();
+            } else {
+                historyIndex++;
+            }
+        }
+
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                loadState(history[historyIndex]);
+            }
+        }
+
+        function redo() {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                loadState(history[historyIndex]);
+            }
+        }
+
+        function loadState(state) {
+            tasks = JSON.parse(JSON.stringify(state.tasks));
+            connections = JSON.parse(JSON.stringify(state.connections));
+            taskCounter = state.taskCounter;
+            
+            // Clear canvas and re-render
+            const canvas = document.getElementById('canvas');
+            canvas.innerHTML = `
+                <svg id="connections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+                    <defs>
+                        <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                            <polygon points="0 0, 10 3.5, 0 7" fill="#e74c3c" />
+                        </marker>
+                    </defs>
+                </svg>
+            `;
+            
+            // Re-render all tasks and connections
+            tasks.forEach(renderTask);
+            connections.forEach(renderConnection);
+            
+            selectedTask = null;
+            selectedConnection = null;
+        }
+
+        function createTask() {
+            saveState();
+            taskCounter++;
+            const task = {
+                id: `task-${taskCounter}`,
+                x: Math.random() * 400 + 100,
+                y: Math.random() * 300 + 150,
+                width: 120,
+                height: 80,
+                text: `Task ${taskCounter}`,
+                color: document.getElementById('taskColor').value
+            };
+            
+            tasks.push(task);
+            renderTask(task);
+        }
+
+        function renderTask(task) {
+            const taskDiv = document.createElement('div');
+            taskDiv.className = 'task';
+            taskDiv.id = task.id;
+            taskDiv.style.left = `${task.x}px`;
+            taskDiv.style.top = `${task.y}px`;
+            taskDiv.style.width = `${task.width}px`;
+            taskDiv.style.height = `${task.height}px`;
+            taskDiv.style.background = task.color;
+            taskDiv.innerHTML = `
+                <div class="task-content" contenteditable="true">${task.text}</div>
+                <div class="resize-handle"></div>
+            `;
+
+            // Event listeners
+            taskDiv.addEventListener('mousedown', startDrag);
+            taskDiv.addEventListener('click', selectTask);
+            taskDiv.addEventListener('dblclick', editTask);
+            
+            // Resize handle
+            const resizeHandle = taskDiv.querySelector('.resize-handle');
+            resizeHandle.addEventListener('mousedown', startResize);
+            
+            // Content editing
+            const content = taskDiv.querySelector('.task-content');
+            content.addEventListener('blur', function() {
+                if (task.text !== this.textContent) {
+                    saveState();
+                    task.text = this.textContent;
+                }
+            });
+
+            document.getElementById('canvas').appendChild(taskDiv);
+        }
+
+        function startDrag(e) {
+            e.preventDefault();
+            if (isConnectionMode) return;
+            
+            // Check if clicking on resize handle
+            if (e.target.classList.contains('resize-handle')) {
+                return; // Let startResize handle it
+            }
+            
+            isDragging = true;
+            draggedTask = tasks.find(t => t.id === e.target.closest('.task').id);
+            
+            const rect = e.target.closest('.task').getBoundingClientRect();
+            const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+            
+            dragOffset.x = e.clientX - rect.left;
+            dragOffset.y = e.clientY - rect.top;
+            
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDrag);
+        }
+
+        function startResize(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            isResizing = true;
+            const taskElement = e.target.closest('.task');
+            draggedTask = tasks.find(t => t.id === taskElement.id);
+            
+            const rect = taskElement.getBoundingClientRect();
+            dragOffset.x = rect.right;
+            dragOffset.y = rect.bottom;
+            
+            document.addEventListener('mousemove', resize);
+            document.addEventListener('mouseup', stopResize);
+        }
+
+        function resize(e) {
+            if (!isResizing || !draggedTask) return;
+            
+            const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+            const newWidth = Math.max(120, e.clientX - canvasRect.left - draggedTask.x);
+            const newHeight = Math.max(80, e.clientY - canvasRect.top - draggedTask.y);
+            
+            draggedTask.width = newWidth;
+            draggedTask.height = newHeight;
+            
+            const taskElement = document.getElementById(draggedTask.id);
+            taskElement.style.width = `${newWidth}px`;
+            taskElement.style.height = `${newHeight}px`;
+            
+            updateConnections();
+        }
+
+        function stopResize() {
+            if (isResizing) {
+                saveState();
+            }
+            isResizing = false;
+            draggedTask = null;
+            document.removeEventListener('mousemove', resize);
+            document.removeEventListener('mouseup', stopResize);
+        }
+
+        function drag(e) {
+            if (!isDragging || !draggedTask) return;
+            
+            const canvasRect = document.getElementById('canvas').getBoundingClientRect();
+            const newX = e.clientX - canvasRect.left - dragOffset.x;
+            const newY = e.clientY - canvasRect.top - dragOffset.y;
+            
+            draggedTask.x = Math.max(0, newX);
+            draggedTask.y = Math.max(0, newY);
+            
+            const taskElement = document.getElementById(draggedTask.id);
+            taskElement.style.left = `${draggedTask.x}px`;
+            taskElement.style.top = `${draggedTask.y}px`;
+            
+            updateConnections();
+        }
+
+        function stopDrag() {
+            if (isDragging) {
+                saveState();
+            }
+            isDragging = false;
+            draggedTask = null;
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('mouseup', stopDrag);
+        }
+
+        function selectTask(e) {
+            e.stopPropagation();
+            const taskId = e.target.closest('.task').id;
+            
+            if (isConnectionMode) {
+                handleConnectionClick(taskId);
+                return;
+            }
+            
+            // Clear previous selections
+            document.querySelectorAll('.task.selected').forEach(t => t.classList.remove('selected'));
+            document.querySelectorAll('.connection.selected').forEach(c => c.classList.remove('selected'));
+            
+            selectedTask = tasks.find(t => t.id === taskId);
+            selectedConnection = null;
+            document.getElementById(taskId).classList.add('selected');
+        }
+
+        function handleConnectionClick(taskId) {
+            if (!firstTaskForConnection) {
+                firstTaskForConnection = taskId;
+                document.getElementById(taskId).classList.add('connecting');
+            } else if (firstTaskForConnection !== taskId) {
+                createConnection(firstTaskForConnection, taskId);
+                document.getElementById(firstTaskForConnection).classList.remove('connecting');
+                firstTaskForConnection = null;
+                toggleConnectionMode();
+            }
+        }
+
+        function createConnection(fromId, toId) {
+            saveState();
+            const connection = {
+                id: `conn-${Date.now()}`,
+                from: fromId,
+                to: toId,
+                color: document.getElementById('lineColor').value
+            };
+            
+            connections.push(connection);
+            renderConnection(connection);
+        }
+
+        function renderConnection(connection) {
+            const svg = document.getElementById('connections');
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+            
+            group.classList.add('connection');
+            group.id = connection.id;
+            
+            path.classList.add('connection-line');
+            path.style.stroke = connection.color;
+            path.setAttribute('marker-end', 'url(#arrowhead)');
+            
+            group.appendChild(path);
+            group.addEventListener('click', () => selectConnection(connection.id));
+            
+            svg.appendChild(group);
+            updateConnectionPath(connection);
+        }
+
+        function updateConnectionPath(connection) {
+            const fromTask = tasks.find(t => t.id === connection.from);
+            const toTask = tasks.find(t => t.id === connection.to);
+            
+            if (!fromTask || !toTask) return;
+            
+            const fromCenter = {
+                x: fromTask.x + fromTask.width / 2,
+                y: fromTask.y + fromTask.height / 2
+            };
+            
+            const toCenter = {
+                x: toTask.x + toTask.width / 2,
+                y: toTask.y + toTask.height / 2
+            };
+            
+            // Calculate connection points on task edges
+            const fromPoint = getConnectionPoint(fromTask, toCenter);
+            const toPoint = getConnectionPoint(toTask, fromCenter);
+            
+            // Create curved path
+            const dx = toPoint.x - fromPoint.x;
+            const dy = toPoint.y - fromPoint.y;
+            const controlOffset = Math.min(100, Math.abs(dx) * 0.5, Math.abs(dy) * 0.5);
+            
+            const path = `M ${fromPoint.x} ${fromPoint.y} 
+                         C ${fromPoint.x + controlOffset} ${fromPoint.y},
+                           ${toPoint.x - controlOffset} ${toPoint.y},
+                           ${toPoint.x} ${toPoint.y}`;
+            
+            const pathElement = document.querySelector(`#${connection.id} path`);
+            if (pathElement) {
+                pathElement.setAttribute('d', path);
+            }
+        }
+
+        function getConnectionPoint(task, targetCenter) {
+            const taskCenter = {
+                x: task.x + task.width / 2,
+                y: task.y + task.height / 2
+            };
+            
+            const dx = targetCenter.x - taskCenter.x;
+            const dy = targetCenter.y - taskCenter.y;
+            
+            // Calculate intersection with task rectangle
+            const angle = Math.atan2(dy, dx);
+            const cos = Math.cos(angle);
+            const sin = Math.sin(angle);
+            
+            const halfWidth = task.width / 2;
+            const halfHeight = task.height / 2;
+            
+            let x, y;
+            
+            if (Math.abs(cos) > Math.abs(sin)) {
+                // Intersect with left or right edge
+                x = taskCenter.x + (cos > 0 ? halfWidth : -halfWidth);
+                y = taskCenter.y + (sin * halfWidth / Math.abs(cos));
+            } else {
+                // Intersect with top or bottom edge
+                x = taskCenter.x + (cos * halfHeight / Math.abs(sin));
+                y = taskCenter.y + (sin > 0 ? halfHeight : -halfHeight);
+            }
+            
+            return { x, y };
+        }
+
+        function updateConnections() {
+            connections.forEach(updateConnectionPath);
+        }
+
+        function selectConnection(connectionId) {
+            document.querySelectorAll('.task.selected').forEach(t => t.classList.remove('selected'));
+            document.querySelectorAll('.connection.selected').forEach(c => c.classList.remove('selected'));
+            
+            selectedConnection = connections.find(c => c.id === connectionId);
+            selectedTask = null;
+            document.getElementById(connectionId).classList.add('selected');
+        }
+
+        function toggleConnectionMode() {
+            isConnectionMode = !isConnectionMode;
+            
+            if (isConnectionMode) {
+                document.body.insertAdjacentHTML('beforeend', 
+                    '<div class="connection-mode">Connection Mode: Click two tasks to connect them</div>');
+            } else {
+                document.querySelector('.connection-mode')?.remove();
+                document.querySelectorAll('.task.connecting').forEach(t => t.classList.remove('connecting'));
+                firstTaskForConnection = null;
+            }
+        }
+
+        function deleteSelected() {
+            if (selectedTask || selectedConnection) {
+                saveState();
+            }
+            
+            if (selectedTask) {
+                // Remove task and its connections
+                tasks = tasks.filter(t => t.id !== selectedTask.id);
+                connections = connections.filter(c => c.from !== selectedTask.id && c.to !== selectedTask.id);
+                
+                document.getElementById(selectedTask.id).remove();
+                connections.forEach(conn => {
+                    if (document.getElementById(conn.id)) {
+                        document.getElementById(conn.id).remove();
+                    }
+                });
+                
+                selectedTask = null;
+                renderAllConnections();
+            } else if (selectedConnection) {
+                connections = connections.filter(c => c.id !== selectedConnection.id);
+                document.getElementById(selectedConnection.id).remove();
+                selectedConnection = null;
+            }
+        }
+
+        function renderAllConnections() {
+            document.getElementById('connections').innerHTML = `
+                <defs>
+                    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                        <polygon points="0 0, 10 3.5, 0 7" fill="#e74c3c" />
+                    </marker>
+                </defs>
+            `;
+            connections.forEach(renderConnection);
+        }
+
+        function clearAll() {
+            if (confirm('Are you sure you want to clear all tasks and connections?')) {
+                saveState();
+                tasks = [];
+                connections = [];
+                selectedTask = null;
+                selectedConnection = null;
+                document.getElementById('canvas').innerHTML = `
+                    <svg id="connections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+                        <defs>
+                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#e74c3c" />
+                            </marker>
+                        </defs>
+                    </svg>
+                `;
+            }
+        }
+
+        function editTask(e) {
+            e.stopPropagation();
+            const content = e.target.querySelector('.task-content') || e.target;
+            content.focus();
+        }
+
+        // Color change handlers
+        document.getElementById('taskColor').addEventListener('change', function() {
+            if (selectedTask) {
+                saveState();
+                selectedTask.color = this.value;
+                document.getElementById(selectedTask.id).style.background = this.value;
+            }
+        });
+
+        document.getElementById('lineColor').addEventListener('change', function() {
+            if (selectedConnection) {
+                saveState();
+                selectedConnection.color = this.value;
+                const pathElement = document.querySelector(`#${selectedConnection.id} path`);
+                if (pathElement) {
+                    pathElement.style.stroke = this.value;
+                }
+            }
+        });
+
+        // Download and load functions
+        function downloadJSON() {
+            const data = {
+                tasks: tasks,
+                connections: connections,
+                taskCounter: taskCounter,
+                timestamp: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `workflow-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function loadJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    
+                    saveState();
+                    
+                    tasks = data.tasks || [];
+                    connections = data.connections || [];
+                    taskCounter = data.taskCounter || 0;
+                    
+                    // Clear canvas and re-render
+                    const canvas = document.getElementById('canvas');
+                    canvas.innerHTML = `
+                        <svg id="connections" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;">
+                            <defs>
+                                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                    <polygon points="0 0, 10 3.5, 0 7" fill="#e74c3c" />
+                                </marker>
+                            </defs>
+                        </svg>
+                    `;
+                    
+                    tasks.forEach(renderTask);
+                    connections.forEach(renderConnection);
+                    
+                    selectedTask = null;
+                    selectedConnection = null;
+                    
+                } catch (error) {
+                    alert('Error loading file: Invalid JSON format');
+                }
+            };
+            reader.readAsText(file);
+            
+            // Reset file input
+            event.target.value = '';
+        }
+
+        function downloadPNG() {
+            const canvas = document.getElementById('canvas');
+            
+            // Create a new canvas element for export
+            const exportCanvas = document.createElement('canvas');
+            const ctx = exportCanvas.getContext('2d');
+            
+            // Calculate bounds
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            
+            tasks.forEach(task => {
+                minX = Math.min(minX, task.x);
+                minY = Math.min(minY, task.y);
+                maxX = Math.max(maxX, task.x + task.width);
+                maxY = Math.max(maxY, task.y + task.height);
+            });
+            
+            // Add padding
+            const padding = 50;
+            minX -= padding;
+            minY -= padding;
+            maxX += padding;
+            maxY += padding;
+            
+            // Set canvas size
+            exportCanvas.width = maxX - minX;
+            exportCanvas.height = maxY - minY;
+            
+            // Fill background
+            ctx.fillStyle = '#667eea';
+            ctx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+            
+            // Draw connections
+            connections.forEach(connection => {
+                const fromTask = tasks.find(t => t.id === connection.from);
+                const toTask = tasks.find(t => t.id === connection.to);
+                
+                if (!fromTask || !toTask) return;
+                
+                const fromPoint = getConnectionPoint(fromTask, {
+                    x: toTask.x + toTask.width / 2,
+                    y: toTask.y + toTask.height / 2
+                });
+                const toPoint = getConnectionPoint(toTask, {
+                    x: fromTask.x + fromTask.width / 2,
+                    y: fromTask.y + fromTask.height / 2
+                });
+                
+                // Adjust coordinates
+                fromPoint.x -= minX;
+                fromPoint.y -= minY;
+                toPoint.x -= minX;
+                toPoint.y -= minY;
+                
+                // Draw curved line
+                ctx.strokeStyle = connection.color;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(fromPoint.x, fromPoint.y);
+                
+                const dx = toPoint.x - fromPoint.x;
+                const dy = toPoint.y - fromPoint.y;
+                const controlOffset = Math.min(100, Math.abs(dx) * 0.5, Math.abs(dy) * 0.5);
+                
+                ctx.bezierCurveTo(
+                    fromPoint.x + controlOffset, fromPoint.y,
+                    toPoint.x - controlOffset, toPoint.y,
+                    toPoint.x, toPoint.y
+                );
+                ctx.stroke();
+                
+                // Draw arrow
+                const angle = Math.atan2(dy, dx);
+                const arrowLength = 15;
+                const arrowAngle = Math.PI / 6;
+                
+                ctx.fillStyle = connection.color;
+                ctx.beginPath();
+                ctx.moveTo(toPoint.x, toPoint.y);
+                ctx.lineTo(
+                    toPoint.x - arrowLength * Math.cos(angle - arrowAngle),
+                    toPoint.y - arrowLength * Math.sin(angle - arrowAngle)
+                );
+                ctx.lineTo(
+                    toPoint.x - arrowLength * Math.cos(angle + arrowAngle),
+                    toPoint.y - arrowLength * Math.sin(angle + arrowAngle)
+                );
+                ctx.closePath();
+                ctx.fill();
+            });
+            
+            // Draw tasks
+            tasks.forEach(task => {
+                const x = task.x - minX;
+                const y = task.y - minY;
+                
+                // Task background
+                ctx.fillStyle = task.color;
+                ctx.fillRect(x, y, task.width, task.height);
+                
+                // Task border
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, task.width, task.height);
+                
+                // Task text
+                ctx.fillStyle = '#fff';
+                ctx.font = '16px Segoe UI';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(task.text, x + task.width / 2, y + task.height / 2);
+            });
+            
+            // Download
+            exportCanvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `workflow-${new Date().toISOString().slice(0, 10)}.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+        }
+
+        // Canvas click to deselect
+        document.getElementById('canvas').addEventListener('click', function(e) {
+            if (e.target === this) {
+                document.querySelectorAll('.task.selected').forEach(t => t.classList.remove('selected'));
+                document.querySelectorAll('.connection.selected').forEach(c => c.classList.remove('selected'));
+                selectedTask = null;
+                selectedConnection = null;
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Delete' && (selectedTask || selectedConnection)) {
+                deleteSelected();
+            } else if (e.key === 'Escape' && isConnectionMode) {
+                toggleConnectionMode();
+            } else if (e.ctrlKey || e.metaKey) {
+                if (e.key === 'z' && !e.shiftKey) {
+                    e.preventDefault();
+                    undo();
+                } else if ((e.key === 'y') || (e.key === 'z' && e.shiftKey)) {
+                    e.preventDefault();
+                    redo();
+                }
+            }
+        });
+
+        // Initialize with a sample task and save initial state
+        createTask();
+        createTask();
+        
+        // Save initial state after creating sample tasks
+        setTimeout(() => {
+            saveState();
+        }, 100);
+    </script>
+</body>
+</html>

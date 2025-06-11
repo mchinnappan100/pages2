@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Workflow Diagram Editor</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+    <!-- Konva.js CDN -->
+    <script src="https://unpkg.com/konva@9/konva.min.js"></script>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+        }
+        #app {
+            min-height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        main {
+            flex: 1 0 auto;
+            overflow: hidden;
+        }
+        footer {
+            flex-shrink: 0;
+        }
+        #canvas-container {
+            width: 100%;
+            height: 100%;
+            background: #f3f4f6;
+            overflow: auto;
+            position: relative;
+        }
+        .task-box {
+            background: #e0f7fa;
+            border: 2px solid #4f46e5;
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 14px;
+            cursor: move;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .task-box:hover {
+            background: #d1e7dd;
+        }
+        .selected {
+            border-color: #e74c3c;
+            background: #ffebee;
+        }
+        .connector {
+            stroke: #4f46e5;
+            stroke-width: 2;
+            fill: none;
+        }
+        .edit-panel {
+            background: #ffffff;
+            border-left: 1px solid #e5e7eb;
+            padding: 1rem;
+            height: 100%;
+            overflow-y: auto;
+        }
+        .hidden {
+            display: none;
+        }
+        .connect-mode-active {
+            border-color: #10b981;
+            background: #d1fae5;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div id="app" class="flex flex-col min-h-screen">
+        <!-- Sticky Header -->
+        <header class="bg-gradient-to-r from-blue-700 via-indigo-800 to-purple-900 text-white sticky top-0 z-50 shadow-md">
+            <div class="container mx-auto px-4 py-6 flex justify-between items-center">
+                <h1 class="text-2xl font-bold">Workflow Diagram Editor</h1>
+                <nav>
+                    <ul class="list-none flex space-x-4">
+                        <li><a href="#add-task" class="hover:text-blue-300" id="addTaskBtn">Add Task</a></li>
+                        <li><a href="#connect-mode" class="hover:text-blue-300" id="connectModeBtn">Toggle Connect Mode</a></li>
+                        <li><a href="#save" class="hover:text-blue-300" id="saveBtn">Save Diagram</a></li>
+                        <li><a href="#clear" class="hover:text-blue-300" id="clearBtn">Clear All</a></li>
+                    </ul>
+                </nav>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="container mx-auto px-4 py-8 flex-1 flex overflow-hidden">
+            <div id="canvas-container" class="flex-1 relative">
+                <!-- Canvas will be injected here via JavaScript -->
+            </div>
+            <div class="edit-panel w-1/4 hidden" id="editPanel">
+                <h3 class="text-xl font-semibold mb-4 text-gray-800">Task Properties</h3>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Task Name</label>
+                    <input type="text" id="taskName" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">X Position</label>
+                    <input type="number" id="taskX" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Y Position</label>
+                    <input type="number" id="taskY" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm">
+                </div>
+                <button id="updateTaskBtn" class="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">Update Task</button>
+                <button id="deleteTaskBtn" class="w-full bg-red-600 text-white px-4 py-2 rounded-md mt-2 hover:bg-red-700">Delete Task</button>
+            </div>
+        </main>
+
+        <!-- Sticky Footer -->
+        <footer class="bg-blue-900 text-white py-4">
+            <div class="container mx-auto px-4 text-center">
+                <p>© 2025 Mohan Chinnappan - Workflow Diagram Editor</p>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('DOM fully loaded, checking Konva:', typeof Konva !== 'undefined' ? 'Loaded' : 'Not Loaded');
+
+            const width = window.innerWidth * 0.75;
+            const height = window.innerHeight - 200;
+
+            const stage = new Konva.Stage({
+                container: 'canvas-container',
+                width: width,
+                height: height
+            });
+            console.log('Stage created:', stage);
+
+            const layer = new Konva.Layer();
+            stage.add(layer);
+            console.log('Layer added:', layer);
+
+            let selectedTask = null;
+            let tasks = [];
+            let connectors = [];
+            let connectMode = false;
+            let connectStartTask = null;
+
+            // Task class to manage task objects
+            class Task {
+                constructor(id, x, y, text) {
+                    this.id = id;
+                    this.x = x;
+                    this.y = y;
+                    this.text = text;
+                    this.group = new Konva.Group({
+                        x: x,
+                        y: y,
+                        draggable: true
+                    });
+
+                    const box = new Konva.Rect({
+                        width: 200,
+                        height: 50,
+                        cornerRadius: 8,
+                        fill: '#e0f7fa',
+                        stroke: '#4f46e5',
+                        strokeWidth: 2,
+                        className: 'task-box'
+                    });
+
+                    const textNode = new Konva.Text({
+                        text: text,
+                        fontSize: 14,
+                        fontFamily: 'sans-serif',
+                        fill: '#2c3e50',
+                        width: 180,
+                        padding: 10,
+                        align: 'center'
+                    });
+
+                    this.group.add(box);
+                    this.group.add(textNode);
+
+                    this.group.on('click', () => {
+                        if (connectMode) {
+                            if (!connectStartTask) {
+                                connectStartTask = this;
+                                this.group.getChildren()[0].addClass('connect-mode-active');
+                            } else if (connectStartTask !== this) {
+                                addConnector(connectStartTask.id, this.id);
+                                connectStartTask.group.getChildren()[0].removeClass('connect-mode-active');
+                                connectStartTask = null;
+                            }
+                        } else {
+                            if (selectedTask) selectedTask.group.getChildren()[0].stroke('#4f46e5');
+                            selectedTask = this;
+                            this.group.getChildren()[0].stroke('#e74c3c');
+                            layer.draw();
+                            updateEditPanel();
+                        }
+                    });
+
+                    this.group.on('dragmove', () => {
+                        updateConnectors();
+                    });
+
+                    layer.add(this.group);
+                    console.log(`Task added: ${text} at (${x}, ${y})`);
+                }
+
+                update(x, y, text) {
+                    this.x = x;
+                    this.y = y;
+                    this.text = text;
+                    this.group.getChildren()[1].text(text);
+                    this.group.position({ x, y });
+                    updateConnectors();
+                    layer.draw();
+                }
+
+                remove() {
+                    this.group.destroy();
+                    tasks = tasks.filter(t => t.id !== this.id);
+                    connectors = connectors.filter(c => c.from !== this.id && c.to !== this.id);
+                    layer.draw();
+                }
+            }
+
+            // Connector class to manage arrows
+            class Connector {
+                constructor(fromId, toId) {
+                    this.fromId = fromId;
+                    this.toId = toId;
+                    this.line = new Konva.Arrow({
+                        points: [0, 0, 0, 0],
+                        stroke: '#4f46e5',
+                        fill: '#4f46e5',
+                        strokeWidth: 2,
+                        className: 'connector'
+                    });
+                    layer.add(this.line);
+                    updateConnectorPoints(this);
+                }
+
+                update() {
+                    updateConnectorPoints(this);
+                    layer.draw();
+                }
+            }
+
+            function updateConnectorPoints(connector) {
+                const fromTask = tasks.find(t => t.id === connector.fromId);
+                const toTask = tasks.find(t => t.id === connector.toId);
+                if (fromTask && toTask) {
+                    const fromX = fromTask.x + 200;
+                    const fromY = fromTask.y + 25;
+                    const toX = toTask.x;
+                    const toY = toTask.y + 25;
+                    connector.line.points([fromX, fromY, toX, toY]);
+                }
+            }
+
+            function updateConnectors() {
+                connectors.forEach(c => c.update());
+            }
+
+            function addTask(x = 50, y = 50, text = 'New Task') {
+                const id = Date.now();
+                const task = new Task(id, x, y, text);
+                tasks.push(task);
+                layer.draw();
+                return task;
+            }
+
+            function addConnector(fromId, toId) {
+                const connector = new Connector(fromId, toId);
+                connectors.push(connector);
+                layer.draw();
+            }
+
+            // Initialize with sample data from the image
+            const sampleTasks = [
+                { text: 'Convert Order to Asset', x: 300, y: 50, type: 'Auto Task' },
+                { text: 'Stage New Tenant for Provisioning', x: 300, y: 150, type: 'Callout' },
+                { text: 'Validate Tenant Info', x: 100, y: 250, type: 'Manual Task' }
+            ];
+            sampleTasks.forEach(task => addTask(task.x, task.y, task.text));
+            addConnector(sampleTasks[0].id, sampleTasks[1].id);
+            addConnector(sampleTasks[1].id, sampleTasks[2].id);
+
+            // Event listeners
+            document.getElementById('addTaskBtn').addEventListener('click', () => {
+                const task = addTask(50, 50, `Task ${tasks.length + 1}`);
+                if (selectedTask) addConnector(selectedTask.id, task.id);
+                selectedTask = task;
+                selectedTask.group.getChildren()[0].stroke('#e74c3c');
+                updateEditPanel();
+                layer.draw();
+            });
+
+            document.getElementById('connectModeBtn').addEventListener('click', () => {
+                connectMode = !connectMode;
+                if (connectMode) {
+                    alert('Connect Mode Enabled: Click two tasks to connect them. Click the button again to disable.');
+                    if (selectedTask) {
+                        selectedTask.group.getChildren()[0].stroke('#4f46e5');
+                        selectedTask = null;
+                    }
+                    document.getElementById('editPanel').classList.add('hidden');
+                } else {
+                    if (connectStartTask) {
+                        connectStartTask.group.getChildren()[0].removeClass('connect-mode-active');
+                        connectStartTask = null;
+                    }
+                    alert('Connect Mode Disabled.');
+                }
+                layer.draw();
+            });
+
+            document.getElementById('saveBtn').addEventListener('click', () => {
+                const data = { tasks, connectors };
+                const json = JSON.stringify(data, null, 2);
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'workflow_diagram.json';
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+
+            document.getElementById('clearBtn').addEventListener('click', () => {
+                tasks.forEach(t => t.remove());
+                connectors.forEach(c => c.line.destroy());
+                tasks = [];
+                connectors = [];
+                selectedTask = null;
+                connectStartTask = null;
+                connectMode = false;
+                document.getElementById('editPanel').classList.add('hidden');
+                layer.draw();
+            });
+
+            document.getElementById('updateTaskBtn').addEventListener('click', () => {
+                if (selectedTask) {
+                    const x = parseInt(document.getElementById('taskX').value) || selectedTask.x;
+                    const y = parseInt(document.getElementById('taskY').value) || selectedTask.y;
+                    const text = document.getElementById('taskName').value || selectedTask.text;
+                    selectedTask.update(x, y, text);
+                    updateEditPanel();
+                    layer.draw();
+                }
+            });
+
+            document.getElementById('deleteTaskBtn').addEventListener('click', () => {
+                if (selectedTask) {
+                    selectedTask.remove();
+                    selectedTask = null;
+                    document.getElementById('editPanel').classList.add('hidden');
+                    layer.draw();
+                }
+            });
+
+            // Show edit panel on task selection
+            stage.on('click', (e) => {
+                if (!e.target.parent && !connectMode) {
+                    if (selectedTask) {
+                        selectedTask.group.getChildren()[0].stroke('#4f46e5');
+                        selectedTask = null;
+                        document.getElementById('editPanel').classList.add('hidden');
+                        layer.draw();
+                    }
+                }
+            });
+        });
+
+        function updateEditPanel() {
+            if (selectedTask) {
+                document.getElementById('editPanel').classList.remove('hidden');
+                document.getElementById('taskName').value = selectedTask.text;
+                document.getElementById('taskX').value = selectedTask.x;
+                document.getElementById('taskY').value = selectedTask.y;
+            } else {
+                document.getElementById('editPanel').classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
