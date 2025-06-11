@@ -278,18 +278,15 @@
 
         .gantt-header {
             display: grid;
-            grid-template-columns: 200px repeat(30, 30px);
+            grid-template-columns: var(--gantt-columns, 200px repeat(30, 30px));
             gap: 1px;
-            margin-bottom: 10px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #e1e5e9;
+            align-items: center;
         }
 
         .gantt-row {
             display: grid;
-            grid-template-columns: 200px repeat(30, 30px);
+            grid-template-columns: var(--gantt-columns, 200px repeat(30, 30px));
             gap: 1px;
-            margin-bottom: 5px;
             align-items: center;
         }
 
@@ -312,11 +309,11 @@
 
         .gantt-bar {
             height: 25px;
-            background: linear-gradient(45deg, #667eea, #764ba2);
             border-radius: 12px;
             margin: 2px 0;
             position: relative;
             overflow: hidden;
+            border: 2px solid #333; /* Add this for visibility */
         }
 
         .gantt-bar::after {
@@ -474,6 +471,17 @@
         <div class="header">
             <h1>Project Management Suite</h1>
             <p>Professional project planning and tracking</p>
+        </div>
+
+        <div style="margin-bottom: 20px; text-align: center;">
+            <label for="projectName" style="font-weight: bold; margin-right: 10px;">Project Name:</label>
+            <input 
+                type="text" 
+                id="projectName" 
+                value="Sample Project" 
+                style="padding: 8px 16px; border-radius: 8px; border: 2px solid #e1e5e9; font-size: 1.1em; width: 300px; max-width: 90%;"
+                oninput="updateProjectName(this.value)"
+            >
         </div>
 
         <div class="toolbar">
@@ -836,76 +844,92 @@
             });
         }
 
+        // Utility function to parse date as local (YYYY-MM-DD)
+        function parseLocalDate(dateString) {
+            const [year, month, day] = dateString.split('-').map(Number);
+            return new Date(year, month - 1, day);
+        }
+
         function renderGanttChart() {
             const ganttChart = document.getElementById('ganttChart');
             if (!ganttChart) return;
-
             ganttChart.innerHTML = '';
 
-            // Create header
+            if (!projectData.tasks || projectData.tasks.length === 0) {
+                ganttChart.innerHTML = '<div style="padding:2em;">No tasks to display.</div>';
+                return;
+            }
+
+            // Find min/max dates
+            let minDate = null, maxDate = null;
+            projectData.tasks.forEach(task => {
+                const start = parseLocalDate(task.startDate);
+                const end = parseLocalDate(task.endDate);
+                if (!minDate || start < minDate) minDate = start;
+                if (!maxDate || end > maxDate) maxDate = end;
+            });
+            if (!minDate || !maxDate) return;
+
+            const totalDays = Math.ceil((maxDate - minDate) / (1000 * 60 * 60 * 24)) + 1;
+            const columns = `200px repeat(${totalDays}, 30px)`;
+            ganttChart.style.setProperty('--gantt-columns', columns);
+
+            // Header
             const header = document.createElement('div');
             header.className = 'gantt-header';
-            
             const taskHeaderCell = document.createElement('div');
             taskHeaderCell.textContent = 'Task Name';
-            taskHeaderCell.style.fontWeight = 'bold';
             header.appendChild(taskHeaderCell);
 
-            // Generate 30 days from project start
-            const startDate = new Date(projectData.startDate || new Date());
-            for (let i = 0; i < 30; i++) {
-                const date = new Date(startDate);
-                date.setDate(startDate.getDate() + i);
+            for (let i = 0; i < totalDays; i++) {
+                const date = new Date(minDate);
+                date.setDate(minDate.getDate() + i);
                 const dayCell = document.createElement('div');
                 dayCell.className = 'gantt-day';
                 dayCell.textContent = date.getDate();
                 dayCell.title = date.toDateString();
                 header.appendChild(dayCell);
             }
-            
             ganttChart.appendChild(header);
 
-            // Create rows for each task
+            // Rows
             projectData.tasks.forEach(task => {
                 const row = document.createElement('div');
                 row.className = 'gantt-row';
-                
+
                 const taskNameCell = document.createElement('div');
                 taskNameCell.className = 'gantt-task-name';
                 taskNameCell.textContent = task.name;
                 row.appendChild(taskNameCell);
 
-                // Calculate task position and duration
-                const taskStart = new Date(task.startDate);
-                const taskEnd = new Date(task.endDate);
-                const daysDiff = Math.floor((taskStart - startDate) / (1000 * 60 * 60 * 24));
-                const taskDuration = Math.floor((taskEnd - taskStart) / (1000 * 60 * 60 * 24)) + 1;
+                const taskStart = parseLocalDate(task.startDate);
+                const taskEnd = parseLocalDate(task.endDate);
+                const offset = Math.max(0, Math.floor((taskStart - minDate) / (1000 * 60 * 60 * 24)));
+                const duration = Math.max(1, Math.floor((taskEnd - taskStart) / (1000 * 60 * 60 * 24)) + 1);
 
-                for (let i = 0; i < 30; i++) {
+                for (let i = 0; i < totalDays; i++) {
                     const dayCell = document.createElement('div');
                     dayCell.className = 'gantt-day';
-                    
-                    if (i >= daysDiff && i < daysDiff + taskDuration) {
+
+                    if (i >= offset && i < offset + duration) {
                         const bar = document.createElement('div');
                         bar.className = 'gantt-bar';
-                        bar.style.background = getPriorityColor(task.priority);
-                        bar.title = `${task.name} (${task.progress}% complete)`;
-                        
+                        bar.style.background = getPriorityColor ? getPriorityColor(task.priority) : '#667eea';
+                        bar.title = `${task.name} (${task.progress || 0}% complete)`;
+
                         // Show progress within the bar
-                        if (task.progress > 0) {
+                        if (task.progress && task.progress > 0) {
                             bar.style.background = `linear-gradient(to right, 
                                 #00b894 0%, 
                                 #00b894 ${task.progress}%, 
-                                ${getPriorityColor(task.priority)} ${task.progress}%, 
-                                ${getPriorityColor(task.priority)} 100%)`;
+                                #667eea ${task.progress}%, 
+                                #667eea 100%)`;
                         }
-                        
                         dayCell.appendChild(bar);
                     }
-                    
+
                     row.appendChild(dayCell);
                 }
-                
                 ganttChart.appendChild(row);
             });
         }
@@ -962,8 +986,8 @@
                 // Check for tasks on this day
                 const currentDate = new Date(currentYear, currentMonth, day);
                 const tasksOnDay = projectData.tasks.filter(task => {
-                    const taskStart = new Date(task.startDate);
-                    const taskEnd = new Date(task.endDate);
+                    const taskStart = parseLocalDate(task.startDate);
+                    const taskEnd = parseLocalDate(task.endDate);
                     return currentDate >= taskStart && currentDate <= taskEnd;
                 });
 
@@ -1098,10 +1122,10 @@
 
         function getPriorityColor(priority) {
             const colors = {
-                low: '#74b9ff',
-                medium: '#ffeaa7',
-                high: '#fab1a0',
-                critical: '#e17055'
+                low: '#74b9ff',      // blue
+                medium: '#667eea',   // purple-blue (was #ffeaa7, too light)
+                high: '#e17055',     // orange-red (was #fab1a0, too light)
+                critical: '#d63031'  // red (was #e17055, too light)
             };
             return colors[priority] || colors.medium;
         }
@@ -1215,12 +1239,12 @@
         function exportProject() {
             const dataStr = JSON.stringify(projectData, null, 2);
             const dataBlob = new Blob([dataStr], {type: 'application/json'});
-            
+            // Use project name (slugified) in file name
+            const projectName = (projectData.name || 'project').replace(/[^a-z0-9]/gi, '_').toLowerCase();
             const link = document.createElement('a');
             link.href = URL.createObjectURL(dataBlob);
-            link.download = `project_${new Date().toISOString().split('T')[0]}.json`;
+            link.download = `${projectName}_${new Date().toISOString().split('T')[0]}.json`;
             link.click();
-            
             showNotification('Project exported successfully!');
         }
 
@@ -1241,6 +1265,7 @@
                         updateTaskSelectors();
                         renderGanttChart();
                         renderCalendar();
+                        document.getElementById('projectName').value = projectData.name; // Update project name input
                         showNotification('Project imported successfully!');
                     } else {
                         throw new Error('Invalid project file format');
@@ -1495,6 +1520,10 @@
                 const duration = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
                 document.getElementById('taskDuration').value = Math.max(duration, 1);
             }
+        }
+
+        function updateProjectName(name) {
+            projectData.name = name;
         }
     </script>
 </body>
