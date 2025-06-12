@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=3000, initial-scale=1.0">
+    <title>Drawing Canvas App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8f9fa;
+            overflow: hidden;
+        }
+
+        .toolbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: white;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 15px;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .tool-group {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .tool-btn {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 18px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+        }
+
+        .tool-btn:hover {
+            background: #f8f9fa;
+        }
+
+        .tool-btn.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+
+        .tool-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .color-input {
+            width: 40px;
+            height: 32px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .thickness-slider {
+            width: 100px;
+        }
+
+        .canvas-container {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: auto;
+            background: #f0f0f0;
+        }
+
+        .canvas-wrapper {
+            width: 3000px;
+            height: 2000px;
+            position: relative;
+            background: white;
+            margin: 50px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        #canvas {
+            display: block;
+            cursor: crosshair;
+        }
+
+        .text-input {
+            position: absolute;
+            border: 2px solid #007bff;
+            background: transparent;
+            font-family: inherit;
+            font-size: 16px;
+            outline: none;
+            padding: 4px;
+            border-radius: 4px;
+            min-width: 100px;
+            resize: none;
+            overflow: hidden;
+            z-index: 100;
+        }
+
+        .separator {
+            width: 1px;
+            height: 30px;
+            background: #ddd;
+            margin: 0 10px;
+        }
+
+        label {
+            font-size: 12px;
+            color: #666;
+            margin-right: 5px;
+        }
+
+        input[type="range"] {
+            width: 80px;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-label {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .file-label:hover {
+            background: #f8f9fa;
+        }
+
+        .text-btn {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .text-btn:hover {
+            background: #f8f9fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <div class="tool-group">
+            <button class="tool-btn active" data-tool="select" title="Select">↖</button>
+            <button class="tool-btn" data-tool="rectangle" title="Rectangle">▭</button>
+            <button class="tool-btn" data-tool="circle" title="Circle">○</button>
+            <button class="tool-btn" data-tool="line" title="Line">╱</button>
+            <button class="tool-btn" data-tool="arrow" title="Arrow">→</button>
+            <button class="tool-btn" data-tool="pencil" title="Pencil">✏</button>
+            <button class="tool-btn" data-tool="pen" title="Pen">🖊</button>
+            <button class="tool-btn" data-tool="text" title="Text">T</button>
+            <button class="tool-btn" data-tool="eraser" title="Eraser">🗑</button>
+        </div>
+        
+        <div class="separator"></div>
+        
+        <div class="tool-group">
+            <button class="tool-btn" id="undoBtn" onclick="undo()" title="Undo">↶</button>
+            <button class="tool-btn" id="redoBtn" onclick="redo()" title="Redo">↷</button>
+        </div>
+        
+        <div class="separator"></div>
+        
+        <div class="tool-group">
+            <label>Stroke:</label>
+            <input type="color" class="color-input" id="strokeColor" value="#000000">
+            <label>Fill:</label>
+            <input type="color" class="color-input" id="fillColor" value="#ffffff">
+            <label>Thickness:</label>
+            <input type="range" id="thickness" min="1" max="20" value="2">
+            <span id="thicknessValue">2</span>
+        </div>
+        
+        <div class="separator"></div>
+        
+        <div class="tool-group">
+            <button class="text-btn" onclick="clearCanvas()">Clear</button>
+            <button class="text-btn" onclick="downloadJSON()">Download JSON</button>
+            <label class="file-label" for="jsonFile">Upload JSON</label>
+            <input type="file" id="jsonFile" accept=".json" onchange="uploadJSON(event)">
+            <button class="text-btn" onclick="downloadPNG()">Save PNG</button>
+            <button class="text-btn" onclick="downloadSVG()">Save SVG</button>
+        </div>
+    </div>
+
+    <div class="canvas-container">
+        <div class="canvas-wrapper">
+            <canvas id="canvas" width="3000" height="2000"></canvas>
+        </div>
+    </div>
+
+    <script>
+        class DrawingApp {
+            constructor() {
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.currentTool = 'select';
+                this.isDrawing = false;
+                this.startX = 0;
+                this.startY = 0;
+                this.elements = [];
+                this.selectedElement = null;
+                this.isDragging = false;
+                this.dragOffset = { x: 0, y: 0 };
+                this.penPath = [];
+                this.pencilPath = [];
+                this.isTyping = false;
+                this.currentTextInput = null;
+                
+                // History for undo/redo
+                this.history = [[]];
+                this.historyIndex = 0;
+                
+                this.setupEventListeners();
+                this.setupTools();
+                this.redraw();
+                this.updateUndoRedoButtons();
+            }
+
+            setupEventListeners() {
+                this.canvas.addEventListener('mousedown', this.handleMouseDown.bind(this));
+                this.canvas.addEventListener('mousemove', this.handleMouseMove.bind(this));
+                this.canvas.addEventListener('mouseup', this.handleMouseUp.bind(this));
+                this.canvas.addEventListener('dblclick', this.handleDoubleClick.bind(this));
+                
+                document.addEventListener('keydown', this.handleKeyDown.bind(this));
+                
+                // Handle text input creation
+                this.canvas.addEventListener('click', (e) => {
+                    if (this.currentTool === 'text' && !this.isDrawing) {
+                        const pos = this.getMousePos(e);
+                        this.startTextInput(pos.x, pos.y);
+                    }
+                });
+            }
+
+            setupTools() {
+                const toolButtons = document.querySelectorAll('.tool-btn[data-tool]');
+                toolButtons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        this.currentTool = btn.dataset.tool;
+                        toolButtons.forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        this.updateCursor();
+                        this.selectedElement = null;
+                        this.redraw();
+                    });
+                });
+
+                document.getElementById('thickness').addEventListener('input', (e) => {
+                    document.getElementById('thicknessValue').textContent = e.target.value;
+                });
+
+                // Color change listeners
+                document.getElementById('strokeColor').addEventListener('change', () => {
+                    if (this.selectedElement) {
+                        this.selectedElement.strokeColor = document.getElementById('strokeColor').value;
+                        this.saveState();
+                        this.redraw();
+                    }
+                });
+
+                document.getElementById('fillColor').addEventListener('change', () => {
+                    if (this.selectedElement) {
+                        this.selectedElement.fillColor = document.getElementById('fillColor').value;
+                        this.saveState();
+                        this.redraw();
+                    }
+                });
+
+                document.getElementById('thickness').addEventListener('change', () => {
+                    if (this.selectedElement) {
+                        this.selectedElement.thickness = parseInt(document.getElementById('thickness').value);
+                        this.saveState();
+                        this.redraw();
+                    }
+                });
+            }
+
+            updateCursor() {
+                switch(this.currentTool) {
+                    case 'select':
+                        this.canvas.style.cursor = 'default';
+                        break;
+                    case 'eraser':
+                        this.canvas.style.cursor = 'grab';
+                        break;
+                    case 'text':
+                        this.canvas.style.cursor = 'text';
+                        break;
+                    default:
+                        this.canvas.style.cursor = 'crosshair';
+                }
+            }
+
+            getMousePos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                return {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+            }
+
+            handleMouseDown(e) {
+                const pos = this.getMousePos(e);
+                this.startX = pos.x;
+                this.startY = pos.y;
+                this.isDrawing = true;
+
+                if (this.currentTool === 'select') {
+                    this.selectedElement = this.getElementAt(pos.x, pos.y);
+                    if (this.selectedElement) {
+                        this.isDragging = true;
+                        this.dragOffset = {
+                            x: pos.x - this.selectedElement.x,
+                            y: pos.y - this.selectedElement.y
+                        };
+                        this.updateColorControls();
+                    } else {
+                        this.selectedElement = null;
+                    }
+                } else if (this.currentTool === 'eraser') {
+                    this.eraseAt(pos.x, pos.y);
+                } else if (this.currentTool === 'pen') {
+                    this.penPath = [{ x: pos.x, y: pos.y }];
+                } else if (this.currentTool === 'pencil') {
+                    this.pencilPath = [{ x: pos.x, y: pos.y }];
+                }
+                
+                this.redraw();
+            }
+
+            handleMouseMove(e) {
+                if (!this.isDrawing) return;
+
+                const pos = this.getMousePos(e);
+
+                if (this.currentTool === 'select' && this.isDragging && this.selectedElement) {
+                    this.selectedElement.x = pos.x - this.dragOffset.x;
+                    this.selectedElement.y = pos.y - this.dragOffset.y;
+                    if (this.selectedElement.type === 'line' || this.selectedElement.type === 'arrow') {
+                        const deltaX = pos.x - this.dragOffset.x - this.selectedElement.x;
+                        const deltaY = pos.y - this.dragOffset.y - this.selectedElement.y;
+                        this.selectedElement.x1 += deltaX;
+                        this.selectedElement.y1 += deltaY;
+                        this.selectedElement.x2 += deltaX;
+                        this.selectedElement.y2 += deltaY;
+                        this.selectedElement.x = pos.x - this.dragOffset.x;
+                        this.selectedElement.y = pos.y - this.dragOffset.y;
+                    }
+                    this.redraw();
+                } else if (this.currentTool === 'eraser') {
+                    this.eraseAt(pos.x, pos.y);
+                    this.redraw();
+                } else if (this.currentTool === 'pen') {
+                    this.penPath.push({ x: pos.x, y: pos.y });
+                    this.redraw();
+                    this.drawPenPreview();
+                } else if (this.currentTool === 'pencil') {
+                    this.pencilPath.push({ x: pos.x, y: pos.y });
+                    this.redraw();
+                    this.drawPencilPreview();
+                } else if (this.currentTool !== 'text') {
+                    this.redraw();
+                    this.drawPreview(pos.x, pos.y);
+                }
+            }
+
+            handleMouseUp(e) {
+                if (!this.isDrawing) return;
+
+                const pos = this.getMousePos(e);
+                this.isDrawing = false;
+
+                if (this.currentTool === 'select' && this.isDragging) {
+                    this.isDragging = false;
+                    this.saveState();
+                } else if (this.currentTool === 'pen' && this.penPath.length > 1) {
+                    this.elements.push({
+                        type: 'pen',
+                        path: [...this.penPath],
+                        strokeColor: document.getElementById('strokeColor').value,
+                        thickness: parseInt(document.getElementById('thickness').value)
+                    });
+                    this.penPath = [];
+                    this.saveState();
+                } else if (this.currentTool === 'pencil' && this.pencilPath.length > 1) {
+                    this.elements.push({
+                        type: 'pencil',
+                        path: [...this.pencilPath],
+                        strokeColor: document.getElementById('strokeColor').value,
+                        thickness: Math.max(1, parseInt(document.getElementById('thickness').value) / 2)
+                    });
+                    this.pencilPath = [];
+                    this.saveState();
+                } else if (this.currentTool !== 'select' && this.currentTool !== 'text' && this.currentTool !== 'eraser') {
+                    const element = this.createElement(this.currentTool, this.startX, this.startY, pos.x, pos.y);
+                    if (element) {
+                        this.elements.push(element);
+                        this.saveState();
+                    }
+                }
+
+                this.redraw();
+            }
+
+            handleDoubleClick(e) {
+                if (this.currentTool === 'select') {
+                    const pos = this.getMousePos(e);
+                    const element = this.getElementAt(pos.x, pos.y);
+                    if (element && element.type === 'text') {
+                        this.editText(element);
+                    }
+                }
+            }
+
+            handleKeyDown(e) {
+                if (e.key === 'Delete' && this.selectedElement && this.currentTool === 'select') {
+                    this.elements = this.elements.filter(el => el !== this.selectedElement);
+                    this.selectedElement = null;
+                    this.saveState();
+                    this.redraw();
+                } else if (e.ctrlKey || e.metaKey) {
+                    if (e.key === 'z' && !e.shiftKey) {
+                        e.preventDefault();
+                        this.undo();
+                    } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
+                        e.preventDefault();
+                        this.redo();
+                    }
+                }
+            }
+
+            createElement(type, x1, y1, x2, y2) {
+                const strokeColor = document.getElementById('strokeColor').value;
+                const fillColor = document.getElementById('fillColor').value;
+                const thickness = parseInt(document.getElementById('thickness').value);
+
+                const element = {
+                    type,
+                    x: Math.min(x1, x2),
+                    y: Math.min(y1, y2),
+                    width: Math.abs(x2 - x1),
+                    height: Math.abs(y2 - y1),
+                    strokeColor,
+                    fillColor,
+                    thickness
+                };
+
+                if (type === 'line' || type === 'arrow') {
+                    element.x1 = x1;
+                    element.y1 = y1;
+                    element.x2 = x2;
+                    element.y2 = y2;
+                }
+
+                return element;
+            }
+
+            startTextInput(x, y) {
+                if (this.currentTextInput) return;
+
+                const canvasRect = this.canvas.getBoundingClientRect();
+                const input = document.createElement('textarea');
+                input.className = 'text-input';
+                input.style.left = (canvasRect.left + x) + 'px';
+                input.style.top = (canvasRect.top + y) + 'px';
+                input.style.color = document.getElementById('strokeColor').value;
+                input.placeholder = 'Type here...';
+                input.rows = 1;
+                
+                document.body.appendChild(input);
+                input.focus();
+                
+                this.currentTextInput = input;
+                
+                const finishText = () => {
+                    if (input.value.trim()) {
+                        this.elements.push({
+                            type: 'text',
+                            x: x,
+                            y: y,
+                            text: input.value,
+                            strokeColor: document.getElementById('strokeColor').value,
+                            fontSize: 16
+                        });
+                        this.saveState();
+                    }
+                    input.remove();
+                    this.currentTextInput = null;
+                    this.redraw();
+                };
+
+                input.addEventListener('blur', finishText);
+
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        input.remove();
+                        this.currentTextInput = null;
+                    } else if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        finishText();
+                    }
+                });
+
+                // Auto-resize textarea
+                input.addEventListener('input', () => {
+                    input.style.height = 'auto';
+                    input.style.height = input.scrollHeight + 'px';
+                });
+            }
+
+            editText(element) {
+                const canvasRect = this.canvas.getBoundingClientRect();
+                const input = document.createElement('textarea');
+                input.className = 'text-input';
+                input.style.left = (canvasRect.left + element.x) + 'px';
+                input.style.top = (canvasRect.top + element.y) + 'px';
+                input.style.color = element.strokeColor;
+                input.value = element.text;
+                input.rows = element.text.split('\n').length;
+                
+                document.body.appendChild(input);
+                input.focus();
+                input.select();
+                
+                const finishEdit = () => {
+                    element.text = input.value;
+                    input.remove();
+                    this.saveState();
+                    this.redraw();
+                };
+
+                input.addEventListener('blur', finishEdit);
+
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        input.remove();
+                        this.redraw();
+                    } else if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        finishEdit();
+                    }
+                });
+            }
+
+            eraseAt(x, y) {
+                const elementToErase = this.getElementAt(x, y);
+                if (elementToErase) {
+                    this.elements = this.elements.filter(el => el !== elementToErase);
+                    if (this.selectedElement === elementToErase) {
+                        this.selectedElement = null;
+                    }
+                    this.saveState();
+                }
+            }
+
+            getElementAt(x, y) {
+                for (let i = this.elements.length - 1; i >= 0; i--) {
+                    const element = this.elements[i];
+                    if (this.isPointInElement(x, y, element)) {
+                        return element;
+                    }
+                }
+                return null;
+            }
+
+            isPointInElement(x, y, element) {
+                switch (element.type) {
+                    case 'rectangle':
+                        return x >= element.x && x <= element.x + element.width &&
+                               y >= element.y && y <= element.y + element.height;
+                    case 'circle':
+                        const centerX = element.x + element.width / 2;
+                        const centerY = element.y + element.height / 2;
+                        const radius = Math.min(element.width, element.height) / 2;
+                        const distance = Math.sqrt((x - centerX) ** 2 + (y - centerY) ** 2);
+                        return distance <= radius;
+                    case 'text':
+                        const textWidth = this.ctx.measureText(element.text).width;
+                        return x >= element.x && x <= element.x + textWidth &&
+                               y >= element.y && y <= element.y + (element.fontSize || 16);
+                    case 'line':
+                    case 'arrow':
+                        return this.distanceFromLine(x, y, element.x1, element.y1, element.x2, element.y2) <= (element.thickness || 2) + 3;
+                    case 'pen':
+                    case 'pencil':
+                        return element.path.some(point => 
+                            Math.sqrt((x - point.x) ** 2 + (y - point.y) ** 2) <= (element.thickness || 2) + 3
+                        );
+                    default:
+                        return false;
+                }
+            }
+
+            distanceFromLine(x, y, x1, y1, x2, y2) {
+                const A = x - x1;
+                const B = y - y1;
+                const C = x2 - x1;
+                const D = y2 - y1;
+                const dot = A * C + B * D;
+                const lenSq = C * C + D * D;
+                const param = lenSq !== 0 ? dot / lenSq : -1;
+                let xx, yy;
+                if (param < 0) {
+                    xx = x1;
+                    yy = y1;
+                } else if (param > 1) {
+                    xx = x2;
+                    yy = y2;
+                } else {
+                    xx = x1 + param * C;
+                    yy = y1 + param * D;
+                }
+                const dx = x - xx;
+                const dy = y - yy;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+
+            drawPreview(x, y) {
+                this.ctx.save();
+                this.ctx.setLineDash([5, 5]);
+                this.ctx.strokeStyle = '#007bff';
+                this.drawElement({
+                    type: this.currentTool,
+                    x: Math.min(this.startX, x),
+                    y: Math.min(this.startY, y),
+                    width: Math.abs(x - this.startX),
+                    height: Math.abs(y - this.startY),
+                    x1: this.startX,
+                    y1: this.startY,
+                    x2: x,
+                    y2: y,
+                    strokeColor: document.getElementById('strokeColor').value,
+                    fillColor: this.currentTool === 'line' || this.currentTool === 'arrow' ? 'transparent' : document.getElementById('fillColor').value,
+                    thickness: parseInt(document.getElementById('thickness').value)
+                });
+                this.ctx.restore();
+            }
+
+            drawPenPreview() {
+                if (this.penPath.length < 2) return;
+                
+                this.ctx.save();
+                this.ctx.strokeStyle = document.getElementById('strokeColor').value;
+                this.ctx.lineWidth = parseInt(document.getElementById('thickness').value);
+                this.ctx.lineCap = 'round';
+                this.ctx.lineJoin = 'round';
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.penPath[0].x, this.penPath[0].y);
+                for (let i = 1; i < this.penPath.length; i++) {
+                    this.ctx.lineTo(this.penPath[i].x, this.penPath[i].y);
+                }
+                this.ctx.stroke();
+                this.ctx.restore();
+            }
+
+            drawPencilPreview() {
+                if (this.pencilPath.length < 2) return;
+                
+                this.ctx.save();
+                this.ctx.strokeStyle = document.getElementById('strokeColor').value;
+                this.ctx.lineWidth = Math.max(1, parseInt(document.getElementById('thickness').value) / 2);
+                this.ctx.lineCap = 'round';
+                this.ctx.lineJoin = 'round';
+                this.ctx.globalAlpha = 0.8;
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(this.pencilPath[0].x, this.pencilPath[0].y);
+                for (let i = 1; i < this.pencilPath.length; i++) {
+                    this.ctx.lineTo(this.pencilPath[i].x, this.pencilPath[i].y);
+                }
+                this.ctx.stroke();
+                this.ctx.restore();
+            }
+
+            drawElement(element) {
+                this.ctx.save();
+                this.ctx.strokeStyle = element.strokeColor;
+                this.ctx.fillStyle = element.fillColor;
+                this.ctx.lineWidth = element.thickness || 2;
+                this.ctx.lineCap = 'round';
+                this.ctx.lineJoin = 'round';
+
+                switch (element.type) {
+                    case 'rectangle':
+                        if (element.fillColor !== 'transparent' && element.fillColor !== '#ffffff') {
+                            this.ctx.fillRect(element.x, element.y, element.width, element.height);
+                        }
+                        this.ctx.strokeRect(element.x, element.y, element.width, element.height);
+                        break;
+                    case 'circle':
+                        const centerX = element.x + element.width / 2;
+                        const centerY = element.y + element.height / 2;
+                        const radius = Math.min(element.width, element.height) / 2;
+                        this.ctx.beginPath();
+                        this.ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                        if (element.fillColor !== 'transparent' && element.fillColor !== '#ffffff') {
+                            this.ctx.fill();
+                        }
+                        this.ctx.stroke();
+                        break;
+                    case 'line':
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(element.x1, element.y1);
+                        this.ctx.lineTo(element.x2, element.y2);
+                        this.ctx.stroke();
+                        break;
+                    case 'arrow':
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(element.x1, element.y1);
+                        this.ctx.lineTo(element.x2, element.y2);
+                        this.ctx.stroke();
+                        this.drawArrowHead(element.x1, element.y1, element.x2, element.y2);
+                        break;
+                    case 'pen':
+                        if (element.path.length > 1) {
+                            this.ctx.beginPath();
+                            this.ctx.moveTo(element.path[0].x, element.path[0].y);
+                            for (let i = 1; i < element.path.length; i++) {
+                                this.ctx.lineTo(element.path[i].x, element.path[i].y);
+                            }
+                            this.ctx.stroke();
+                        }
+                        break;
+                    case 'pencil':
+                        if (element.path.length > 1) {
+                            this.ctx.save();
+                            this.ctx.globalAlpha = 0.8;
+                            this.ctx.beginPath();
+                            this.ctx.moveTo(element.path[0].x, element.path[0].y);
+                            for (let i = 1; i < element.path.length; i++) {
+                                this.ctx.lineTo(element.path[i].x, element.path[i].y);
+                            }
+                            this.ctx.stroke();
+                            this.ctx.restore();
+                        }
+                        break;
+                    case 'text':
+                        this.ctx.font = `${element.fontSize || 16}px Arial`;
+                        this.ctx.fillStyle = element.strokeColor;
+                        const lines = element.text.split('\n');
+                        lines.forEach((line, index) => {
+                            this.ctx.fillText(line, element.x, element.y + (index + 1) * (element.fontSize || 16));
+                        });
+                        break;
+                }
+                this.ctx.restore();
+            }
+
+            drawArrowHead(x1, y1, x2, y2) {
+                const angle = Math.atan2(y2 - y1, x2 - x1);
+                const headLength = 20;
+
+                // Left side of the arrow head
+                this.ctx.beginPath();
+                this.ctx.moveTo(x2, y2);
+                this.ctx.lineTo(
+                    x2 - headLength * Math.cos(angle - Math.PI / 6),
+                    y2 - headLength * Math.sin(angle - Math.PI / 6)
+                );
+
+                // Right side of the arrow head
+                this.ctx.moveTo(x2, y2);
+                this.ctx.lineTo(
+                    x2 - headLength * Math.cos(angle + Math.PI / 6),
+                    y2 - headLength * Math.sin(angle + Math.PI / 6)
+                );
+
+                this.ctx.stroke();
+            }
+
+            saveState() {
+                // Truncate redo history
+                this.history = this.history.slice(0, this.historyIndex + 1);
+                this.history.push(JSON.parse(JSON.stringify(this.elements)));
+                this.historyIndex++;
+                this.updateUndoRedoButtons();
+            }
+
+            undo() {
+                if (this.historyIndex > 0) {
+                    this.historyIndex--;
+                    this.elements = JSON.parse(JSON.stringify(this.history[this.historyIndex]));
+                    this.selectedElement = null;
+                    this.redraw();
+                    this.updateUndoRedoButtons();
+                }
+            }
+
+            redo() {
+                if (this.historyIndex < this.history.length - 1) {
+                    this.historyIndex++;
+                    this.elements = JSON.parse(JSON.stringify(this.history[this.historyIndex]));
+                    this.selectedElement = null;
+                    this.redraw();
+                    this.updateUndoRedoButtons();
+                }
+            }
+
+            updateUndoRedoButtons() {
+                document.getElementById('undoBtn').disabled = this.historyIndex === 0;
+                document.getElementById('redoBtn').disabled = this.historyIndex === this.history.length - 1;
+            }
+
+            redraw() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                this.elements.forEach(element => this.drawElement(element));
+                if (this.selectedElement && this.currentTool === 'select') {
+                    // Draw selection rectangle
+                    this.ctx.save();
+                    this.ctx.setLineDash([4, 2]);
+                    this.ctx.strokeStyle = '#007bff';
+                    if (this.selectedElement.type === 'rectangle' || this.selectedElement.type === 'circle' || this.selectedElement.type === 'text') {
+                        this.ctx.strokeRect(
+                            this.selectedElement.x - 4,
+                            this.selectedElement.y - 4,
+                            (this.selectedElement.width || 100) + 8,
+                            (this.selectedElement.height || 30) + 8
+                        );
+                    } else if (this.selectedElement.type === 'line' || this.selectedElement.type === 'arrow') {
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(this.selectedElement.x1, this.selectedElement.y1);
+                        this.ctx.lineTo(this.selectedElement.x2, this.selectedElement.y2);
+                        this.ctx.stroke();
+                    }
+                    this.ctx.restore();
+                }
+            }
+
+            updateColorControls() {
+                if (this.selectedElement) {
+                    document.getElementById('strokeColor').value = this.selectedElement.strokeColor || '#000000';
+                    document.getElementById('fillColor').value = this.selectedElement.fillColor || '#ffffff';
+                    document.getElementById('thickness').value = this.selectedElement.thickness || 2;
+                    document.getElementById('thicknessValue').textContent = this.selectedElement.thickness || 2;
+                }
+            }
+        }
+
+        const app = new DrawingApp();
+
+        function clearCanvas() {
+            app.elements = [];
+            app.saveState();
+            app.redraw();
+        }
+
+        function downloadJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(app.elements));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "drawing.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+
+        function uploadJSON(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const elements = JSON.parse(e.target.result);
+                    if (Array.isArray(elements)) {
+                        app.elements = elements;
+                        app.saveState();
+                        app.redraw();
+                    } else {
+                        alert("Invalid JSON format.");
+                    }
+                } catch (err) {
+                    alert("Error parsing JSON: " + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function downloadPNG() {
+            const link = document.createElement('a');
+            link.download = 'drawing.png';
+            link.href = app.canvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function downloadSVG() {
+            let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${app.canvas.width}" height="${app.canvas.height}">`;
+            app.elements.forEach(element => {
+                switch (element.type) {
+                    case 'rectangle':
+                        svgContent += `<rect x="${element.x}" y="${element.y}" width="${element.width}" height="${element.height}" stroke="${element.strokeColor}" stroke-width="${element.thickness || 2}" fill="${element.fillColor}" />`;
+                        break;
+                    case 'circle':
+                        const cx = element.x + element.width / 2;
+                        const cy = element.y + element.height / 2;
+                        const r = Math.min(element.width, element.height) / 2;
+                        svgContent += `<circle cx="${cx}" cy="${cy}" r="${r}" stroke="${element.strokeColor}" stroke-width="${element.thickness || 2}" fill="${element.fillColor}" />`;
+                        break;
+                    case 'line':
+                        svgContent += `<line x1="${element.x1}" y1="${element.y1}" x2="${element.x2}" y2="${element.y2}" stroke="${element.strokeColor}" stroke-width="${element.thickness || 2}" />`;
+                        break;
+                    case 'arrow':
+                        svgContent += `<line x1="${element.x1}" y1="${element.y1}" x2="${element.x2}" y2="${element.y2}" stroke="${element.strokeColor}" stroke-width="${element.thickness || 2}" marker-end="url(#arrowhead)" />`;
+                        break;
+                    case 'pen':
+                    case 'pencil':
+                        if (element.path && element.path.length > 1) {
+                            svgContent += `<polyline points="` +
+                                element.path.map(p => `${p.x},${p.y}`).join(' ') +
+                                `" stroke="${element.strokeColor}" stroke-width="${element.thickness || 2}" fill="none" ` +
+                                (element.type === 'pencil' ? 'opacity="0.8"' : '') +
+                                ` />`;
+                        }
+                        break;
+                    case 'text':
+                        const fontSize = element.fontSize || 16;
+                        const lines = element.text.split('\n');
+                        lines.forEach((line, idx) => {
+                            svgContent += `<text x="${element.x}" y="${element.y + (idx + 1) * fontSize}" fill="${element.strokeColor}" font-size="${fontSize}" font-family="Arial">${line.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>`;
+                        });
+                        break;
+                }
+            });
+            // Arrowhead marker definition
+            svgContent += `
+        <defs>
+            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto" markerUnits="strokeWidth">
+                <polygon points="0 0, 10 3.5, 0 7" fill="black"/>
+            </marker>
+        </defs>
+    `;
+            svgContent += `</svg>`;
+
+            const blob = new Blob([svgContent], { type: "image/svg+xml" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'drawing.svg';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        // Undo/Redo support
+        function undo() {
+            app.undo();
+        }
+        function redo() {
+            app.redo();
+        }
+    </script>
+</body>
+</html>
