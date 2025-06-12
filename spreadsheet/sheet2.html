@@ -143,6 +143,7 @@
             position: sticky;
             top: 0;
             z-index: 10;
+            position: relative;
         }
 
         .row-header {
@@ -157,6 +158,7 @@
             position: sticky;
             left: 0;
             z-index: 10;
+            position: relative;
         }
 
         .cell {
@@ -220,7 +222,8 @@
         .context-menu-item {
             padding: 8px 16px;
             font-size: 14px;
-            cursor: pointer;
+            cursor: #666;
+            color: #333;
             transition: background 0.2s;
         }
 
@@ -242,35 +245,43 @@
         .color-preview {
             width: 20px;
             height: 20px;
-            border: 1px solid #cbd5e0;
+            border: 1px solid #cbd5;
+e0;
             border-radius: 3px;
             cursor: pointer;
         }
 
         .col-resizer {
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: 6px;
-    height: 100%;
-    cursor: col-resize;
-    z-index: 20;
-}
-.header-cell {
-    position: relative;
-}
-.row-resizer {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 6px;
-    cursor: row-resize;
-    z-index: 20;
-}
-.row-header {
-    position: relative;
-}
+            position: absolute;
+            right: -3px; /* Adjusted for better hit area */
+            top: 0;
+            width: 6px;
+            height: 100%;
+            cursor: col-resize;
+            z-index: 20;
+            background: transparent; /* Hidden until hover */
+            transition: background-color 0.2s;
+        }
+
+        .col-resizer:hover {
+            background: #4299e1; /* Visible on hover */
+        }
+
+        .row-resizer {
+            position: absolute;
+            bottom: -3px; /* Adjusted for better hit area */
+            left: 0;
+            width: 100%;
+            height: 6px;
+            cursor: row-resize;
+            z-index: 20;
+            background: transparent;
+            transition: background-color 0.2s;
+        }
+
+        .row-resizer:hover {
+            background: #4299e1;
+        }
 
         @media (max-width: 768px) {
             .format-controls {
@@ -293,11 +304,11 @@
             <button onclick="saveSpreadsheet()">Save</button>
             <button onclick="loadSpreadsheet()">Load</button>
             <button onclick="exportToCSV()">Export CSV</button>
-            <button onclick="uploadXLSX()">Upload XLSX</button>
+            <button onclick="uploadXLSX()">Import XLSX</button>
         </div>
 
         <div class="format-controls">
-            <select id="fontFamily">
+            <select id="form-controls">
                 <option value="Arial">Arial</option>
                 <option value="Times New Roman">Times New Roman</option>
                 <option value="Helvetica">Helvetica</option>
@@ -363,6 +374,15 @@
                 this.selectedCell = null;
                 this.clipboard = null;
                 this.isEditing = false;
+                this.resizingCol = null;
+                this.resizingRow = null;
+                this.startX = 0;
+                this.startY = 0;
+                this.startWidth = 0;
+                this.startHeight = 0;
+                // Store column and row sizes
+                this.colWidths = Array(26).fill(120); // Initial column widths
+                this.rowHeights = Array(100).fill(30); // Initial row heights
                 this.initializeSpreadsheet();
                 this.setupEventListeners();
             }
@@ -421,7 +441,17 @@
                     }
                 }
 
+                // Apply initial grid template
+                this.updateGridTemplate();
+
                 this.selectCell(document.querySelector('.cell'));
+            }
+
+            // Update CSS Grid template based on colWidths and rowHeights
+            updateGridTemplate() {
+                const spreadsheet = document.getElementById('spreadsheet');
+                spreadsheet.style.gridTemplateColumns = `60px ${this.colWidths.map(w => `${w}px`).join(' ')}`;
+                spreadsheet.style.gridTemplateRows = `40px ${this.rowHeights.map(h => `${h}px`).join(' ')}`;
             }
 
             setupEventListeners() {
@@ -586,10 +616,8 @@
             }
 
             sumRange(range) {
-                // Simple range sum (e.g., A1:A5)
                 if (range.includes(':')) {
                     const [start, end] = range.split(':');
-                    // Simplified - only works for same column ranges
                     const startRow = parseInt(start.match(/\d+/)[0]);
                     const endRow = parseInt(end.match(/\d+/)[0]);
                     const col = start.match(/[A-Z]+/)[0];
@@ -668,7 +696,6 @@
                 document.getElementById('contextMenu').style.display = 'none';
             }
 
-            // Format functions
             toggleFormat(format) {
                 if (!this.selectedCell) return;
 
@@ -727,7 +754,6 @@
             updateFormatControls(cell) {
                 const style = window.getComputedStyle(cell);
                 
-                // Update format buttons
                 document.getElementById('boldBtn').classList.toggle('active', 
                     style.fontWeight === 'bold' || parseInt(style.fontWeight) >= 600);
                 document.getElementById('italicBtn').classList.toggle('active', 
@@ -736,7 +762,6 @@
                     style.textDecoration.includes('underline'));
             }
 
-            // Context menu actions
             cutCell() {
                 this.copyCell();
                 this.deleteCell();
@@ -767,73 +792,60 @@
             }
 
             insertRow() {
-                // Simplified implementation
                 alert('Insert row functionality would be implemented here');
             }
 
             insertColumn() {
-                // Simplified implementation
                 alert('Insert column functionality would be implemented here');
             }
 
-            startColResize = (e, col) => {
+            startColResize(e, col) {
                 this.resizingCol = col;
                 this.startX = e.clientX;
-                const colCells = document.querySelectorAll(`[data-col="${col}"]`);
-                this.startWidth = colCells[0].offsetWidth;
-                document.addEventListener('mousemove', this.colResizeMove);
-                document.addEventListener('mouseup', this.stopColResize);
+                this.startWidth = this.colWidths[col];
+                document.addEventListener('mousemove', this.colResizeMove.bind(this));
+                document.addEventListener('mouseup', this.stopColResize.bind(this));
                 e.preventDefault();
             }
 
-            colResizeMove = (e) => {
+            colResizeMove(e) {
                 if (this.resizingCol === null) return;
                 const dx = e.clientX - this.startX;
                 const newWidth = Math.max(40, this.startWidth + dx);
-                document.querySelectorAll(`[data-col="${this.resizingCol}"]`).forEach(cell => {
-                    cell.style.width = newWidth + 'px';
-                    cell.style.minWidth = newWidth + 'px';
-                    cell.style.maxWidth = newWidth + 'px';
-                });
-                document.querySelectorAll('.header-cell')[this.resizingCol + 1].style.width = newWidth + 'px';
+                this.colWidths[this.resizingCol] = newWidth;
+                this.updateGridTemplate();
             }
 
-            stopColResize = () => {
+            stopColResize() {
                 this.resizingCol = null;
                 document.removeEventListener('mousemove', this.colResizeMove);
                 document.removeEventListener('mouseup', this.stopColResize);
             }
 
-            startRowResize = (e, row) => {
+            startRowResize(e, row) {
                 this.resizingRow = row;
                 this.startY = e.clientY;
-                const rowCells = document.querySelectorAll(`[data-row="${row}"]`);
-                this.startHeight = rowCells[0].offsetHeight;
-                document.addEventListener('mousemove', this.rowResizeMove);
-                document.addEventListener('mouseup', this.stopRowResize);
+                this.startHeight = this.rowHeights[row - 1];
+                document.addEventListener('mousemove', this.rowResizeMove.bind(this));
+                document.addEventListener('mouseup', this.stopRowResize.bind(this));
                 e.preventDefault();
             }
 
-            rowResizeMove = (e) => {
+            rowResizeMove(e) {
                 if (this.resizingRow === null) return;
                 const dy = e.clientY - this.startY;
                 const newHeight = Math.max(20, this.startHeight + dy);
-                document.querySelectorAll(`[data-row="${this.resizingRow}"]`).forEach(cell => {
-                    cell.style.height = newHeight + 'px';
-                    cell.style.minHeight = newHeight + 'px';
-                    cell.style.maxHeight = newHeight + 'px';
-                });
-                document.querySelectorAll('.row-header')[this.resizingRow - 1].style.height = newHeight + 'px';
+                this.rowHeights[this.resizingRow - 1] = newHeight;
+                this.updateGridTemplate();
             }
 
-            stopRowResize = () => {
+            stopRowResize() {
                 this.resizingRow = null;
                 document.removeEventListener('mousemove', this.rowResizeMove);
                 document.removeEventListener('mouseup', this.stopRowResize);
             }
         }
 
-        // Global functions for toolbar
         function newSpreadsheet() {
             if (confirm('Create new spreadsheet? Unsaved changes will be lost.')) {
                 location.reload();
@@ -864,7 +876,6 @@
                             const data = JSON.parse(e.target.result);
                             app.data = data;
                             
-                            // Update display
                             Object.keys(data).forEach(ref => {
                                 const cell = document.querySelector(`[data-ref="${ref}"]`);
                                 if (cell) {
@@ -904,36 +915,34 @@
         }
 
         function uploadXLSX() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.xlsx,.xls';
-    input.onchange = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-            const data = new Uint8Array(evt.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-            // Populate your spreadsheet with json (2D array)
-            for (let row = 0; row < json.length; row++) {
-                for (let col = 0; col < json[row].length; col++) {
-                    const ref = String.fromCharCode(65 + col) + (row + 1);
-                    const cell = document.querySelector(`[data-ref="${ref}"]`);
-                    if (cell) {
-                        cell.textContent = json[row][col];
-                        app.data[ref] = { value: json[row][col] };
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.xlsx,.xls';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (evt) => {
+                    const data = new Uint8Array(evt.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+                    for (let row = 0; row < json.length; row++) {
+                        for (let col = 0; col < json[row].length; col++) {
+                            const ref = String.fromCharCode(65 + col) + (row + 1);
+                            const cell = document.querySelector(`[data-ref="${ref}"]`);
+                            if (cell) {
+                                cell.textContent = json[row][col];
+                                app.data[ref] = { value: json[row][col] };
+                            }
+                        }
                     }
-                }
-            }
-        };
-        reader.readAsArrayBuffer(file);
-    };
-    input.click();
-}
+                };
+                reader.readAsArrayBuffer(file);
+            };
+            input.click();
+        }
 
-        // Initialize the application
         const app = new SpreadsheetApp();
     </script>
 </body>

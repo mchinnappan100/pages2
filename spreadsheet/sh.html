@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Modern Spreadsheet Editor</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <title>Maple Modern Spreadsheet Editor</title>
+     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+   
     <style>
         * {
             margin: 0;
@@ -143,6 +144,26 @@
             position: sticky;
             top: 0;
             z-index: 10;
+            position: relative;
+        }
+
+        .resize-handle {
+            position: absolute;
+            right: -2px;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            cursor: col-resize;
+            background: transparent;
+            z-index: 20;
+        }
+
+        .resize-handle:hover {
+            background: #4299e1;
+        }
+
+        .resizing {
+            user-select: none;
         }
 
         .row-header {
@@ -247,31 +268,6 @@
             cursor: pointer;
         }
 
-        .col-resizer {
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: 6px;
-    height: 100%;
-    cursor: col-resize;
-    z-index: 20;
-}
-.header-cell {
-    position: relative;
-}
-.row-resizer {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 6px;
-    cursor: row-resize;
-    z-index: 20;
-}
-.row-header {
-    position: relative;
-}
-
         @media (max-width: 768px) {
             .format-controls {
                 overflow-x: auto;
@@ -288,7 +284,7 @@
 <body>
     <div class="main-layout">
         <div class="toolbar">
-            <h1>📊 Oaks Spreadsheet Pro</h1>
+            <h1>📊 Maple Spreadsheet Pro</h1>
             <button onclick="newSpreadsheet()">New</button>
             <button onclick="saveSpreadsheet()">Save</button>
             <button onclick="loadSpreadsheet()">Load</button>
@@ -363,6 +359,9 @@
                 this.selectedCell = null;
                 this.clipboard = null;
                 this.isEditing = false;
+                this.isResizing = false;
+                this.resizeColumn = null;
+                this.columnWidths = new Array(26).fill(120); // Default width for each column
                 this.initializeSpreadsheet();
                 this.setupEventListeners();
             }
@@ -384,12 +383,14 @@
                     header.textContent = String.fromCharCode(65 + col);
                     header.style.gridColumn = col + 2;
                     header.style.gridRow = '1';
-
-                    // Add column resize handle
-                    const colResizer = document.createElement('div');
-                    colResizer.className = 'col-resizer';
-                    header.appendChild(colResizer);
-                    colResizer.addEventListener('mousedown', (e) => this.startColResize(e, col));
+                    header.dataset.col = col;
+                    
+                    // Add resize handle
+                    const resizeHandle = document.createElement('div');
+                    resizeHandle.className = 'resize-handle';
+                    resizeHandle.dataset.col = col;
+                    header.appendChild(resizeHandle);
+                    
                     spreadsheet.appendChild(header);
                 }
 
@@ -400,12 +401,6 @@
                     rowHeader.textContent = row;
                     rowHeader.style.gridColumn = '1';
                     rowHeader.style.gridRow = row + 1;
-
-                    // Add row resize handle
-                    const rowResizer = document.createElement('div');
-                    rowResizer.className = 'row-resizer';
-                    rowHeader.appendChild(rowResizer);
-                    rowResizer.addEventListener('mousedown', (e) => this.startRowResize(e, row));
                     spreadsheet.appendChild(rowHeader);
 
                     for (let col = 0; col < 26; col++) {
@@ -422,6 +417,7 @@
                 }
 
                 this.selectCell(document.querySelector('.cell'));
+                this.updateGridLayout();
             }
 
             setupEventListeners() {
@@ -432,6 +428,13 @@
                 spreadsheet.addEventListener('click', (e) => {
                     if (e.target.classList.contains('cell')) {
                         this.selectCell(e.target);
+                    }
+                });
+
+                // Prevent cell selection when clicking resize handle
+                spreadsheet.addEventListener('mousedown', (e) => {
+                    if (e.target.classList.contains('resize-handle')) {
+                        e.stopPropagation();
                     }
                 });
 
@@ -483,6 +486,53 @@
                 document.getElementById('fontSize').addEventListener('change', (e) => {
                     this.applyFormat('fontSize', e.target.value + 'px');
                 });
+
+                // Column resize handlers
+                this.setupColumnResize();
+            }
+
+            setupColumnResize() {
+                const spreadsheet = document.getElementById('spreadsheet');
+                let startX, startWidth, resizeCol;
+
+                // Mouse down on resize handle
+                spreadsheet.addEventListener('mousedown', (e) => {
+                    if (e.target.classList.contains('resize-handle')) {
+                        e.preventDefault();
+                        this.isResizing = true;
+                        resizeCol = parseInt(e.target.dataset.col);
+                        startX = e.clientX;
+                        startWidth = this.columnWidths[resizeCol];
+                        document.body.classList.add('resizing');
+                        document.body.style.cursor = 'col-resize';
+                    }
+                });
+
+                // Mouse move - resize column
+                document.addEventListener('mousemove', (e) => {
+                    if (this.isResizing && resizeCol !== undefined) {
+                        const deltaX = e.clientX - startX;
+                        const newWidth = Math.max(50, startWidth + deltaX); // Minimum width of 50px
+                        this.columnWidths[resizeCol] = newWidth;
+                        this.updateGridLayout();
+                    }
+                });
+
+                // Mouse up - stop resizing
+                document.addEventListener('mouseup', () => {
+                    if (this.isResizing) {
+                        this.isResizing = false;
+                        resizeCol = undefined;
+                        document.body.classList.remove('resizing');
+                        document.body.style.cursor = '';
+                    }
+                });
+            }
+
+            updateGridLayout() {
+                const spreadsheet = document.getElementById('spreadsheet');
+                const columns = ['60px', ...this.columnWidths.map(width => `${width}px`)];
+                spreadsheet.style.gridTemplateColumns = columns.join(' ');
             }
 
             selectCell(cell) {
@@ -671,34 +721,16 @@
             // Format functions
             toggleFormat(format) {
                 if (!this.selectedCell) return;
-
+                
                 const btn = document.getElementById(format + 'Btn');
                 const isActive = btn.classList.contains('active');
-
-                if (format === 'bold') {
-                    if (isActive) {
-                        btn.classList.remove('active');
-                        this.selectedCell.style.fontWeight = 'normal';
-                    } else {
-                        btn.classList.add('active');
-                        this.selectedCell.style.fontWeight = 'bold';
-                    }
-                } else if (format === 'italic') {
-                    if (isActive) {
-                        btn.classList.remove('active');
-                        this.selectedCell.style.fontStyle = 'normal';
-                    } else {
-                        btn.classList.add('active');
-                        this.selectedCell.style.fontStyle = 'italic';
-                    }
-                } else if (format === 'underline') {
-                    if (isActive) {
-                        btn.classList.remove('active');
-                        this.selectedCell.style.textDecoration = '';
-                    } else {
-                        btn.classList.add('active');
-                        this.selectedCell.style.textDecoration = 'underline';
-                    }
+                
+                if (isActive) {
+                    btn.classList.remove('active');
+                    this.selectedCell.style[format] = 'normal';
+                } else {
+                    btn.classList.add('active');
+                    this.selectedCell.style[format] = format === 'bold' ? 'bold' : format;
                 }
             }
 
@@ -774,62 +806,6 @@
             insertColumn() {
                 // Simplified implementation
                 alert('Insert column functionality would be implemented here');
-            }
-
-            startColResize = (e, col) => {
-                this.resizingCol = col;
-                this.startX = e.clientX;
-                const colCells = document.querySelectorAll(`[data-col="${col}"]`);
-                this.startWidth = colCells[0].offsetWidth;
-                document.addEventListener('mousemove', this.colResizeMove);
-                document.addEventListener('mouseup', this.stopColResize);
-                e.preventDefault();
-            }
-
-            colResizeMove = (e) => {
-                if (this.resizingCol === null) return;
-                const dx = e.clientX - this.startX;
-                const newWidth = Math.max(40, this.startWidth + dx);
-                document.querySelectorAll(`[data-col="${this.resizingCol}"]`).forEach(cell => {
-                    cell.style.width = newWidth + 'px';
-                    cell.style.minWidth = newWidth + 'px';
-                    cell.style.maxWidth = newWidth + 'px';
-                });
-                document.querySelectorAll('.header-cell')[this.resizingCol + 1].style.width = newWidth + 'px';
-            }
-
-            stopColResize = () => {
-                this.resizingCol = null;
-                document.removeEventListener('mousemove', this.colResizeMove);
-                document.removeEventListener('mouseup', this.stopColResize);
-            }
-
-            startRowResize = (e, row) => {
-                this.resizingRow = row;
-                this.startY = e.clientY;
-                const rowCells = document.querySelectorAll(`[data-row="${row}"]`);
-                this.startHeight = rowCells[0].offsetHeight;
-                document.addEventListener('mousemove', this.rowResizeMove);
-                document.addEventListener('mouseup', this.stopRowResize);
-                e.preventDefault();
-            }
-
-            rowResizeMove = (e) => {
-                if (this.resizingRow === null) return;
-                const dy = e.clientY - this.startY;
-                const newHeight = Math.max(20, this.startHeight + dy);
-                document.querySelectorAll(`[data-row="${this.resizingRow}"]`).forEach(cell => {
-                    cell.style.height = newHeight + 'px';
-                    cell.style.minHeight = newHeight + 'px';
-                    cell.style.maxHeight = newHeight + 'px';
-                });
-                document.querySelectorAll('.row-header')[this.resizingRow - 1].style.height = newHeight + 'px';
-            }
-
-            stopRowResize = () => {
-                this.resizingRow = null;
-                document.removeEventListener('mousemove', this.rowResizeMove);
-                document.removeEventListener('mouseup', this.stopRowResize);
             }
         }
 
