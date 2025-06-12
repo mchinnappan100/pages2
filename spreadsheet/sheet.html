@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Spreadsheet Editor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .toolbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .toolbar h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .toolbar button {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            backdrop-filter: blur(10px);
+        }
+
+        .toolbar button:hover {
+            background: rgba(255,255,255,0.3);
+            transform: translateY(-1px);
+        }
+
+        .format-controls {
+            background: white;
+            padding: 10px 20px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .format-controls select,
+        .format-controls input {
+            padding: 6px 10px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .format-btn {
+            background: #f7fafc;
+            border: 1px solid #cbd5e0;
+            padding: 6px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .format-btn:hover {
+            background: #edf2f7;
+        }
+
+        .format-btn.active {
+            background: #4299e1;
+            color: white;
+            border-color: #4299e1;
+        }
+
+        .formula-bar {
+            background: white;
+            padding: 10px 20px;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .cell-ref {
+            background: #f7fafc;
+            border: 1px solid #cbd5e0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            min-width: 80px;
+            text-align: center;
+        }
+
+        .formula-input {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+        }
+
+        .spreadsheet-container {
+            flex: 1;
+            overflow: auto;
+            background: white;
+            position: relative;
+        }
+
+        .spreadsheet {
+            display: grid;
+            grid-template-columns: 60px repeat(26, 120px);
+            grid-template-rows: 40px repeat(100, 30px);
+            position: relative;
+        }
+
+        .header-cell {
+            background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+            border: 1px solid #cbd5e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 13px;
+            color: #4a5568;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .row-header {
+            background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+            border: 1px solid #cbd5e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 13px;
+            color: #4a5568;
+            position: sticky;
+            left: 0;
+            z-index: 10;
+        }
+
+        .cell {
+            border: 1px solid #e2e8f0;
+            padding: 6px 8px;
+            font-size: 14px;
+            cursor: cell;
+            position: relative;
+            background: white;
+            transition: all 0.1s;
+        }
+
+        .cell:hover {
+            background: #f7fafc;
+        }
+
+        .cell.selected {
+            background: #ebf8ff;
+            border: 2px solid #4299e1;
+            outline: none;
+        }
+
+        .cell.editing {
+            background: white;
+            border: 2px solid #38b2ac;
+        }
+
+        .cell input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            outline: none;
+            background: transparent;
+            font-size: 14px;
+            padding: 0;
+        }
+
+        .status-bar {
+            background: #f7fafc;
+            border-top: 1px solid #e2e8f0;
+            padding: 8px 20px;
+            font-size: 12px;
+            color: #718096;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .context-menu {
+            position: absolute;
+            background: white;
+            border: 1px solid #cbd5e0;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            padding: 5px 0;
+            z-index: 1000;
+            min-width: 150px;
+            display: none;
+        }
+
+        .context-menu-item {
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .context-menu-item:hover {
+            background: #f7fafc;
+        }
+
+        .main-layout {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .color-picker-container {
+            position: relative;
+            display: inline-block;
+        }
+
+        .color-preview {
+            width: 20px;
+            height: 20px;
+            border: 1px solid #cbd5e0;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        @media (max-width: 768px) {
+            .format-controls {
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+            
+            .toolbar {
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-layout">
+        <div class="toolbar">
+            <h1>📊 Oaks Spreadsheet Pro</h1>
+            <button onclick="newSpreadsheet()">New</button>
+            <button onclick="saveSpreadsheet()">Save</button>
+            <button onclick="loadSpreadsheet()">Load</button>
+            <button onclick="exportToCSV()">Export CSV</button>
+            <button onclick="uploadXLSX()">Upload XLSX</button>
+        </div>
+
+        <div class="format-controls">
+            <select id="fontFamily">
+                <option value="Arial">Arial</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Helvetica">Helvetica</option>
+                <option value="Georgia">Georgia</option>
+            </select>
+            
+            <select id="fontSize">
+                <option value="10">10</option>
+                <option value="12">12</option>
+                <option value="14" selected>14</option>
+                <option value="16">16</option>
+                <option value="18">18</option>
+                <option value="20">20</option>
+            </select>
+
+            <button class="format-btn" id="boldBtn" onclick="toggleFormat('bold')"><b>B</b></button>
+            <button class="format-btn" id="italicBtn" onclick="toggleFormat('italic')"><i>I</i></button>
+            <button class="format-btn" id="underlineBtn" onclick="toggleFormat('underline')"><u>U</u></button>
+
+            <div class="color-picker-container">
+                <div class="color-preview" id="textColorPreview" style="background: #000;" onclick="document.getElementById('textColor').click()"></div>
+                <input type="color" id="textColor" style="display: none;" onchange="changeTextColor(this.value)">
+            </div>
+
+            <div class="color-picker-container">
+                <div class="color-preview" id="bgColorPreview" style="background: #fff;" onclick="document.getElementById('bgColor').click()"></div>
+                <input type="color" id="bgColor" style="display: none;" onchange="changeBackgroundColor(this.value)">
+            </div>
+
+            <button class="format-btn" onclick="alignText('left')">⬅️</button>
+            <button class="format-btn" onclick="alignText('center')">↔️</button>
+            <button class="format-btn" onclick="alignText('right')">➡️</button>
+        </div>
+
+        <div class="formula-bar">
+            <div class="cell-ref" id="cellRef">A1</div>
+            <input type="text" class="formula-input" id="formulaInput" placeholder="Enter formula or value...">
+        </div>
+
+        <div class="spreadsheet-container">
+            <div class="spreadsheet" id="spreadsheet"></div>
+        </div>
+
+        <div class="status-bar">
+            <span>Ready</span>
+            <span id="cellCount">Cells: A1:Z100</span>
+        </div>
+    </div>
+
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" onclick="cutCell()">Cut</div>
+        <div class="context-menu-item" onclick="copyCell()">Copy</div>
+        <div class="context-menu-item" onclick="pasteCell()">Paste</div>
+        <div class="context-menu-item" onclick="deleteCell()">Delete</div>
+        <div class="context-menu-item" onclick="insertRow()">Insert Row</div>
+        <div class="context-menu-item" onclick="insertColumn()">Insert Column</div>
+    </div>
+
+    <script>
+        class SpreadsheetApp {
+            constructor() {
+                this.data = {};
+                this.selectedCell = null;
+                this.clipboard = null;
+                this.isEditing = false;
+                this.initializeSpreadsheet();
+                this.setupEventListeners();
+            }
+
+            initializeSpreadsheet() {
+                const spreadsheet = document.getElementById('spreadsheet');
+                
+                // Create header row
+                const cornerCell = document.createElement('div');
+                cornerCell.className = 'header-cell';
+                cornerCell.style.gridColumn = '1';
+                cornerCell.style.gridRow = '1';
+                spreadsheet.appendChild(cornerCell);
+
+                // Column headers
+                for (let col = 0; col < 26; col++) {
+                    const header = document.createElement('div');
+                    header.className = 'header-cell';
+                    header.textContent = String.fromCharCode(65 + col);
+                    header.style.gridColumn = col + 2;
+                    header.style.gridRow = '1';
+                    spreadsheet.appendChild(header);
+                }
+
+                // Row headers and cells
+                for (let row = 1; row <= 100; row++) {
+                    const rowHeader = document.createElement('div');
+                    rowHeader.className = 'row-header';
+                    rowHeader.textContent = row;
+                    rowHeader.style.gridColumn = '1';
+                    rowHeader.style.gridRow = row + 1;
+                    spreadsheet.appendChild(rowHeader);
+
+                    for (let col = 0; col < 26; col++) {
+                        const cell = document.createElement('div');
+                        cell.className = 'cell';
+                        cell.dataset.row = row;
+                        cell.dataset.col = col;
+                        cell.dataset.ref = String.fromCharCode(65 + col) + row;
+                        cell.style.gridColumn = col + 2;
+                        cell.style.gridRow = row + 1;
+                        cell.contentEditable = false;
+                        spreadsheet.appendChild(cell);
+                    }
+                }
+
+                this.selectCell(document.querySelector('.cell'));
+            }
+
+            setupEventListeners() {
+                const formulaInput = document.getElementById('formulaInput');
+                const spreadsheet = document.getElementById('spreadsheet');
+
+                // Cell click handler
+                spreadsheet.addEventListener('click', (e) => {
+                    if (e.target.classList.contains('cell')) {
+                        this.selectCell(e.target);
+                    }
+                });
+
+                // Cell double-click to edit
+                spreadsheet.addEventListener('dblclick', (e) => {
+                    if (e.target.classList.contains('cell')) {
+                        this.startEditing(e.target);
+                    }
+                });
+
+                // Formula input handler
+                formulaInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter') {
+                        this.updateCellValue(formulaInput.value);
+                        formulaInput.blur();
+                    }
+                });
+
+                formulaInput.addEventListener('input', () => {
+                    if (this.selectedCell) {
+                        this.selectedCell.textContent = formulaInput.value;
+                    }
+                });
+
+                // Keyboard navigation
+                document.addEventListener('keydown', (e) => {
+                    if (!this.isEditing && this.selectedCell) {
+                        this.handleKeyNavigation(e);
+                    }
+                });
+
+                // Context menu
+                spreadsheet.addEventListener('contextmenu', (e) => {
+                    if (e.target.classList.contains('cell')) {
+                        e.preventDefault();
+                        this.showContextMenu(e.pageX, e.pageY);
+                    }
+                });
+
+                document.addEventListener('click', () => {
+                    this.hideContextMenu();
+                });
+
+                // Font controls
+                document.getElementById('fontFamily').addEventListener('change', (e) => {
+                    this.applyFormat('fontFamily', e.target.value);
+                });
+
+                document.getElementById('fontSize').addEventListener('change', (e) => {
+                    this.applyFormat('fontSize', e.target.value + 'px');
+                });
+            }
+
+            selectCell(cell) {
+                if (this.selectedCell) {
+                    this.selectedCell.classList.remove('selected');
+                }
+                
+                this.selectedCell = cell;
+                cell.classList.add('selected');
+                
+                const ref = cell.dataset.ref;
+                document.getElementById('cellRef').textContent = ref;
+                document.getElementById('formulaInput').value = this.getCellValue(ref) || '';
+                
+                this.updateFormatControls(cell);
+            }
+
+            startEditing(cell) {
+                this.isEditing = true;
+                cell.classList.add('editing');
+                cell.contentEditable = true;
+                cell.focus();
+                
+                const range = document.createRange();
+                range.selectNodeContents(cell);
+                const selection = window.getSelection();
+                selection.removeAllRanges();
+                selection.addRange(range);
+
+                const stopEditing = () => {
+                    this.isEditing = false;
+                    cell.classList.remove('editing');
+                    cell.contentEditable = false;
+                    this.updateCellValue(cell.textContent);
+                    cell.removeEventListener('blur', stopEditing);
+                    cell.removeEventListener('keydown', keyHandler);
+                };
+
+                const keyHandler = (e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        stopEditing();
+                    }
+                    if (e.key === 'Escape') {
+                        cell.textContent = this.getCellValue(cell.dataset.ref) || '';
+                        stopEditing();
+                    }
+                };
+
+                cell.addEventListener('blur', stopEditing, { once: true });
+                cell.addEventListener('keydown', keyHandler);
+            }
+
+            updateCellValue(value) {
+                if (!this.selectedCell) return;
+                
+                const ref = this.selectedCell.dataset.ref;
+                
+                if (value.startsWith('=')) {
+                    // Formula
+                    try {
+                        const result = this.evaluateFormula(value);
+                        this.selectedCell.textContent = result;
+                        this.data[ref] = { formula: value, value: result };
+                    } catch (error) {
+                        this.selectedCell.textContent = '#ERROR';
+                        this.data[ref] = { formula: value, value: '#ERROR' };
+                    }
+                } else {
+                    // Regular value
+                    this.selectedCell.textContent = value;
+                    this.data[ref] = { value: value };
+                }
+            }
+
+            evaluateFormula(formula) {
+                // Simple formula evaluation - supports basic math and cell references
+                let expression = formula.substring(1); // Remove '='
+                
+                // Replace cell references with values
+                expression = expression.replace(/[A-Z]+\d+/g, (match) => {
+                    const cellValue = this.getCellValue(match);
+                    return isNaN(cellValue) ? 0 : cellValue;
+                });
+
+                // Basic functions
+                expression = expression.replace(/SUM\(([^)]+)\)/g, (match, range) => {
+                    return this.sumRange(range);
+                });
+
+                expression = expression.replace(/AVERAGE\(([^)]+)\)/g, (match, range) => {
+                    return this.averageRange(range);
+                });
+
+                // Evaluate the expression
+                try {
+                    return Function('"use strict"; return (' + expression + ')')();
+                } catch (error) {
+                    throw new Error('Invalid formula');
+                }
+            }
+
+            sumRange(range) {
+                // Simple range sum (e.g., A1:A5)
+                if (range.includes(':')) {
+                    const [start, end] = range.split(':');
+                    // Simplified - only works for same column ranges
+                    const startRow = parseInt(start.match(/\d+/)[0]);
+                    const endRow = parseInt(end.match(/\d+/)[0]);
+                    const col = start.match(/[A-Z]+/)[0];
+                    
+                    let sum = 0;
+                    for (let row = startRow; row <= endRow; row++) {
+                        const value = this.getCellValue(col + row);
+                        sum += isNaN(value) ? 0 : parseFloat(value);
+                    }
+                    return sum;
+                }
+                return 0;
+            }
+
+            averageRange(range) {
+                const sum = this.sumRange(range);
+                if (range.includes(':')) {
+                    const [start, end] = range.split(':');
+                    const startRow = parseInt(start.match(/\d+/)[0]);
+                    const endRow = parseInt(end.match(/\d+/)[0]);
+                    const count = endRow - startRow + 1;
+                    return sum / count;
+                }
+                return sum;
+            }
+
+            getCellValue(ref) {
+                return this.data[ref] ? this.data[ref].value : '';
+            }
+
+            handleKeyNavigation(e) {
+                if (!this.selectedCell) return;
+                
+                const row = parseInt(this.selectedCell.dataset.row);
+                const col = parseInt(this.selectedCell.dataset.col);
+                let newRow = row, newCol = col;
+
+                switch (e.key) {
+                    case 'ArrowUp':
+                        newRow = Math.max(1, row - 1);
+                        break;
+                    case 'ArrowDown':
+                        newRow = Math.min(100, row + 1);
+                        break;
+                    case 'ArrowLeft':
+                        newCol = Math.max(0, col - 1);
+                        break;
+                    case 'ArrowRight':
+                        newCol = Math.min(25, col + 1);
+                        break;
+                    case 'Enter':
+                        this.startEditing(this.selectedCell);
+                        return;
+                    case 'Delete':
+                        this.deleteCell();
+                        return;
+                    default:
+                        return;
+                }
+
+                e.preventDefault();
+                const newCell = document.querySelector(`[data-row="${newRow}"][data-col="${newCol}"]`);
+                if (newCell) {
+                    this.selectCell(newCell);
+                }
+            }
+
+            showContextMenu(x, y) {
+                const menu = document.getElementById('contextMenu');
+                menu.style.display = 'block';
+                menu.style.left = x + 'px';
+                menu.style.top = y + 'px';
+            }
+
+            hideContextMenu() {
+                document.getElementById('contextMenu').style.display = 'none';
+            }
+
+            // Format functions
+            toggleFormat(format) {
+                if (!this.selectedCell) return;
+
+                const btn = document.getElementById(format + 'Btn');
+                const isActive = btn.classList.contains('active');
+
+                if (format === 'bold') {
+                    if (isActive) {
+                        btn.classList.remove('active');
+                        this.selectedCell.style.fontWeight = 'normal';
+                    } else {
+                        btn.classList.add('active');
+                        this.selectedCell.style.fontWeight = 'bold';
+                    }
+                } else if (format === 'italic') {
+                    if (isActive) {
+                        btn.classList.remove('active');
+                        this.selectedCell.style.fontStyle = 'normal';
+                    } else {
+                        btn.classList.add('active');
+                        this.selectedCell.style.fontStyle = 'italic';
+                    }
+                } else if (format === 'underline') {
+                    if (isActive) {
+                        btn.classList.remove('active');
+                        this.selectedCell.style.textDecoration = '';
+                    } else {
+                        btn.classList.add('active');
+                        this.selectedCell.style.textDecoration = 'underline';
+                    }
+                }
+            }
+
+            applyFormat(property, value) {
+                if (!this.selectedCell) return;
+                this.selectedCell.style[property] = value;
+            }
+
+            changeTextColor(color) {
+                if (!this.selectedCell) return;
+                this.selectedCell.style.color = color;
+                document.getElementById('textColorPreview').style.background = color;
+            }
+
+            changeBackgroundColor(color) {
+                if (!this.selectedCell) return;
+                this.selectedCell.style.backgroundColor = color;
+                document.getElementById('bgColorPreview').style.background = color;
+            }
+
+            alignText(alignment) {
+                if (!this.selectedCell) return;
+                this.selectedCell.style.textAlign = alignment;
+            }
+
+            updateFormatControls(cell) {
+                const style = window.getComputedStyle(cell);
+                
+                // Update format buttons
+                document.getElementById('boldBtn').classList.toggle('active', 
+                    style.fontWeight === 'bold' || parseInt(style.fontWeight) >= 600);
+                document.getElementById('italicBtn').classList.toggle('active', 
+                    style.fontStyle === 'italic');
+                document.getElementById('underlineBtn').classList.toggle('active', 
+                    style.textDecoration.includes('underline'));
+            }
+
+            // Context menu actions
+            cutCell() {
+                this.copyCell();
+                this.deleteCell();
+            }
+
+            copyCell() {
+                if (!this.selectedCell) return;
+                this.clipboard = {
+                    value: this.getCellValue(this.selectedCell.dataset.ref),
+                    style: this.selectedCell.style.cssText
+                };
+            }
+
+            pasteCell() {
+                if (!this.selectedCell || !this.clipboard) return;
+                
+                this.selectedCell.textContent = this.clipboard.value;
+                this.selectedCell.style.cssText = this.clipboard.style;
+                this.data[this.selectedCell.dataset.ref] = { value: this.clipboard.value };
+            }
+
+            deleteCell() {
+                if (!this.selectedCell) return;
+                
+                this.selectedCell.textContent = '';
+                delete this.data[this.selectedCell.dataset.ref];
+                document.getElementById('formulaInput').value = '';
+            }
+
+            insertRow() {
+                // Simplified implementation
+                alert('Insert row functionality would be implemented here');
+            }
+
+            insertColumn() {
+                // Simplified implementation
+                alert('Insert column functionality would be implemented here');
+            }
+        }
+
+        // Global functions for toolbar
+        function newSpreadsheet() {
+            if (confirm('Create new spreadsheet? Unsaved changes will be lost.')) {
+                location.reload();
+            }
+        }
+
+        function saveSpreadsheet() {
+            const data = JSON.stringify(app.data);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'spreadsheet.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function loadSpreadsheet() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            const data = JSON.parse(e.target.result);
+                            app.data = data;
+                            
+                            // Update display
+                            Object.keys(data).forEach(ref => {
+                                const cell = document.querySelector(`[data-ref="${ref}"]`);
+                                if (cell) {
+                                    cell.textContent = data[ref].value;
+                                }
+                            });
+                        } catch (error) {
+                            alert('Error loading file');
+                        }
+                    };
+                    reader.readAsText(file);
+                }
+            };
+            input.click();
+        }
+
+        function exportToCSV() {
+            let csv = '';
+            
+            for (let row = 1; row <= 100; row++) {
+                const rowData = [];
+                for (let col = 0; col < 26; col++) {
+                    const ref = String.fromCharCode(65 + col) + row;
+                    const value = app.getCellValue(ref) || '';
+                    rowData.push('"' + value.toString().replace(/"/g, '""') + '"');
+                }
+                csv += rowData.join(',') + '\n';
+            }
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'spreadsheet.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function uploadXLSX() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.xlsx,.xls';
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const data = new Uint8Array(evt.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+            // Populate your spreadsheet with json (2D array)
+            for (let row = 0; row < json.length; row++) {
+                for (let col = 0; col < json[row].length; col++) {
+                    const ref = String.fromCharCode(65 + col) + (row + 1);
+                    const cell = document.querySelector(`[data-ref="${ref}"]`);
+                    if (cell) {
+                        cell.textContent = json[row][col];
+                        app.data[ref] = { value: json[row][col] };
+                    }
+                }
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+    input.click();
+}
+
+        // Initialize the application
+        const app = new SpreadsheetApp();
+    </script>
+</body>
+</html>
