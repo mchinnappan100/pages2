@@ -224,29 +224,6 @@
             border-radius: 8px;
         }
 
-        .octave-nav {
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        .octave-btn {
-            background: linear-gradient(45deg, #6366f1, #0f2027);
-            color: #fff;
-            border: none;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            font-size: 1.5rem;
-            cursor: pointer;
-            box-shadow: 0 2px 8px #0006;
-            transition: background 0.2s;
-        }
-        .octave-btn:active {
-            background: linear-gradient(45deg, #232b3b, #6366f1);
-        }
-
         @media (max-width: 768px) {
             .container {
                 padding: 15px;
@@ -286,10 +263,6 @@
         </div>
         <div class="status" id="status">Ready to record</div>
         <div class="piano-container">
-            <div class="octave-nav">
-                <button id="octaveLeft" class="octave-btn">◀</button>
-                <button id="octaveRight" class="octave-btn">▶</button>
-            </div>
             <div class="piano" id="piano">
                 <!-- Piano keys will be generated here -->
             </div>
@@ -327,16 +300,11 @@
                 this.playbackStartTime = 0;
                 this.playbackTimeouts = [];
                 this.oscillators = new Map();
-                this.currentOctave = 4; // Default octave
-                this.visibleOctaves = 2; // Number of octaves to show at once
-                this.octaveStart = 3;    // First visible octave
-                this.totalOctaves = 4;   // Total octaves available
-
+                
                 this.initializeAudioContext();
                 this.createPiano();
                 this.setupEventListeners();
                 this.setupKeyboardControls();
-                this.setupOctaveNavigation();
             }
 
             async initializeAudioContext() {
@@ -349,46 +317,39 @@
 
             createPiano() {
                 const piano = document.getElementById('piano');
-                piano.innerHTML = '';
                 const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-                const octaves = [];
-                for (let o = this.octaveStart; o < this.octaveStart + this.visibleOctaves; o++) {
-                    octaves.push(o);
-                }
+                const octaves = [3, 4, 5, 6]; // 4 octaves
 
                 octaves.forEach(octave => {
                     notes.forEach((note, index) => {
                         const key = document.createElement('div');
                         const isBlack = note.includes('#');
                         const noteWithOctave = `${note}${octave}`;
+                        
                         key.className = isBlack ? 'key black-key' : 'key white-key';
                         key.dataset.note = noteWithOctave;
                         key.textContent = noteWithOctave;
-
+                        
                         if (isBlack) {
-                            // Position black keys absolutely over white keys
-                            const whiteKeys = piano.querySelectorAll('.white-key');
-                            const prevWhiteKey = whiteKeys[whiteKeys.length - 1];
+                            const prevWhiteKey = piano.querySelector(`.white-key:nth-last-child(1)`);
                             if (prevWhiteKey) {
                                 const leftOffset = (prevWhiteKey.offsetLeft || 0) + 28;
                                 key.style.left = `${leftOffset}px`;
                             }
                         }
+                        
                         piano.appendChild(key);
-
-                        // Mouse and touch events
+                        
                         key.addEventListener('mousedown', (e) => {
                             e.preventDefault();
                             this.playNote(noteWithOctave);
                         });
-                        key.addEventListener('mouseup', () => this.stopNote(noteWithOctave));
-                        key.addEventListener('mouseleave', () => this.stopNote(noteWithOctave));
-                        key.addEventListener('touchstart', (e) => {
-                            e.preventDefault();
-                            this.playNote(noteWithOctave);
+                        
+                        key.addEventListener('mouseup', () => {
+                            this.stopNote(noteWithOctave);
                         });
-                        key.addEventListener('touchend', (e) => {
-                            e.preventDefault();
+                        
+                        key.addEventListener('mouseleave', () => {
                             this.stopNote(noteWithOctave);
                         });
                     });
@@ -429,39 +390,20 @@
                 });
             }
 
-            setupOctaveNavigation() {
-                document.getElementById('octaveLeft').addEventListener('click', () => {
-                    if (this.octaveStart > 1) {
-                        this.octaveStart--;
-                        this.createPiano();
-                    }
-                });
-                document.getElementById('octaveRight').addEventListener('click', () => {
-                    if (this.octaveStart + this.visibleOctaves <= this.totalOctaves + 2) {
-                        this.octaveStart++;
-                        this.createPiano();
-                    }
-                });
-            }
-
             setupKeyboardControls() {
-                const whiteKeys = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-                const blackKeys = ['C#', 'D#', 'F#', 'G#', 'A#'];
-                const keyMap = {};
-                const keyOrder = ['KeyA', 'KeyS', 'KeyD', 'KeyF', 'KeyG', 'KeyH', 'KeyJ', 'KeyK'];
-                const blackKeyOrder = ['KeyW', 'KeyE', 'KeyT', 'KeyY', 'KeyU', 'KeyO', 'KeyP'];
-
-                // Map white keys
-                for (let i = 0; i < keyOrder.length; i++) {
-                    const octave = this.octaveStart + Math.floor(i / whiteKeys.length);
-                    const note = whiteKeys[i % whiteKeys.length] + octave;
-                    keyMap[keyOrder[i]] = note;
-                }
-                // Map black keys (first octave only for simplicity)
-                for (let i = 0; i < blackKeys.length; i++) {
-                    const note = blackKeys[i] + this.octaveStart;
-                    keyMap[blackKeyOrder[i]] = note;
-                }
+                const keyMap = {
+                    // White keys - C major scale
+                    'KeyA': 'C4', 'KeyS': 'D4', 'KeyD': 'E4', 'KeyF': 'F4',
+                    'KeyG': 'G4', 'KeyH': 'A4', 'KeyJ': 'B4', 'KeyK': 'C5',
+                    
+                    // Black keys
+                    'KeyW': 'C#4', 'KeyE': 'D#4', 'KeyT': 'F#4', 'KeyY': 'G#4',
+                    'KeyU': 'A#4', 'KeyO': 'C#5', 'KeyP': 'D#5',
+                    
+                    // Lower octave
+                    'KeyZ': 'C3', 'KeyX': 'D3', 'KeyC': 'E3', 'KeyV': 'F3',
+                    'KeyB': 'G3', 'KeyN': 'A3', 'KeyM': 'B3',
+                };
 
                 const pressedKeys = new Set();
 
@@ -474,17 +416,10 @@
                         this.toggleRecording();
                         return;
                     }
+
                     if (e.code === 'Enter') {
                         e.preventDefault();
                         this.playRecording();
-                        return;
-                    }
-                    if (e.code === 'BracketLeft') { // [
-                        document.getElementById('octaveLeft').click();
-                        return;
-                    }
-                    if (e.code === 'BracketRight') { // ]
-                        document.getElementById('octaveRight').click();
                         return;
                     }
 
@@ -899,17 +834,6 @@
                 const octave = Math.floor(midiNote / 12) - 1;
                 const noteIndex = midiNote % 12;
                 return noteNames[noteIndex] + octave;
-            }
-
-            changeOctave(direction) {
-                const newOctave = this.currentOctave + direction;
-
-                // Limit octave range (3 to 6)
-                if (newOctave < 3 || newOctave > 6) return;
-
-                this.currentOctave = newOctave;
-                document.getElementById('piano').innerHTML = ''; // Clear piano
-                this.createPiano(); // Recreate piano with new octave
             }
         }
 
