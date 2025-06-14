@@ -231,6 +231,101 @@
             background: #c82333;
         }
 
+        .video-player-modal {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+        }
+
+        .video-player-content {
+            background-color: #212121;
+            margin: 2% auto;
+            padding: 2rem;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 1000px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .video-player-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .video-player-title {
+            font-size: 1.5rem;
+            color: #fff;
+            margin: 0;
+        }
+
+        .video-iframe-container {
+            position: relative;
+            width: 100%;
+            height: 0;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            margin-bottom: 1rem;
+        }
+
+        .video-iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 8px;
+        }
+
+        .video-details {
+            background: #303030;
+            padding: 1.5rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+        }
+
+        .video-meta {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 1rem;
+            color: #aaa;
+        }
+
+        .video-description-full {
+            color: #ccc;
+            line-height: 1.6;
+        }
+
+        .btn-play {
+            background: #ff0000;
+            color: white;
+        }
+
+        .btn-play:hover {
+            background: #cc0000;
+        }
+
+        @media (max-width: 768px) {
+            .video-player-content {
+                margin: 5% auto;
+                padding: 1rem;
+                width: 95%;
+            }
+            
+            .video-player-header {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: flex-start;
+            }
+        }
+
         .modal {
             display: none;
             position: fixed;
@@ -424,15 +519,77 @@
         </div>
     </div>
 
+    <!-- Video Player Modal -->
+    <div id="videoPlayerModal" class="video-player-modal">
+        <div class="video-player-content">
+            <div class="video-player-header">
+                <h2 class="video-player-title" id="playerVideoTitle">Video Title</h2>
+                <span class="close" onclick="closeVideoPlayer()">&times;</span>
+            </div>
+            <div class="video-iframe-container">
+                <iframe id="videoPlayer" class="video-iframe" src="" allowfullscreen></iframe>
+            </div>
+            <div class="video-details">
+                <div class="video-meta">
+                    <span>Duration: <span id="playerVideoDuration">0 min</span></span>
+                    <span>Playlist: <span id="playerVideoPlaylist">None</span></span>
+                </div>
+                <div class="video-description-full" id="playerVideoDescription">
+                    Video description will appear here...
+                </div>
+            </div>
+        </div>
+    </div>
+
     <input type="file" id="importFile" class="file-input" accept=".json" onchange="importData(event)">
 
     <script>
+        // In-memory storage (replaces localStorage for Claude.ai compatibility)
         let appData = {
             videos: [],
             playlists: []
         };
 
         let currentPlaylist = 'all';
+
+        // --- NEW: Support ?d=vids.json for importing data ---
+        document.addEventListener('DOMContentLoaded', async function() {
+            const params = new URLSearchParams(window.location.search);
+            const dataFile = params.get('d');
+            if (dataFile) {
+                try {
+                    const resp = await fetch(dataFile);
+                    if (!resp.ok) throw new Error('Failed to fetch data file');
+                    const importedData = await resp.json();
+                    if (importedData.videos && importedData.playlists) {
+                        appData = importedData;
+                    } else {
+                        alert('Invalid data file format!');
+                        loadSampleData();
+                    }
+                } catch (e) {
+                    alert('Error loading data file: ' + e.message);
+                    loadSampleData();
+                }
+            } else {
+                loadSampleData();
+            }
+            updateStats();
+            renderPlaylists();
+            renderVideos();
+        });
+
+        // --- Helper: Extract YouTube video ID from URL ---
+        function extractYouTubeId(url) {
+            const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
+            return match ? match[1] : null;
+        }
+
+        // --- Helper: Get YouTube thumbnail URL ---
+        function getYouTubeThumbnail(url) {
+            const id = extractYouTubeId(url);
+            return id ? `https://img.youtube.com/vi/${id}/hqdefault.jpg` : null;
+        }
 
         // Initialize app
         document.addEventListener('DOMContentLoaded', function() {
@@ -575,25 +732,33 @@
         function renderVideos() {
             const container = document.getElementById('videoContainer');
             let videosToShow = appData.videos;
-            
+
             if (currentPlaylist !== 'all') {
                 videosToShow = appData.videos.filter(v => v.playlist === currentPlaylist);
             }
-            
+
             container.innerHTML = '';
-            
+
             videosToShow.forEach(video => {
                 const videoElement = document.createElement('div');
                 videoElement.className = 'video-card';
+
+                // Try to get YouTube thumbnail
+                const thumbUrl = getYouTubeThumbnail(video.url);
+
                 videoElement.innerHTML = `
                     <div class="video-thumbnail">
-                        <span style="font-size: 4rem;">${video.thumbnail}</span>
+                        ${thumbUrl
+                            ? `<img src="${thumbUrl}" alt="Thumbnail" style="width:100%;height:100%;object-fit:cover;">`
+                            : `<span style="font-size: 4rem;">${video.thumbnail || '🎬'}</span>`
+                        }
                     </div>
                     <div class="video-info">
                         <div class="video-title">${video.title}</div>
                         <div class="video-description">${video.description}</div>
                         <div class="video-actions">
-                            <a href="${video.url}" target="_blank" class="btn btn-primary btn-small">Watch</a>
+                            <button class="btn btn-play btn-small" onclick="playVideo('${video.id}')">▶ Play</button>
+                            <a href="${video.url}" target="_blank" class="btn btn-secondary btn-small">YouTube</a>
                             <button class="btn btn-danger btn-small" onclick="deleteVideo('${video.id}')">Delete</button>
                         </div>
                     </div>
@@ -686,6 +851,43 @@
             this.reset();
         });
 
+        // Video player functions
+        function playVideo(videoId) {
+            const video = appData.videos.find(v => v.id === videoId);
+            if (!video) return;
+            
+            // Extract video ID from YouTube URL
+            const videoIdMatch = video.url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/);
+            if (!videoIdMatch) {
+                alert('Invalid YouTube URL format');
+                return;
+            }
+            
+            const youtubeVideoId = videoIdMatch[1];
+            const embedUrl = `https://www.youtube.com/embed/${youtubeVideoId}?autoplay=1&rel=0`;
+            
+            // Update player modal content
+            document.getElementById('playerVideoTitle').textContent = video.title;
+            document.getElementById('playerVideoDuration').textContent = `${video.duration} min`;
+            document.getElementById('playerVideoDescription').textContent = video.description || 'No description available';
+            
+            // Set playlist name
+            const playlist = appData.playlists.find(p => p.id === video.playlist);
+            document.getElementById('playerVideoPlaylist').textContent = playlist ? playlist.name : 'None';
+            
+            // Set iframe source
+            document.getElementById('videoPlayer').src = embedUrl;
+            
+            // Show modal
+            document.getElementById('videoPlayerModal').style.display = 'block';
+        }
+
+        function closeVideoPlayer() {
+            document.getElementById('videoPlayerModal').style.display = 'none';
+            // Stop video by clearing iframe source
+            document.getElementById('videoPlayer').src = '';
+        }
+
         // Import/Export functions
         function exportData() {
             const dataStr = JSON.stringify(appData, null, 2);
@@ -732,7 +934,23 @@
                     modal.style.display = 'none';
                 }
             });
+            
+            // Handle video player modal
+            const videoPlayerModal = document.getElementById('videoPlayerModal');
+            if (event.target === videoPlayerModal) {
+                closeVideoPlayer();
+            }
         }
+
+        // Close video player with Escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                const videoPlayerModal = document.getElementById('videoPlayerModal');
+                if (videoPlayerModal.style.display === 'block') {
+                    closeVideoPlayer();
+                }
+            }
+        });
     </script>
 </body>
 </html>
