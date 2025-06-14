@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modern Web Designer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .splitter {
+            width: 4px;
+            background: linear-gradient(to bottom, #e5e7eb, #d1d5db);
+            cursor: col-resize;
+            position: relative;
+            user-select: none;
+        }
+        .splitter:hover {
+            background: linear-gradient(to bottom, #d1d5db, #9ca3af);
+        }
+        .splitter::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 2px;
+            height: 20px;
+            background: #6b7280;
+            border-radius: 1px;
+        }
+        .preview-content {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #1f2937;
+        }
+        .preview-content h1 { @apply text-3xl font-bold mb-4 text-gray-900; }
+        .preview-content h2 { @apply text-2xl font-semibold mb-3 text-gray-800; }
+        .preview-content h3 { @apply text-xl font-medium mb-2 text-gray-700; }
+        .preview-content p { @apply mb-4 text-gray-600; }
+        .preview-content ul, .preview-content ol { @apply mb-4 pl-6; }
+        .preview-content li { @apply mb-1 text-gray-600; }
+        .preview-content blockquote { @apply border-l-4 border-blue-400 pl-4 italic text-gray-700 mb-4; }
+        .preview-content code { @apply bg-gray-100 px-2 py-1 rounded text-sm font-mono; }
+        .preview-content pre { @apply bg-gray-100 p-4 rounded-lg mb-4 overflow-x-auto; }
+        .preview-content pre code { @apply bg-transparent p-0; }
+        .preview-content a { @apply text-blue-600 hover:text-blue-800 underline; }
+        .preview-content table { @apply w-full border-collapse mb-4; }
+        .preview-content th, .preview-content td { @apply border border-gray-300 px-4 py-2 text-left; }
+        .preview-content th { @apply bg-gray-50 font-semibold; }
+    </style>
+</head>
+<body class="h-screen bg-gray-50 overflow-hidden">
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center space-x-4">
+            <h1 class="text-2xl font-bold text-gray-900">Web Designer</h1>
+            <div class="text-sm text-gray-500">Markdown to HTML</div>
+        </div>
+        <div class="flex items-center space-x-3">
+            <button id="downloadBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center space-x-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-4-4m4 4l4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                </svg>
+                <span>Download HTML</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="flex h-full" style="height: calc(100vh - 73px);">
+        <!-- Left Pane - Monaco Editor -->
+        <div class="flex-1 flex flex-col bg-white">
+            <div class="px-4 py-2 bg-gray-50 border-b border-gray-200">
+                <h2 class="text-sm font-medium text-gray-700">Markdown Editor</h2>
+            </div>
+            <div id="editor" class="flex-1"></div>
+        </div>
+
+        <!-- Splitter -->
+        <div class="splitter" id="splitter"></div>
+
+        <!-- Right Pane - Preview -->
+        <div class="flex-1 flex flex-col bg-white">
+            <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                <h2 class="text-sm font-medium text-gray-700">Live Preview</h2>
+                <button id="refreshBtn" class="text-gray-500 hover:text-gray-700 p-1 rounded">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                </button>
+            </div>
+            <div id="preview" class="flex-1 overflow-auto p-6 preview-content"></div>
+        </div>
+    </div>
+
+    <script>
+        let editor;
+        let isResizing = false;
+
+        // Default markdown content
+        const defaultMarkdown = '# Welcome to Web Designer\n\nThis is a modern markdown-to-HTML converter with live preview.\n\n## Features\n\n- **Live Preview**: See your changes instantly\n- **Monaco Editor**: Professional code editing experience\n- **Tailwind CSS**: Beautiful, responsive styling\n- **Download**: Export your HTML file\n\n## Getting Started\n\nSimply start typing in the left pane and watch your content come to life!\n\n### Markdown Support\n\nYou can use all standard markdown features:\n\n- **Bold text**\n- *Italic text*\n- `Inline code`\n- [Links](https://example.com)\n- Lists and more!\n\n> This is a blockquote example\n\n```javascript\n// Code blocks are supported too\nfunction hello() {\n    console.log("Hello, World!");\n}\n```\n\n## Tables\n\n| Feature | Status |\n|---------|--------|\n| Editor | ✅ Ready |\n| Preview | ✅ Ready |\n| Download | ✅ Ready |\n\n---\n\n**Start creating your amazing web content now!**';
+
+        // Initialize Monaco Editor
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+        
+        require(['vs/editor/editor.main'], function () {
+            editor = monaco.editor.create(document.getElementById('editor'), {
+                value: defaultMarkdown,
+                language: 'markdown',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                wordWrap: 'on',
+                minimap: { enabled: false },
+                fontSize: 14,
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+                renderWhitespace: 'selection',
+                fontFamily: 'Monaco, Menlo, "Ubuntu Mono", monospace'
+            });
+
+            // Update preview on content change
+            editor.onDidChangeModelContent(updatePreview);
+            updatePreview(); // Initial render
+        });
+
+        // Update preview function
+        function updatePreview() {
+            const markdownContent = editor.getValue();
+            const htmlContent = marked.parse(markdownContent);
+            document.getElementById('preview').innerHTML = htmlContent;
+        }
+
+        // Download functionality
+        document.getElementById('downloadBtn').addEventListener('click', function() {
+            const markdownContent = editor.getValue();
+            const htmlContent = marked.parse(markdownContent);
+            
+            const fullHtml = '<!DOCTYPE html>\n<html lang="en">\n<head>\n    <meta charset="UTF-8">\n    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n    <title>Generated Website</title>\n    <script src="https://cdn.tailwindcss.com"><\/script>\n    <style>\n        body {\n            font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, sans-serif;\n            line-height: 1.6;\n            color: #1f2937;\n        }\n        h1 { @apply text-3xl font-bold mb-4 text-gray-900; }\n        h2 { @apply text-2xl font-semibold mb-3 text-gray-800; }\n        h3 { @apply text-xl font-medium mb-2 text-gray-700; }\n        p { @apply mb-4 text-gray-600; }\n        ul, ol { @apply mb-4 pl-6; }\n        li { @apply mb-1 text-gray-600; }\n        blockquote { @apply border-l-4 border-blue-400 pl-4 italic text-gray-700 mb-4; }\n        code { @apply bg-gray-100 px-2 py-1 rounded text-sm font-mono; }\n        pre { @apply bg-gray-100 p-4 rounded-lg mb-4 overflow-x-auto; }\n        pre code { @apply bg-transparent p-0; }\n        a { @apply text-blue-600 hover:text-blue-800 underline; }\n        table { @apply w-full border-collapse mb-4; }\n        th, td { @apply border border-gray-300 px-4 py-2 text-left; }\n        th { @apply bg-gray-50 font-semibold; }\n    </style>\n</head>\n<body class="max-w-4xl mx-auto p-6 bg-white">\n    ' + htmlContent + '\n</body>\n</html>';
+
+            const blob = new Blob([fullHtml], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'website.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        // Splitter functionality
+        const splitter = document.getElementById('splitter');
+        const container = splitter.parentElement;
+
+        splitter.addEventListener('mousedown', function(e) {
+            isResizing = true;
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+            e.preventDefault();
+        });
+
+        function handleMouseMove(e) {
+            if (!isResizing) return;
+
+            const containerRect = container.getBoundingClientRect();
+            const newLeftWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+            
+            if (newLeftWidth >= 20 && newLeftWidth <= 80) {
+                const leftPane = container.children[0];
+                const rightPane = container.children[2];
+                
+                leftPane.style.flex = '0 0 ' + newLeftWidth + '%';
+                rightPane.style.flex = '0 0 ' + (100 - newLeftWidth) + '%';
+            }
+        }
+
+        function handleMouseUp() {
+            isResizing = false;
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        }
+
+        // Refresh button
+        document.getElementById('refreshBtn').addEventListener('click', updatePreview);
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            if (editor) {
+                editor.layout();
+            }
+        });
+    </script>
+</body>
+</html>
