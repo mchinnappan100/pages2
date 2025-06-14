@@ -237,6 +237,11 @@
                     <strong>Controls:</strong><br>
                     Space: Record/Stop | Enter: Play
                 </div>
+                <div class="key-group">
+                    <strong>Computer Keyboard:</strong><br>
+                    Z/X/C/V/B/N = Strings<br>
+                    0-9, -, = = Frets
+                </div>
             </div>
         </div>
     </div>
@@ -266,6 +271,7 @@
                 this.createGuitarFretboard();
                 this.setupEventListeners();
                 this.initializeMIDI();
+                this.setupKeyboardGuitar();
             }
 
             async initializeAudioContext() {
@@ -701,6 +707,47 @@
                 const octave = Math.floor(midiNote / 12) - 1;
                 const noteIndex = midiNote % 12;
                 return noteNames[noteIndex] + octave;
+            }
+
+            setupKeyboardGuitar() {
+                // Map: Z/X/C/V/B/N = strings 0-5 (low E to high E)
+                //      0-9/-/= = frets 0-11
+                const stringKeys = ['KeyZ', 'KeyX', 'KeyC', 'KeyV', 'KeyB', 'KeyN'];
+                const fretKeys = [
+                    'Digit0', 'Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5',
+                    'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Minus', 'Equal'
+                ];
+                const pressed = new Set();
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.repeat) return;
+                    // Only handle if both string and fret are pressed
+                    pressed.add(e.code);
+
+                    // Find which string and fret are pressed
+                    let stringIdx = stringKeys.findIndex(k => pressed.has(k));
+                    let fretIdx = fretKeys.findIndex(k => pressed.has(k));
+
+                    if (stringIdx !== -1 && fretIdx !== -1) {
+                        const midiNote = this.strings[stringIdx].midi + fretIdx;
+                        const noteName = this.midiToNote(midiNote);
+                        this.playNote(noteName);
+                    }
+                });
+
+                document.addEventListener('keyup', (e) => {
+                    pressed.delete(e.code);
+                    // On keyup, stop all notes for that string
+                    let stringIdx = stringKeys.findIndex(k => k === e.code);
+                    if (stringIdx !== -1) {
+                        // Stop all frets for this string
+                        for (let fretIdx = 0; fretIdx < fretKeys.length; fretIdx++) {
+                            const midiNote = this.strings[stringIdx].midi + fretIdx;
+                            const noteName = this.midiToNote(midiNote);
+                            this.stopNote(noteName);
+                        }
+                    }
+                });
             }
         }
 
