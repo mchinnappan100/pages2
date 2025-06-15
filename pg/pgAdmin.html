@@ -1,0 +1,1591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pine PG Admin Pro</title>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f0f23;
+            color: #ffffff;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: grid;
+            grid-template-columns: auto 5px 1fr;
+            grid-template-rows: 60px 1fr;
+            height: 100vh;
+            background: #1a1a2e;
+        }
+        .header {
+            grid-column: 1 / -1;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            position: sticky; /* Ensure header stays in place */
+            top: 0;
+            z-index: 100; /* High z-index to prevent overlap */
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .sidebar {
+            background: #16213e;
+            width: 280px;
+            min-width: 200px;
+            max-width: 400px;
+            overflow-y: auto;
+        }
+
+        .splitter-horizontal {
+            width: 5px;
+            background: #2a2a3e;
+            cursor: ew-resize;
+            transition: background 0.2s;
+        }
+
+        .splitter-horizontal:hover {
+            background: #667eea;
+        }
+
+        .connection-panel, .db-explorer, .query-history {
+            padding: 20px;
+            border-bottom: 1px solid #2a2a3e;
+        }
+
+        .connection-form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .form-group label {
+            font-size: 12px;
+            color: #a0a0a0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-group input, .form-group select {
+            padding: 8px 12px;
+            background: #0f0f23;
+            border: 1px solid #2a2a3e;
+            border-radius: 6px;
+            color: #ffffff;
+            font-size: 14px;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
+        }
+
+        .btn {
+            padding: 10px 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .db-explorer h3, .query-history h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+            font-size: 16px;
+        }
+
+        .tree-item, .history-item {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            margin-bottom: 2px;
+            transition: background-color 0.2s;
+            font-size: 14px;
+        }
+
+        .tree-item:hover, .history-item:hover {
+            background: #1a1a2e;
+        }
+
+        .tree-item.active, .history-item.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .history-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .history-query {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .history-timestamp {
+            font-size: 12px;
+            color: #a0a0a0;
+        }
+
+        .clear-history-btn {
+            margin-top: 10px;
+            padding: 6px 12px;
+            background: #2a2a3e;
+            border: 1px solid #3a3a4e;
+            color: #a0a0a0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .clear-history-btn:hover {
+            background: #3a3a4e;
+            color: white;
+        }
+
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            background: #0f0f23;
+            width: 100%;
+        }
+
+        .editor-container {
+            height: 150px;
+            min-height: 100px;
+            max-height: 70vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .splitter {
+            height: 5px;
+            background: #2a2a3e;
+            cursor: ns-resize;
+            transition: background 0.2s;
+        }
+
+        .splitter:hover {
+            background: #667eea;
+        }
+
+        .results-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            min-height: 100px;
+            width: 100%;
+        }
+
+        .editor-toolbar {
+            background: #16213e;
+            padding: 10px 20px;
+            border-bottom: 1px solid #2a2a3e;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn-small {
+            padding: 6px 12px;
+            font-size: 12px;
+            background: #2a2a3e;
+            border: 1px solid #3a3a4e;
+            color: #a0a0a0;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-small:hover {
+            background: #3a3a4e;
+            color: white;
+        }
+
+        .btn-small.primary {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .results-tabs {
+            background: #16213e;
+            padding: 0 20px;
+            display: flex;
+            gap: 2px;
+            border-bottom: 1px solid #2a2a3e;
+        }
+
+        .tab {
+            padding: 12px 20px;
+            background: #2a2a3e;
+            border: none;
+            color: #a0a0a0;
+            cursor: pointer;
+            border-radius: 6px 6px 0 0;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            background: #0f0f23;
+            color: #667eea;
+        }
+
+        .tab-content {
+            flex: 1;
+            padding: 20px;
+            overflow: auto;
+            width: 100%;
+        }
+
+        .tab-pane {
+            display: none;
+            height: 100%;
+            width: 100%;
+        }
+
+        .tab-pane.active {
+            display: block;
+        }
+
+        .table-container {
+            background: #16213e;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            width: 100%;
+        }
+
+        .table-header2 {
+            background: #1a1a2e;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+        }
+        .table-header {
+            background: #1a1a2e;
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            flex: 1;
+            padding: 8px 12px;
+            background: #0f0f23;
+            border: 1px solid #2a2a3e;
+            border-radius: 6px;
+            color: white;
+            font-size: 14px;
+        }
+
+        .table-wrapper {
+            max-height: 400px;
+            overflow-x: scroll;
+            overflow-y: auto;
+            width: 100%;
+        }
+
+        table {
+            width: auto;
+            min-width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        th {
+            background: #1a1a2e;
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #2a2a3e;
+            font-weight: 600;
+            color: #667eea;
+            cursor: pointer;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            white-space: nowrap;
+        }
+
+        th:hover {
+            background: #2a2a3e;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #2a2a3e;
+            word-break: break-word;
+            white-space: nowrap;
+        }
+
+        tr:hover {
+            background: #1a1a2e;
+        }
+
+        .pagination {
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #1a1a2e;
+            border-top: 1px solid #2a2a3e;
+        }
+
+        .pagination-info {
+            color: #a0a0a0;
+            font-size: 14px;
+        }
+
+        .pagination-controls {
+            display: flex;
+            gap: 5px;
+        }
+
+        .page-btn {
+            padding: 6px 12px;
+            background: #2a2a3e;
+            border: 1px solid #3a3a4e;
+            color: #a0a0a0;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .page-btn:hover {
+            background: #3a3a4e;
+            color: white;
+        }
+
+        .page-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            background: #16213e;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+
+        .chart-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            align-items: center;
+        }
+
+        .chart-controls select {
+            padding: 8px 12px;
+            background: #0f0f23;
+            border: 1px solid #2a2a3e;
+            border-radius: 6px;
+            color: white;
+            font-size: 14px;
+        }
+
+        .status-bar {
+            background: #16213e;
+            padding: 8px 20px;
+            border-top: 1px solid #2a2a3e;
+            font-size: 12px;
+            color: #a0a0a0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #e74c3c;
+        }
+
+        .status-dot.connected {
+            background: #2ecc71;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            color: #a0a0a0;
+        }
+
+        .spinner {
+            border: 2px solid #2a2a3e;
+            border-top: 2px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: #e74c3c;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+
+        .success {
+            background: #2ecc71;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1a1a2e;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #3a3a4e;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4a4a5e;
+        }
+
+/* Add to existing style section */
+.help-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #16213e;
+    border-radius: 8px;
+    padding: 20px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    z-index: 1000;
+    border: 1px solid #2a2a3e;
+}
+
+.help-popup h2 {
+    color: #667eea;
+    margin-bottom: 15px;
+    font-size: 20px;
+}
+
+.help-popup p {
+    color: #a0a0a0;
+    margin-bottom: 10px;
+    line-height: 1.5;
+}
+
+.help-popup ul {
+    margin: 10px 0;
+    padding-left: 20px;
+    color: #a0a0a0;
+}
+
+.help-popup li {
+    margin-bottom: 8px;
+}
+
+.close-popup-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: #2a2a3e;
+    border: 1px solid #3a3a4e;
+    color: #a0a0a0;
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.close-popup-btn:hover {
+    background: #3a3a4e;
+    color: white;
+}
+
+.popup-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+}
+.btn-modern {
+    padding: 8px 16px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.btn-modern:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+    background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+.btn-modern:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <header class="header">
+            <h1><i class="fas fa-database"></i> Pine PG Admin Pro</h1>
+            <button class="btn btn-modern" id="helpBtn" style="margin-left: auto;" title="Help">
+                <i class="fas fa-circle-info"></i> Help
+            </button>
+        </header>
+
+        <aside class="sidebar" id="sidebar">
+          <div class="connection-panel">
+    <h3 style="margin-bottom: 15px; color: #667eea;">Database Connection</h3>
+    <form class="connection-form" id="connectionForm">
+        <div class="form-group">
+            <label>Saved Connections</label>
+            <select id="savedConnections">
+                <option value="">Select a saved connection</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Host</label>
+            <input type="text" id="host" value="localhost" required>
+        </div>
+        <div class="form-group">
+            <label>Port</label>
+            <input type="number" id="port" value="5432" required>
+        </div>
+        <div class="form-group">
+            <label>Database</label>
+            <input type="text" id="database" value="postgres" required>
+        </div>
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="username" required>
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="password" required>
+        </div>
+        <button type="submit" class="btn" id="connectBtn">
+            <i class="fas fa-plug"></i> Connect
+        </button>
+        <button type="button" class="btn" id="saveConnectionBtn" style="margin-top: 10px;">
+            <i class="fas fa-save"></i> Save Connection
+        </button>
+    </form>
+</div> 
+            <div class="db-explorer" id="dbExplorer">
+                <h3>Database Explorer</h3>
+                <div id="dbTree"></div>
+            </div>
+            <div class="query-history" id="queryHistory">
+                <h3>Query History</h3>
+                <div id="historyList"></div>
+                <button class="clear-history-btn" id="clearHistoryBtn">Clear History</button>
+            </div>
+        </aside>
+
+        <div class="splitter-horizontal" id="sidebarMainSplitter"></div>
+
+        <main class="main-content" id="mainContent">
+            <div class="editor-container" id="editorContainer">
+                <div class="editor-toolbar">
+                    <button class="btn-small primary" id="executeBtn">
+                        <i class="fas fa-play"></i> Execute
+                    </button>
+                      <button class="btn-small primary" id="executeHighlightedBtn">
+                        <i class="fas fa-play"></i> Run Highlighted
+                    </button>
+                    <button class="btn-small" id="clearBtn">
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
+                    <button class="btn-small" id="formatBtn">
+                        <i class="fas fa-align-left"></i> Format
+                    </button>
+                    <span id="shortcutInfo" style="margin-left: auto; color: #a0a0a0; font-size: 12px;"></span>
+
+                 
+                </div>
+                <div id="editor" style="height: calc(100% - 45px);"></div>
+            </div>
+            <div class="splitter" id="editorResultsSplitter"></div>
+            <div class="results-container" id="resultsContainer">
+                <div class="results-tabs">
+                    <button class="tab active" data-tab="results">
+                        <i class="fas fa-table"></i> Results
+                    </button>
+                    <button class="tab" data-tab="charts">
+                        <i class="fas fa-chart-bar"></i> Charts
+                    </button>
+                    <button class="tab" data-tab="messages">
+                        <i class="fas fa-info-circle"></i> Messages
+                    </button>
+                </div>
+                <div class="tab-content">
+                    <div class="tab-pane active" id="results">
+                        <div class="export-buttons">
+                            <button class="btn-small" id="exportCsv">
+                                <i class="fas fa-file-csv"></i> Export CSV
+                            </button>
+                            <button class="btn-small" id="exportExcel">
+                                <i class="fas fa-file-excel"></i> Export Excel
+                            </button>
+                        </div>
+                        <div class="table-container" id="tableContainer">
+                           <div class="table-header">
+                            <div style="display: flex; align-items: center; gap: 20px;">
+                                <div class="pagination" id="pagination">
+                                    <div class="pagination-info" id="paginationInfo"></div>&nbsp;&nbsp;
+                                    
+                                    <div class="pagination-controls" id="paginationControls"></div>
+                                </div>
+
+                                <input type="text" class="search-box" id="searchBox" placeholder="Search in results...">
+                                <div style="color: #a0a0a0; font-size: 14px;" id="recordCount">
+                                    No data
+                                </div>
+                            </div>
+                        </div>
+                            <div class="table-wrapper">
+                                <table id="resultsTable">
+                                    <thead id="tableHead"></thead>
+                                    <tbody id="tableBody"></tbody>
+                                </table>
+                            </div>
+                           
+                        </div>
+                    </div>
+                    <div class="tab-pane" id="charts">
+                        <div class="chart-controls">
+                            <label style="color: #a0a0a0;">Chart Type:</label>
+                            <select id="chartType">
+                                <option value="bar">Bar Chart</option>
+                                <option value="line">Line Chart</option>
+                                <option value="pie">Pie Chart</option>
+                                <option value="doughnut">Doughnut Chart</option>
+                            </select>
+                            <label style="color: #a0a0a0;">X-Axis:</label>
+                            <select id="xAxis"></select>
+                            <label style="color: #a0a0a0;">Y-Axis:</label>
+                            <select id="yAxis"></select>
+                            <button class="btn-small primary" id="generateChart">
+                                <i class="fas fa-chart-line"></i> Generate
+                            </button>
+                            <button class="btn-small" id="downloadChart">
+                                <i class="fas fa-download"></i> Download PNG
+                            </button>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="chartCanvas" style="max-height: 400px;"></canvas>
+                        </div>
+                    </div>
+                    <div class="tab-pane" id="messages">
+                        <div id="messageContainer">
+                            <div style="color: #a0a0a0; text-align: center; padding: 40px;">
+                                Query messages will appear here
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div class="status-bar">
+        <div class="connection-status">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Disconnected</span>
+        </div>
+        <div id="queryTime"></div>
+    </div>
+    <div class="popup-overlay hidden" id="helpOverlay"></div>
+<div class="help-popup hidden" id="helpPopup">
+    <button class="close-popup-btn" id="closeHelpBtn">Close</button>
+    <h2>Pine PG Admin Pro Documentation</h2>
+    <p>Pine PG Admin Pro is a web-based PostgreSQL administration tool designed for efficient database management and query execution.</p>
+    <h3 style="color: #667eea; margin: 15px 0 10px;">Features</h3>
+    <ul>
+        <li><strong>Database Connection:</strong> Connect to PostgreSQL databases using host, port, database name, username, and password. Save connections for quick access.</li>
+        <li><strong>SQL Editor:</strong> Write and execute SQL queries with syntax highlighting and auto-completion (Ctrl+Enter to execute).</li>
+        <li><strong>Database Explorer:</strong> Browse database schemas, tables, and views with a tree view.</li>
+        <li><strong>Query Results:</strong> View query results in a sortable, searchable table with pagination.</li>
+        <li><strong>Data Visualization:</strong> Create bar, line, pie, or doughnut charts from query results.</li>
+        <li><strong>Export Options:</strong> Export query results to CSV or Excel formats.</li>
+        <li><strong>Query History:</strong> Save and reuse previously executed queries.</li>
+        <li><strong>Resizable Panels:</strong> Adjust the layout by dragging splitters between sidebar, editor, and results.</li>
+    </ul>
+    <h3 style="color: #667eea; margin: 15px 0 10px;">Usage Tips</h3>
+    <ul>
+        <li>Click a table in the Database Explorer to generate a SELECT query.</li>
+        <li>Use the "Run Highlighted" button to execute only selected query text.</li>
+        <li>Format queries using the Format button for better readability.</li>
+        <li>Search results using the search box above the results table.</li>
+        <li>Click column headers to sort results.</li>
+        <li>Save frequently used connections using the "Save Connection" button.</li>
+    </ul>
+    <h3 style="color: #667eea; margin: 15px 0 10px;">Keyboard Shortcuts</h3>
+    <ul>
+       <li><strong id="executeShortcut"></strong> Execute query</li> 
+    </ul>
+</div>
+
+    <script>
+        const PORT = 7000;
+        let editor;
+        let currentData = [];
+        let filteredData = [];
+        let currentPage = 1;
+        let pageSize = 50;
+        let sortColumn = null;
+        let sortDirection = 'asc';
+        let chart = null;
+        let isConnected = false;
+        let connectionKey = null;
+
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            editor = monaco.editor.create(document.getElementById('editor'), {
+                value: 'SELECT * FROM pg_tables;',
+                language: 'sql',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                fontSize: 14,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                wordWrap: 'on',
+                suggest: { showKeywords: true, showFunctions: true }
+            });
+            editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, executeQuery);
+            document.getElementById('executeBtn').addEventListener('click', () => executeQuery());
+            document.getElementById('executeHighlightedBtn').addEventListener('click', executeHighlightedQuery);
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('connectionForm').addEventListener('submit', (e) => {
+                e.preventDefault();
+                connectToDatabase();
+            });
+            document.getElementById('executeBtn').addEventListener('click', executeQuery);
+            document.getElementById('clearBtn').addEventListener('click', clearEditor);
+            document.getElementById('formatBtn').addEventListener('click', formatQuery);
+            document.getElementById('searchBox').addEventListener('input', searchTable);
+            document.getElementById('exportCsv').addEventListener('click', exportToCsv);
+            document.getElementById('exportExcel').addEventListener('click', exportToExcel);
+            document.getElementById('generateChart').addEventListener('click', generateChart);
+            document.getElementById('downloadChart').addEventListener('click', downloadChart);
+            document.getElementById('clearHistoryBtn').addEventListener('click', clearQueryHistory);
+            setupTabs();
+            setupSplitters();
+            loadQueryHistory();
+
+            document.getElementById('saveConnectionBtn').addEventListener('click', saveConnection);
+            document.getElementById('savedConnections').addEventListener('change', loadSavedConnection);
+            loadSavedConnections();
+             const helpBtn = document.getElementById('helpBtn');
+            if (helpBtn) {
+                helpBtn.addEventListener('click', showHelpPopup);
+            }
+
+            //document.getElementById('helpBtn').addEventListener('click', showHelpPopup);
+            document.getElementById('closeHelpBtn').addEventListener('click', hideHelpPopup);
+            document.getElementById('helpOverlay').addEventListener('click', hideHelpPopup);
+            updateKeyboardShortcut();
+
+        });
+
+        function updateKeyboardShortcut() {
+            const isMac = navigator.platform.toUpperCase().includes('MAC');
+            const shortcutText = isMac ? 'Cmd+Enter' : 'Ctrl+Enter';
+            document.getElementById('executeShortcut').textContent = `${shortcutText}:`;
+            document.getElementById('shortcutInfo').textContent = `Execute: ${shortcutText}`;
+
+        }
+
+        function showHelpPopup() {
+            document.getElementById('helpPopup').classList.remove('hidden');
+            document.getElementById('helpOverlay').classList.remove('hidden');
+        }
+
+        function hideHelpPopup() {
+            document.getElementById('helpPopup').classList.add('hidden');
+            document.getElementById('helpOverlay').classList.add('hidden');
+        }
+
+        function saveConnection() {
+        const connectionConfig = {
+            host: document.getElementById('host').value,
+            port: parseInt(document.getElementById('port').value),
+            database: document.getElementById('database').value,
+            user: document.getElementById('username').value,
+                // Don't save password for security
+                name: `${document.getElementById('database').value}@${document.getElementById('host').value}:${document.getElementById('port').value}`
+            };
+            
+        let connections = JSON.parse(localStorage.getItem('pgConnections') || '[]');
+        connections = connections.filter(conn => conn.name !== connectionConfig.name);
+        connections.unshift(connectionConfig);
+        
+        // Limit to 10 saved connections
+        if (connections.length > 10) {
+            connections.pop();
+        }
+        
+        localStorage.setItem('pgConnections', JSON.stringify(connections));
+        showMessage('Connection saved successfully', 'success');
+        loadSavedConnections();
+    }
+    function loadSavedConnections() {
+    const savedConnections = document.getElementById('savedConnections');
+    const connections = JSON.parse(localStorage.getItem('pgConnections') || '[]');
+    
+    savedConnections.innerHTML = '<option value="">Select a saved connection</option>';
+    connections.forEach((conn, index) => {
+        const option = document.createElement('option');
+        option.value = index;
+        option.textContent = conn.name;
+        savedConnections.appendChild(option);
+    });
+}
+
+function loadSavedConnection() {
+    const savedConnections = document.getElementById('savedConnections');
+    const index = savedConnections.value;
+    if (index === '') return;
+    
+    const connections = JSON.parse(localStorage.getItem('pgConnections') || '[]');
+    const connection = connections[index];
+    if (connection) {
+        document.getElementById('host').value = connection.host;
+        document.getElementById('port').value = connection.port;
+        document.getElementById('database').value = connection.database;
+        document.getElementById('username').value = connection.user;
+        document.getElementById('password').value = ''; // Password is not saved
+    }
+}
+
+
+
+        function setupSplitters() {
+            const verticalSplitter = document.getElementById('editorResultsSplitter');
+            const editorContainer = document.getElementById('editorContainer');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const mainContent = document.querySelector('.main-content');
+            let isDraggingVertical = false;
+            verticalSplitter.addEventListener('mousedown', (e) => {
+                isDraggingVertical = true;
+                document.body.style.cursor = 'ns-resize';
+                e.preventDefault();
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (!isDraggingVertical) return;
+                const mainRect = mainContent.getBoundingClientRect();
+                const newHeight = e.clientY - mainRect.top;
+                const minHeight = 100;
+                const maxHeight = mainRect.height * 0.7;
+                const clampedHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
+                editorContainer.style.height = `${clampedHeight}px`;
+            });
+            const horizontalSplitter = document.getElementById('sidebarMainSplitter');
+            const sidebar = document.getElementById('sidebar');
+            let isDraggingHorizontal = false;
+            horizontalSplitter.addEventListener('mousedown', (e) => {
+                isDraggingHorizontal = true;
+                document.body.style.cursor = 'ew-resize';
+                e.preventDefault();
+            });
+            document.addEventListener('mousemove', (e) => {
+                if (!isDraggingHorizontal) return;
+                const containerRect = document.querySelector('.app-container').getBoundingClientRect();
+                const newWidth = e.clientX - containerRect.left;
+                const minWidth = 200;
+                const maxWidth = 400;
+                const clampedWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
+                sidebar.style.width = `${clampedWidth}px`;
+            });
+            document.addEventListener('mouseup', () => {
+                if (isDraggingVertical || isDraggingHorizontal) {
+                    isDraggingVertical = false;
+                    isDraggingHorizontal = false;
+                    document.body.style.cursor = 'default';
+                }
+            });
+        }
+
+        async function connectToDatabase() {
+            const connectBtn = document.getElementById('connectBtn');
+            const connectionConfig = {
+                host: document.getElementById('host').value,
+                port: parseInt(document.getElementById('port').value),
+                database: document.getElementById('database').value,
+                user: document.getElementById('username').value,
+                password: document.getElementById('password').value
+            };
+            connectBtn.disabled = true;
+            connectBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Connecting...';
+            try {
+                const response = await fetch(`http://localhost:${PORT}/api/connect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(connectionConfig)
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+                const data = await response.json();
+                connectionKey = data.connection_key;
+                isConnected = true;
+                updateConnectionStatus(true);
+                await loadDatabaseSchema();
+                showMessage('Connected to database successfully!', 'success');
+                // Save connection after successful connection
+                saveConnection();
+            } catch (error) {
+                console.error('Connection error:', error);
+                showMessage(`Connection failed: ${error.message}`, 'error');
+                updateConnectionStatus(false);
+                isConnected = false;
+                connectionKey = null;
+            } finally {
+                connectBtn.disabled = false;
+                connectBtn.innerHTML = '<i class="fas fa-plug"></i> Connect';
+            }
+        }
+
+        function updateConnectionStatus(connected) {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            statusDot.classList.toggle('connected', connected);
+            statusText.textContent = connected ? 'Connected' : 'Disconnected';
+        }
+
+        async function executeQuery() {
+            if (!isConnected || !connectionKey) {
+                showMessage('Please connect to database first', 'error');
+                return;
+            }
+            const query = editor.getValue().trim();
+            if (!query) {
+                showMessage('Please enter a query', 'error');
+                return;
+            }
+            const executeBtn = document.getElementById('executeBtn');
+            executeBtn.disabled = true;
+            executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executing...';
+            const startTime = Date.now();
+            try {
+                const response = await fetch(`http://localhost:${PORT}/api/query`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, connection_key: connectionKey })
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+                const result = await response.json();
+                const executionTime = Date.now() - startTime;
+                if (result.rows && result.rows.length > 0) {
+                    displayResults(result.rows);
+                    showMessage(`Query executed successfully. ${result.rows.length} rows returned.`, 'success');
+                } else if (result.rowCount !== undefined) {
+                    displayResults([]);
+                    showMessage(`Query executed successfully. ${result.rowCount} rows affected.`, 'success');
+                } else {
+                    displayResults([]);
+                    showMessage('Query executed successfully.', 'success');
+                }
+                document.getElementById('queryTime').textContent = `Query executed in ${executionTime}ms`;
+                saveQueryToHistory(query); // Save successful query
+            } catch (error) {
+                console.error('Query error:', error);
+                showMessage(`Query failed: ${error.message}`, 'error');
+                displayResults([]);
+            } finally {
+                executeBtn.disabled = false;
+                executeBtn.innerHTML = '<i class="fas fa-play"></i> Execute';
+            }
+        }
+
+         async function executeHighlightedQuery() {
+            if (!editor) {
+                showMessage('Editor is not initialized. Please try again.', 'error');
+                return;
+            }
+            const selection = editor.getSelection();
+            if (selection.isEmpty()) {
+                showMessage('Please highlight a query to execute', 'error');
+                return;
+            }
+            const model = editor.getModel();
+            const highlightedQuery = model.getValueInRange(selection).trim();
+            if (!highlightedQuery) {
+                showMessage('Highlighted text is empty', 'error');
+                return;
+            }
+            await executeQuery(highlightedQuery);
+        }
+
+        function saveQueryToHistory(query) {
+            const maxHistory = 50;
+            let history = JSON.parse(localStorage.getItem('pgQueryHistory') || '[]');
+            const newEntry = {
+                id: Date.now().toString(),
+                query: query,
+                timestamp: new Date().toISOString()
+            };
+            history = [newEntry, ...history.filter(item => item.query !== query)]; // Remove duplicates
+            if (history.length > maxHistory) {
+                history = history.slice(0, maxHistory);
+            }
+            localStorage.setItem('pgQueryHistory', JSON.stringify(history));
+            renderQueryHistory();
+        }
+
+        function loadQueryHistory() {
+            renderQueryHistory();
+        }
+
+        function renderQueryHistory() {
+            const historyList = document.getElementById('historyList');
+            const history = JSON.parse(localStorage.getItem('pgQueryHistory') || '[]');
+            historyList.innerHTML = '';
+            if (history.length === 0) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.style.color = '#a0a0a0';
+                emptyDiv.style.padding = '10px';
+                emptyDiv.textContent = 'No query history';
+                historyList.appendChild(emptyDiv);
+                return;
+            }
+            history.forEach(item => {
+                const historyDiv = document.createElement('div');
+                historyDiv.className = 'history-item';
+                historyDiv.innerHTML = `
+                    <div class="history-query">${escapeHtml(item.query.slice(0, 50))}${item.query.length > 50 ? '...' : ''}</div>
+                    <div class="history-timestamp">${new Date(item.timestamp).toLocaleString()}</div>
+                `;
+                historyDiv.addEventListener('click', () => selectQueryFromHistory(item.query));
+                historyList.appendChild(historyDiv);
+            });
+        }
+
+        function selectQueryFromHistory(query) {
+            editor.setValue(query);
+            document.querySelectorAll('.history-item').forEach(item => item.classList.remove('active'));
+            event.target.closest('.history-item').classList.add('active');
+        }
+
+        function clearQueryHistory() {
+            localStorage.removeItem('pgQueryHistory');
+            renderQueryHistory();
+            showMessage('Query history cleared', 'success');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        async function loadDatabaseSchema() {
+            if (!connectionKey) return;
+            try {
+                const response = await fetch(`http://localhost:${PORT}/api/schema?connection_key=${connectionKey}`, {
+                    method: 'GET',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail);
+                }
+                const { tables, views } = await response.json();
+                displayDatabaseTree(tables, views);
+                updateSQLAutoComplete(tables, views);
+            } catch (error) {
+                console.error('Failed to load schema:', error);
+                showMessage(`Failed to load database schema: ${error.message}`, 'error');
+            }
+        }
+
+        function displayDatabaseTree(tables, views) {
+            const dbTree = document.getElementById('dbTree');
+            dbTree.innerHTML = '';
+            const schemas = {};
+            tables.forEach(table => {
+                if (!schemas[table.schemaname]) {
+                    schemas[table.schemaname] = { tables: [], views: [] };
+                }
+                schemas[table.schemaname].tables.push(table);
+            });
+            views.forEach(view => {
+                if (!schemas[view.schemaname]) {
+                    schemas[table.schemaname] = { tables: [], views: [] };
+                }
+                schemas[view.schemaname].views.push(view);
+            });
+            Object.keys(schemas).forEach(schemaName => {
+                const schemaDiv = document.createElement('div');
+                schemaDiv.className = 'tree-item';
+                schemaDiv.innerHTML = `<i class="fas fa-database"></i> ${schemaName}`;
+                schemaDiv.style.fontWeight = 'bold';
+                schemaDiv.style.color = '#667eea';
+                dbTree.appendChild(schemaDiv);
+                schemas[schemaName].tables.forEach(table => {
+                    const tableDiv = document.createElement('div');
+                    tableDiv.className = 'tree-item';
+                    tableDiv.style.paddingLeft = '20px';
+                    tableDiv.innerHTML = `<i class="fas fa-table"></i> ${table.tablename}`;
+                    tableDiv.addEventListener('click', () => selectTable(schemaName, table.tablename));
+                    dbTree.appendChild(tableDiv);
+                });
+                schemas[schemaName].views.forEach(view => {
+                    const viewDiv = document.createElement('div');
+                    viewDiv.className = 'tree-item';
+                    viewDiv.style.paddingLeft = '20px';
+                    viewDiv.innerHTML = `<i class="fas fa-eye"></i> ${view.tablename}`;
+                    viewDiv.addEventListener('click', () => selectTable(schemaName, view.tablename));
+                    dbTree.appendChild(viewDiv);
+                });
+            });
+        }
+
+        async function selectTable(schema, tableName) {
+            document.querySelectorAll('.tree-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.target.classList.add('active');
+            const query = `SELECT * FROM ${schema}.${tableName} LIMIT 100;`;
+            editor.setValue(query);
+        }
+
+        function updateSQLAutoComplete(tables, views) {
+            const tableNames = [...tables, ...views].map(item => item.tablename);
+            monaco.languages.registerCompletionItemProvider('sql', {
+                provideCompletionItems: () => ({
+                    suggestions: [
+                        ...getSQLKeywords(),
+                        ...tableNames.map(name => ({
+                            label: name,
+                            kind: monaco.languages.CompletionItemKind.Class,
+                            insertText: name,
+                            documentation: `Table: ${name}`
+                        }))
+                    ]
+                })
+            });
+        }
+
+        function getSQLKeywords() {
+            const keywords = [
+                'SELECT', 'FROM', 'WHERE', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER',
+                'TABLE', 'INDEX', 'VIEW', 'DATABASE', 'SCHEMA', 'FUNCTION', 'PROCEDURE',
+                'JOIN', 'INNER JOIN', 'LEFT JOIN', 'RIGHT JOIN', 'FULL JOIN', 'CROSS JOIN',
+                'GROUP BY', 'ORDER BY', 'HAVING', 'LIMIT', 'OFFSET', 'UNION', 'INTERSECT', 'EXCEPT',
+                'AND', 'OR', 'NOT', 'IN', 'LIKE', 'BETWEEN', 'IS NULL', 'IS NOT NULL',
+                'COUNT', 'SUM', 'AVG', 'MIN', 'MAX', 'DISTINCT', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END'
+            ];
+            return keywords.map(keyword => ({
+                label: keyword,
+                kind: monaco.languages.CompletionItemKind.Keyword,
+                insertText: keyword,
+                documentation: 'SQL Keyword'
+            }));
+        }
+
+        function displayResults(data) {
+            currentData = data;
+            filteredData = [...data];
+            currentPage = 1;
+            renderTable();
+            setupChartControls();
+            updateRecordCount();
+            showTab('results');
+        }
+
+        function renderTable() {
+            const thead = document.getElementById('tableHead');
+            const tbody = document.getElementById('tableBody');
+            thead.innerHTML = '';
+            tbody.innerHTML = '';
+            if (filteredData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="100%" style="text-align: center; color: #a0a0a0; padding: 40px;">No data found</td></tr>';
+                return;
+            }
+            const headers = Object.keys(filteredData[0]);
+            const headerRow = document.createElement('tr');
+            headers.forEach(header => {
+                const th = document.createElement('th');
+                th.textContent = header;
+                th.addEventListener('click', () => sortTable(header));
+                if (sortColumn === header) {
+                    th.innerHTML += sortDirection === 'asc' ? ' ↑' : ' ↓';
+                }
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = Math.min(startIndex + pageSize, filteredData.length);
+            for (let i = startIndex; i < endIndex; i++) {
+                const row = document.createElement('tr');
+                const item = filteredData[i];
+                headers.forEach(header => {
+                    const td = document.createElement('td');
+                    const value = item[header];
+                    if (value === null || value === undefined) {
+                        td.innerHTML = '<span style="color: #666;">NULL</span>';
+                    } else if (typeof value === 'boolean') {
+                        td.innerHTML = value ? '<span style="color: #2ecc71;">true</span>' : '<span style="color: #e74c3c;">false</span>';
+                    } else {
+                        td.textContent = value;
+                    }
+                    row.appendChild(td);
+                });
+                tbody.appendChild(row);
+            }
+            setupPagination();
+        }
+
+        function sortTable(column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+            filteredData.sort((a, b) => {
+                let aVal = a[column] ?? '';
+                let bVal = b[column] ?? '';
+                if (typeof aVal === 'string' && typeof bVal === 'string') {
+                    aVal = aVal.toLowerCase();
+                    bVal = bVal.toLowerCase();
+                }
+                if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+                if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+            currentPage = 1;
+            renderTable();
+        }
+
+        function setupPagination() {
+            const totalPages = Math.ceil(filteredData.length / pageSize);
+            const paginationInfo = document.getElementById('paginationInfo');
+            const paginationControls = document.getElementById('paginationControls');
+            const startRecord = (currentPage - 1) * pageSize + 1;
+            const endRecord = Math.min(currentPage * pageSize, filteredData.length);
+            paginationInfo.textContent = `Showing ${startRecord}-${endRecord} of ${filteredData.length} records`;
+            paginationControls.innerHTML = '';
+            const prevBtn = document.createElement('button');
+            prevBtn.className = 'page-btn';
+            prevBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
+            prevBtn.disabled = currentPage === 1;
+            prevBtn.addEventListener('click', () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    renderTable();
+                }
+            });
+            paginationControls.appendChild(prevBtn);
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+            if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+            for (let i = startPage; i <= endPage; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
+                pageBtn.textContent = i;
+                pageBtn.addEventListener('click', () => {
+                    currentPage = i;
+                    renderTable();
+                });
+                paginationControls.appendChild(pageBtn);
+            }
+            const nextBtn = document.createElement('button');
+            nextBtn.className = 'page-btn';
+            nextBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+            nextBtn.disabled = currentPage === totalPages;
+            nextBtn.addEventListener('click', () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    renderTable();
+                }
+            });
+            paginationControls.appendChild(nextBtn);
+        }
+
+        function searchTable() {
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            filteredData = currentData.filter(row =>
+                Object.values(row).some(val =>
+                    val != null && val.toString().toLowerCase().includes(searchTerm)
+                )
+            );
+            currentPage = 1;
+            renderTable();
+        }
+
+        function updateRecordCount() {
+            document.getElementById('recordCount').textContent = `${filteredData.length} records`;
+        }
+
+        function setupChartControls() {
+            const xAxis = document.getElementById('xAxis');
+            const yAxis = document.getElementById('yAxis');
+            xAxis.innerHTML = '<option value="">Select X-Axis</option>';
+            yAxis.innerHTML = '<option value="">Select Y-Axis</option>';
+            if (currentData.length > 0) {
+                Object.keys(currentData[0]).forEach(column => {
+                    const xOption = document.createElement('option');
+                    xOption.value = column;
+                    xOption.textContent = column;
+                    xAxis.appendChild(xOption);
+                    const yOption = document.createElement('option');
+                    yOption.value = column;
+                    yOption.textContent = column;
+                    yAxis.appendChild(yOption);
+                });
+            }
+        }
+
+        function generateChart() {
+            const chartType = document.getElementById('chartType').value;
+            const xAxis = document.getElementById('xAxis').value;
+            const yAxis = document.getElementById('yAxis').value;
+            if (!xAxis || !yAxis) {
+                showMessage('Please select X and Y axes', 'error');
+                return;
+            }
+            if (chart) {
+                chart.destroy();
+            }
+            const ctx = document.getElementById('chartCanvas').getContext('2d');
+            const labels = [...new Set(currentData.map(row => row[xAxis]))];
+            const data = labels.map(label =>
+                currentData
+                    .filter(row => row[xAxis] === label)
+                    .reduce((sum, row) => sum + (parseFloat(row[yAxis]) || 0), 0)
+            );
+            chart = new Chart(ctx, {
+                type: chartType,
+                data: {
+                    labels,
+                    datasets: [{
+                        label: yAxis,
+                        data,
+                        backgroundColor: chartType === 'pie' || chartType === 'doughnut'
+                            ? labels.map(() => `hsl(${Math.random() * 360}, 70%, 60%)`)
+                            : 'rgba(102, 126, 234, 0.6)',
+                        borderColor: 'rgba(102, 126, 234, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: chartType === 'pie' || chartType === 'doughnut' ? {} : {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+            showTab('charts');
+        }
+
+        function downloadChart() {
+            if (!chart) {
+                showMessage('No chart to download', 'error');
+                return;
+            }
+            const link = document.createElement('a');
+            link.href = chart.canvas.toDataURL('image/png');
+            link.download = 'chart.png';
+            link.click();
+        }
+
+        function exportToCsv() {
+            if (filteredData.length === 0) {
+                showMessage('No data to export', 'error');
+                return;
+            }
+            const headers = Object.keys(filteredData[0]);
+            const csv = [
+                headers.join(','),
+                ...filteredData.map(row =>
+                    headers.map(header => {
+                        const value = row[header] ?? '';
+                        return `"${value.toString().replace(/"/g, '""')}"`;
+                    }).join(',')
+                )
+            ].join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'results.csv';
+            link.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function exportToExcel() {
+            if (filteredData.length === 0) {
+                showMessage('No data to export', 'error');
+                return;
+            }
+            try {
+                const ws = XLSX.utils.json_to_sheet(filteredData);
+                const wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'Results');
+                XLSX.writeFile(wb, 'results.xlsx');
+            } catch (error) {
+                console.error('Excel export error:', error);
+                showMessage(`Failed to export Excel: ${error.message}`, 'error');
+            }
+        }
+
+        function clearEditor() {
+            editor.setValue('');
+            displayResults([]);
+            showMessage('Editor cleared', 'success');
+        }
+
+        function formatQuery() {
+            const query = editor.getValue();
+            const formatted = query
+                .replace(/\s+/g, ' ')
+                .replace(/(SELECT|FROM|WHERE|JOIN|GROUP BY|ORDER BY)/gi, '\n$1')
+                .trim();
+            editor.setValue(formatted);
+            showMessage('Query formatted', 'success');
+        }
+
+        function setupTabs() {
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => showTab(tab.dataset.tab));
+            });
+        }
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+            document.querySelector(`.tab[data-tab="${tabId}"]`).classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+        }
+
+        function showMessage(message, type) {
+            const messageContainer = document.getElementById('messageContainer');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = type;
+            msgDiv.textContent = message;
+            messageContainer.innerHTML = '';
+            messageContainer.appendChild(msgDiv);
+            showTab('messages');
+        }
+    </script>
+</body>
+</html>
