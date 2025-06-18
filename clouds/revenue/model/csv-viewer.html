@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.3.7/css/bootstrap.min.css" />
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+  <style>
+    table {
+      border-collapse: collapse;
+      border: 1px solid gray;
+      font: 12px sans-serif;
+      margin: 10px;
+      min-height: 400px;
+      max-height: 80vh;
+      overflow: auto;
+      display: block;
+    }
+    td {
+      border: 1px solid gray;
+      padding: 5px;
+      opacity: 0.9;
+    }
+    h4 {
+      text-transform: capitalize;
+    }
+    #csvtable tr:nth-child(odd) { background-color: #eff0f1; }
+    #csvtable tr:nth-child(even) { background-color: #fff; }
+    #csvtable tr:first-child { font-weight: bold; font-size: 15px; }
+    #csvtable td:nth-child(2) { font-weight: bold; }
+    .container {
+      padding-top: 20px;
+    }
+    .download-btn {
+      margin-bottom: 10px;
+      margin-right: 10px;
+    }
+    .navbar-custom {
+      background-color: #007bff; /* Blue background */
+      border-color: #0056b3; /* Darker blue for border */
+    }
+    .navbar-custom .navbar-brand,
+    .navbar-custom .navbar-toggle,
+    .navbar-custom .icon-bar {
+      color: #ffffff; /* White text */
+    }
+    .navbar-custom .navbar-toggle:hover,
+    .navbar-custom .navbar-toggle:focus {
+      background-color: #0056b3; /* Darker blue on hover/focus */
+    }
+    .navbar-custom .navbar-collapse {
+      border-color: #0056b3;
+    }
+    .navbar-custom .navbar-nav > li > a {
+      color: #ffffff; /* White text for nav links if added later */
+    }
+    .navbar-custom .navbar-nav > li > a:hover,
+    .navbar-custom .navbar-nav > li > a:focus {
+      color: #d9e6ff; /* Light blue on hover/focus for nav links */
+    }
+    body {
+      padding-top: 70px; /* Adjust to match navbar height to prevent content overlap */
+    }
+     .footer {
+      position: fixed; /* Fixed at bottom */
+      bottom: 0;
+      width: 100%;
+      background-color: #343a40; /* Dark gray background */
+      color: #ffffff; /* White text */
+      padding: 10px 0;
+      text-align: center;
+      z-index: 40; /* Below navbar z-index (50) */
+      box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1); /* Subtle shadow */
+    }
+    .content {
+      padding-bottom: 70px; /* Match footer height to avoid overlap */
+    }
+  </style>
+</head>
+<body>
+
+  <nav class="navbar navbar-custom navbar-fixed-top" role="navigation">
+      <!-- Brand and toggle get grouped for better mobile display -->
+      <div class="navbar-header">
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1">
+          <span class="sr-only">Toggle navigation</span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="javascript:void(0)" id="title"> </a>
+      </div>
+
+      </div>
+    </nav>
+  <div class="container">
+    <img id="erd" style="border-radius: 20px;" src="" alt="ERD Image" class="img-responsive center-block">
+    <div class="btn-group" role="group">
+      <button id="downloadCsv" class="btn btn-primary download-btn" disabled>Download CSV</button>
+      <button id="downloadSvg" class="btn btn-success download-btn" disabled>Download SVG</button>
+      <button id="downloadPng" class="btn btn-info download-btn" disabled>Download PNG</button>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.8.5/dist/d3.min.js"></script>
+    <script type="text/javascript">
+      // Parse query parameters
+      var query = location.search.substr(1);
+      var result = {};
+      query.split("&").forEach(function(part) {
+        var item = part.split("=");
+        result[item[0]] = decodeURIComponent(item[1]);
+      });
+
+      document.getElementById('title').textContent = 'Salesforce Metadata ERD Generator - ' + (result.f || 'No file specified');
+
+      // Set ERD image source with fallback
+      const erdImg = document.getElementById('erd');
+      let svgContent = '';
+      if (result.f) {
+        erdImg.setAttribute('src', 'img/' + result.f + '.svg');
+        // Fetch SVG content for download
+        fetch('img/' + result.f + '.svg')
+          .then(response => response.text())
+          .then(text => {
+            svgContent = text;
+            document.getElementById('downloadSvg').disabled = false;
+            document.getElementById('downloadPng').disabled = false;
+          })
+          .catch(error => console.error('Error loading SVG:', error));
+      } else {
+        erdImg.setAttribute('src', '');
+        console.error('No filename parameter (f) provided in URL.');
+      }
+
+      // Load and parse CSV
+      let csvData = [];
+      if (result.f) {
+        d3.csv('img/' + result.f + '.csv').then(function(data) {
+          csvData = data; // Store the data for download
+          const container = d3.select(".container")
+            .append("h4").text(result.f)
+            .append("table")
+            .attr('id', 'csvtable')
+            .attr('class', 'table table-striped');
+
+          const thead = container.append('thead').append('tr');
+          thead.selectAll('th')
+            .data(data.columns)
+            .enter()
+            .append('th')
+            .text(d => d);
+
+          const tbody = container.append('tbody');
+          tbody.selectAll('tr')
+            .data(data)
+            .enter()
+            .append('tr')
+            .selectAll('td')
+            .data(function(row) { return data.columns.map(column => row[column]); })
+            .enter()
+            .append('td')
+            .text(d => d);
+
+          document.getElementById('downloadCsv').disabled = false; // Enable download button
+        }).catch(function(error) {
+          console.error('Error loading CSV:', error);
+          d3.select(".container").append("p").text("Failed to load CSV file. Check the URL parameter and file path.");
+        });
+      }
+
+      // Download CSV
+      document.getElementById('downloadCsv').addEventListener('click', () => {
+        if (csvData.length > 0) {
+          const headers = csvData.columns.join(',');
+          const rows = csvData.map(row => csvData.columns.map(col => `"${row[col] || ''}"`).join(','));
+          const csvContent = [headers, ...rows].join('\n');
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = result.f + '.csv';
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      });
+
+      // Download SVG
+      document.getElementById('downloadSvg').addEventListener('click', () => {
+        if (svgContent) {
+          const blob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = result.f + '.svg';
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      });
+
+      // Download PNG
+      document.getElementById('downloadPng').addEventListener('click', () => {
+        if (svgContent) {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            const url = canvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = result.f + '.png';
+            a.click();
+          };
+          img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgContent);
+        }
+      });
+    </script>
+  </div>
+
+  
+</body>
+</html>
