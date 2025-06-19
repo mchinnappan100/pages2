@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Salesforce Revenue Cloud Config Viewer</title>
+    <script src="data.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-gray-100 p-4 font-sans">
+    <div class="container mx-auto">
+      <h1 class="text-2xl font-bold mb-4">Salesforce Revenue Cloud Config Viewer</h1>
+
+      <!-- Search box -->
+      <input
+        type="text"
+        id="searchInput"
+        placeholder="Search by SObject, Query, External ID..."
+        class="mb-4 w-full p-2 border border-gray-300 rounded shadow-sm"
+      />
+
+      <div class="overflow-x-auto">
+        <table class="table-auto border-collapse w-full bg-blue shadow rounded">
+          <thead class="bg-gray-200 text-left">
+            <tr>
+              <th class="border px-4 py-2">SObject</th>
+              <th class="border px-4 py-2">Query</th>
+              <th class="border px-4 py-2">External ID Field</th>
+              <th class="border px-4 py-2">Lookups</th>
+              <th class="border px-4 py-2">Overrides</th>
+            </tr>
+          </thead>
+          <tbody id="main-tbody">
+            <!-- Injected rows -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      const tbody = document.getElementById("main-tbody");
+
+      function renderTable(data) {
+        tbody.innerHTML = ""; // Clear previous rows
+
+        data.forEach((item, index) => {
+          const row = document.createElement("tr");
+          row.className = "hover:bg-gray-50";
+          row.dataset.index = index;
+
+          row.innerHTML = `
+            <td class="border px-4 py-2 font-medium text-blue-700">${item.sobject}</td>
+            <td class="border px-4 py-2 text-sm">${item.query}</td>
+            <td class="border px-4 py-2">${item.externalIdField || "-"}</td>
+            <td class="border px-4 py-2 text-blue-600 cursor-pointer underline" data-type="lookup" data-index="${index}">
+              ${item.lookups?.length || 0}
+            </td>
+            <td class="border px-4 py-2 text-blue-600 cursor-pointer underline" data-type="overrides" data-index="${index}">
+              ${Object.keys(item.overrides || {}).length || 0}
+            </td>
+          `;
+
+          const detailRow = document.createElement("tr");
+          detailRow.classList.add("hidden");
+          detailRow.innerHTML = `
+            <td colspan="5" class="bg-gray-50 border px-4 py-2">
+              <div id="details-${index}" class="text-sm text-gray-700"></div>
+            </td>
+          `;
+
+          tbody.appendChild(row);
+          tbody.appendChild(detailRow);
+        });
+      }
+
+      renderTable(fullConfig);
+
+      tbody.addEventListener("click", (event) => {
+        const target = event.target;
+        const type = target.dataset.type;
+        const index = target.dataset.index;
+
+        if (!type || index === undefined) return;
+
+        const item = fullConfig[index];
+        const detailsEl = document.getElementById(`details-${index}`);
+        const detailRow = detailsEl.parentElement.parentElement;
+
+        if (detailRow.classList.contains("hidden")) {
+          let content = "";
+
+          if (type === "lookup" && item.lookups?.length) {
+            content += `
+              <div class='mb-2'>
+                <strong>Lookups:</strong>
+                <div class="overflow-x-auto">
+                  <table class="table-auto border border-gray-300 text-sm mt-2 w-full">
+                    <thead class="bg-blue-100">
+                      <tr>
+                        <th class="border px-2 py-1">Field</th>
+                        <th class="border px-2 py-1">SObject</th>
+                        <th class="border px-2 py-1">External ID</th>
+                        <th class="border px-2 py-1">Target Field</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${item.lookups
+                        .map(
+                          (l) => `
+                        <tr>
+                          <td class="border px-2 py-1">${l.field}</td>
+                          <td class="border px-2 py-1">${l.sobject}</td>
+                          <td class="border px-2 py-1">${l.externalId}</td>
+                          <td class="border px-2 py-1">${l.targetField}</td>
+                        </tr>
+                      `
+                        )
+                        .join("")}
+                    </tbody>
+                  </table>
+                </div>
+              </div>`;
+          }
+
+          if (type === "overrides" && Object.keys(item.overrides || {}).length) {
+            content += "<div class='mb-2'><strong>Overrides:</strong><ul class='list-disc pl-6'>";
+            for (const [key, val] of Object.entries(item.overrides)) {
+              content += `<li><code>${key}</code>: ${val}</li>`;
+            }
+            content += "</ul></div>";
+          }
+
+          detailsEl.innerHTML = content || "<em>No data</em>";
+          detailRow.classList.remove("hidden");
+        } else {
+          detailRow.classList.add("hidden");
+        }
+      });
+
+      document.getElementById("searchInput").addEventListener("input", (e) => {
+        const query = e.target.value.toLowerCase();
+
+        const filtered = fullConfig.filter((item) => {
+          return (
+            item.sobject?.toLowerCase().includes(query) ||
+            item.query?.toLowerCase().includes(query) ||
+            item.externalIdField?.toLowerCase().includes(query)
+          );
+        });
+
+        renderTable(filtered);
+      });
+    </script>
+  </body>
+</html>
