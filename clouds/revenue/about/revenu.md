@@ -94,3 +94,53 @@ graph LR
 ```
 
 
+Shared catalog supports the amendment, renewal, and cancellation of quotes, orders, and contracts. 
+
+## Invoice Management 
+- monetizes sales through:
+ 1. invoice generation, including tax calculations for products and services delivered to customers.
+ 2.  All these Revenue Cloud components use the same product data from your product catalog.
+
+## API
+- Using APIs, you can automate business processes like complex product bundling and product configuration. Other cloud services can use these composable APIs to access Revenue Cloud features.
+
+##  Invocable Actions
+- use to create reusable actions
+- encapsulate a process and can be invoked from various applications in the Salesforce environment and from external applications.
+
+## Product Catalog Building Blocks
+
+![Building blocks](img/rev-building-blocks.png)
+
+The setup process involves four main stages.
+
+1. Define products and their attributes.
+2. Create reusable product categories to classify products.
+3. Build bundles and product offerings.
+4. Configure rules to govern product visibility, packaging, and attribute configurations.
+
+- Salesforce Pricing, Transaction Management, Dynamic Revenue Orchestrator, and Invoice Management use Shared Catalog
+
+
+### How to start:
+- Start by creating the **product catalog**, which is a container for all other objects
+- Next create the product attributes
+- Next create templates—called **product classifications**  to create product variations
+
+Products can be simple stand-alone offerings or bundled products that offer flexibility and scalability in your go-to-market options.
+
+
+###  Creating quotes
+- Customers and sales reps can view products and product bundles,
+    -  including product images, descriptions, product attributes, prices, and buying options in a single comprehensive view.
+- A well-organized product-browsing experience makes it easy for sales reps and customers to efficiently identify the most suitable products.
+
+![product browsing](img/product-browing.png)
+
+
+
+
+
+## References
+
+- [Revenue Cloud Design](https://trailhead.salesforce.com/content/learn/modules/revenue-cloud-design/set-up-your-product-offerings)
