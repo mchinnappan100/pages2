@@ -5,7 +5,7 @@ Revenue Cloud is a unified product-to-cash suite for omnichannel buying and sell
 
 ![revenue cloud arch](img/revc-arch-1.png)
 
-![Revenue Cloud](img/revenue-cloud.svg)
+ 
 
 ```mermaid
 graph TD
