@@ -137,6 +137,78 @@ Products can be simple stand-alone offerings or bundled products that offer flex
 
 ![product browsing](img/product-browing.png)
 
+## Qualification Rules and Product Visibility
+
+Example: Different parts of the world use various types of power plugs (220v, 110v...)
+- When a customer searches for power plugs in your catalog, they should see only **those relevant to their region** for the best shopping experience.
+
+-  A **Qualification Rule** acts to **qualify or disqualify products** or product categories based on **different customer requirements**. With these rules in place, you ensure that the products shown to customers are **relevant**.
+
+- **Product qualification** rules control which products and product categories are presented to which users for selection, based on a variety of conditions such as:
+    - location
+    - account attributes
+    - customer type.
+
+- You can qualify or disqualify specific products or entire product categories using qualification rules, which rely on different elements. 
+    - These elements include:
+        - objects
+        - decision tables
+        - qualification rule procedures
+        - context definitions
+
+
+## Decision Tables
+✅ What Are Decision Tables?
+Decision Tables are structured tools used to represent complex business logic in a simple, tabular format. Each row in the table represents a rule, and each column corresponds to a condition or action.
+
+They help answer questions like:
+
+"Given a customer's location and type, which products should be shown?"
+
+🧠 How Decision Tables Work in Product Qualification
+In Revenue Cloud (or CPQ systems), Decision Tables are used inside Qualification Rules to determine whether a product or category should be shown or hidden based on certain inputs (context).
+
+🌍 Use Case: Power Plug Types by Region
+Let’s say your company sells power plugs that differ by voltage:
+
+110V (USA, Japan)
+
+220V (India, UK, EU)
+
+You want to ensure that:
+
+Customers from India see only 220V plugs, and not irrelevant 110V plugs.
+
+| Location | Customer Type | Product Category | Action     |
+| -------- | ------------- | ---------------- | ---------- |
+| USA      | Consumer      | 220V Plugs       | Disqualify |
+| USA      | Consumer      | 110V Plugs       | Qualify    |
+| India    | Business      | 220V Plugs       | Qualify    |
+| India    | Business      | 110V Plugs       | Disqualify |
+
+Each row is a rule evaluated based on the customer’s context.
+
+### 🛠️ Elements That Make This Work
+Context Definitions: Define what inputs (e.g., region, account type) are considered.
+
+Objects: Such as Product, Account, User, etc.
+
+Decision Tables: Define logic in a matrix form.
+
+Qualification Rule Procedures: Invoke the decision table at runtime.
+
+### ✅ Benefits of Using Decision Tables
+Easy to maintain and scale product visibility logic
+
+Reduces hard-coded conditions in scripts
+
+Clear business-friendly representation
+
+Supports multiple conditions and complex qualification logic
+
+
+
+
 
 
 
