@@ -211,6 +211,10 @@ Supports multiple conditions and complex qualification logic
     -  define the criteria for qualifications and disqualifications of products and product categories.
 
 ![Decsion Table](img/pcm-decision-table.png)
+- Use predefined templates to quickly create decision tables for qualifying or disqualifying products and categories. These tables define rules based on object fields, letting you set conditions and specify if results are qualified or disqualified.
+
+
+
 
 
 ## Objects in Product Catalog
@@ -230,6 +234,49 @@ Supports multiple conditions and complex qualification logic
 - Example:  if you’re defining product eligibility for accounts that operate in specific industries—communications, manufacturing, media, or finance
     - update the **Product Qualification object** and add a custom field.
     - In this scenario, you can add an **Operating_Industry__c** field of the data type Picklist. This information is used by other components involved in setting up Qualification Rules.
+
+
+## Qualification Rule Procedure
+
+- A qualification rule procedure contains a series of steps, with inputs and outputs defined in a logical flow. Each step evaluates a rule defined in a decision table so that the procedure returns a list of qualified or disqualified products.
+
+The example screen shows an Evaluate Qualification rule, which uses the ProductQualificationDT lookup table.
+
+![Quali rule](img/quali-rule.png)
+
+- This rule uses the ProductID as an input parameter and the IsQualified field as an output. The Reason field explains more about the rule decision. To ensure that your qualification rule procedure is working as expected, run simulation tests to confirm the results are as expected. Finally, activate the qualification rule procedure.
+
+
+## Context Definitions
+
+- A Qualification Rule Procedure requires a context definition to obtain the data
+    -  a list of products to qualify or disqualify. 
+    - Context definition includes the relationship between context structure and source data objects through attributes, context tags, and mapping.
+    - Think of a context definition as an interaction layer between the objects and the qualification rule procedure.
+    - Data from the objects maps to the context definition, and the context definition attributes are used in the procedure. In this way, the procedure isn’t dependent on the underlying object.
+
+    ![Context Mapping](img/context-mapping.png)
+    - You can map any object to a context definition and the data from that object flows through the procedure for execution.
+
+    - Context definitions pass product or category data to the qualification rule procedure, which evaluates and returns results: either qualified or disqualified.
+
+    - Revenue Cloud provides the ProductDiscoveryContext context definition out of the box, which you can use for product qualification and disqualification. The pricing procedures defined in Salesforce Pricing also use this definition to calculate the price of qualified products.
+
+    - The below image shows the structure of the ProductDiscoveryContext context definition, including the nodes it contains. Selecting a node, in this case Account, shows the attributes of the node, their data types, and other details.
+
+    ![ProductDiscoveryContext](img/ProductDiscoveryContext.png)
+
+    - After you define the 
+    - decision tables
+    - qualification rule procedures
+    - context definitions
+     make sure that the correct context definition is selected in the Product Discovery settings for your org as shown here. Here’s the Product Discovery Settings page with the right values selected.
+
+     ![Product Discovery](img/productDiscovery.png)
+
+
+
+
 
 
 ## References
