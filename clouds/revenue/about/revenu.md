@@ -7,6 +7,46 @@ Revenue Cloud is a unified product-to-cash suite for omnichannel buying and sell
 
 ![Revenue Cloud](img/revenue-cloud.svg)
 
+```mermaid
+graph TD
+    A[Revenue Cloud<br>Unified Product-to-Cash Suite] --> B[CPQ]
+    A --> C[Billing]
+    A --> D[Partner Relationship Management]
+    A --> E[Subscriptions]
+    A --> F[Sales Agreements]
+    A --> G[Digital Channels<br>eCommerce, Self-service Portals]
+    A --> H[Revenue Recognition]
+
+    B --> I[Product Configuration]
+    B --> J[Pricing Rules]
+    B --> K[Quote Generation]
+
+    C --> L[Invoicing]
+    C --> M[Payment Collection]
+    C --> N[Tax and Compliance]
+
+    D --> O[Partner Onboarding]
+    D --> P[Partner Quoting]
+
+    E --> Q[Subscription Management]
+    E --> R[Recurring Revenue]
+
+    F --> S[Contract Terms]
+    F --> T[Volume-Based Discounts]
+
+    H --> U[Automated Revenue Schedules]
+    H --> V[GAAP Compliance]
+
+    style A fill:#e3f2fd,stroke:#1e88e5,stroke-width:2px
+    style B fill:#fff3e0,stroke:#fb8c00,stroke-width:1.5px
+    style C fill:#fff3e0,stroke:#fb8c00,stroke-width:1.5px
+    style D fill:#fff3e0,stroke:#fb8c00,stroke-width:1.5px
+    style E fill:#fff3e0,stroke:#fb8c00,stroke-width:1.5px
+    style F fill:#fff3e0,stroke:#fb8c00,stroke-width:1.5px
+    style G fill:#fff3e0,stroke:#fb8c00,stroke-width:1.5px
+    style H fill:#fff3e0,stroke:#fb8c00,stroke-width:1.5px
+```
+
 ## Product Catalog
 
 - A great sales experience starts with a strong foundation: setting up the product catalog and defining pricing.
