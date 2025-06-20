@@ -206,11 +206,30 @@ Clear business-friendly representation
 
 Supports multiple conditions and complex qualification logic
 
+- In Salesforce, for example, decision tables can **calculate discounts** based on **certain product attributes**.
+- Product Catalog Management uses decision tables to:
+    -  define the criteria for qualifications and disqualifications of products and product categories.
+
+![Decsion Table](img/pcm-decision-table.png)
+
+
+## Objects in Product Catalog
+
+
+| Object                        | Purpose                                   |
+|-------------------------------|-------------------------------------------|
+| ProductQualification          | Qualification rules for products          |
+| ProductDisqualification       | Disqualification rules for products       |
+| ProductCategoryQualification  | Qualification rules for product categories|
+| ProductCategoryDisqualification | Disqualification rules for product categories|
 
 
 
-
-
+## Data Model
+- The Revenue Cloud data model is extensible to support different industries and unique business needs.
+- Example:  if you’re defining product eligibility for accounts that operate in specific industries—communications, manufacturing, media, or finance
+    - update the **Product Qualification object** and add a custom field.
+    - In this scenario, you can add an **Operating_Industry__c** field of the data type Picklist. This information is used by other components involved in setting up Qualification Rules.
 
 
 ## References
