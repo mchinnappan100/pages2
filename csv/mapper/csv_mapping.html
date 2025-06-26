@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Field Mapper</title>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"> 
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .upload-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+
+        .upload-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 20px;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: rgba(102, 126, 234, 0.05);
+            transform: translateY(-2px);
+        }
+
+        .upload-area.dragover {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .mapping-section {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            display: none;
+        }
+
+        .mapping-container {
+            display: grid;
+            grid-template-columns: 1fr 100px 1fr;
+            gap: 20px;
+            position: relative;
+            min-height: 400px;
+        }
+
+        .csv-column {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            overflow-y: auto;
+            max-height: 600px;
+        }
+
+        .csv-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #667eea;
+            text-align: center;
+        }
+
+        .field-item {
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 12px 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            font-weight: 500;
+        }
+
+        .field-item:hover {
+            border-color: #667eea;
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+        }
+
+        .field-item.selected {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+            transform: scale(1.02);
+        }
+
+        .field-item.connected {
+            border-color: #FF6B35;
+            background: rgba(255, 107, 53, 0.1);
+        }
+
+        .svg-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .connection-line {
+            stroke: #FF6B35;
+            stroke-width: 3;
+            fill: none;
+            opacity: 0.8;
+            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.2));
+        }
+
+        .auto-mapped {
+            border-color: #2196F3 !important;
+            background: rgba(33, 150, 243, 0.1) !important;
+        }
+
+        .controls {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .status.success {
+            background: rgba(76, 175, 80, 0.1);
+            color: #4CAF50;
+            border: 2px solid #4CAF50;
+        }
+
+        .status.error {
+            background: rgba(244, 67, 54, 0.1);
+            color: #f44336;
+            border: 2px solid #f44336;
+        }
+
+        .mapping-stats {
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .file-info {
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 10px;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .mapping-section.show {
+            display: block;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .connection-preview {
+            stroke: #667eea;
+            stroke-width: 2;
+            stroke-dasharray: 5,5;
+            opacity: 0.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>CSV Field Mapper</h1>
+            <p>Upload two CSV files and create visual field mappings</p>
+        </div>
+
+        <div class="upload-section">
+            <div class="upload-grid">
+                <div class="upload-area" data-target="csv1">
+                    <div class="upload-icon">📊</div>
+                    <h3>Upload First CSV</h3>
+                    <p>Click to browse or drag & drop</p>
+                    <input type="file" class="file-input" id="csv1-input" accept=".csv">
+                    <div class="file-info" id="csv1-info" style="display: none;"></div>
+                </div>
+                
+                <div class="upload-area" data-target="csv2">
+                    <div class="upload-icon">📈</div>
+                    <h3>Upload Second CSV</h3>
+                    <p>Click to browse or drag & drop</p>
+                    <input type="file" class="file-input" id="csv2-input" accept=".csv">
+                    <div class="file-info" id="csv2-info" style="display: none;"></div>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <button class="btn" onclick="clearAll()">Clear All</button>
+                <button class="btn" onclick="loadMappingFromJSON()">Load Mapping JSON</button>
+                <input type="file" id="json-input" accept=".json" style="display: none;">
+            </div>
+        </div>
+
+        <div class="mapping-section" id="mappingSection">
+            <div class="mapping-stats" id="mappingStats"></div>
+            
+            <div class="mapping-container" id="mappingContainer">
+                <div class="csv-column">
+                    <div class="csv-title" id="csv1Title">First CSV Fields</div>
+                    <div id="csv1Fields"></div>
+                </div>
+                
+                <div style="display: flex; align-items: center; justify-content: center;">
+                    <div style="writing-mode: vertical-rl; text-orientation: mixed; font-size: 1.2rem; font-weight: bold; color: #667eea;">
+                        MAPPING
+                    </div>
+                </div>
+                
+                <div class="csv-column">
+                    <div class="csv-title" id="csv2Title">Second CSV Fields</div>
+                    <div id="csv2Fields"></div>
+                </div>
+                
+                <svg class="svg-container" id="connectionSvg"></svg>
+            </div>
+            
+            <div class="controls">
+                <button class="btn" onclick="autoMap()">Auto-Map Similar Fields</button>
+                <button class="btn" onclick="clearMappings()">Clear Mappings</button>
+                <button class="btn" onclick="downloadMappingJSON()">Download Mapping JSON</button>
+                <button class="btn" onclick="downloadMappingImage('svg')">Download SVG</button>
+                <button class="btn" onclick="downloadMappingImage('png')">Download PNG</button>
+            </div>
+        </div>
+
+        <div class="status" id="status" style="display: none;"></div>
+    </div>
+
+    <script>
+        let csv1Data = null;
+        let csv2Data = null;
+        let mappings = {};
+        let selectedField = null;
+        let isDragging = false;
+
+        // Initialize drag and drop
+        document.addEventListener('DOMContentLoaded', function() {
+            setupDragAndDrop();
+            setupFileInputs();
+        });
+
+        function setupDragAndDrop() {
+            const uploadAreas = document.querySelectorAll('.upload-area');
+            
+            uploadAreas.forEach(area => {
+                area.addEventListener('dragover', handleDragOver);
+                area.addEventListener('dragleave', handleDragLeave);
+                area.addEventListener('drop', handleDrop);
+                area.addEventListener('click', () => {
+                    const target = area.dataset.target;
+                    document.getElementById(target + '-input').click();
+                });
+            });
+        }
+
+        function setupFileInputs() {
+            document.getElementById('csv1-input').addEventListener('change', (e) => handleFileSelect(e, 1));
+            document.getElementById('csv2-input').addEventListener('change', (e) => handleFileSelect(e, 2));
+            document.getElementById('json-input').addEventListener('change', handleJSONLoad);
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const target = e.currentTarget.dataset.target;
+                const csvNumber = target === 'csv1' ? 1 : 2;
+                processFile(files[0], csvNumber);
+            }
+        }
+
+        function handleFileSelect(e, csvNumber) {
+            const file = e.target.files[0];
+            if (file) {
+                processFile(file, csvNumber);
+            }
+        }
+
+        function processFile(file, csvNumber) {
+            if (!file.name.toLowerCase().endsWith('.csv')) {
+                showStatus('Please select a CSV file', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const csv = e.target.result;
+                const data = parseCSV(csv);
+                
+                if (csvNumber === 1) {
+                    csv1Data = { name: file.name, fields: data.headers, data: data };
+                    updateFileInfo('csv1-info', file, data.headers.length, data.rows.length);
+                } else {
+                    csv2Data = { name: file.name, fields: data.headers, data: data };
+                    updateFileInfo('csv2-info', file, data.headers.length, data.rows.length);
+                }
+
+                if (csv1Data && csv2Data) {
+                    showMappingInterface();
+                    autoMap();
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function parseCSV(csv) {
+            const lines = csv.split('\n').filter(line => line.trim());
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            const rows = lines.slice(1).map(line => {
+                return line.split(',').map(cell => cell.trim().replace(/"/g, ''));
+            });
+            return { headers, rows };
+        }
+
+        function updateFileInfo(infoId, file, fieldCount, rowCount) {
+            const info = document.getElementById(infoId);
+            info.innerHTML = `
+                <strong>${file.name}</strong><br>
+                Fields: ${fieldCount} | Rows: ${rowCount}<br>
+                Size: ${(file.size / 1024).toFixed(1)} KB
+            `;
+            info.style.display = 'block';
+        }
+
+        function showMappingInterface() {
+            document.getElementById('csv1Title').textContent = csv1Data.name;
+            document.getElementById('csv2Title').textContent = csv2Data.name;
+            
+            renderFields();
+            document.getElementById('mappingSection').classList.add('show');
+            updateMappingStats();
+        }
+
+        function renderFields() {
+            const csv1Container = document.getElementById('csv1Fields');
+            const csv2Container = document.getElementById('csv2Fields');
+            
+            csv1Container.innerHTML = '';
+            csv2Container.innerHTML = '';
+
+            csv1Data.fields.forEach((field, index) => {
+                const fieldElement = createFieldElement(field, 'csv1', index);
+                csv1Container.appendChild(fieldElement);
+            });
+
+            csv2Data.fields.forEach((field, index) => {
+                const fieldElement = createFieldElement(field, 'csv2', index);
+                csv2Container.appendChild(fieldElement);
+            });
+
+            updateConnectionLines();
+        }
+
+        function createFieldElement(field, csvType, index) {
+            const div = document.createElement('div');
+            div.className = 'field-item';
+            div.textContent = field;
+            div.dataset.field = field;
+            div.dataset.csv = csvType;
+            div.dataset.index = index;
+            
+            div.addEventListener('click', () => handleFieldClick(div));
+            
+            return div;
+        }
+
+        function handleFieldClick(fieldElement) {
+            const csv = fieldElement.dataset.csv;
+            const field = fieldElement.dataset.field;
+
+            if (selectedField && selectedField.dataset.csv !== csv) {
+                // Create mapping
+                const sourceField = selectedField.dataset.field;
+                const targetField = field;
+                const sourceCsv = selectedField.dataset.csv;
+                const targetCsv = csv;
+
+                if (sourceCsv === 'csv1') {
+                    mappings[sourceField] = targetField;
+                } else {
+                    mappings[targetField] = sourceField;
+                }
+
+                // Clear selections
+                document.querySelectorAll('.field-item.selected').forEach(el => {
+                    el.classList.remove('selected');
+                });
+                selectedField = null;
+                
+                updateFieldStyles();
+                updateConnectionLines();
+                updateMappingStats();
+                showStatus('Mapping created successfully!', 'success');
+                
+            } else if (selectedField === fieldElement) {
+                // Deselect
+                fieldElement.classList.remove('selected');
+                selectedField = null;
+            } else {
+                // Select new field
+                document.querySelectorAll('.field-item.selected').forEach(el => {
+                    el.classList.remove('selected');
+                });
+                fieldElement.classList.add('selected');
+                selectedField = fieldElement;
+            }
+        }
+
+        function updateFieldStyles() {
+            document.querySelectorAll('.field-item').forEach(el => {
+                el.classList.remove('connected', 'auto-mapped');
+                
+                const field = el.dataset.field;
+                const csv = el.dataset.csv;
+                
+                if (csv === 'csv1' && mappings[field]) {
+                    el.classList.add('connected');
+                } else if (csv === 'csv2' && Object.values(mappings).includes(field)) {
+                    el.classList.add('connected');
+                }
+            });
+        }
+
+        function updateConnectionLines() {
+            const svg = document.getElementById('connectionSvg');
+            svg.innerHTML = '';
+
+            Object.entries(mappings).forEach(([sourceField, targetField]) => {
+                const sourceElement = document.querySelector(`[data-csv="csv1"][data-field="${sourceField}"]`);
+                const targetElement = document.querySelector(`[data-csv="csv2"][data-field="${targetField}"]`);
+                
+                if (sourceElement && targetElement) {
+                    const line = createConnectionLine(sourceElement, targetElement);
+                    svg.appendChild(line);
+                }
+            });
+
+            updateFieldStyles();
+        }
+
+        function createConnectionLine(sourceElement, targetElement) {
+            const container = document.getElementById('mappingContainer');
+            const containerRect = container.getBoundingClientRect();
+            const sourceRect = sourceElement.getBoundingClientRect();
+            const targetRect = targetElement.getBoundingClientRect();
+
+            const startX = sourceRect.right - containerRect.left;
+            const startY = sourceRect.top + sourceRect.height/2 - containerRect.top;
+            const endX = targetRect.left - containerRect.left;
+            const endY = targetRect.top + targetRect.height/2 - containerRect.top;
+
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const controlX1 = startX + (endX - startX) * 0.3;
+            const controlX2 = startX + (endX - startX) * 0.7;
+            
+            const pathData = `M ${startX} ${startY} C ${controlX1} ${startY}, ${controlX2} ${endY}, ${endX} ${endY}`;
+            
+            line.setAttribute('d', pathData);
+            line.setAttribute('class', 'connection-line');
+            
+            return line;
+        }
+
+        function autoMap() {
+            // Clear existing mappings
+            mappings = {};
+            
+            csv1Data.fields.forEach(field1 => {
+                csv2Data.fields.forEach(field2 => {
+                    if (field1.toLowerCase() === field2.toLowerCase() && !mappings[field1]) {
+                        mappings[field1] = field2;
+                    }
+                });
+            });
+
+            // Mark auto-mapped fields
+            setTimeout(() => {
+                document.querySelectorAll('.field-item').forEach(el => {
+                    const field = el.dataset.field;
+                    const csv = el.dataset.csv;
+                    
+                    if ((csv === 'csv1' && mappings[field]) || 
+                        (csv === 'csv2' && Object.values(mappings).includes(field))) {
+                        el.classList.add('auto-mapped');
+                    }
+                });
+            }, 100);
+
+            updateConnectionLines();
+            updateMappingStats();
+            showStatus(`Auto-mapped ${Object.keys(mappings).length} fields`, 'success');
+        }
+
+        function clearMappings() {
+            mappings = {};
+            selectedField = null;
+            document.querySelectorAll('.field-item').forEach(el => {
+                el.classList.remove('selected', 'connected', 'auto-mapped');
+            });
+            updateConnectionLines();
+            updateMappingStats();
+            showStatus('All mappings cleared', 'success');
+        }
+
+        function updateMappingStats() {
+            const stats = document.getElementById('mappingStats');
+            const mappedCount = Object.keys(mappings).length;
+            const totalFields = Math.max(csv1Data.fields.length, csv2Data.fields.length);
+            const percentage = totalFields > 0 ? Math.round((mappedCount / totalFields) * 100) : 0;
+            
+            stats.innerHTML = `
+                <strong>Mapping Progress:</strong> ${mappedCount} fields mapped (${percentage}%)
+                <br>
+                <strong>CSV1:</strong> ${csv1Data.fields.length} fields | 
+                <strong>CSV2:</strong> ${csv2Data.fields.length} fields
+            `;
+        }
+
+        function downloadMappingJSON() {
+            const mappingData = {
+                timestamp: new Date().toISOString(),
+                csv1: {
+                    name: csv1Data.name,
+                    fields: csv1Data.fields
+                },
+                csv2: {
+                    name: csv2Data.name,
+                    fields: csv2Data.fields
+                },
+                mappings: mappings,
+                stats: {
+                    totalMappings: Object.keys(mappings).length,
+                    csv1Fields: csv1Data.fields.length,
+                    csv2Fields: csv2Data.fields.length
+                }
+            };
+
+            const blob = new Blob([JSON.stringify(mappingData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `field-mapping-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showStatus('Mapping JSON downloaded successfully!', 'success');
+        }
+
+        function loadMappingFromJSON() {
+            document.getElementById('json-input').click();
+        }
+
+        function handleJSONLoad(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const mappingData = JSON.parse(e.target.result);
+                    
+                    if (mappingData.mappings) {
+                        mappings = mappingData.mappings;
+                        updateConnectionLines();
+                        updateMappingStats();
+                        showStatus('Mapping loaded successfully!', 'success');
+                    } else {
+                        showStatus('Invalid mapping file format', 'error');
+                    }
+                } catch (error) {
+                    showStatus('Error loading mapping file', 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function downloadMappingImage(format) {
+            const container = document.getElementById('mappingContainer');
+            const svg = document.getElementById('connectionSvg');
+            
+            // Create a new SVG with white background
+            const svgClone = svg.cloneNode(true);
+            svgClone.style.background = 'white';
+            
+            const svgData = new XMLSerializer().serializeToString(svgClone);
+            
+            if (format === 'svg') {
+                const blob = new Blob([svgData], { type: 'image/svg+xml' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `field-mapping-${Date.now()}.svg`;
+                a.click();
+                URL.revokeObjectURL(url);
+                showStatus('SVG downloaded successfully!', 'success');
+            } else if (format === 'png') {
+                // Convert SVG to PNG
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const img = new Image();
+                
+                img.onload = function() {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.drawImage(img, 0, 0);
+                    
+                    canvas.toBlob(function(blob) {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `field-mapping-${Date.now()}.png`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        showStatus('PNG downloaded successfully!', 'success');
+                    });
+                };
+                
+                img.src = 'data:image/svg+xml;base64,' + btoa(svgData);
+            }
+        }
+
+        function clearAll() {
+            csv1Data = null;
+            csv2Data = null;
+            mappings = {};
+            selectedField = null;
+            
+            document.getElementById('csv1-input').value = '';
+            document.getElementById('csv2-input').value = '';
+            document.getElementById('csv1-info').style.display = 'none';
+            document.getElementById('csv2-info').style.display = 'none';
+            document.getElementById('mappingSection').classList.remove('show');
+            
+            showStatus('All data cleared', 'success');
+        }
+
+        function showStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = `status ${type}`;
+            status.style.display = 'block';
+            
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 3000);
+        }
+
+        // Handle window resize to update connection lines
+        window.addEventListener('resize', () => {
+            if (csv1Data && csv2Data) {
+                setTimeout(updateConnectionLines, 100);
+            }
+        });
+    </script>
+</body>
+</html>
