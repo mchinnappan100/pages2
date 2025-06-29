@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebM to MP4 Converter</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ffmpeg/0.12.10/ffmpeg.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+            text-align: center;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            font-weight: 300;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 60px 20px;
+            margin: 30px 0;
+            background: linear-gradient(45deg, rgba(102, 126, 234, 0.05), rgba(118, 75, 162, 0.05));
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: linear-gradient(45deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
+            transform: translateY(-2px);
+        }
+
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: linear-gradient(45deg, rgba(102, 126, 234, 0.15), rgba(118, 75, 162, 0.15));
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            color: #667eea;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .upload-text {
+            color: #666;
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+        }
+
+        .upload-subtext {
+            color: #999;
+            font-size: 0.9rem;
+        }
+
+        input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-info {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+            display: none;
+        }
+
+        .file-info h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .file-details {
+            color: #666;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .convert-btn {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+            display: none;
+        }
+
+        .convert-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .convert-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .progress-container {
+            margin: 30px 0;
+            display: none;
+        }
+
+        .progress-bar {
+            background: #e9ecef;
+            border-radius: 25px;
+            height: 8px;
+            overflow: hidden;
+            margin: 20px 0;
+        }
+
+        .progress-fill {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 25px;
+        }
+
+        .progress-text {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .result-container {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .download-btn {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(40, 167, 69, 0.3);
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .download-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(40, 167, 69, 0.4);
+        }
+
+        .video-preview {
+            margin: 20px 0;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .video-preview video {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .converting {
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WebM to MP4 Converter</h1>
+        <p style="color: #666; margin-bottom: 30px;">Convert your WebM videos to MP4 format instantly in your browser</p>
+        
+        <div class="upload-area" id="uploadArea">
+            <span class="upload-icon">📁</span>
+            <div class="upload-text">Drop your WebM file here</div>
+            <div class="upload-subtext">or click to browse</div>
+            <input type="file" id="fileInput" accept=".webm,video/webm">
+        </div>
+
+        <div class="file-info" id="fileInfo">
+            <h3>File Information</h3>
+            <div class="file-details" id="fileDetails"></div>
+        </div>
+
+        <button class="convert-btn" id="convertBtn">Convert to MP4</button>
+
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-text" id="progressText">Preparing conversion...</div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+
+        <div class="error-message" id="errorMessage"></div>
+
+        <div class="result-container" id="resultContainer">
+            <h3 style="color: #333; margin-bottom: 20px;">Conversion Complete!</h3>
+            <div class="video-preview" id="videoPreview"></div>
+            <a class="download-btn" id="downloadBtn" download="converted_video.mp4">
+                Download MP4 File
+            </a>
+        </div>
+    </div>
+
+    <script>
+        let ffmpeg = null;
+        let selectedFile = null;
+
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileDetails = document.getElementById('fileDetails');
+        const convertBtn = document.getElementById('convertBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const errorMessage = document.getElementById('errorMessage');
+        const resultContainer = document.getElementById('resultContainer');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const videoPreview = document.getElementById('videoPreview');
+
+        // Initialize FFmpeg
+        async function initFFmpeg() {
+            try {
+                ffmpeg = FFmpeg.createFFmpeg({
+                    log: true,
+                    corePath: 'https://cdnjs.cloudflare.com/ajax/libs/ffmpeg/0.12.10/ffmpeg-core.js'
+                });
+                
+                ffmpeg.setProgress(({ ratio }) => {
+                    const percentage = Math.round(ratio * 100);
+                    progressFill.style.width = percentage + '%';
+                    progressText.textContent = `Converting... ${percentage}%`;
+                });
+
+                await ffmpeg.load();
+                console.log('FFmpeg loaded successfully');
+            } catch (error) {
+                console.error('Failed to load FFmpeg:', error);
+                showError('Failed to initialize video converter. Please refresh the page and try again.');
+            }
+        }
+
+        // File upload handlers
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', handleDragOver);
+        uploadArea.addEventListener('dragleave', handleDragLeave);
+        uploadArea.addEventListener('drop', handleDrop);
+        fileInput.addEventListener('change', handleFileSelect);
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        }
+
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        function handleFile(file) {
+            if (!file.type.includes('webm')) {
+                showError('Please select a WebM file.');
+                return;
+            }
+
+            selectedFile = file;
+            displayFileInfo(file);
+            fileInfo.style.display = 'block';
+            convertBtn.style.display = 'inline-block';
+            hideError();
+            resultContainer.style.display = 'none';
+        }
+
+        function displayFileInfo(file) {
+            const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+            fileDetails.innerHTML = `
+                <strong>Name:</strong> ${file.name}<br>
+                <strong>Size:</strong> ${sizeInMB} MB<br>
+                <strong>Type:</strong> ${file.type}<br>
+                <strong>Last Modified:</strong> ${new Date(file.lastModified).toLocaleString()}
+            `;
+        }
+
+        // Conversion process
+        convertBtn.addEventListener('click', convertVideo);
+
+        async function convertVideo() {
+            if (!selectedFile || !ffmpeg) {
+                if (!ffmpeg) {
+                    showError('Video converter is still loading. Please wait a moment and try again.');
+                }
+                return;
+            }
+
+            try {
+                convertBtn.disabled = true;
+                convertBtn.textContent = 'Converting...';
+                uploadArea.classList.add('converting');
+                progressContainer.style.display = 'block';
+                progressText.textContent = 'Preparing conversion...';
+                hideError();
+
+                // Write file to FFmpeg filesystem
+                const inputFileName = 'input.webm';
+                const outputFileName = 'output.mp4';
+                
+                ffmpeg.FS('writeFile', inputFileName, new Uint8Array(await selectedFile.arrayBuffer()));
+
+                // Run conversion
+                await ffmpeg.run(
+                    '-i', inputFileName,
+                    '-c:v', 'libx264',
+                    '-c:a', 'aac',
+                    '-preset', 'medium',
+                    '-crf', '23',
+                    outputFileName
+                );
+
+                // Read the output file
+                const data = ffmpeg.FS('readFile', outputFileName);
+                const blob = new Blob([data.buffer], { type: 'video/mp4' });
+                const url = URL.createObjectURL(blob);
+
+                // Set up download
+                downloadBtn.href = url;
+                downloadBtn.download = selectedFile.name.replace('.webm', '.mp4');
+
+                // Create video preview
+                const video = document.createElement('video');
+                video.src = url;
+                video.controls = true;
+                video.style.width = '100%';
+                videoPreview.innerHTML = '';
+                videoPreview.appendChild(video);
+
+                // Show results
+                progressContainer.style.display = 'none';
+                resultContainer.style.display = 'block';
+
+                // Clean up FFmpeg filesystem
+                ffmpeg.FS('unlink', inputFileName);
+                ffmpeg.FS('unlink', outputFileName);
+
+            } catch (error) {
+                console.error('Conversion error:', error);
+                showError('Conversion failed. Please try again with a different file.');
+                progressContainer.style.display = 'none';
+            } finally {
+                convertBtn.disabled = false;
+                convertBtn.textContent = 'Convert to MP4';
+                uploadArea.classList.remove('converting');
+            }
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+
+        // Initialize the app
+        window.addEventListener('load', initFFmpeg);
+    </script>
+</body>
+</html>
