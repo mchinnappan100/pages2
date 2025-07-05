@@ -971,6 +971,22 @@ onclone: (clonedDoc) => {
         updateNavigationButtons();
     }
 }
+   function toggleFullscreen() {
+            const slidesPanel = document.querySelector('.slides-panel');
+            const editorPanel = document.querySelector('.editor-panel');
+            
+            if (!isFullscreen) {
+                editorPanel.style.display = 'none';
+                slidesPanel.style.width = '100%';
+                isFullscreen = true;
+                isOutlineVisible = false;
+                document.getElementById('outlinePanel').classList.remove('visible');
+            } else {
+                editorPanel.style.display = 'flex';
+                slidesPanel.style.width = '50%';
+                isFullscreen = false;
+            }
+        }
 
 async function checkUrlParameter() {
             const urlParams = new URLSearchParams(window.location.search);
