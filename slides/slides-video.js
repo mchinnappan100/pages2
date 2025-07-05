@@ -53,7 +53,7 @@ Start editing to create your own presentation
                 wordWrap: 'on',
                 minimap: { enabled: true },
                 scrollBeyondLastLine: false,
-                fontFamily: 'Segoe UI, "Helvetica Neue", Arial, sans-serif'
+                //fontFamily: 'Segoe UI, "Helvetica Neue", Arial, sans-serif'
             });
 
             // Listen for content changes
@@ -807,12 +807,18 @@ function fixElementStyles(element) {
     list-style-position: outside !important;
     text-align: left !important;
 }
-.slide li {
+.slide li  {
     font-size: 2.1rem !important;
     margin-bottom: 0.5rem !important;
     padding-left: 0.5rem !important;
     text-align: left !important;
     display: list-item !important;
+}
+.slide  a {
+    font-size: 2.1rem !important;
+    margin-bottom: 0.5rem !important;
+    padding-left: 0.5rem !important;
+    text-align: left !important;
 }
 .slide blockquote {
     font-size: 1.1rem !important;
@@ -822,13 +828,13 @@ function fixElementStyles(element) {
     margin: 1rem 0 !important;
 }
 .slide code {
-    font-size: 1rem !important;
+    font-size: 2rem !important;
     background-color: #f5f5f5 !important;
     padding: 2px 4px !important;
     border-radius: 3px !important;
 }
 .slide pre {
-    font-size: 1rem !important;
+    font-size: 2rem !important;
     background-color: #f5f5f5 !important;
     padding: 1rem !important;
     border-radius: 5px !important;
@@ -921,6 +927,10 @@ onclone: (clonedDoc) => {
                 images: slideImages,
                 audio_files: audioFiles,
                 slide_duration: duration,
+                background_music: 'https://github.com/mchinnappan100/myslides/raw/refs/heads/main/paris-1.mp3'
+
+
+
             }),
         });
 

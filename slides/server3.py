@@ -31,12 +31,14 @@ def generate_audio():
         print(f"Error generating audio: {e}")
         return {'error': str(e)}, 500
 
+
 @app.route('/generate_video', methods=['POST'])
 def generate_video():
     data = request.json
     slide_images = data['images']  # Base64 images
     audio_files = data['audio_files']  # List of audio file paths
     slide_duration = data.get('slide_duration', 5)  # Default 5 seconds per slide
+    background_music = data.get('background_music')  # Path to background MP3 (optional)
     output_file = os.path.join(tempfile.gettempdir(), 'output.webm')
 
     # Create temporary files for images and preprocess to ensure full opacity
@@ -51,17 +53,13 @@ def generate_video():
             # Open image with Pillow and ensure full opacity
             with Image.open(img_path) as img:
                 if img.mode == 'RGBA':
-                    # Create a new image with full opacity for non-transparent pixels
                     new_img = Image.new('RGBA', img.size)
-                    # Paste the original image, setting alpha to 255 where it exists
-                    new_img.paste(img, mask=img.split()[3])  # Use alpha channel as mask
-                    # Convert to RGB to remove alpha channel
+                    new_img.paste(img, mask=img.split()[3])
                     new_img = new_img.convert('RGB')
-                    new_img.save(img_path)  # Overwrite with fully opaque version
+                    new_img.save(img_path)
                 elif img.mode == 'P' or img.mode == 'LA':
-                    # Handle palette or LA mode by converting to RGB
                     img = img.convert('RGB')
-                    img.save(img_path)  # Overwrite with fully opaque version
+                    img.save(img_path)
 
             temp_images.append(img_path)
         except Exception as e:
@@ -69,16 +67,26 @@ def generate_video():
             return {'error': f"Failed to process image {i}"}, 500
 
     try:
+        # Calculate total duration for background music looping
+        durations = []
+        for audio_path in audio_files:
+            if audio_path and os.path.exists(audio_path):
+                try:
+                    probe = ffmpeg.probe(audio_path)
+                    durations.append(float(probe['streams'][0]['duration']))
+                except ffmpeg.Error:
+                    durations.append(slide_duration)
+            else:
+                durations.append(slide_duration)
+        total_duration = sum(durations)
+
         # Create FFmpeg input streams for each slide
         inputs = []
-        durations = []
         for i, (img_path, audio_path) in enumerate(zip(temp_images, audio_files)):
             if audio_path and os.path.exists(audio_path):
                 try:
                     probe = ffmpeg.probe(audio_path)
                     audio_duration = float(probe['streams'][0]['duration'])
-                    durations.append(audio_duration)
-                    # Apply loop and duration to video input, then convert to RGB and scale
                     inputs.append(
                         ffmpeg.input(img_path, loop=1, t=audio_duration)
                         .filter('format', 'rgb24')
@@ -86,9 +94,7 @@ def generate_video():
                         .filter('pad', 1920, 1080, '(ow-iw)/2', '(oh-ih)/2')
                     )
                     inputs.append(ffmpeg.input(audio_path))
-                except ffmpeg.Error as e:
-                    print(f"FFmpeg probe error for {audio_path}: {e}")
-                    durations.append(slide_duration)
+                except ffmpeg.Error:
                     inputs.append(
                         ffmpeg.input(img_path, loop=1, t=slide_duration)
                         .filter('format', 'rgb24')
@@ -97,24 +103,22 @@ def generate_video():
                     )
                     inputs.append(None)
             else:
-                durations.append(slide_duration)
                 inputs.append(
                     ffmpeg.input(img_path, loop=1, t=slide_duration)
                     .filter('format', 'rgb24')
                     .filter('scale', 1920, 1080, force_original_aspect_ratio='decrease')
                     .filter('pad', 1920, 1080, '(ow-iw)/2', '(oh-ih)/2')
                 )
-                inputs.append(None)  # Placeholder for no audio
+                inputs.append(None)
 
         # Prepare concatenation
         video_streams = []
         audio_streams = []
         for i in range(0, len(inputs), 2):
-            video_streams.append(inputs[i])  # Filter chain output is already a video stream
+            video_streams.append(inputs[i])
             if inputs[i + 1] is not None:
                 audio_streams.append(inputs[i + 1]['a:0'])
             else:
-                # Create silent audio for slides without audio
                 audio_streams.append(
                     ffmpeg.input('anullsrc=channel_layout=mono:sample_rate=24000', f='lavfi', t=durations[i // 2])['a:0']
                 )
@@ -123,19 +127,30 @@ def generate_video():
         concat_video = ffmpeg.concat(*video_streams, v=1, a=0, n=len(video_streams))
         concat_audio = ffmpeg.concat(*audio_streams, v=0, a=1, n=len(audio_streams))
 
+        # Add background music if provided
+        if background_music and os.path.exists(background_music):
+            # Loop background music to match total duration
+            bg_audio = (
+                ffmpeg.input(background_music, stream_loop=-1, t=total_duration)
+                .filter('volume', 0.2)  # Reduce background volume to 20%
+            )
+            # Mix background music with concatenated audio
+            final_audio = ffmpeg.filter([concat_audio, bg_audio], 'amix', inputs=2, duration='longest')
+        else:
+            final_audio = concat_audio
+
         # Output video with libvpx and libvorbis
         stream = ffmpeg.output(
-            concat_video, concat_audio, output_file,
+            concat_video, final_audio, output_file,
             format='webm',
             **{
-                'c:v': 'libvpx',  # Video codec
-                'c:a': 'libvorbis',  # Audio codec
-                'b:v': '1M',  # Video bitrate
-                'crf': 23,  # Constant Rate Factor for quality
-                'auto-alt-ref': 0  # Disable auto_alt_ref
+                'c:v': 'libvpx',
+                'c:a': 'libvorbis',
+                'b:v': '1M',
+                'crf': 23,
+                'auto-alt-ref': 0
             }
         )
-        # Print FFmpeg command for debugging
         print(f"FFmpeg command: {ffmpeg.compile(stream)}")
         ffmpeg.run(stream, overwrite_output=True, quiet=True)
 
@@ -157,6 +172,7 @@ def generate_video():
                 os.remove(audio)
         if os.path.exists(output_file):
             os.remove(output_file)
+
 
 if __name__ == '__main__':
     app.run(port=5000)
