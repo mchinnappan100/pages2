@@ -591,6 +591,45 @@ async function generateVideo() {
                 visibility: visible !important;
             `;
 
+
+function generateFilename(slides) {
+    // Try to get title from first slide
+    let title = '';
+    
+    if (slides && slides.length > 0) {
+        const firstSlide = slides[0];
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = marked.parse(firstSlide);
+        
+        // Look for h1 first, then h2, then h3, then first paragraph
+        let titleElement = tempDiv.querySelector('h1') || 
+                          tempDiv.querySelector('h2') || 
+                          tempDiv.querySelector('h3') || 
+                          tempDiv.querySelector('p');
+        
+        if (titleElement) {
+            title = titleElement.textContent.trim();
+        }
+    }
+    
+    // If no title found, use default
+    if (!title) {
+        title = 'slides_video';
+    }
+    
+    // Clean up the title for filename
+    const cleanTitle = title
+        .toLowerCase()                    // Convert to lowercase
+        .replace(/[^\w\s-]/g, '')        // Remove special characters except spaces and hyphens
+        .replace(/\s+/g, '-')            // Replace spaces with hyphens
+        .replace(/-+/g, '-')             // Replace multiple hyphens with single hyphen
+        .replace(/^-|-$/g, '')           // Remove leading/trailing hyphens
+        .substring(0, 50);               // Limit length to 50 characters
+    
+    return cleanTitle || 'slides_video'; // Fallback if cleaning results in empty string
+}
+
+
             // Recursively fix all elements for high contrast and opacity
 
 function fixElementStyles(element) {
@@ -893,7 +932,11 @@ onclone: (clonedDoc) => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'slides_video.webm';
+
+         // Generate filename based on slide title
+        const filename = generateFilename(slides);
+        a.download = `${filename}.webm`;
+        
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
