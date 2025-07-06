@@ -427,7 +427,7 @@ Start editing to create your own presentation
                     
                     .slide code {
                         background: #f5f5f5;
-                        padding: 2px 4px;
+                        padding: 40px;
                         border-radius: 3px;
                         font-family: 'Courier New', monospace;
                     }
