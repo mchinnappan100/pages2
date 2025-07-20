@@ -1,0 +1,1 @@
+https://help.salesforce.com/s/articleView?id=ind.concept_decision_table.htm&type=5
