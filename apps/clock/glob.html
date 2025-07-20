@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Globe - City Times</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #0c0c0c 0%, #1a1a2e 50%, #16213e 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            color: white;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 20px;
+            min-width: 280px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            z-index: 100;
+        }
+
+        #city-name {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #64b5f6;
+        }
+
+        #clock-container {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        #analog-clock {
+            width: 120px;
+            height: 120px;
+            border: 3px solid #64b5f6;
+            border-radius: 50%;
+            position: relative;
+            background: radial-gradient(circle, #1e1e1e 0%, #0a0a0a 100%);
+            box-shadow: inset 0 0 20px rgba(100, 181, 246, 0.3);
+        }
+
+        .clock-hand {
+            position: absolute;
+            background: white;
+            transform-origin: bottom center;
+            border-radius: 2px;
+        }
+
+        #hour-hand {
+            width: 3px;
+            height: 30px;
+            bottom: 50%;
+            left: calc(50% - 1.5px);
+            background: #ff6b6b;
+        }
+
+        #minute-hand {
+            width: 2px;
+            height: 40px;
+            bottom: 50%;
+            left: calc(50% - 1px);
+            background: #4ecdc4;
+        }
+
+        #second-hand {
+            width: 1px;
+            height: 45px;
+            bottom: 50%;
+            left: calc(50% - 0.5px);
+            background: #ffe66d;
+        }
+
+        .clock-center {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: white;
+            border-radius: 50%;
+            top: calc(50% - 4px);
+            left: calc(50% - 4px);
+            z-index: 10;
+        }
+
+        .clock-numbers {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+
+        .clock-number {
+            position: absolute;
+            font-size: 12px;
+            font-weight: bold;
+            color: #64b5f6;
+        }
+
+        #digital-time {
+            font-size: 18px;
+            font-family: 'Courier New', monospace;
+            color: #4ecdc4;
+            margin-bottom: 5px;
+        }
+
+        #date-info {
+            font-size: 14px;
+            color: #aaa;
+            margin-bottom: 10px;
+        }
+
+        #timezone-info {
+            font-size: 12px;
+            color: #888;
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 14px;
+            color: #ccc;
+            max-width: 300px;
+        }
+
+        .city-marker {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            background: #ff6b6b;
+            border: 2px solid white;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 10px rgba(255, 107, 107, 0.6);
+            animation: pulse 2s infinite;
+        }
+
+        .city-marker:hover {
+            transform: translate(-50%, -50%) scale(1.5);
+            box-shadow: 0 0 20px rgba(255, 107, 107, 0.8);
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 10px rgba(255, 107, 107, 0.6); }
+            50% { box-shadow: 0 0 20px rgba(255, 107, 107, 1); }
+            100% { box-shadow: 0 0 10px rgba(255, 107, 107, 0.6); }
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 18px;
+            color: #64b5f6;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="loading">Loading Globe...</div>
+        
+        <div id="info-panel">
+            <div id="city-name">Select a city</div>
+            <div id="clock-container">
+                <div id="analog-clock">
+                    <div class="clock-numbers">
+                        <div class="clock-number" style="top: 5px; left: calc(50% - 6px);">12</div>
+                        <div class="clock-number" style="top: calc(50% - 6px); right: 5px;">3</div>
+                        <div class="clock-number" style="bottom: 5px; left: calc(50% - 6px);">6</div>
+                        <div class="clock-number" style="top: calc(50% - 6px); left: 8px;">9</div>
+                    </div>
+                    <div id="hour-hand" class="clock-hand"></div>
+                    <div id="minute-hand" class="clock-hand"></div>
+                    <div id="second-hand" class="clock-hand"></div>
+                    <div class="clock-center"></div>
+                </div>
+                <div>
+                    <div id="digital-time">--:--:--</div>
+                    <div id="date-info">Select a city</div>
+                    <div id="timezone-info"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="instructions">
+            🌍 Click and drag to rotate the globe<br>
+            🔍 Use mouse wheel to zoom<br>
+            📍 Click on red markers to see city times
+        </div>
+    </div>
+
+    <script>
+        // Major world cities with their coordinates and timezone info
+        const cities = [
+            { name: 'New York', lat: 40.7128, lng: -74.0060, timezone: 'America/New_York' },
+            { name: 'London', lat: 51.5074, lng: -0.1278, timezone: 'Europe/London' },
+            { name: 'Tokyo', lat: 35.6762, lng: 139.6503, timezone: 'Asia/Tokyo' },
+            { name: 'Paris', lat: 48.8566, lng: 2.3522, timezone: 'Europe/Paris' },
+            { name: 'Sydney', lat: -33.8688, lng: 151.2093, timezone: 'Australia/Sydney' },
+            { name: 'Los Angeles', lat: 34.0522, lng: -118.2437, timezone: 'America/Los_Angeles' },
+            { name: 'Dubai', lat: 25.2048, lng: 55.2708, timezone: 'Asia/Dubai' },
+            { name: 'Singapore', lat: 1.3521, lng: 103.8198, timezone: 'Asia/Singapore' },
+            { name: 'Hong Kong', lat: 22.3193, lng: 114.1694, timezone: 'Asia/Hong_Kong' },
+            { name: 'Moscow', lat: 55.7558, lng: 37.6173, timezone: 'Europe/Moscow' },
+            { name: 'Mumbai', lat: 19.0760, lng: 72.8777, timezone: 'Asia/Kolkata' },
+            { name: 'São Paulo', lat: -23.5505, lng: -46.6333, timezone: 'America/Sao_Paulo' },
+            { name: 'Cairo', lat: 30.0444, lng: 31.2357, timezone: 'Africa/Cairo' },
+            { name: 'Mexico City', lat: 19.4326, lng: -99.1332, timezone: 'America/Mexico_City' },
+            { name: 'Beijing', lat: 39.9042, lng: 116.4074, timezone: 'Asia/Shanghai' },
+            { name: 'Bangkok', lat: 13.7563, lng: 100.5018, timezone: 'Asia/Bangkok' },
+            { name: 'Istanbul', lat: 41.0082, lng: 28.9784, timezone: 'Europe/Istanbul' },
+            { name: 'Berlin', lat: 52.5200, lng: 13.4050, timezone: 'Europe/Berlin' },
+            { name: 'Toronto', lat: 43.6532, lng: -79.3832, timezone: 'America/Toronto' },
+            { name: 'Chicago', lat: 41.8781, lng: -87.6298, timezone: 'America/Chicago' },
+        ];
+
+        let scene, camera, renderer, globe, controls;
+        let selectedCity = null;
+        let cityMarkers = [];
+
+        // Initialize the 3D scene
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.z = 3;
+
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000000, 0);
+            document.getElementById('container').appendChild(renderer.domElement);
+
+            // Create globe
+            createGlobe();
+
+            // Add lights
+            addLights();
+
+            // Add mouse controls
+            addControls();
+
+            // Add city markers
+            addCityMarkers();
+
+            // Hide loading
+            document.getElementById('loading').style.display = 'none';
+
+            // Start animation loop
+            animate();
+
+            // Start clock updates
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+
+        function createGlobe() {
+            // Create sphere geometry
+            const geometry = new THREE.SphereGeometry(1, 64, 32);
+            
+            // Create earth texture (using a solid color with wireframe for simplicity)
+            const material = new THREE.MeshPhongMaterial({
+                color: 0x4a90e2,
+                transparent: true,
+                opacity: 0.8,
+                wireframe: false
+            });
+            
+            globe = new THREE.Mesh(geometry, material);
+            scene.add(globe);
+
+            // Add wireframe overlay for continents effect
+            const wireframeGeometry = new THREE.SphereGeometry(1.01, 32, 16);
+            const wireframeMaterial = new THREE.MeshBasicMaterial({
+                color: 0x64b5f6,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.3
+            });
+            const wireframe = new THREE.Mesh(wireframeGeometry, wireframeMaterial);
+            scene.add(wireframe);
+        }
+
+        function addLights() {
+            // Ambient light
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+
+            // Directional light (sun)
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1, 1, 1);
+            scene.add(directionalLight);
+
+            // Point light for nice glow
+            const pointLight = new THREE.PointLight(0x64b5f6, 0.5, 100);
+            pointLight.position.set(2, 2, 2);
+            scene.add(pointLight);
+        }
+
+        function addControls() {
+            let isDragging = false;
+            let previousMousePosition = { x: 0, y: 0 };
+
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMousePosition = { x: e.clientX, y: e.clientY };
+            });
+
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    const deltaMove = {
+                        x: e.clientX - previousMousePosition.x,
+                        y: e.clientY - previousMousePosition.y
+                    };
+
+                    const deltaRotationQuaternion = new THREE.Quaternion()
+                        .setFromEuler(new THREE.Euler(
+                            toRadians(deltaMove.y * 0.5),
+                            toRadians(deltaMove.x * 0.5),
+                            0,
+                            'XYZ'
+                        ));
+
+                    globe.quaternion.multiplyQuaternions(deltaRotationQuaternion, globe.quaternion);
+                    previousMousePosition = { x: e.clientX, y: e.clientY };
+                    
+                    updateCityMarkers();
+                }
+            });
+
+            renderer.domElement.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            // Zoom with mouse wheel
+            renderer.domElement.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                camera.position.z += e.deltaY * 0.01;
+                camera.position.z = Math.max(1.5, Math.min(camera.position.z, 10));
+            });
+        }
+
+        function toRadians(angle) {
+            return angle * (Math.PI / 180);
+        }
+
+        function addCityMarkers() {
+            cities.forEach((city, index) => {
+                const marker = document.createElement('div');
+                marker.className = 'city-marker';
+                marker.addEventListener('click', () => selectCity(city));
+                document.body.appendChild(marker);
+                
+                cityMarkers.push({
+                    element: marker,
+                    city: city,
+                    position: latLngToVector3(city.lat, city.lng, 1.05)
+                });
+            });
+            
+            updateCityMarkers();
+        }
+
+        function latLngToVector3(lat, lng, radius) {
+            const phi = toRadians(90 - lat);
+            const theta = toRadians(lng);
+            
+            return new THREE.Vector3(
+                radius * Math.sin(phi) * Math.cos(theta),
+                radius * Math.cos(phi),
+                radius * Math.sin(phi) * Math.sin(theta)
+            );
+        }
+
+        function updateCityMarkers() {
+            cityMarkers.forEach(marker => {
+                const vector = marker.position.clone();
+                vector.applyMatrix4(globe.matrixWorld);
+                vector.project(camera);
+                
+                const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+                const y = (vector.y * -0.5 + 0.5) * window.innerHeight;
+                
+                marker.element.style.left = x + 'px';
+                marker.element.style.top = y + 'px';
+                marker.element.style.display = vector.z > 0 ? 'none' : 'block';
+            });
+        }
+
+        function selectCity(city) {
+            selectedCity = city;
+            document.getElementById('city-name').textContent = city.name;
+            updateClock();
+        }
+
+        function updateClock() {
+            if (!selectedCity) return;
+
+            const now = new Date();
+            const cityTime = new Date(now.toLocaleString("en-US", {timeZone: selectedCity.timezone}));
+            
+            const hours = cityTime.getHours();
+            const minutes = cityTime.getMinutes();
+            const seconds = cityTime.getSeconds();
+
+            // Update digital time
+            const digitalTime = cityTime.toLocaleTimeString('en-US', {
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            document.getElementById('digital-time').textContent = digitalTime;
+
+            // Update date
+            const dateInfo = cityTime.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+            document.getElementById('date-info').textContent = dateInfo;
+
+            // Update timezone info
+            document.getElementById('timezone-info').textContent = selectedCity.timezone;
+
+            // Update analog clock hands
+            const hourAngle = (hours % 12) * 30 + minutes * 0.5 - 90;
+            const minuteAngle = minutes * 6 - 90;
+            const secondAngle = seconds * 6 - 90;
+
+            document.getElementById('hour-hand').style.transform = `rotate(${hourAngle}deg)`;
+            document.getElementById('minute-hand').style.transform = `rotate(${minuteAngle}deg)`;
+            document.getElementById('second-hand').style.transform = `rotate(${secondAngle}deg)`;
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Auto-rotate globe slowly
+            if (globe) {
+                globe.rotation.y += 0.001;
+                updateCityMarkers();
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            updateCityMarkers();
+        });
+
+        // Initialize the application
+        init();
+
+        // Select New York by default
+        setTimeout(() => {
+            selectCity(cities[0]);
+        }, 1000);
+    </script>
+</body>
+</html>

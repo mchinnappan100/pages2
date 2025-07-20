@@ -1,0 +1,1020 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Score Editor & MIDI Converter</title>
+    <script src="https://unpkg.com/monaco-editor@0.34.0/min/vs/loader.js"></script>
+ <style>
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .controls {
+            background: rgba(255,255,255,0.95);
+            padding: 20px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .control-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .control-group label {
+            font-weight: bold;
+            color: #555;
+        }
+
+        button {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #f093fb, #f5576c);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(45deg, #4facfe, #00f2fe);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(45deg, #43e97b, #38f9d7);
+            color: white;
+        }
+
+        select, input[type="number"], input[type="file"] {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        select:focus, input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .score-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        .staff {
+            position: relative;
+            height: 120px;
+            margin-bottom: 40px;
+            background: linear-gradient(to bottom, 
+                transparent 20px, 
+                #333 21px, 
+                #333 22px, 
+                transparent 23px,
+                transparent 37px,
+                #333 38px,
+                #333 39px,
+                transparent 40px,
+                transparent 54px,
+                #333 55px,
+                #333 56px,
+                transparent 57px,
+                transparent 71px,
+                #333 72px,
+                #333 73px,
+                transparent 74px,
+                transparent 88px,
+                #333 89px,
+                #333 90px,
+                transparent 91px
+            );
+            cursor: pointer;
+            border-left: 3px solid #333;
+            overflow: hidden;
+        }
+
+        .note {
+            position: absolute;
+            width: 20px;
+            height: 15px;
+            background: #333;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .note:hover {
+            transform: scale(1.1);
+            background: #667eea;
+        }
+
+        .note.selected {
+            background: #f5576c;
+            box-shadow: 0 0 10px rgba(245, 87, 108, 0.5);
+        }
+
+        .note-duration {
+            position: absolute;
+            right: -25px;
+            top: -5px;
+            font-size: 12px;
+            color: #666;
+            background: rgba(255,255,255,0.9);
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+
+        .tempo-display {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 20px;
+        }
+
+        .midi-info {
+            background: rgba(102, 126, 234, 0.1);
+            border: 2px solid #667eea;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .midi-info h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #ddd;
+            border-radius: 3px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #4facfe;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-label {
+            padding: 12px 20px;
+            background: linear-gradient(45deg, #43e97b, #38f9d7);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .file-input-label:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .playing {
+            animation: pulse 0.5s ease-in-out infinite;
+        }
+
+        .measure-line {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #666;
+            opacity: 0.3;
+        }
+        .staff-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .monaco-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-top: 20px;
+            height: 300px;
+        }
+    
+        /* Existing styles unchanged, adding styles for MIDI device selector */
+        .midi-device-select {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+        .midi-device-select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎼 Music Score Editor & MIDI Converter</h1>
+            <p>Create, edit, and convert music scores with ease</p>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>Note Duration:</label>
+                <select id="noteDuration">
+                    <option value="0.25">Sixteenth Note (♬)</option>
+                    <option value="0.5">Eighth Note (♪)</option>
+                    <option value="1" selected>Quarter Note (♩)</option>
+                    <option value="2">Half Note (♪)</option>
+                    <option value="4">Whole Note (○)</option>
+                </select>
+
+                <label>Tempo (BPM):</label>
+                <input type="number" id="tempoInput" min="60" max="200" value="120">
+                
+                <label>Key:</label>
+                <select id="keySelect">
+                    <option value="C">C Major</option>
+                    <option value="G">G Major</option>
+                    <option value="D">D Major</option>
+                    <option value="A">A Major</option>
+                    <option value="E">E Major</option>
+                    <option value="F">F Major</option>
+                    <option value="Bb">B♭ Major</option>
+                    <option value="Eb">E♭ Major</option>
+                </select>
+
+                <label>Instrument:</label>
+                <select id="instrumentSelect">
+                    <option value="sine">Sine Wave</option>
+                    <option value="piano">Piano</option>
+                    <option value="midi">MIDI Device</option>
+                </select>
+
+                <label>MIDI Output:</label>
+                <select id="midiOutputSelect" class="midi-device-select">
+                    <option value="">Select MIDI Device</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <button class="btn-primary" onclick="playScore()">▶️ Play Score</button>
+                <button class="btn-secondary" onclick="stopPlayback()">⏹️ Stop</button>
+                <button class="btn-warning" onclick="clearScore()">🗑️ Clear</button>
+                <button class="btn-success" onclick="downloadMIDI()">💾 Download MIDI</button>
+                
+                <div class="file-input-wrapper">
+                    <input type="file" id="midiUpload" accept=".mid,.midi" onchange="uploadMIDI(event)">
+                    <label for="midiUpload" class="file-input-label">📁 Upload MIDI</label>
+                </div>
+            </div>
+        </div>
+
+        <div class="score-container">
+            <div class="tempo-display">Tempo: <span id="tempoDisplay">120</span> BPM</div>
+            
+            <div class="staff-container">
+                <div class="staff" id="staff1" onclick="addNote(event, 1)">
+                    <div class="measure-line" style="left: 200px;"></div>
+                    <div class="measure-line" style="left: 400px;"></div>
+                    <div class="measure-line" style="left: 600px;"></div>
+                    <div class="measure-line" style="left: 800px;"></div>
+                </div>
+                <div class="staff" id="staff2" onclick="addNote(event, 2)">
+                    <div class="measure-line" style="left: 200px;"></div>
+                    <div class="measure-line" style="left: 400px;"></div>
+                    <div class="measure-line" style="left: 600px;"></div>
+                    <div class="measure-line" style="left: 800px;"></div>
+                </div>
+            </div>
+
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+        </div>
+
+        <div class="midi-info">
+            <h3>🎵 Score Information</h3>
+            <p>Notes: <span id="noteCount">0</span> | Total Duration: <span id="totalDuration">0</span>s</p>
+            <p>Click on the staff to add notes. Click on existing notes to select/delete them.</p>
+        </div>
+
+        <div class="monaco-container" id="monacoEditor"></div>
+    </div>
+
+    <div class="notification" id="notification"></div>
+
+    <script>
+        require.config({ paths: { 'vs': 'https://unpkg.com/monaco-editor@0.34.0/min/vs' }});
+        
+        class MusicScore {
+            constructor() {
+                this.notes = { staff1: [], staff2: [] };
+                this.tempo = 120;
+                this.isPlaying = false;
+                this.currentTime = 0;
+                this.audioContext = null;
+                this.playbackInterval = null;
+                this.selectedNote = null;
+                this.editor = null;
+                this.pianoSamples = {};
+                this.midiAccess = null;
+                this.midiOutputs = [];
+                this.selectedMidiOutput = null;
+                this.init();
+            }
+
+            async init() {
+                await this.setupAudioContext();
+                await this.setupWebMIDI();
+                this.setupMonacoEditor();
+                this.loadPianoSamples();
+                this.updateDisplay();
+                this.setupEventListeners();
+            }
+
+            async setupAudioContext() {
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                } catch (e) {
+                    console.warn('Web Audio API not supported');
+                }
+            }
+
+            async setupWebMIDI() {
+                if (navigator.requestMIDIAccess) {
+                    try {
+                        this.midiAccess = await navigator.requestMIDIAccess();
+                        this.midiOutputs = [];
+                        this.midiAccess.outputs.forEach(output => {
+                            this.midiOutputs.push(output);
+                        });
+                        this.updateMIDIOutputSelector();
+                        this.midiAccess.onstatechange = () => this.updateMIDIOutputSelector();
+                    } catch (e) {
+                        this.showNotification('Web MIDI API access failed');
+                        console.warn('Web MIDI API access error:', e);
+                    }
+                } else {
+                    this.showNotification('Web MIDI API not supported in this browser');
+                }
+            }
+
+            updateMIDIOutputSelector() {
+                const select = document.getElementById('midiOutputSelect');
+                select.innerHTML = '<option value="">Select MIDI Device</option>';
+                this.midiOutputs.forEach((output, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = output.name || `MIDI Device ${index + 1}`;
+                    select.appendChild(option);
+                });
+
+                select.addEventListener('change', (e) => {
+                    this.selectedMidiOutput = e.target.value !== '' ? this.midiOutputs[e.target.value] : null;
+                });
+            }
+
+            async loadPianoSamples() {
+                this.pianoSamples = {
+                    60: { buffer: await this.createSineWaveBuffer(261.63, 1) }, // C4
+                    62: { buffer: await this.createSineWaveBuffer(293.66, 1) }, // D4
+                    64: { buffer: await this.createSineWaveBuffer(329.63, 1) }, // E4
+                };
+            }
+
+            async createSineWaveBuffer(frequency, duration) {
+                if (!this.audioContext) return null;
+                const sampleRate = this.audioContext.sampleRate;
+                const length = sampleRate * duration;
+                const buffer = this.audioContext.createBuffer(1, length, sampleRate);
+                const data = buffer.getChannelData(0);
+                
+                for (let i = 0; i < length; i++) {
+                    data[i] = Math.sin(2 * Math.PI * frequency * i / sampleRate) * 0.3;
+                }
+                
+                return buffer;
+            }
+
+            setupMonacoEditor() {
+                require(['vs/editor/editor.main'], () => {
+                    this.editor = monaco.editor.create(document.getElementById('monacoEditor'), {
+                        value: this.getMIDIString(),
+                        language: 'plaintext',
+                        theme: 'vs-dark',
+                        readOnly: true,
+                        automaticLayout: true
+                    });
+                });
+            }
+
+            setupEventListeners() {
+                document.getElementById('tempoInput').addEventListener('input', (e) => {
+                    this.tempo = parseInt(e.target.value);
+                    this.updateDisplay();
+                });
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Delete' && this.selectedNote) {
+                        this.removeNote(this.selectedNote);
+                    }
+                });
+            }
+
+            addNote(x, y, staffId) {
+                const pitch = this.getPitchFromY(y);
+                const time = this.getTimeFromX(x);
+                const duration = parseFloat(document.getElementById('noteDuration').value);
+                
+                const note = {
+                    pitch,
+                    time,
+                    duration,
+                    id: Date.now() + Math.random(),
+                    staffId
+                };
+
+                this.notes[staffId].push(note);
+                this.notes[staffId].sort((a, b) => a.time - b.time);
+                this.updateDisplay();
+                this.showNotification('Note added!');
+            }
+
+            removeNote(noteToRemove) {
+                this.notes[noteToRemove.staffId] = this.notes[noteToRemove.staffId].filter(note => note.id !== noteToRemove.id);
+                this.selectedNote = null;
+                this.updateDisplay();
+                this.showNotification('Note removed!');
+            }
+
+            getPitchFromY(y) {
+                const staffHeight = 120;
+                const lineSpacing = 17;
+                const topLine = 21;
+                const linePosition = Math.round((y - topLine) / lineSpacing);
+                const basePitch = 76; // E5
+                return Math.max(48, Math.min(84, basePitch - linePosition * 2));
+            }
+
+            getTimeFromX(x) {
+                const pixelsPerBeat = 100;
+                return Math.max(0, x / pixelsPerBeat);
+            }
+
+            getYFromPitch(pitch) {
+                const basePitch = 76; // E5
+                const lineSpacing = 17;
+                const topLine = 21;
+                return topLine + (basePitch - pitch) * lineSpacing / 2;
+            }
+
+            getXFromTime(time) {
+                const pixelsPerBeat = 100;
+                return time * pixelsPerBeat;
+            }
+
+            updateDisplay() {
+                document.getElementById('tempoDisplay').textContent = this.tempo;
+                document.getElementById('noteCount').textContent = this.notes.staff1.length + this.notes.staff2.length;
+                document.getElementById('totalDuration').textContent = this.getTotalDuration().toFixed(1);
+                
+                this.renderNotes();
+                if (this.editor) {
+                    this.editor.setValue(this.getMIDIString());
+                }
+            }
+
+            renderNotes() {
+                ['staff1', 'staff2'].forEach(staffId => {
+                    const staff = document.getElementById(staffId);
+                    const existingNotes = staff.querySelectorAll('.note');
+                    existingNotes.forEach(note => note.remove());
+
+                    this.notes[staffId].forEach(note => {
+                        const noteElement = document.createElement('div');
+                        noteElement.className = 'note';
+                        noteElement.style.left = this.getXFromTime(note.time) + 'px';
+                        noteElement.style.top = this.getYFromPitch(note.pitch) + 'px';
+                        
+                        const durationDisplay = document.createElement('div');
+                        durationDisplay.className = 'note-duration';
+                        durationDisplay.textContent = this.getDurationSymbol(note.duration);
+                        noteElement.appendChild(durationDisplay);
+
+                        noteElement.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            this.selectNote(note, noteElement);
+                        });
+
+                        staff.appendChild(noteElement);
+                    });
+                });
+            }
+
+            selectNote(note, element) {
+                document.querySelectorAll('.note').forEach(n => n.classList.remove('selected'));
+                
+                if (this.selectedNote && this.selectedNote.id === note.id) {
+                    this.removeNote(note);
+                } else {
+                    this.selectedNote = note;
+                    element.classList.add('selected');
+                }
+            }
+
+            getDurationSymbol(duration) {
+                const symbols = {
+                    0.25: '♬',
+                    0.5: '♪',
+                    1: '♩',
+                    2: '♪',
+                    4: '○'
+                };
+                return symbols[duration] || '♩';
+            }
+
+            getTotalDuration() {
+                const allNotes = [...this.notes.staff1, ...this.notes.staff2];
+                if (allNotes.length === 0) return 0;
+                const lastNote = allNotes.reduce((max, note) => 
+                    note.time + note.duration > max.time + max.duration ? note : max
+                );
+                return lastNote.time + lastNote.duration;
+            }
+
+            getMIDIString() {
+                let output = `MIDI Representation (Tempo: ${this.tempo} BPM)\n\n`;
+                ['staff1', 'staff2'].forEach(staffId => {
+                    output += `${staffId}:\n`;
+                    this.notes[staffId].forEach(note => {
+                        output += `Note: Pitch=${note.pitch}, Time=${note.time.toFixed(2)}, Duration=${note.duration.toFixed(2)}\n`;
+                    });
+                    output += '\n';
+                });
+                return output;
+            }
+
+            playScore() {
+                const allNotes = [...this.notes.staff1, ...this.notes.staff2];
+                if (allNotes.length === 0) {
+                    this.showNotification('No notes to play');
+                    return;
+                }
+
+                this.isPlaying = true;
+                this.currentTime = 0;
+                
+                if (this.audioContext && this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+
+                this.playbackInterval = setInterval(() => {
+                    this.updatePlayback();
+                }, 50);
+
+                this.playNotes();
+                this.showNotification('Playing score...');
+            }
+
+            playNotes() {
+                const beatsPerSecond = this.tempo / 60;
+                const instrument = document.getElementById('instrumentSelect').value;
+                
+                [...this.notes.staff1, ...this.notes.staff2].forEach(note => {
+                    const startTime = (note.time / beatsPerSecond) * 1000; // Convert to milliseconds
+                    const duration = (note.duration / beatsPerSecond) * 1000; // Convert to milliseconds
+                    
+                    if (instrument === 'midi' && this.selectedMidiOutput) {
+                        this.scheduleMIDINote(note.pitch, startTime, duration);
+                    } else if (instrument === 'piano' && this.pianoSamples[note.pitch]) {
+                        this.playPianoSample(note.pitch, this.audioContext.currentTime + (note.time / beatsPerSecond), note.duration / beatsPerSecond);
+                    } else {
+                        this.playTone(note.pitch, this.audioContext.currentTime + (note.time / beatsPerSecond), note.duration / beatsPerSecond);
+                    }
+                });
+            }
+
+            scheduleMIDINote(pitch, startTime, duration) {
+                if (!this.selectedMidiOutput) return;
+
+                // Schedule Note On
+                setTimeout(() => {
+                    this.selectedMidiOutput.send([0x90, pitch, 0x40]); // Note On, velocity 64
+                }, startTime);
+
+                // Schedule Note Off
+                setTimeout(() => {
+                    this.selectedMidiOutput.send([0x80, pitch, 0x40]); // Note Off
+                }, startTime + duration);
+            }
+
+            playTone(pitch, startTime, duration) {
+                if (!this.audioContext) return;
+                const frequency = 440 * Math.pow(2, (pitch - 69) / 12);
+                
+                const oscillator = this.audioContext.createOscillator();
+                const gainNode = this.audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+                
+                oscillator.frequency.value = frequency;
+                oscillator.type = 'sine';
+                
+                gainNode.gain.setValueAtTime(0, startTime);
+                gainNode.gain.linearRampToValueAtTime(0.3, startTime + 0.01);
+                gainNode.gain.linearRampToValueAtTime(0.3, startTime + duration - 0.01);
+                gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
+                
+                oscillator.start(startTime);
+                oscillator.stop(startTime + duration);
+            }
+
+            playPianoSample(pitch, startTime, duration) {
+                if (!this.audioContext || !this.pianoSamples[pitch]) return;
+                const source = this.audioContext.createBufferSource();
+                const gainNode = this.audioContext.createGain();
+                
+                source.buffer = this.pianoSamples[pitch].buffer;
+                source.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+                
+                gainNode.gain.setValueAtTime(0.3, startTime);
+                gainNode.gain.linearRampToValueAtTime(0.3, startTime + duration - 0.01);
+                gainNode.gain.linearRampToValueAtTime(0, startTime + duration);
+                
+                source.start(startTime);
+                source.stop(startTime + duration);
+            }
+
+            updatePlayback() {
+                if (!this.isPlaying) return;
+
+                const totalDuration = this.getTotalDuration();
+                const beatsPerSecond = this.tempo / 60;
+                this.currentTime += 0.05 * beatsPerSecond;
+
+                const progress = (this.currentTime / totalDuration) * 100;
+                document.getElementById('progressFill').style.width = Math.min(progress, 100) + '%';
+
+                if (this.currentTime >= totalDuration) {
+                    this.stopPlayback();
+                }
+            }
+
+            stopPlayback() {
+                this.isPlaying = false;
+                this.currentTime = 0;
+                
+                if (this.playbackInterval) {
+                    clearInterval(this.playbackInterval);
+                    this.playbackInterval = null;
+                }
+                
+                // Send All Notes Off to MIDI device
+                if (this.selectedMidiOutput) {
+                    this.selectedMidiOutput.send([0xB0, 0x7B, 0x00]); // Control Change: All Notes Off
+                }
+                
+                document.getElementById('progressFill').style.width = '0%';
+                this.showNotification('Playback stopped');
+            }
+
+            clearScore() {
+                this.notes = { staff1: [], staff2: [] };
+                this.selectedNote = null;
+                this.updateDisplay();
+                this.showNotification('Score cleared');
+            }
+
+            downloadMIDI() {
+                const allNotes = [...this.notes.staff1, ...this.notes.staff2];
+                if (allNotes.length === 0) {
+                    this.showNotification('No notes to export');
+                    return;
+                }
+
+                const midiData = this.createMIDIData();
+                const blob = new Blob([new Uint8Array(midiData)], { type: 'audio/midi' });
+                const url = URL.createObjectURL(blob);
+                
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'score.mid';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+                this.showNotification('MIDI file downloaded!');
+            }
+
+            createMIDIData() {
+                const header = [0x4D, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x01, 0x00, 0x60];
+                const trackHeader = [0x4D, 0x54, 0x72, 0x6B];
+                
+                let trackData = [];
+                
+                trackData.push(0x00, 0xFF, 0x51, 0x03);
+                const microsecondsPerBeat = Math.round(60000000 / this.tempo);
+                trackData.push(
+                    (microsecondsPerBeat >> 16) & 0xFF,
+                    (microsecondsPerBeat >> 8) & 0xFF,
+                    microsecondsPerBeat & 0xFF
+                );
+                
+                const allNotes = [...this.notes.staff1, ...this.notes.staff2].sort((a, b) => a.time - b.time);
+                let currentTime = 0;
+                
+                allNotes.forEach(note => {
+                    const deltaTime = Math.round((note.time - currentTime) * 96);
+                    const noteDuration = Math.round(note.duration * 96);
+                    
+                    trackData.push(...this.encodeVariableLength(deltaTime));
+                    trackData.push(0x90, note.pitch, 0x40);
+                    
+                    trackData.push(...this.encodeVariableLength(noteDuration));
+                    trackData.push(0x80, note.pitch, 0x40);
+                    
+                    currentTime = note.time + note.duration;
+                });
+                
+                trackData.push(0x00, 0xFF, 0x2F, 0x00);
+                
+                const trackLength = trackData.length;
+                const trackLengthBytes = [
+                    (trackLength >> 24) & 0xFF,
+                    (trackLength >> 16) & 0xFF,
+                    (trackLength >> 8) & 0xFF,
+                    trackLength & 0xFF
+                ];
+                
+                return [...header, ...trackHeader, ...trackLengthBytes, ...trackData];
+            }
+
+            encodeVariableLength(value) {
+                let bytes = [];
+                bytes.push(value & 0x7F);
+                value >>= 7;
+                while (value > 0) {
+                    bytes.unshift((value & 0x7F) | 0x80);
+                    value >>= 7;
+                }
+                return bytes;
+            }
+
+            uploadMIDI(file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        this.parseMIDI(new Uint8Array(e.target.result));
+                        this.showNotification('MIDI file loaded successfully!');
+                    } catch (error) {
+                        this.showNotification('Error loading MIDI file');
+                        console.error('MIDI parsing error:', error);
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+
+            parseMIDI(data) {
+                this.notes = { staff1: [], staff2: [] };
+                let pos = 0;
+                
+                pos += 14;
+                
+                while (pos < data.length - 4) {
+                    if (data[pos] === 0x4D && data[pos + 1] === 0x54 && 
+                        data[pos + 2] === 0x72 && data[pos + 3] === 0x6B) {
+                        pos += 4;
+                        const trackLength = (data[pos] << 24) | (data[pos + 1] << 16) | 
+                                          (data[pos + 2] << 8) | data[pos + 3];
+                        pos += 4;
+                        
+                        this.parseTrack(data, pos, trackLength);
+                        break;
+                    }
+                    pos++;
+                }
+                
+                this.updateDisplay();
+            }
+
+            parseTrack(data, start, length) {
+                let pos = start;
+                let currentTime = 0;
+                const noteOns = new Map();
+                
+                while (pos < start + length) {
+                    const deltaTime = this.readVariableLength(data, pos);
+                    pos += deltaTime.bytes;
+                    currentTime += deltaTime.value / 96;
+                    
+                    if (pos >= data.length) break;
+                    
+                    const status = data[pos++];
+                    
+                    if ((status & 0xF0) === 0x90) {
+                        const pitch = data[pos++];
+                        const velocity = data[pos++];
+                        
+                        if (velocity > 0) {
+                            noteOns.set(pitch, currentTime);
+                        } else {
+                            const startTime = noteOns.get(pitch);
+                            if (startTime !== undefined) {
+                                const note = {
+                                    pitch,
+                                    time: startTime,
+                                    duration: currentTime - startTime,
+                                    id: Date.now() + Math.random(),
+                                    staffId: pitch > 60 ? 'staff1' : 'staff2'
+                                };
+                                this.notes[note.staffId].push(note);
+                                noteOns.delete(pitch);
+                            }
+                        }
+                    } else if ((status & 0xF0) === 0x80) {
+                        const pitch = data[pos++];
+                        const velocity = data[pos++];
+                        
+                        const startTime = noteOns.get(pitch);
+                        if (startTime !== undefined) {
+                            const note = {
+                                pitch,
+                                time: startTime,
+                                duration: currentTime - startTime,
+                                id: Date.now() + Math.random(),
+                                staffId: pitch > 60 ? 'staff1' : 'staff2'
+                            };
+                            this.notes[note.staffId].push(note);
+                            noteOns.delete(pitch);
+                        }
+                    } else if (status === 0xFF) {
+                        const type = data[pos++];
+                        const length = this.readVariableLength(data, pos);
+                        pos += length.bytes + length.value;
+                    } else {
+                        pos += 2;
+                    }
+                }
+            }
+
+            readVariableLength(data, pos) {
+                let value = 0;
+                let bytes = 0;
+                
+                while (bytes < 4 && pos + bytes < data.length) {
+                    const byte = data[pos + bytes];
+                    value = (value << 7) | (byte & 0x7F);
+                    bytes++;
+                    
+                    if ((byte & 0x80) === 0) break;
+                }
+                
+                return { value, bytes };
+            }
+
+            showNotification(message) {
+                const notification = document.getElementById('notification');
+                notification.textContent = message;
+                notification.classList.add('show');
+                
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 3000);
+            }
+        }
+
+        const score = new MusicScore();
+
+        function addNote(event, staffNumber) {
+            const rect = event.target.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            score.addNote(x, y, `staff${staffNumber}`);
+        }
+
+        function playScore() {
+            score.playScore();
+        }
+
+        function stopPlayback() {
+            score.stopPlayback();
+        }
+
+        function clearScore() {
+            score.clearScore();
+        }
+
+        function downloadMIDI() {
+            score.downloadMIDI();
+        }
+
+        function uploadMIDI(event) {
+            const file = event.target.files[0];
+            if (file) {
+                score.uploadMIDI(file);
+            }
+        }
+    </script>
+</body>
+</html>
