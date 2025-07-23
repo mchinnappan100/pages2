@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mermaid Editor</title>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet" />
+  <!-- External Splitter Stylesheet -->
+  <link rel="stylesheet" href="https://mohan-chinnappan-n.github.io/sfdc/gs/css/split.css" />
+
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+  <style>
+    /* Apply Monaco font only to the textarea */
+    #mermaid-input {
+      font-family: "Monaco", monospace;
+      background-color: black;
+      /* Black background for the textarea */
+      font-size: small;
+    }
+
+    /* Style for the container holding the panes */
+    .split-container {
+      display: flex;
+      width: 100%;
+      height: 100vh;
+    }
+
+    /* Left and right panes */
+    .pane {
+      background-color: #f7fafc;
+      padding: 20px;
+      overflow: auto;
+    }
+
+    /* Right pane with the rendered diagram */
+    .right-pane {
+      overflow: auto;
+    }
+  </style>
+  <script type="module">
+
+    Split(["#code", "#fig"], {
+      sizes: [50, 50],
+    });
+
+    import mermaid from "https://unpkg.com/mermaid@10.9.0/dist/mermaid.esm.min.mjs";
+    //import mermaid from "https://unpkg.com/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+
+
+
+
+
+    const sample = `
+flowchart TB 
+  A[Reference Docs, Websites...] --> B[RAG System]  --> C[LLM] --> LLM[embeddings] --> VDB[Vector DB of embeddings]
+  Q[User Query] --> E[LLM] --> F[Query Vector ] --> B  --> G[Find the relevant context docs using cosine similarity] --> H[Context Chunks] --> HH[Augmented Query - Question and context]
+  HH --> I[LLM - Geneation] --> R[Response]
+  B --> VDB
+
+  style A fill:#f9f,stroke:#333,stroke-width:4px
+  style B fill:#9ff,stroke:#333,stroke-width:4px
+  style Q fill:#ff9,stroke:#333,stroke-width:4px
+  style R fill:#99ccff,stroke:#333,stroke-width:4px
+ 
+    `;
+
+    document.addEventListener("DOMContentLoaded", function () {
+      // Initialize Mermaid
+      mermaid.initialize({
+        startOnLoad: true,
+        securityLevel: 'loose', // allows embedded styles/scripts
+        maxTextSize: 300000,    // increase allowed diagram text size
+        maxEdges: 10000         // increase allowed number of edges
+      });
+      document.getElementById("mermaid-input").value = sample;
+
+      // Function to load from the URL parameter and clipboard
+      const loadFromQueryStringAndClipboard = async () => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const clipboardContent = urlParams.get("c");
+
+        if (clipboardContent) {
+          try {
+            // Decode the URL parameter content
+            const decodedContent = decodeURIComponent(clipboardContent);
+            document.getElementById("mermaid-input").value = decodedContent;
+            renderMermaid(); // Re-render diagram after loading content
+          } catch (error) {
+            alert("Error decoding URL parameter: " + error.message);
+          }
+        }
+        else {
+          // Fallback: If no ?c parameter, try reading clipboard
+          try {
+            const clipboardText = await navigator.clipboard.readText();
+            if (clipboardText) {
+              document.getElementById("mermaid-input").value = clipboardText;
+              renderMermaid(); // Re-render diagram after loading content
+            } else {
+              alert("Clipboard is empty or unsupported");
+            }
+          } catch (error) {
+            alert("Failed to read clipboard content: " + error.message);
+          }
+        }
+      };
+
+
+
+      // Trigger the load function on page load
+      loadFromQueryStringAndClipboard();
+
+      // Function to render Mermaid diagrams
+      const renderMermaid = () => {
+        const input = document.getElementById("mermaid-input").value; // Get user input
+        const output = document.getElementById("mermaid-output"); // Output container
+
+        try {
+          // Clear previous diagram
+          output.innerHTML = "";
+
+          // Generate unique ID for the diagram
+          const uniqueId = "generatedDiagram";
+
+          // Add a div to output for rendering
+          const tempDiv = document.createElement("div");
+          tempDiv.id = uniqueId;
+          output.appendChild(tempDiv);
+
+          // Render the diagram
+          mermaid.render(uniqueId, input).then(({ svg }) => {
+            output.innerHTML = svg; // Insert rendered SVG
+            document.getElementById("download-svg").disabled = false; // Enable download button
+          });
+        } catch (error) {
+          output.innerHTML = `<p class="text-red-500">Error: ${error.message}</p>`;
+          document.getElementById("download-svg").disabled = true; // Disable download button on error
+        }
+      };
+
+      renderMermaid();
+
+      // Listen for input changes and render Mermaid diagram immediately
+      document
+        .getElementById("mermaid-input")
+        .addEventListener("input", renderMermaid);
+
+      // Download SVG as a file
+      document
+        .getElementById("download-svg")
+        .addEventListener("click", () => {
+          const svgContent = document
+            .getElementById("mermaid-output")
+            .querySelector("svg");
+          if (svgContent) {
+            const blob = new Blob([svgContent.outerHTML], {
+              type: "image/svg+xml",
+            });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "mermaid_diagram.svg"; // Set the default filename
+            link.click();
+          }
+        });
+    });
+  </script>
+  <!-- External Splitter Script -->
+  <script src="https://mohan-chinnappan-n.github.io/sfdc/gs/js/split.js"></script>
+</head>
+
+<body class="bg-white font-sans leading-normal tracking-normal text-black">
+  <!-- Navbar -->
+  <nav class="bg-blue-900 text-white p-4 fixed w-full z-10 top-0">
+    <div class="container mx-auto flex justify-between items-center">
+      <a href="#" class="text-lg font-semibold hover:text-gray-200">Mermaid Editor</a>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <div class="split split-horizontal" id="code">
+    <!-- Left Pane (Main Content) -->
+    <div id="left-pane" class="pane" style="flex: 1">
+      <h2 class="text-xl font-bold mb-4 text-blue-500">Enter Mermaid Code</h2>
+      <textarea id="mermaid-input"
+        class="w-full h-96 p-4 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="Enter your Mermaid code here..."> </textarea>
+    </div>
+  </div>
+
+  <!-- Right Pane (Output Pane) -->
+  <div class="split split-horizontal" id="fig">
+    <div id="right-pane" class="pane right-pane" style="flex: 1">
+      <h2 class="text-xl font-bold mb-4 text-blue-500">Rendered Diagram</h2>
+      <div id="mermaid-output" class="border border-gray-600 p-4 rounded-md overflow-auto bg-white">
+        <!-- Mermaid diagram will render here -->
+        <p class="text-gray-600">
+          Your diagram will appear here after rendering.
+        </p>
+      </div>
+      <button id="download-svg" class="mt-4 p-2 bg-blue-500 text-white rounded-md disabled:opacity-50" disabled>
+        Download SVG
+      </button>
+    </div>
+  </div>
+
+
+
+
+</body>
+
+</html>
