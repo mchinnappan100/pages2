@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV SQL Viewer</title>
+
+    <!-- DataTables CSS -->
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.6.0/css/bootstrap.min.css">
+
+
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/4.6.0/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/datatables/1.10.21/js/dataTables.bootstrap4.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <!-- Monaco Editor -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.33.0/min/vs/loader.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container-fluid {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            margin: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #2c3e50;
+        }
+
+        .header h1 {
+            font-weight: 300;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+
+        .control-panel {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 4px solid #3498db;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .file-input-label {
+            background: linear-gradient(45deg, #3498db, #2980b9);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            font-weight: 500;
+        }
+
+        .file-input-label:hover {
+            background: linear-gradient(45deg, #2980b9, #1f4e79);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .monaco-editor-container {
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            margin: 20px 0;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .data-section {
+            margin-top: 30px;
+        }
+
+        .section-header {
+            background: linear-gradient(45deg, #8e44ad, #9b59b6);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px 8px 0 0;
+            margin: 0;
+            font-weight: 500;
+        }
+
+        .table-container {
+            background: white;
+            border-radius: 0 0 8px 8px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .export-btn {
+            background: linear-gradient(45deg, #27ae60, #2ecc71);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin-left: 10px;
+        }
+
+        .export-btn:hover {
+            background: linear-gradient(45deg, #2ecc71, #27ae60);
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px rgba(39, 174, 96, 0.4);
+        }
+
+        .btn-execute {
+            background: linear-gradient(45deg, #e74c3c, #c0392b);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            margin-top: 15px;
+        }
+
+        .btn-execute:hover {
+            background: linear-gradient(45deg, #c0392b, #a93226);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .dataTables_wrapper .dataTables_filter input {
+            border-radius: 20px;
+            border: 2px solid #e9ecef;
+            padding: 8px 15px;
+        }
+
+        .dataTables_wrapper .dataTables_length select {
+            border-radius: 15px;
+            border: 2px solid #e9ecef;
+            padding: 5px 10px;
+        }
+
+        table.dataTable thead th {
+            background: linear-gradient(45deg, #34495e, #2c3e50);
+            color: white;
+            font-weight: 500;
+            border: none;
+        }
+
+        table.dataTable tbody tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+
+        .loading i {
+            font-size: 2rem;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container-fluid">
+        <div class="header">
+            <h1><i class="fas fa-database"></i> CSV SQL Viewer</h1>
+            <p>Load CSV files and execute SQL queries </p>
+            <button class="btn btn-success" onclick="window.location.href='loader10.html'"> 🏠 HOME</button>
+        </div>
+
+        <div class="control-panel">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="csvFolder"><strong>CSV Files Folder:</strong></label>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="csvFolder" class="file-input" webkitdirectory multiple>
+                            <label for="csvFolder" class="file-input-label">
+                                <i class="fas fa-folder-open"></i> Select CSV Folder
+                            </label>
+                        </div>
+                        <span id="folderStatus" class="status-badge" style="display: none;"></span>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="loadPlan"><strong>Load Plan JSON:</strong></label>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="loadPlan" class="file-input" accept=".json">
+                            <label for="loadPlan" class="file-input-label">
+                                <i class="fas fa-file-code"></i> Select Load Plan
+                            </label>
+                        </div>
+                        <span id="planStatus" class="status-badge" style="display: none;"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="form-group">
+                        <label for="objectSelect"><strong>Select Object:</strong></label>
+                        <select id="objectSelect" class="form-control" disabled>
+                            <option value="">Please load CSV files and load plan first</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="monaco-editor-container">
+            <div id="sqlEditor" style="height: 200px;"></div>
+            <div style="padding: 15px; background: #f8f9fa; border-top: 1px solid #e9ecef;">
+                <button id="executeQuery" class="btn-execute" disabled>
+                    <i class="fas fa-play"></i> Execute Query
+                </button>
+                <small class="text-muted ml-3">
+                    <i class="fas fa-info-circle"></i>
+                    Query will be executed against the selected CSV file
+                </small>
+            </div>
+        </div>
+
+        <div class="data-section">
+            <div class="row">
+                <div class="col-md-6">
+                    <h4 class="section-header">
+                        <i class="fas fa-file-csv"></i> CSV Data
+                        <button id="exportCsv" class="export-btn" style="display: none;">
+                            <i class="fas fa-download"></i> Export CSV
+                        </button>
+                    </h4>
+                    <div class="table-container">
+                        <div id="csvTableContainer">
+                            <div class="loading">
+                                <i class="fas fa-file-csv"></i>
+                                <p>Select an object to view CSV data</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <h4 class="section-header">
+                        <i class="fas fa-search"></i> Query Results
+                        <button id="exportResults" class="export-btn" style="display: none;">
+                            <i class="fas fa-download"></i> Export Results
+                        </button>
+                    </h4>
+                    <div class="table-container">
+                        <div id="resultsTableContainer">
+                            <div class="loading">
+                                <i class="fas fa-hourglass-half"></i>
+                                <p>Execute a query to see results</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        let editor;
+        let csvData = {};
+        let loadPlanData = [];
+        let csvTable, resultsTable;
+        let SQL;
+        let isInitialized = false;
+
+        // Wait for all dependencies to load
+        $(document).ready(function () {
+            initializeApp();
+        });
+
+        function initializeApp() {
+            // Initialize Monaco Editor
+            require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.33.0/min/vs' } });
+            require(['vs/editor/editor.main'], function () {
+                editor = monaco.editor.create(document.getElementById('sqlEditor'), {
+                    value: '-- Select an object to load the query',
+                    language: 'sql',
+                    theme: 'vs-dark',
+                    automaticLayout: true,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false
+                });
+
+                checkInitialization();
+            });
+
+            // Initialize SQL.js
+            initSqlJs({
+                locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+            }).then(function (sql) {
+                SQL = sql;
+                checkInitialization();
+            });
+        }
+
+        function checkInitialization() {
+            if (editor && SQL && typeof Papa !== 'undefined') {
+                isInitialized = true;
+                console.log('App initialized successfully');
+            }
+        }
+
+        // Handle CSV folder selection
+        document.getElementById('csvFolder').addEventListener('change', function (e) {
+            if (!isInitialized) {
+                alert('App is still loading. Please wait a moment and try again.');
+                return;
+            }
+
+            const files = Array.from(e.target.files);
+            csvData = {};
+
+            const csvFiles = files.filter(file => file.name.endsWith('.csv'));
+
+            if (csvFiles.length === 0) {
+                showStatus('folderStatus', 'No CSV files found', 'error');
+                return;
+            }
+
+            let processedFiles = 0;
+            const totalFiles = csvFiles.length;
+
+            csvFiles.forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const objectName = file.name.replace('.csv', '');
+
+                    if (typeof Papa === 'undefined') {
+                        showStatus('folderStatus', 'CSV parser not loaded yet', 'error');
+                        return;
+                    }
+
+                    Papa.parse(e.target.result, {
+                        header: true,
+                        skipEmptyLines: true,
+                        dynamicTyping: true,
+                        complete: function (results) {
+                            csvData[objectName] = results.data;
+                            processedFiles++;
+
+                            if (processedFiles === totalFiles) {
+                                showStatus('folderStatus', `${totalFiles} CSV files loaded`, 'success');
+                                updateObjectSelect();
+                            }
+                        },
+                        error: function (error) {
+                            console.error('Papa Parse error:', error);
+                            showStatus('folderStatus', `Error parsing ${file.name}: ${error.message}`, 'error');
+                        }
+                    });
+                };
+                reader.readAsText(file);
+            });
+        });
+
+        // Handle load plan JSON selection
+        document.getElementById('loadPlan').addEventListener('change', function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    loadPlanData = JSON.parse(e.target.result);
+                    showStatus('planStatus', 'Load plan loaded', 'success');
+                    updateObjectSelect();
+                } catch (error) {
+                    showStatus('planStatus', 'Invalid JSON file', 'error');
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        // Handle object selection
+        document.getElementById('objectSelect').addEventListener('change', function (e) {
+            const selectedObject = e.target.value;
+            if (!selectedObject) return;
+
+            const planItem = loadPlanData.find(item => item.object === selectedObject);
+            if (planItem && editor) {
+                editor.setValue(planItem.query);
+            }
+
+            // Load CSV data for selected object
+            if (csvData[selectedObject]) {
+                displayCsvData(selectedObject);
+                document.getElementById('executeQuery').disabled = false;
+            }
+        });
+
+        // Execute query
+        document.getElementById('executeQuery').addEventListener('click', function () {
+            const selectedObject = document.getElementById('objectSelect').value;
+            const query = editor.getValue();
+
+            if (!selectedObject || !query.trim()) return;
+
+            executeQuery(selectedObject, query);
+        });
+
+        // Export functions
+        document.getElementById('exportCsv').addEventListener('click', function () {
+            exportTable('csv');
+        });
+
+        document.getElementById('exportResults').addEventListener('click', function () {
+            exportTable('results');
+        });
+
+        function showStatus(elementId, message, type) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `status-badge status-${type}`;
+            element.style.display = 'inline-block';
+        }
+
+        function updateObjectSelect() {
+            const select = document.getElementById('objectSelect');
+
+            if (Object.keys(csvData).length > 0 && loadPlanData.length > 0) {
+                select.innerHTML = '<option value="">Select an object...</option>';
+
+                loadPlanData.forEach(item => {
+                    if (csvData[item.object]) {
+                        const option = document.createElement('option');
+                        option.value = item.object;
+                        option.textContent = item.object;
+                        select.appendChild(option);
+                    }
+                });
+
+                select.disabled = false;
+            }
+        }
+
+        function displayCsvData(objectName) {
+            const data = csvData[objectName];
+            if (!data || data.length === 0) return;
+
+            // Destroy existing table
+            if (csvTable) {
+                csvTable.destroy();
+            }
+
+            const columns = Object.keys(data[0]).map(key => ({
+                title: key,
+                data: function (row) {
+                    return row[key] !== null && row[key] !== undefined ? String(row[key]) : '';
+                }
+            }));
+
+            const tableHtml = `
+        <table id="csvTable" class="table table-striped table-bordered" style="width:100%">
+            <thead></thead>
+        </table>
+    `;
+
+            document.getElementById('csvTableContainer').innerHTML = tableHtml;
+
+            csvTable = $('#csvTable').DataTable({
+                data: data,
+                columns: columns,
+                pageLength: 25,
+                lengthMenu: [10, 25, 50, 100],
+                responsive: true,
+                scrollX: true,
+                order: [],
+                columnDefs: [
+                    {
+                        targets: '_all',
+                        render: function (data, type, row, meta) {
+                            if (type === 'display' || type === 'type') {
+                                return data !== null && data !== undefined ? String(data) : '';
+                            }
+                            return data;
+                        }
+                    }
+                ]
+            });
+
+            document.getElementById('exportCsv').style.display = 'inline-block';
+        }
+
+        function escapeColumnNames(query, columns) {
+            let modifiedQuery = query;
+            columns.forEach(col => {
+                // Create a regex to match the column name as a whole word, avoiding partial matches
+                // Ensure we don't double-escape if backticks are already present
+                const regex = new RegExp(`\\b(?!\\\`)${col.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}(?!\\\`)\\b`, 'g');
+                modifiedQuery = modifiedQuery.replace(regex, `\`${col}\``);
+            });
+            return modifiedQuery;
+        }
+
+        function executeQuery(objectName, query) {
+            const data = csvData[objectName];
+            if (!data || data.length === 0) return;
+
+            try {
+                const db = new SQL.Database();
+
+                // Create table
+                if (data.length > 0) {
+                    const columns = Object.keys(data[0]);
+                    // Escape column names with backticks to handle dots and special characters
+                    const createTableSQL = `CREATE TABLE \`${objectName}\` (${columns.map(col => `\`${col}\` TEXT`).join(', ')})`;
+                    db.run(createTableSQL);
+
+                    // Insert data
+                    const insertSQL = `INSERT INTO \`${objectName}\` (${columns.map(col => `\`${col}\``).join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`;
+                    const stmt = db.prepare(insertSQL);
+
+                    data.forEach(row => {
+                        const values = columns.map(col => {
+                            const value = row[col];
+                            return value !== null && value !== undefined ? String(value) : null;
+                        });
+                        stmt.run(values);
+                    });
+                    stmt.free();
+                }
+
+                // Preprocess the query to escape column names
+                const escapedQuery = escapeColumnNames(query, Object.keys(data[0]));
+
+                // Execute query
+                const result = db.exec(escapedQuery);
+
+                if (result.length > 0) {
+                    displayQueryResults(result[0]);
+                } else {
+                    document.getElementById('resultsTableContainer').innerHTML = `
+                <div class="loading">
+                    <i class="fas fa-info-circle"></i>
+                    <p>Query executed successfully but returned no results</p>
+                </div>
+            `;
+                }
+
+                db.close();
+            } catch (error) {
+                document.getElementById('resultsTableContainer').innerHTML = `
+            <div class="loading">
+                <i class="fas fa-exclamation-triangle" style="color: #e74c3c;"></i>
+                <p style="color: #e74c3c;">Query Error: ${error.message}</p>
+            </div>
+        `;
+            }
+        }
+
+        function displayQueryResults(result) {
+            if (resultsTable) {
+                resultsTable.destroy();
+            }
+
+            const columns = result.columns.map(col => ({
+                title: col,
+                data: function (row) {
+                    return row[col] !== null && row[col] !== undefined ? String(row[col]) : '';
+                }
+            }));
+
+            // Convert result values to objects
+            const data = result.values.map(row => {
+                const obj = {};
+                result.columns.forEach((col, index) => {
+                    obj[col] = row[index];
+                });
+                return obj;
+            });
+
+            const tableHtml = `
+        <table id="resultsTable" class="table table-striped table-bordered" style="width:100%">
+            <thead></thead>
+        </table>
+    `;
+
+            document.getElementById('resultsTableContainer').innerHTML = tableHtml;
+
+            resultsTable = $('#resultsTable').DataTable({
+                data: data,
+                columns: columns,
+                pageLength: 25,
+                lengthMenu: [10, 25, 50, 100],
+                responsive: true,
+                scrollX: true,
+                order: [],
+                columnDefs: [
+                    {
+                        targets: '_all',
+                        render: function (data, type, row, meta) {
+                            if (type === 'display' || type === 'type') {
+                                return data !== null && data !== undefined ? String(data) : '';
+                            }
+                            return data;
+                        }
+                    }
+                ]
+            });
+
+            document.getElementById('exportResults').style.display = 'inline-block';
+        }
+        function exportTable(type) {
+            const table = type === 'csv' ? csvTable : resultsTable;
+            const filename = type === 'csv' ?
+                `${document.getElementById('objectSelect').value}_data.csv` :
+                `${document.getElementById('objectSelect').value}_results.csv`;
+
+            if (!table) return;
+
+            if (typeof Papa === 'undefined') {
+                alert('CSV parser not loaded yet');
+                return;
+            }
+
+            const data = table.data().toArray();
+            const csv = Papa.unparse(data);
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+    </script>
+</body>
+
+</html>

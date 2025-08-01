@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salesforce Layout Parser</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- DataTables CSS -->
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <!-- Monaco Editor CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.0/min/vs/editor/editor.main.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            margin-top: 20px;
+        }
+        #editor {
+            height: 400px;
+            border: 1px solid #ced4da;
+            margin-bottom: 20px;
+        }
+        .btn-container {
+            margin-bottom: 20px;
+        }
+        #layoutTable {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">Salesforce Page Layout Parser</h1>
+        <div class="btn-container">
+            <input type="file" id="xmlFileInput" accept=".xml" class="form-control d-inline-block w-auto mb-2 me-2">
+            <select id="sectionSelect" class="form-select d-inline-block w-auto mb-2 me-2">
+                <option value="">Select a Section</option>
+                <option value="layoutSections">Layout Sections</option>
+                <option value="platformActionList">Platform Action List</option>
+                <option value="relatedLists">Related Lists</option>
+                <option value="summaryLayout">Summary Layout</option>
+            </select>
+            <button id="parseButton" class="btn btn-primary me-2">Parse XML</button>
+            <button id="downloadCsvButton" class="btn btn-success" disabled>Download CSV</button>
+        </div>
+        <div id="editor"></div>
+        <h3 id="tableTitle">Layout Items</h3>
+        <table id="layoutTable" class="table table-striped">
+            <thead></thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <!-- Monaco Editor Loader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.0/min/vs/loader.min.js"></script>
+    <script>
+        // Initialize Monaco Editor
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.0/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            const editor = monaco.editor.create(document.getElementById('editor'), {
+                value: '',
+                language: 'xml',
+                theme: 'vs-dark',
+                automaticLayout: true
+            });
+
+            // Handle file upload
+            document.getElementById('xmlFileInput').addEventListener('change', function (e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        editor.setValue(e.target.result);
+                    };
+                    reader.readAsText(file);
+                }
+            });
+
+            // Initialize DataTable state
+            let tableInitialized = false;
+            let table = null;
+
+            // Function to initialize or reinitialize DataTable
+            function initializeDataTable(columns, data) {
+                // Clear existing table content
+                const tableElement = $('#layoutTable');
+                tableElement.find('thead').empty();
+                tableElement.find('tbody').empty();
+
+                // Destroy existing DataTable if it exists
+                if (tableInitialized && table) {
+                    table.destroy();
+                    table = null; // Explicitly nullify to prevent stale references
+                    tableInitialized = false;
+                }
+
+                // Initialize DataTable
+                table = tableElement.DataTable({
+                    columns: columns,
+                    data: data,
+                    pageLength: 10,
+                    responsive: true,
+                    destroy: true,
+                    deferRender: true // Optimize rendering for large datasets
+                });
+                tableInitialized = true;
+
+                // Enable/disable CSV button
+                document.getElementById('downloadCsvButton').disabled = data.length === 0;
+            }
+
+            // Parse XML and populate table based on selection
+            document.getElementById('parseButton').addEventListener('click', function () {
+                const xmlString = editor.getValue();
+                const section = document.getElementById('sectionSelect').value;
+                if (!section) {
+                    alert('Please select a section to display.');
+                    return;
+                }
+
+                try {
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(xmlString, 'application/xml');
+                    const parserError = xmlDoc.getElementsByTagName('parsererror');
+                    if (parserError.length > 0) {
+                        throw new Error('Invalid XML format');
+                    }
+
+                    let data = [];
+                    let columns = [];
+
+                    if (section === 'layoutSections') {
+                        document.getElementById('tableTitle').textContent = 'Layout Sections';
+                        columns = [
+                            { title: 'Section Label', data: 'sectionLabel' },
+                            { title: 'Column', data: 'column' },
+                            { title: 'Field', data: 'field' },
+                            { title: 'Behavior', data: 'behavior' },
+                            { title: 'Style', data: 'style' }
+                        ];
+                        const layoutSections = xmlDoc.getElementsByTagName('layoutSections');
+                        for (let i = 0; i < layoutSections.length; i++) {
+                            const section = layoutSections[i];
+                            const label = section.getElementsByTagName('label')[0]?.textContent || 'Unknown';
+                            const style = section.getElementsByTagName('style')[0]?.textContent || 'None';
+                            const layoutColumns = section.getElementsByTagName('layoutColumns');
+                            // Skip if no columns or items to prevent empty rows
+                            if (!layoutColumns.length) continue;
+                            for (let j = 0; j < layoutColumns.length; j++) {
+                                const column = layoutColumns[j];
+                                const layoutItems = column.getElementsByTagName('layoutItems');
+                                for (let k = 0; k < layoutItems.length; k++) {
+                                    const item = layoutItems[k];
+                                    const field = item.getElementsByTagName('field')[0]?.textContent || '';
+                                    const behavior = item.getElementsByTagName('behavior')[0]?.textContent || '';
+                                    if (field) { // Only include items with a field
+                                        data.push({
+                                            sectionLabel: label,
+                                            column: j + 1,
+                                            field: field,
+                                            behavior: behavior,
+                                            style: style
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    } else if (section === 'platformActionList') {
+                        document.getElementById('tableTitle').textContent = 'Platform Action List';
+                        columns = [
+                            { title: 'Action Name', data: 'actionName' },
+                            { title: 'Action Type', data: 'actionType' },
+                            { title: 'Sort Order', data: 'sortOrder' }
+                        ];
+                        const platformActionListItems = xmlDoc.getElementsByTagName('platformActionListItems');
+                        for (let i = 0; i < platformActionListItems.length; i++) {
+                            const item = platformActionListItems[i];
+                            data.push({
+                                actionName: item.getElementsByTagName('actionName')[0]?.textContent || '',
+                                actionType: item.getElementsByTagName('actionType')[0]?.textContent || '',
+                                sortOrder: item.getElementsByTagName('sortOrder')[0]?.textContent || ''
+                            });
+                        }
+                    } else if (section === 'relatedLists') {
+                        document.getElementById('tableTitle').textContent = 'Related Lists';
+                        columns = [
+                            { title: 'Related List', data: 'relatedList' },
+                            { title: 'Fields', data: 'fields' }
+                        ];
+                        const relatedLists = xmlDoc.getElementsByTagName('relatedLists');
+                        for (let i = 0; i < relatedLists.length; i++) {
+                            const relatedList = relatedLists[i];
+                            const fields = Array.from(relatedList.getElementsByTagName('fields'))
+                                .map(field => field.textContent)
+                                .join(', ');
+                            data.push({
+                                relatedList: relatedList.getElementsByTagName('relatedList')[0]?.textContent || '',
+                                fields: fields || 'None'
+                            });
+                        }
+                    } else if (section === 'summaryLayout') {
+                        document.getElementById('tableTitle').textContent = 'Summary Layout';
+                        columns = [
+                            { title: 'Master Label', data: 'masterLabel' },
+                            { title: 'Size X', data: 'sizeX' },
+                            { title: 'Size Y', data: 'sizeY' },
+                            { title: 'Summary Layout Style', data: 'summaryLayoutStyle' }
+                        ];
+                        const summaryLayout = xmlDoc.getElementsByTagName('summaryLayout')[0];
+                        if (summaryLayout) {
+                            data.push({
+                                masterLabel: summaryLayout.getElementsByTagName('masterLabel')[0]?.textContent || '',
+                                sizeX: summaryLayout.getElementsByTagName('sizeX')[0]?.textContent || '',
+                                sizeY: summaryLayout.getElementsByTagName('sizeY')[0]?.textContent || '',
+                                summaryLayoutStyle: summaryLayout.getElementsByTagName('summaryLayoutStyle')[0]?.textContent || ''
+                            });
+                        }
+                    }
+
+                    // Initialize DataTable with new columns and data
+                    initializeDataTable(columns, data);
+                } catch (error) {
+                    alert('Error parsing XML: ' + error.message);
+                    // Reset table to empty state on error
+                    initializeDataTable([], []);
+                }
+            });
+
+            // Download CSV
+            document.getElementById('downloadCsvButton').addEventListener('click', function () {
+                if (!tableInitialized || !table) return;
+
+                const data = table.rows().data().toArray();
+                if (data.length === 0) return;
+
+                const section = document.getElementById('sectionSelect').value;
+                let headers = [];
+                if (section === 'layoutSections') {
+                    headers = ['Section Label', 'Column', 'Field', 'Behavior', 'Style'];
+                } else if (section === 'platformActionList') {
+                    headers = ['Action Name', 'Action Type', 'Sort Order'];
+                } else if (section === 'relatedLists') {
+                    headers = ['Related List', 'Fields'];
+                } else if (section === 'summaryLayout') {
+                    headers = ['Master Label', 'Size X', 'Size Y', 'Summary Layout Style'];
+                }
+
+                const csvContent = [
+                    headers.join(','),
+                    ...data.map(row => {
+                        const values = headers.map(header => {
+                            const key = header.toLowerCase().replace(/ /g, '');
+                            return `"${(row[key] || '').toString().replace(/"/g, '""')}"`;
+                        });
+                        return values.join(',');
+                    })
+                ].join('\n');
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', `${section}_data.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+        });
+    </script>
+</body>
+</html>

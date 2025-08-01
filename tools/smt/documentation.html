@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salesforce Migration Tool - Documentation</title>
+    <script src="https://unpkg.com/mermaid@10/dist/mermaid.min.js"></script>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+
+ 
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            color: #333;
+            line-height: 1.6;
+        }
+        nav {
+            background-color: #0078d4;
+            padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        nav ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            gap: 1rem;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            font-weight: bold;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+        }
+        nav a:hover {
+            background-color: #005ba1;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        h1, h2, h3 {
+            color: #0078d4;
+        }
+        h1 {
+            font-size: 2.5rem;
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+        h2 {
+            font-size: 1.8rem;
+            margin-top: 2rem;
+        }
+        h3 {
+            font-size: 1.4rem;
+            margin-top: 1.5rem;
+        }
+        p {
+            margin-bottom: 1rem;
+        }
+        code {
+            background-color: #e8ecef;
+            padding: 0.2rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+        }
+        pre {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1rem;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-family: 'Consolas', monospace;
+        }
+        .highlight {
+            background-color: #e3f2fd;
+            padding: 1rem;
+            border-left: 4px solid #0078d4;
+            margin-bottom: 1rem;
+        }
+        ul, ol {
+            margin-bottom: 1rem;
+            padding-left: 1.5rem;
+        }
+        footer {
+            text-align: center;
+            padding: 1rem;
+            background-color: #0078d4;
+            color: white;
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 2rem;
+            }
+            h2 {
+                font-size: 1.5rem;
+            }
+            nav ul {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            .container {
+                padding: 0 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <ul>
+            <li><a href="loader10.html">🏠 Home</a></li>
+            <li><a href="documentation.html">📄 Documentation</a></li>
+        </ul>
+    </nav>
+    <div class="container">
+        <h1>Salesforce Migration Tool Documentation</h1>
+        <p>Welcome to the documentation for the Salesforce Migration Tool, a powerful application designed to migrate complex Salesforce data using the Bulk API 2.0. This guide explains how to use the <code>load-plan.json</code> file, leverage composite keys to identify insert and update candidates, and highlights the app’s architectural features.</p>
+
+        <h2>Overview</h2>
+        <p>The Salesforce Migration Tool streamlines data migration between Salesforce orgs by generating CSV files for insert and update operations, which are loaded into the target org using Bulk API 2.0. Instead of relying on upsert (which requires an external ID), the app uses composite keys to match records, enabling precise identification of insert and update candidates across objects like <code>PricebookEntry</code>, <code>Product2</code>, and <code>ProductRelatedComponent</code>.</p>
+
+        <h2>Using the <code>load-plan.json</code> File</h2>
+        <p>The <code>load-plan.json</code> file defines the migration plan for each Salesforce object. It specifies the source query, field mappings, and composite keys to uniquely identify records. Below is an excerpt from a sample <code>load-plan.json</code> for <code>PricebookEntry</code> and <code>ProductRelatedComponent</code>:</p>
+        <pre>
+[
+  {
+    "object": "PricebookEntry",
+    "compositeKeys": ["Pricebook2.Name", "ProductSellingModel.Name", "Product2.StockKeepingUnit"],
+    "query": "SELECT IsActive, UnitPrice, UseStandardPrice, ProductSellingModel.Name, Product2.StockKeepingUnit, Pricebook2.Name FROM PricebookEntry",
+    "fieldMappings": {
+      "IsActive": "IsActive",
+      "UnitPrice": "UnitPrice",
+      "UseStandardPrice": "UseStandardPrice",
+      "ProductSellingModelId": {
+        "lookup": {
+          "object": "ProductSellingModel",
+          "key": "Name",
+          "field": "ProductSellingModel.Name"
+        }
+      },
+      "Product2Id": {
+        "lookup": {
+          "object": "Product2",
+          "key": "StockKeepingUnit",
+          "field": "Product2.StockKeepingUnit"
+        }
+      },
+      "Pricebook2Id": {
+        "lookup": {
+          "object": "Pricebook2",
+          "key": "Name",
+          "field": "Pricebook2.Name"
+        }
+      }
+    }
+  },
+  {
+    "object": "ProductRelatedComponent",
+    "compositeKeys": [
+      "ChildProduct.StockKeepingUnit",
+      "ChildProductClassification.Code",
+      "ParentProduct.StockKeepingUnit",
+      "ParentSellingModel.Name",
+      "ChildSellingModel.Name",
+      "ProductComponentGroup.Code"
+    ],
+    "query": "SELECT Name, ChildProduct.StockKeepingUnit, ChildProductClassification.Code, ParentProduct.StockKeepingUnit, Quantity, ParentSellingModel.Name, ChildSellingModel.Name, Sequence, DoesBundlePriceIncludeChild, QuantityScaleMethod, MaxQuantity, MinQuantity, ProductComponentGroup.Code, IsComponentRequired, IsQuantityEditable, IsDefaultComponent, ProductRelationshipType.Name, ParentProductRole, ChildProductRole, QuoteVisibility FROM ProductRelatedComponent",
+    "fieldMappings": {
+      "ChildProductId": {
+        "lookup": {
+          "object": "Product2",
+          "key": "StockKeepingUnit",
+          "field": "ChildProduct.StockKeepingUnit"
+        }
+      },
+      "ChildProductClassificationId": {
+        "lookup": {
+          "object": "ProductClassification",
+          "key": "Code",
+          "field": "ChildProductClassification.Code"
+        }
+      },
+      "ParentProductId": {
+        "lookup": {
+          "object": "Product2",
+          "key": "StockKeepingUnit",
+          "field": "ParentProduct.StockKeepingUnit"
+        }
+      },
+      ...
+    }
+  }
+]
+        </pre>
+        <h3>Key Components</h3>
+        <ul>
+            <li><strong><code>object</code></strong>: The Salesforce object (e.g., <code>PricebookEntry</code>).</li>
+            <li><strong><code>compositeKeys</code></strong>: Fields that uniquely identify records (e.g., <code>["Pricebook2.Name", "ProductSellingModel.Name", "Product2.StockKeepingUnit"]</code>).</li>
+            <li><strong><code>query</code></strong>: SOQL query to fetch source records (e.g., selecting <code>UnitPrice</code> and related fields).</li>
+            <li><strong><code>fieldMappings</code></strong>: Maps source to target fields, supporting:
+                <ul>
+                    <li>Direct mappings (e.g., <code>"UnitPrice": "UnitPrice"</code>).</li>
+                    <li>Lookups (e.g., <code>Product2Id</code> via <code>StockKeepingUnit</code>).</li>
+                    <li>Composite lookups (e.g., <code>ProductClassificationAttributeId</code> in <code>ProductAttributeDefinition</code>).</li>
+                    <li>Type conversions (e.g., <code>convertToInt</code> for <code>Sequence</code>).</li>
+                </ul>
+            </li>
+        </ul>
+        <p>Load the plan by dragging and dropping <code>load-plan.json</code> into the app’s UI or clicking “Load Sample Plan”.</p>
+
+        <h2>Composite Keys for Insert and Update Candidates</h2>
+        <p>The app uses composite keys to match records between source and target orgs, avoiding the need for external ID fields required by upsert operations. For example, in <code>PricebookEntry</code>, the composite key <code>["Pricebook2.Name", "ProductSellingModel.Name", "Product2.StockKeepingUnit"]</code> uniquely identifies records.</p>
+        <h3>How It Works</h3>
+        <ol>
+            <li><strong>Query Source Records</strong>: The app executes the SOQL query (e.g., for <code>PricebookEntry</code>) to retrieve source data.</li>
+            <li><strong>Build Composite Key Map</strong>: It queries the target org for the same object, selecting composite keys and <code>Id</code>. A map is created where keys are concatenated field values (e.g., <code>Pricebook2.Name|ProductSellingModel.Name|Product2.StockKeepingUnit</code>) and values are target <code>Id</code>s.</li>
+            <li><strong>Match Records</strong>: For each source record:
+                <ul>
+                    <li>If no composite key match exists in the target map, the record is an <strong>insert candidate</strong> (no <code>Id</code>).</li>
+                    <li>If a match exists, the record is an <strong>update candidate</strong> if non-key fields (e.g., <code>UnitPrice</code>) differ.</li>
+                </ul>
+            </li>
+            <li><strong>Generate CSVs</strong>: The app creates <code>_insert.csv</code> and <code>_update.csv</code> files for Bulk API 2.0.</li>
+        </ol>
+       <img src="./smt-doc-4.png" width="960" alt="Diagram showing composite key matching process">
+        <div class="highlight">
+            <p><strong>Example</strong>: For <code>ProductRelatedComponent</code>, the composite key includes six fields (e.g., <code>ChildProduct.StockKeepingUnit</code>, <code>ProductComponentGroup.Code</code>). This ensures precise matching for complex relationships without modifying the schema.</p>
+        </div>
+
+        <h2>Bulk API 2.0 Integration</h2>
+        <p>The app generates CSV files optimized for Salesforce Bulk API 2.0, which handles high-volume data operations. When <code>loadToTarget</code> is enabled:
+        <ul>
+            <li><code>_insert.csv</code>: Contains insert candidates with resolved lookup IDs (e.g., <code>Product2Id</code>).</li>
+            <li><code>_update.csv</code>: Contains update candidates with target <code>Id</code>s.</li>
+        </ul>
+        <p>The app resolves lookups (e.g., <code>Pricebook2Id</code> via <code>Pricebook2.Name</code>) to ensure referential integrity in the target org.</p>
+
+        <h2>Architectural Features</h2>
+        <p>The Salesforce Migration Tool is built with modern technologies for robust data migration:</p>
+        <h3>1. Desktop App</h3>
+
+        <h3>2. Dual Query Modes</h3>
+        <p>The app supports two query methods:
+        <ul>
+            <li><strong>REST API</strong>: Uses Salesforce REST API (<code>runSOQLQuery</code>) for fast queries, ideal for smaller datasets.</li>
+            <li><strong>Salesforce CLI</strong>: Uses the CLI (<code>sf data query --result-format csv</code>, parsed with <code>csv-parse</code>) for reliable CSV output, suitable for complex queries.</li>
+        </ul>
+
+        <h3>3. Advanced Field Mappings</h3>
+        <p>Field mappings in <code>load-plan.json</code> support:
+        <ul>
+            <li>Direct mappings (e.g., <code>"Code": "Code"</code> in <code>AttributeCategory</code>).</li>
+            <li>Lookups (e.g., <code>PicklistId</code> in <code>AttributePicklistValue</code> via <code>Picklist.Name</code>).</li>
+            <li>Composite lookups (e.g., <code>ProductClassificationAttributeId</code> in <code>ProductAttributeDefinition</code> using multiple fields).</li>
+            <li>Type conversions (e.g., <code>convertToInt</code> for <code>MinimumCharacterCount</code> in <code>ProductClassificationAttr</code>).</li>
+        </ul>
+
+        <h3>4. Multi-Object Dependencies</h3>
+        <p>The <code>load-plan.json</code> supports dependencies across objects. For example:
+        <ul>
+            <li><code>Product2</code> must be migrated before <code>PricebookEntry</code> due to the <code>Product2Id</code> lookup.</li>
+            <li><code>ProductClassificationAttr</code> depends on <code>AttributeCategory</code>, <code>AttributeDefinition</code>, and <code>ProductClassification</code>.</li>
+        </ul>
+        <p>Objects are processed sequentially in the order defined in <code>load-plan.json</code>.</p>
+
+        <h3>5. Real-Time Feedback</h3>
+        <p>The UI provides:
+        <ul>
+            <li>A progress bar (<code>progressBar</code>) updated via <code>updateProgress</code>.</li>
+            <li>A log output (<code>logOutput</code>) with color-coded messages (info, warning, error).</li>
+        </ul>
+
+        <h3>6. Flexible CSV Output</h3>
+        <p>CSVs are generated with configurable line endings (<code>\n</code> or <code>\r\n</code>) and downloaded automatically. For example, <code>PricebookEntry_insert.csv</code> includes resolved fields like <code>Product2Id</code>.</p>
+
+        <h2>Getting Started</h2>
+        <ol>
+            <li><strong>Install Salesforce CLI</strong> (for CLI mode):
+                <pre>npm install -g @salesforce/cli</pre>
+            </li>
+            <li><strong>Authenticate Orgs</strong>:
+                <pre>sf org login web -a sourceOrg
+sf org login web -a targetOrg</pre>
+                Enter usernames in the app’s UI.
+            </li>
+            <li><strong>Create <code>load-plan.json</code></strong>: Use the provided example, ensuring composite keys and lookups are correct.</li>
+            <li><strong>Load Plan</strong>: Drag and drop <code>load-plan.json</code> or click “Load Sample Plan”.</li>
+            <li><strong>Run Migration</strong>: Click “Generate CSV Only” to create CSVs or “Start Migration” to load data via Bulk API 2.0.</li>
+        </ol>
+
+        <h2>Troubleshooting</h2>
+        <ul>
+            <li><strong>UnitPrice Appearing as null</strong>: Ensure <code>UnitPrice</code> in <code>PricebookEntry</code> is mapped as <code>"UnitPrice": "UnitPrice"</code> without <code>convertToInt</code>. Check <code>logOutput</code> for debug logs (e.g., <code>Debug: UnitPrice for record</code>).</li>
+            <li><strong>Lookup Failures</strong>: Verify lookup fields (e.g., <code>StockKeepingUnit</code> in <code>Product2</code>) exist in the target org.</li>
+            <li><strong>CLI Errors</strong>: Confirm Salesforce CLI is installed and accessible at <code>/usr/local/bin/sf</code> (or <code>sf.cmd</code> on Windows).</li>
+            <li><strong>Composite Key Mismatches</strong>: Ensure composite key fields (e.g., <code>ChildProduct.StockKeepingUnit</code>) are non-null and match target org data.</li>
+        </ul>
+
+        <h2>Conclusion</h2>
+        <p>The Salesforce Migration Tool offers a powerful, flexible solution for migrating complex Salesforce data. By leveraging composite keys and Bulk API 2.0, it simplifies migrations without requiring external IDs. Use the provided <code>load-plan.json</code> as a template to migrate objects like <code>AttributeCategory</code>, <code>PricebookEntry</code>, and <code>ProductRelatedComponent</code>, and take advantage of the app’s advanced features to streamline your data migration projects.</p>
+        <h2>Useful links</h2>
+        <ul>
+            <li><a href="https://mchinnappan100.github.io/pages2/clouds/revenue/model/pcm.html">Product Data Catalog (PCM) Data Model - Interactive</a></li>
+        </ul>
+        <h3>PCM Loading Order</h3>
+        <img src="./PCM-model-loading-order.png" width="960"" alt="">
+    </div>
+    <footer>
+    </footer>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            flowchart: {
+                useMaxWidth: true
+            }
+        });
+    </script>
+</body>
+</html>

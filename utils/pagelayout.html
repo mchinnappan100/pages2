@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salesforce Layout Parser</title>
+    <!-- Bootstrap CSS for styling -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- DataTables CSS -->
+    <link href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+    <!-- Monaco Editor CSS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.0/min/vs/editor/editor.main.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            margin-top: 20px;
+        }
+        #editor {
+            height: 400px;
+            border: 1px solid #ced4da;
+            margin-bottom: 20px;
+        }
+        .btn-container {
+            margin-bottom: 20px;
+        }
+        #layoutTable {
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="mb-4">Salesforce Page Layout Parser</h1>
+        <div class="btn-container">
+            <input type="file" id="xmlFileInput" accept=".xml" class="form-control d-inline-block w-auto mb-2">
+            <button id="parseButton" class="btn btn-primary me-2">Parse XML</button>
+            <button id="downloadCsvButton" class="btn btn-success" disabled>Download CSV</button>
+        </div>
+        <div id="editor"></div>
+        <h3>Layout Items</h3>
+        <table id="layoutTable" class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Section Label</th>
+                    <th>Column</th>
+                    <th>Field</th>
+                    <th>Behavior</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <!-- jQuery (required for DataTables) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- DataTables JS -->
+    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+    <!-- Monaco Editor Loader -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.0/min/vs/loader.min.js"></script>
+    <script>
+        // Initialize Monaco Editor
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.0/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            const editor = monaco.editor.create(document.getElementById('editor'), {
+                value: '',
+                language: 'xml',
+                theme: 'vs-dark',
+                automaticLayout: true
+            });
+
+            // Handle file upload
+            document.getElementById('xmlFileInput').addEventListener('change', function (e) {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        editor.setValue(e.target.result);
+                    };
+                    reader.readAsText(file);
+                }
+            });
+
+            // Initialize DataTable
+            const table = $('#layoutTable').DataTable({
+                columns: [
+                    { data: 'sectionLabel' },
+                    { data: 'column' },
+                    { data: 'field' },
+                    { data: 'behavior' }
+                ],
+                pageLength: 10,
+                responsive: true
+            });
+
+            // Parse XML and populate table
+            document.getElementById('parseButton').addEventListener('click', function () {
+                const xmlString = editor.getValue();
+                try {
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(xmlString, 'application/xml');
+                    const layoutSections = xmlDoc.getElementsByTagName('layoutSections');
+                    const data = [];
+
+                    for (let i = 0; i < layoutSections.length; i++) {
+                        const section = layoutSections[i];
+                        const label = section.getElementsByTagName('label')[0]?.textContent || 'Unknown';
+                        const layoutColumns = section.getElementsByTagName('layoutColumns');
+
+                        for (let j = 0; j < layoutColumns.length; j++) {
+                            const column = layoutColumns[j];
+                            const layoutItems = column.getElementsByTagName('layoutItems');
+
+                            for (let k = 0; k < layoutItems.length; k++) {
+                                const item = layoutItems[k];
+                                const field = item.getElementsByTagName('field')[0]?.textContent || '';
+                                const behavior = item.getElementsByTagName('behavior')[0]?.textContent || '';
+
+                                if (field) {
+                                    data.push({
+                                        sectionLabel: label,
+                                        column: j + 1,
+                                        field: field,
+                                        behavior: behavior
+                                    });
+                                }
+                            }
+                        }
+                    }
+
+                    // Clear and populate table
+                    table.clear().rows.add(data).draw();
+                    document.getElementById('downloadCsvButton').disabled = data.length === 0;
+                } catch (error) {
+                    alert('Error parsing XML: ' + error.message);
+                }
+            });
+
+            // Download CSV
+            document.getElementById('downloadCsvButton').addEventListener('click', function () {
+                const data = table.rows().data().toArray();
+                if (data.length === 0) return;
+
+                const csvContent = [
+                    ['Section Label', 'Column', 'Field', 'Behavior'].join(','),
+                    ...data.map(row => [
+                        `"${row.sectionLabel.replace(/"/g, '""')}"`,
+                        row.column,
+                        `"${row.field.replace(/"/g, '""')}"`,
+                        `"${row.behavior.replace(/"/g, '""')}"`
+                    ].join(','))
+                ].join('\n');
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'layout_data.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+        });
+    </script>
+</body>
+</html>
