@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Load Plan Visualizer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <style>
+        .node-rect {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .node-rect:hover {
+            filter: brightness(1.1);
+        }
+        .link {
+            fill: none;
+            stroke: #6366f1;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+        }
+        .tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 300px;
+        }
+        .grid-pattern {
+            background-image: 
+                linear-gradient(rgba(99, 102, 241, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(99, 102, 241, 0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Load Plan Visualizer</h1>
+            <p class="text-gray-600">Upload and visualize your JSON load plan with interactive diagrams</p>
+        </div>
+
+        <!-- File Upload Section -->
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <div class="flex items-center justify-center w-full">
+                <label for="file-upload" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
+                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                        <svg class="w-8 h-8 mb-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                        </svg>
+                        <p class="mb-2 text-sm text-gray-500">
+                            <span class="font-semibold">Click to upload</span> your load-plan JSON file
+                        </p>
+                        <p class="text-xs text-gray-500">JSON files only</p>
+                    </div>
+                    <input id="file-upload" type="file" class="hidden" accept=".json" />
+                </label>
+            </div>
+            <div id="file-info" class="mt-4 hidden">
+                <div class="flex items-center text-sm text-green-600">
+                    <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                    </svg>
+                    <span id="file-name"></span>
+                <!-- Object Inspector -->
+                <div id="inspector-panel" class="tab-panel hidden p-6">
+                    <div class="mb-6">
+                        <h3 class="text-lg font-semibold text-gray-800 mb-4">Object Inspector</h3>
+                        <div class="flex items-center space-x-4">
+                            <label for="object-selector" class="text-sm font-medium text-gray-700">Select Object:</label>
+                            <select id="object-selector" class="block w-64 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                                <option value="">Choose an object...</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="object-details" class="hidden">
+                        <!-- Object Header -->
+                        <div class="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-lg p-6 text-white mb-6">
+                            <h4 id="selected-object-name" class="text-2xl font-bold mb-2"></h4>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4">
+                                <div>
+                                    <p class="text-indigo-200 text-sm">Composite Keys</p>
+                                    <p id="selected-keys-count" class="text-xl font-semibold"></p>
+                                </div>
+                                <div>
+                                    <p class="text-indigo-200 text-sm">Field Mappings</p>
+                                    <p id="selected-fields-count" class="text-xl font-semibold"></p>
+                                </div>
+                                <div>
+                                    <p class="text-indigo-200 text-sm">Lookups</p>
+                                    <p id="selected-lookups-count" class="text-xl font-semibold"></p>
+                                </div>
+                                <div>
+                                    <p class="text-indigo-200 text-sm">Composite Lookups</p>
+                                    <p id="selected-composite-lookups-count" class="text-xl font-semibold"></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Content Sections -->
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- Query Section -->
+                            <div class="bg-white border border-gray-200 rounded-lg p-6">
+                                <h5 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                                    <svg class="w-5 h-5 mr-2 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                    </svg>
+                                    SQL Query
+                                </h5>
+                                <div class="bg-gray-50 rounded-md p-4">
+                                    <pre id="selected-query" class="text-sm text-gray-700 whitespace-pre-wrap font-mono"></pre>
+                                </div>
+                            </div>
+
+                            <!-- Composite Keys Section -->
+                            <div class="bg-white border border-gray-200 rounded-lg p-6">
+                                <h5 class="text-lg font-semibold text-gray-800 mb-3 flex items-center">
+                                    <svg class="w-5 h-5 mr-2 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 2 2 0 012 2 1 1 0 102 0 4 4 0 00-4-4z" clip-rule="evenodd"></path>
+                                    </svg>
+                                    Composite Keys
+                                </h5>
+                                <div id="selected-keys" class="space-y-2"></div>
+                            </div>
+                        </div>
+
+                        <!-- Field Mappings Table -->
+                        <div class="bg-white border border-gray-200 rounded-lg p-6 mt-6">
+                            <h5 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                                <svg class="w-5 h-5 mr-2 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path>
+                                </svg>
+                                Field Mappings
+                            </h5>
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Field</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Details</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="selected-field-mappings" class="bg-white divide-y divide-gray-200">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+        <!-- Statistics Cards -->
+        <div id="stats-section" class="hidden mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-6 text-white">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-white bg-opacity-20 rounded-lg">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-lg font-semibold">Total Objects</h3>
+                            <p id="total-objects" class="text-2xl font-bold">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-6 text-white">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-white bg-opacity-20 rounded-lg">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-lg font-semibold">With Lookups</h3>
+                            <p id="lookup-objects" class="text-2xl font-bold">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg p-6 text-white">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-white bg-opacity-20 rounded-lg">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-lg font-semibold">Composite Keys</h3>
+                            <p id="composite-keys" class="text-2xl font-bold">0</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg p-6 text-white">
+                    <div class="flex items-center">
+                        <div class="p-2 bg-white bg-opacity-20 rounded-lg">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-4">
+                            <h3 class="text-lg font-semibold">Field Mappings</h3>
+                            <p id="field-mappings" class="text-2xl font-bold">0</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Visualization Tabs -->
+        <div id="visualization-section" class="hidden">
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                <div class="border-b border-gray-200">
+                    <nav class="-mb-px flex">
+                        <button id="tab-diagram" class="tab-button active py-4 px-6 border-b-2 border-indigo-500 text-indigo-600 font-medium">
+                            Entity Relationship Diagram
+                        </button>
+                        <button id="tab-table" class="tab-button py-4 px-6 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
+                            Object Details
+                        </button>
+                        <button id="tab-dependencies" class="tab-button py-4 px-6 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
+                            Dependencies Graph
+                        </button>
+                        <button id="tab-inspector" class="tab-button py-4 px-6 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
+                            Object Inspector
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- Entity Relationship Diagram -->
+                <div id="diagram-panel" class="tab-panel p-6">
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-gray-800">Entity Relationship Diagram</h3>
+                            <div class="flex space-x-2">
+                                <button id="zoom-in" class="px-3 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200">Zoom In</button>
+                                <button id="zoom-out" class="px-3 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200">Zoom Out</button>
+                                <button id="reset-zoom" class="px-3 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200">Reset</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="diagram-container" class="border border-gray-200 rounded-lg bg-white grid-pattern overflow-hidden" style="height: 600px;">
+                        <svg id="diagram-svg" class="w-full h-full"></svg>
+                    </div>
+                </div>
+
+                <!-- Object Details Table -->
+                <div id="table-panel" class="tab-panel hidden p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-4">Object Details</h3>
+                    <div class="overflow-x-auto">
+                        <table id="objects-table" class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Object</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Composite Keys</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Field Mappings</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lookups</th>
+                                </tr>
+                            </thead>
+                            <tbody id="table-body" class="bg-white divide-y divide-gray-200">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Dependencies Graph -->
+                <div id="dependencies-panel" class="tab-panel hidden p-6">
+                    <div class="mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">Object Dependencies</h3>
+                        <p class="text-gray-600">Shows relationships between objects based on lookups</p>
+                    </div>
+                    <div id="dependencies-container" class="border border-gray-200 rounded-lg bg-white overflow-hidden" style="height: 600px;">
+                        <svg id="dependencies-svg" class="w-full h-full"></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tooltip -->
+        <div id="tooltip" class="tooltip hidden"></div>
+    </div>
+
+    <script>
+        let loadPlanData = null;
+        let currentScale = 1;
+
+        // File upload handling
+        document.getElementById('file-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file && file.type === 'application/json') {
+                const reader = new FileReader();
+                reader.onload = function(event) {
+                    try {
+                        loadPlanData = JSON.parse(event.target.result);
+                        document.getElementById('file-name').textContent = file.name;
+                        document.getElementById('file-info').classList.remove('hidden');
+                        processLoadPlan();
+                    } catch (error) {
+                        alert('Invalid JSON file. Please check the file format.');
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                alert('Please select a valid JSON file.');
+            }
+        });
+
+        // Tab switching
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', function() {
+                const tabId = this.id.replace('tab-', '');
+                switchTab(tabId);
+            });
+        });
+
+        function switchTab(tabName) {
+            // Update button states
+            document.querySelectorAll('.tab-button').forEach(btn => {
+                btn.classList.remove('active', 'border-indigo-500', 'text-indigo-600');
+                btn.classList.add('border-transparent', 'text-gray-500');
+            });
+            document.getElementById(`tab-${tabName}`).classList.add('active', 'border-indigo-500', 'text-indigo-600');
+            
+            // Show/hide panels
+            document.querySelectorAll('.tab-panel').forEach(panel => panel.classList.add('hidden'));
+            document.getElementById(`${tabName}-panel`).classList.remove('hidden');
+
+            if (tabName === 'dependencies') {
+                createDependenciesGraph();
+            } else if (tabName === 'inspector') {
+                populateObjectSelector();
+            }
+        }
+
+        function processLoadPlan() {
+            if (!loadPlanData) return;
+
+            // Show sections
+            document.getElementById('stats-section').classList.remove('hidden');
+            document.getElementById('visualization-section').classList.remove('hidden');
+
+            // Calculate statistics
+            const totalObjects = loadPlanData.length;
+            let lookupObjects = 0;
+            let totalCompositeKeys = 0;
+            let totalFieldMappings = 0;
+
+            loadPlanData.forEach(obj => {
+                totalCompositeKeys += obj.compositeKeys ? obj.compositeKeys.length : 0;
+                totalFieldMappings += obj.fieldMappings ? Object.keys(obj.fieldMappings).length : 0;
+                
+                if (obj.fieldMappings) {
+                    const hasLookups = Object.values(obj.fieldMappings).some(mapping => 
+                        typeof mapping === 'object' && (mapping.lookup || mapping.compositeLookup)
+                    );
+                    if (hasLookups) lookupObjects++;
+                }
+            });
+
+            // Update statistics
+            document.getElementById('total-objects').textContent = totalObjects;
+            document.getElementById('lookup-objects').textContent = lookupObjects;
+            document.getElementById('composite-keys').textContent = totalCompositeKeys;
+            document.getElementById('field-mappings').textContent = totalFieldMappings;
+
+            // Create visualizations
+            createEntityDiagram();
+            createObjectTable();
+            populateObjectSelector();
+        }
+
+        function populateObjectSelector() {
+            const selector = document.getElementById('object-selector');
+            selector.innerHTML = '<option value="">Choose an object...</option>';
+            
+            loadPlanData.forEach(obj => {
+                const option = document.createElement('option');
+                option.value = obj.object;
+                option.textContent = obj.object;
+                selector.appendChild(option);
+            });
+
+            // Add event listener for selection
+            selector.onchange = function() {
+                if (this.value) {
+                    displayObjectDetails(this.value);
+                } else {
+                    document.getElementById('object-details').classList.add('hidden');
+                }
+            };
+        }
+
+        function displayObjectDetails(objectName) {
+            const obj = loadPlanData.find(item => item.object === objectName);
+            if (!obj) return;
+
+            document.getElementById('object-details').classList.remove('hidden');
+            
+            // Update header
+            document.getElementById('selected-object-name').textContent = obj.object;
+            document.getElementById('selected-keys-count').textContent = obj.compositeKeys?.length || 0;
+            document.getElementById('selected-fields-count').textContent = Object.keys(obj.fieldMappings || {}).length;
+            
+            // Count lookups
+            let regularLookups = 0;
+            let compositeLookups = 0;
+            if (obj.fieldMappings) {
+                Object.values(obj.fieldMappings).forEach(mapping => {
+                    if (typeof mapping === 'object') {
+                        if (mapping.lookup) regularLookups++;
+                        if (mapping.compositeLookup) compositeLookups++;
+                    }
+                });
+            }
+            document.getElementById('selected-lookups-count').textContent = regularLookups;
+            document.getElementById('selected-composite-lookups-count').textContent = compositeLookups;
+
+            // Display query
+            document.getElementById('selected-query').textContent = obj.query || 'No query specified';
+
+            // Display composite keys
+            const keysContainer = document.getElementById('selected-keys');
+            keysContainer.innerHTML = '';
+            if (obj.compositeKeys && obj.compositeKeys.length > 0) {
+                obj.compositeKeys.forEach(key => {
+                    const keyElement = document.createElement('div');
+                    keyElement.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 mr-2 mb-2';
+                    keyElement.textContent = key;
+                    keysContainer.appendChild(keyElement);
+                });
+            } else {
+                keysContainer.innerHTML = '<p class="text-gray-500 text-sm">No composite keys defined</p>';
+            }
+
+            // Display field mappings
+            const mappingsTable = document.getElementById('selected-field-mappings');
+            mappingsTable.innerHTML = '';
+            
+            if (obj.fieldMappings) {
+                Object.entries(obj.fieldMappings).forEach(([field, mapping]) => {
+                    const row = mappingsTable.insertRow();
+                    
+                    // Field name
+                    const fieldCell = row.insertCell(0);
+                    fieldCell.className = 'px-4 py-3 text-sm font-medium text-gray-900';
+                    fieldCell.textContent = field;
+                    
+                    // Type
+                    const typeCell = row.insertCell(1);
+                    typeCell.className = 'px-4 py-3 text-sm';
+                    
+                    // Details
+                    const detailsCell = row.insertCell(2);
+                    detailsCell.className = 'px-4 py-3 text-sm text-gray-600';
+                    
+                    if (typeof mapping === 'string') {
+                        typeCell.innerHTML = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Direct</span>';
+                        detailsCell.textContent = mapping;
+                    } else if (mapping.lookup) {
+                        typeCell.innerHTML = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Lookup</span>';
+                        detailsCell.innerHTML = `<strong>Object:</strong> ${mapping.lookup.object}<br><strong>Key:</strong> ${mapping.lookup.key}<br><strong>Field:</strong> ${mapping.lookup.field}`;
+                    } else if (mapping.compositeLookup) {
+                        typeCell.innerHTML = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">Composite Lookup</span>';
+                        detailsCell.innerHTML = `<strong>Object:</strong> ${mapping.compositeLookup.object}<br><strong>Keys:</strong> ${mapping.compositeLookup.keyFields?.join(', ')}`;
+                    } else if (mapping.field) {
+                        const hasConversion = mapping.convertToInt ? ' (Convert to Int)' : '';
+                        typeCell.innerHTML = '<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Field</span>';
+                        detailsCell.textContent = mapping.field + hasConversion;
+                    }
+                });
+            }
+        }
+
+        function createEntityDiagram() {
+            const svg = d3.select('#diagram-svg');
+            svg.selectAll('*').remove();
+
+            const width = document.getElementById('diagram-container').clientWidth;
+            const height = 600;
+
+            // Add zoom behavior
+            const zoom = d3.zoom()
+                .scaleExtent([0.1, 3])
+                .on('zoom', (event) => {
+                    currentScale = event.transform.k;
+                    g.attr('transform', event.transform);
+                });
+
+            svg.call(zoom);
+
+            const g = svg.append('g');
+
+            // Add arrow marker
+            svg.append('defs').append('marker')
+                .attr('id', 'arrowhead')
+                .attr('viewBox', '0 -5 10 10')
+                .attr('refX', 15)
+                .attr('refY', 0)
+                .attr('markerWidth', 4)
+                .attr('markerHeight', 4)
+                .attr('orient', 'auto')
+                .append('path')
+                .attr('d', 'M0,-5L10,0L0,5')
+                .attr('class', 'arrowhead')
+                .style('fill', '#6366f1');
+
+            // Create nodes
+            const nodes = loadPlanData.map((obj, i) => ({
+                id: obj.object,
+                object: obj,
+                x: (i % 4) * 300 + 150,
+                y: Math.floor(i / 4) * 200 + 100
+            }));
+
+            // Create links based on lookups
+            const links = [];
+            loadPlanData.forEach(obj => {
+                if (obj.fieldMappings) {
+                    Object.values(obj.fieldMappings).forEach(mapping => {
+                        if (typeof mapping === 'object') {
+                            if (mapping.lookup) {
+                                links.push({
+                                    source: obj.object,
+                                    target: mapping.lookup.object,
+                                    type: 'lookup'
+                                });
+                            } else if (mapping.compositeLookup) {
+                                links.push({
+                                    source: obj.object,
+                                    target: mapping.compositeLookup.object,
+                                    type: 'compositeLookup'
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Draw links
+            const link = g.selectAll('.link')
+                .data(links)
+                .enter().append('line')
+                .attr('class', 'link')
+                .attr('stroke-dasharray', d => d.type === 'compositeLookup' ? '5,5' : 'none');
+
+            // Draw nodes
+            const node = g.selectAll('.node')
+                .data(nodes)
+                .enter().append('g')
+                .attr('class', 'node')
+                .attr('transform', d => `translate(${d.x}, ${d.y})`);
+
+            node.append('rect')
+                .attr('class', 'node-rect')
+                .attr('width', 200)
+                .attr('height', 80)
+                .attr('rx', 8)
+                .attr('fill', '#3b82f6')
+                .attr('stroke', '#1e40af')
+                .attr('stroke-width', 2);
+
+            node.append('text')
+                .attr('x', 100)
+                .attr('y', 30)
+                .attr('text-anchor', 'middle')
+                .attr('fill', 'white')
+                .attr('font-weight', 'bold')
+                .attr('font-size', '14px')
+                .text(d => d.id);
+
+            node.append('text')
+                .attr('x', 100)
+                .attr('y', 50)
+                .attr('text-anchor', 'middle')
+                .attr('fill', '#e0e7ff')
+                .attr('font-size', '12px')
+                .text(d => `${d.object.compositeKeys?.length || 0} keys`);
+
+            node.append('text')
+                .attr('x', 100)
+                .attr('y', 65)
+                .attr('text-anchor', 'middle')
+                .attr('fill', '#e0e7ff')
+                .attr('font-size', '12px')
+                .text(d => `${Object.keys(d.object.fieldMappings || {}).length} fields`);
+
+            // Update link positions
+            link
+                .attr('x1', d => {
+                    const source = nodes.find(n => n.id === d.source);
+                    return source ? source.x + 200 : 0;
+                })
+                .attr('y1', d => {
+                    const source = nodes.find(n => n.id === d.source);
+                    return source ? source.y + 40 : 0;
+                })
+                .attr('x2', d => {
+                    const target = nodes.find(n => n.id === d.target);
+                    return target ? target.x : 0;
+                })
+                .attr('y2', d => {
+                    const target = nodes.find(n => n.id === d.target);
+                    return target ? target.y + 40 : 0;
+                });
+
+            // Add tooltip
+            const tooltip = d3.select('#tooltip');
+
+            node.on('mouseover', function(event, d) {
+                tooltip.style('display', 'block')
+                    .style('left', (event.pageX + 10) + 'px')
+                    .style('top', (event.pageY - 10) + 'px')
+                    .html(`
+                        <strong>${d.id}</strong><br>
+                        Composite Keys: ${d.object.compositeKeys?.join(', ') || 'None'}<br>
+                        Query: ${d.object.query || 'N/A'}
+                    `);
+            })
+            .on('mouseout', function() {
+                tooltip.style('display', 'none');
+            });
+
+            // Zoom controls
+            document.getElementById('zoom-in').onclick = () => {
+                svg.transition().call(zoom.scaleBy, 1.2);
+            };
+            document.getElementById('zoom-out').onclick = () => {
+                svg.transition().call(zoom.scaleBy, 0.8);
+            };
+            document.getElementById('reset-zoom').onclick = () => {
+                svg.transition().call(zoom.transform, d3.zoomIdentity);
+            };
+        }
+
+        function createObjectTable() {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            loadPlanData.forEach(obj => {
+                const row = tbody.insertRow();
+                
+                // Object name
+                const nameCell = row.insertCell(0);
+                nameCell.innerHTML = `<span class="font-medium text-gray-900">${obj.object}</span>`;
+                
+                // Composite keys
+                const keysCell = row.insertCell(1);
+                keysCell.innerHTML = `<span class="text-sm text-gray-600">${obj.compositeKeys?.join(', ') || 'None'}</span>`;
+                
+                // Field mappings count
+                const fieldsCell = row.insertCell(2);
+                fieldsCell.innerHTML = `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">${Object.keys(obj.fieldMappings || {}).length} fields</span>`;
+                
+                // Lookups
+                const lookupsCell = row.insertCell(3);
+                const lookups = [];
+                if (obj.fieldMappings) {
+                    Object.entries(obj.fieldMappings).forEach(([key, mapping]) => {
+                        if (typeof mapping === 'object') {
+                            if (mapping.lookup) {
+                                lookups.push(`${key} → ${mapping.lookup.object}`);
+                            } else if (mapping.compositeLookup) {
+                                lookups.push(`${key} → ${mapping.compositeLookup.object} (composite)`);
+                            }
+                        }
+                    });
+                }
+                lookupsCell.innerHTML = lookups.length > 0 
+                    ? `<div class="text-sm text-gray-600">${lookups.slice(0, 3).join('<br>')}</div>`
+                    : '<span class="text-gray-400">None</span>';
+            });
+        }
+
+        function createDependenciesGraph() {
+            const svg = d3.select('#dependencies-svg');
+            svg.selectAll('*').remove();
+
+            const width = document.getElementById('dependencies-container').clientWidth;
+            const height = 600;
+
+            // Create nodes and links for dependency graph
+            const nodes = loadPlanData.map(obj => ({
+                id: obj.object,
+                group: 1
+            }));
+
+            const links = [];
+            const nodeMap = new Map(nodes.map(n => [n.id, n]));
+
+            loadPlanData.forEach(obj => {
+                if (obj.fieldMappings) {
+                    Object.values(obj.fieldMappings).forEach(mapping => {
+                        if (typeof mapping === 'object') {
+                            let targetObject = null;
+                            if (mapping.lookup) {
+                                targetObject = mapping.lookup.object;
+                            } else if (mapping.compositeLookup) {
+                                targetObject = mapping.compositeLookup.object;
+                            }
+                            
+                            if (targetObject && nodeMap.has(targetObject)) {
+                                links.push({
+                                    source: obj.object,
+                                    target: targetObject
+                                });
+                            }
+                        }
+                    });
+                }
+            });
+
+            // Create force simulation
+            const simulation = d3.forceSimulation(nodes)
+                .force('link', d3.forceLink(links).id(d => d.id).distance(100))
+                .force('charge', d3.forceManyBody().strength(-300))
+                .force('center', d3.forceCenter(width / 2, height / 2));
+
+            const g = svg.append('g');
+
+            // Add zoom behavior
+            svg.call(d3.zoom().on('zoom', (event) => {
+                g.attr('transform', event.transform);
+            }));
+
+            // Draw links
+            const link = g.append('g')
+                .attr('stroke', '#999')
+                .attr('stroke-opacity', 0.6)
+                .selectAll('line')
+                .data(links)
+                .enter().append('line')
+                .attr('stroke-width', 2);
+
+            // Draw nodes
+            const node = g.append('g')
+                .attr('stroke', '#fff')
+                .attr('stroke-width', 1.5)
+                .selectAll('circle')
+                .data(nodes)
+                .enter().append('circle')
+                .attr('r', 8)
+                .attr('fill', '#3b82f6')
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended));
+
+            // Add labels
+            const label = g.append('g')
+                .selectAll('text')
+                .data(nodes)
+                .enter().append('text')
+                .attr('text-anchor', 'middle')
+                .attr('dy', '.35em')
+                .attr('font-size', '12px')
+                .text(d => d.id);
+
+            simulation.on('tick', () => {
+                link
+                    .attr('x1', d => d.source.x)
+                    .attr('y1', d => d.source.y)
+                    .attr('x2', d => d.target.x)
+                    .attr('y2', d => d.target.y);
+
+                node
+                    .attr('cx', d => d.x)
+                    .attr('cy', d => d.y);
+
+                label
+                    .attr('x', d => d.x)
+                    .attr('y', d => d.y + 20);
+            });
+
+            function dragstarted(event) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                event.subject.fx = event.subject.x;
+                event.subject.fy = event.subject.y;
+            }
+
+            function dragged(event) {
+                event.subject.fx = event.x;
+                event.subject.fy = event.y;
+            }
+
+            function dragended(event) {
+                if (!event.active) simulation.alphaTarget(0);
+                event.subject.fx = null;
+                event.subject.fy = null;
+            }
+        }
+    </script>
+</body>
+</html>
