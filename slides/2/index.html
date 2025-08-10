@@ -1,0 +1,1474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+
+    <title>MC - Markdown Slide Editor</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script>
+        // Ensure jsPDF is available globally
+        window.jsPDF = window.jspdf?.jsPDF || window.jsPDF;
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1e1e1e;
+            color: #fff;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            background: #2d2d30;
+            padding: 10px 20px;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 18px;
+            color: #ffffff;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .btn {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        .btn:hover {
+            background: #1177bb;
+        }
+
+        .btn-secondary {
+            background: #5a5a5a;
+        }
+
+        .btn-secondary:hover {
+            background: #6a6a6a;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+            position: relative;
+        }
+
+        .editor-pane {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            min-width: 300px;
+            max-width: 80%;
+        }
+
+        .editor-header {
+            background: #2d2d30;
+            padding: 10px 20px;
+            border-bottom: 1px solid #3e3e42;
+            font-size: 14px;
+            color: #cccccc;
+        }
+
+        .editor-container {
+            flex: 1;
+        }
+
+        .splitter {
+            width: 6px;
+            background: #3e3e42;
+            cursor: col-resize;
+            position: relative;
+            transition: background 0.2s;
+            border-left: 1px solid #2d2d30;
+            border-right: 1px solid #2d2d30;
+        }
+
+        .splitter:hover {
+            background: #0e639c;
+        }
+
+        .splitter::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 2px;
+            height: 40px;
+            background: #666;
+            border-radius: 1px;
+        }
+
+        .splitter:hover::before {
+            background: #fff;
+        }
+
+        .splitter.dragging {
+            background: #0e639c;
+        }
+
+        .slides-pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #252526;
+            min-width: 300px;
+        }
+
+        .slides-header {
+            background: #2d2d30;
+            padding: 10px 20px;
+            border-bottom: 1px solid #3e3e42;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .slide-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .slide-counter {
+            font-size: 14px;
+            color: #cccccc;
+        }
+
+        .slide-nav {
+            background: #5a5a5a;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .slide-nav:hover {
+            background: #6a6a6a;
+        }
+
+        .slide-nav:disabled {
+            background: #404040;
+            cursor: not-allowed;
+        }
+
+        .slides-container {
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
+        }
+
+        .slide {
+            background: white;
+            color: black;
+            padding: 40px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            min-height: 500px;
+            page-break-after: always;
+            display: none;
+            position: relative;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        .slide::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, var(--overlay-opacity, 0.9));
+            border-radius: 8px;
+            z-index: 1;
+        }
+
+        .slide-content {
+            position: relative;
+            z-index: 2;
+        }
+
+        .slide.active {
+            display: block;
+        }
+
+        .background-panel {
+            position: fixed;
+            top: 60px;
+            right: -350px;
+            width: 350px;
+            height: calc(100vh - 60px);
+            background: #2d2d30;
+            border-left: 1px solid #3e3e42;
+            transition: right 0.3s ease;
+            z-index: 1000;
+            overflow-y: auto;
+            box-shadow: -2px 0 8px rgba(0,0,0,0.2);
+        }
+
+        .background-panel.open {
+            right: 0;
+        }
+
+        .panel-header {
+            padding: 20px;
+            border-bottom: 1px solid #3e3e42;
+            background: #2d2d30;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .panel-header h3 {
+            margin: 0;
+            color: #ffffff;
+            font-size: 16px;
+        }
+
+        .panel-content {
+            padding: 20px;
+        }
+
+        .panel-section {
+            margin-bottom: 30px;
+        }
+
+        .panel-section h4 {
+            color: #ffffff;
+            font-size: 14px;
+            margin-bottom: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .gradient-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .gradient-option {
+            height: 60px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            position: relative;
+        }
+
+        .gradient-option:hover {
+            border-color: #0e639c;
+            transform: scale(1.02);
+        }
+
+        .gradient-option.selected {
+            border-color: #0e639c;
+            box-shadow: 0 0 10px rgba(14, 99, 156, 0.3);
+        }
+
+        .image-upload-area {
+            border: 2px dashed #666;
+            border-radius: 6px;
+            padding: 20px;
+            text-align: center;
+            color: #ccc;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 15px;
+        }
+
+        .image-upload-area:hover {
+            border-color: #0e639c;
+            color: #0e639c;
+        }
+
+        .image-upload-area.dragover {
+            border-color: #0e639c;
+            background: rgba(14, 99, 156, 0.1);
+        }
+
+        .opacity-slider {
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .opacity-label {
+            color: #ccc;
+            font-size: 12px;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .reset-btn {
+            width: 100%;
+            background: #5a5a5a;
+            color: white;
+            border: none;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 10px;
+        }
+
+        .reset-btn:hover {
+            background: #6a6a6a;
+        }
+
+        .close-panel {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            color: #ccc;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .close-panel:hover {
+            color: #fff;
+        }
+
+        /* Fullscreen Mode Styles */
+        .fullscreen-mode {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+            z-index: 10000;
+            display: none;
+        }
+
+        .fullscreen-mode.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .fullscreen-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px 25px;
+            border-radius: 25px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            transition: opacity 0.3s ease;
+            z-index: 10001;
+        }
+
+        .fullscreen-controls.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .fullscreen-slide-container {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            position: relative;
+        }
+
+        .fullscreen-slide {
+            background: white;
+            color: black;
+            padding: 60px 80px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            width: 95%;
+            height: 85%;
+            overflow: auto;
+            position: relative;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .fullscreen-slide::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, var(--overlay-opacity, 0.9));
+            border-radius: 12px;
+            z-index: 1;
+        }
+
+        .fullscreen-slide-content {
+            position: relative;
+            z-index: 2;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .fullscreen-slide h1 {
+            font-size: 3.5em !important;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .fullscreen-slide h2 {
+            font-size: 2.8em !important;
+            margin-bottom: 25px;
+        }
+
+        .fullscreen-slide h3 {
+            font-size: 2.2em !important;
+            margin-bottom: 20px;
+        }
+
+        .fullscreen-slide p {
+            font-size: 1.6em !important;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .fullscreen-slide li {
+            font-size: 1.4em !important;
+            margin-bottom: 12px;
+            line-height: 1.6;
+        }
+
+        .fullscreen-slide ul, .fullscreen-slide ol {
+            margin-left: 40px;
+            margin-bottom: 25px;
+        }
+
+        .fullscreen-slide .mermaid {
+            transform: scale(1.3);
+            margin: 40px 0;
+        }
+
+        .fullscreen-slide blockquote {
+            font-size: 1.8em !important;
+            padding: 30px;
+            margin: 30px 0;
+            border-left: 6px solid #0e639c;
+        }
+
+        .fullscreen-slide code {
+            font-size: 1.2em !important;
+            padding: 4px 8px;
+        }
+
+        .fullscreen-slide pre {
+            font-size: 1.1em !important;
+            padding: 25px;
+            margin: 25px 0;
+        }
+
+        .fs-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+            backdrop-filter: blur(5px);
+        }
+
+        .fs-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .fs-counter {
+            color: white;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .exit-fullscreen {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            backdrop-filter: blur(10px);
+        }
+
+        .exit-fullscreen:hover {
+            background: rgba(255, 0, 0, 0.8);
+        }
+
+        .fullscreen-help {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            backdrop-filter: blur(10px);
+        }
+
+        .fullscreen-help:hover {
+            background: rgba(0, 0, 0, 0.8);
+        }
+
+        .slide h1, .slide h2, .slide h3 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .slide h1 {
+            font-size: 2.5em;
+            border-bottom: 2px solid #0e639c;
+            padding-bottom: 10px;
+        }
+
+        .slide h2 {
+            font-size: 2em;
+            color: #0e639c;
+        }
+
+        .slide h3 {
+            font-size: 1.5em;
+            color: #666;
+        }
+
+        .slide p {
+            margin-bottom: 15px;
+            line-height: 1.6;
+            font-size: 1.1em;
+        }
+
+        .slide ul, .slide ol {
+            margin-left: 30px;
+            margin-bottom: 15px;
+        }
+
+        .slide li {
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+
+        .slide code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .slide pre {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 5px;
+            overflow: auto;
+            margin-bottom: 15px;
+        }
+
+        .slide blockquote {
+            border-left: 4px solid #0e639c;
+            padding-left: 20px;
+            margin: 20px 0;
+            color: #666;
+            font-style: italic;
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .no-slides {
+            text-align: center;
+            color: #888;
+            font-style: italic;
+            margin-top: 100px;
+        }
+
+        .loading {
+            text-align: center;
+            color: #888;
+            margin-top: 50px;
+        }
+
+        @media print {
+            body {
+                background: white;
+            }
+            .slide {
+                background: white;
+                box-shadow: none;
+                margin-bottom: 0;
+                min-height: auto;
+                height: 100vh;
+                display: block !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 MC - Markdown Slide Editor</h1>
+        <div class="toolbar">
+            <button class="btn btn-secondary" onclick="uploadFile()">📁 Upload MD</button>
+            <button class="btn btn-secondary" onclick="downloadMarkdown()">💾 Download MD</button>
+            <button class="btn btn-secondary" onclick="toggleBackgroundPanel()">🎨 Background</button>
+            <button class="btn" onclick="exportToPDF()">📄 Export PDF</button>
+        </div>
+    </div>
+
+    <!-- Fullscreen Mode -->
+    <div class="fullscreen-mode" id="fullscreen-mode">
+        <button class="exit-fullscreen" onclick="exitFullscreen()" title="Exit Fullscreen (Esc)">×</button>
+        <button class="fullscreen-help" onclick="toggleFullscreenHelp()" title="Keyboard Shortcuts">?</button>
+        
+        <div class="fullscreen-slide-container" id="fullscreen-slide-container">
+            <!-- Slide content will be inserted here -->
+        </div>
+
+        <div class="fullscreen-controls" id="fullscreen-controls">
+            <button class="fs-btn" onclick="previousSlide()">◀ Previous</button>
+            <span class="fs-counter" id="fs-counter">Slide 1 of 1</span>
+            <button class="fs-btn" onclick="nextSlide()">Next ▶</button>
+            <button class="fs-btn" onclick="exitFullscreen()">Exit</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="editor-pane" id="editor-pane">
+            <div class="editor-header">
+                📝 Markdown Editor
+            </div>
+            <div class="editor-container" id="editor-container"></div>
+        </div>
+
+        <div class="splitter" id="splitter"></div>
+
+        <div class="slides-pane" id="slides-pane">
+            <div class="slides-header">
+                <span>🖼️ Slide Preview</span>
+                <div class="slide-controls">
+                    <span class="slide-counter" id="slide-counter">Slide 0 of 0</span>
+                    <button class="slide-nav" onclick="previousSlide()">◀ Prev</button>
+                    <button class="slide-nav" onclick="nextSlide()">Next ▶</button>
+                    <button class="slide-nav" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+                </div>
+            </div>
+            <div class="slides-container" id="slides-container">
+                <div class="no-slides">
+                    Start typing markdown content in the editor to see slides here.
+                    <br><br>
+                    Use <code>---</code> to separate slides.
+                    <br><br>
+                    You can include Mermaid diagrams using:
+                    <pre>```mermaid
+graph TD
+    A[Start] --> B[Process]
+    B --> C[End]
+```</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <input type="file" id="file-input" class="file-input" accept=".md,.txt" onchange="handleFileUpload(event)">
+    <input type="file" id="bg-image-input" class="file-input" accept="image/*" onchange="handleBackgroundImageUpload(event)">
+
+    <!-- Background Panel -->
+    <div class="background-panel" id="background-panel">
+        <div class="panel-header">
+            <h3>🎨 Slide Backgrounds</h3>
+            <button class="close-panel" onclick="toggleBackgroundPanel()">×</button>
+        </div>
+        <div class="panel-content">
+            <div class="panel-section">
+                <h4>Gradient Backgrounds</h4>
+                <div class="gradient-grid" id="gradient-grid">
+                    <!-- Gradients will be populated by JavaScript -->
+                </div>
+                <button class="reset-btn" onclick="resetBackground()">Reset to White</button>
+            </div>
+            
+            <div class="panel-section">
+                <h4>Image Background</h4>
+                <div class="image-upload-area" onclick="uploadBackgroundImage()" id="image-upload-area">
+                    📷 Click to upload background image<br>
+                    <small>Or drag & drop an image here</small>
+                </div>
+                
+                <label class="opacity-label">Background Opacity</label>
+                <input type="range" class="opacity-slider" id="opacity-slider" min="0" max="100" value="90" 
+                       onchange="updateBackgroundOpacity(this.value)">
+                <small style="color: #999;">Adjust text readability</small>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let editor;
+        let slides = [];
+        let currentSlideIndex = 0;
+        let isDragging = false;
+        let currentBackground = { type: 'none', value: '', opacity: 90 };
+        let isFullscreen = false;
+        let fullscreenControlsTimeout;
+
+        // Predefined gradient backgrounds
+        const gradients = [
+            { name: 'Ocean Blue', value: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
+            { name: 'Sunset', value: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)' },
+            { name: 'Emerald', value: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)' },
+            { name: 'Purple Rain', value: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)' },
+            { name: 'Fire', value: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)' },
+            { name: 'Sky', value: 'linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%)' },
+            { name: 'Forest', value: 'linear-gradient(135deg, #d299c2 0%, #fef9d7 100%)' },
+            { name: 'Cosmic', value: 'linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%)' },
+            { name: 'Peach', value: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)' },
+            { name: 'Lavender', value: 'linear-gradient(135deg, #e0c3fc 0%, #9bb5ff 100%)' },
+            { name: 'Mint', value: 'linear-gradient(135deg, #c1dfc4 0%, #deecdd 100%)' },
+            { name: 'Rose Gold', value: 'linear-gradient(135deg, #f8b500 0%, #fceabb 100%)' }
+        ];
+
+        // Background management functions
+        function initializeBackgrounds() {
+            const gradientGrid = document.getElementById('gradient-grid');
+            gradientGrid.innerHTML = '';
+            
+            gradients.forEach((gradient, index) => {
+                const option = document.createElement('div');
+                option.className = 'gradient-option';
+                option.style.background = gradient.value;
+                option.title = gradient.name;
+                option.onclick = () => selectGradient(gradient.value, option);
+                gradientGrid.appendChild(option);
+            });
+
+            setupImageUpload();
+        }
+
+        function selectGradient(gradientValue, element) {
+            // Remove previous selections
+            document.querySelectorAll('.gradient-option').forEach(el => el.classList.remove('selected'));
+            element.classList.add('selected');
+            
+            currentBackground = { type: 'gradient', value: gradientValue, opacity: currentBackground.opacity };
+            applyBackground();
+        }
+
+        function applyBackground() {
+            const slides = document.querySelectorAll('.slide');
+            slides.forEach(slide => {
+                if (currentBackground.type === 'gradient') {
+                    slide.style.background = currentBackground.value;
+                } else if (currentBackground.type === 'image') {
+                    slide.style.backgroundImage = `url(${currentBackground.value})`;
+                } else {
+                    slide.style.background = 'white';
+                    slide.style.backgroundImage = 'none';
+                }
+                
+                // Update overlay opacity
+                const overlay = slide.querySelector('::before') || slide;
+                const opacityValue = currentBackground.opacity / 100;
+                slide.style.setProperty('--overlay-opacity', opacityValue);
+            });
+        }
+
+        // Fullscreen functionality
+        function toggleFullscreen() {
+            if (slides.length === 0) {
+                alert('No slides to present. Please add some content first.');
+                return;
+            }
+
+            if (!isFullscreen) {
+                enterFullscreen();
+            } else {
+                exitFullscreen();
+            }
+        }
+
+        function enterFullscreen() {
+            isFullscreen = true;
+            const fullscreenMode = document.getElementById('fullscreen-mode');
+            fullscreenMode.classList.add('active');
+            
+            renderFullscreenSlide();
+            updateFullscreenCounter();
+            setupFullscreenControls();
+            
+            // Try to enter browser fullscreen
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(e => {
+                    console.log('Fullscreen request failed:', e);
+                });
+            }
+        }
+
+        function exitFullscreen() {
+            isFullscreen = false;
+            const fullscreenMode = document.getElementById('fullscreen-mode');
+            fullscreenMode.classList.remove('active');
+            
+            // Exit browser fullscreen
+            if (document.fullscreenElement && document.exitFullscreen) {
+                document.exitFullscreen().catch(e => {
+                    console.log('Exit fullscreen failed:', e);
+                });
+            }
+        }
+
+        async function renderFullscreenSlide() {
+            const container = document.getElementById('fullscreen-slide-container');
+            
+            if (slides.length === 0) {
+                container.innerHTML = '<div class="fullscreen-slide"><div class="fullscreen-slide-content"><h2>No slides available</h2></div></div>';
+                return;
+            }
+
+            try {
+                const slideContent = slides[currentSlideIndex];
+                let html = marked.parse(slideContent);
+                
+                // Process Mermaid diagrams
+                const mermaidRegex = /<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g;
+                let match;
+                let mermaidIndex = 0;
+                
+                while ((match = mermaidRegex.exec(html)) !== null) {
+                    const mermaidCode = match[1].trim();
+                    const mermaidId = `fs-mermaid-${Date.now()}-${mermaidIndex++}`;
+                    
+                    try {
+                        const cleanedCode = mermaidCode
+                            .replace(/&gt;/g, '>')
+                            .replace(/&lt;/g, '<')
+                            .replace(/&amp;/g, '&')
+                            .replace(/&quot;/g, '"')
+                            .replace(/&#39;/g, "'");
+                        
+                        const { svg } = await mermaid.render(mermaidId, cleanedCode);
+                        html = html.replace(match[0], `<div class="mermaid">${svg}</div>`);
+                    } catch (error) {
+                        console.error('Mermaid rendering error:', error);
+                        const errorDiv = `<div class="mermaid" style="padding: 20px; background: #ffe6e6; border: 1px solid #ff9999; border-radius: 5px; color: #cc0000;">
+                            <h4>Mermaid Diagram Error</h4>
+                            <p><strong>Error:</strong> ${error.message}</p>
+                        </div>`;
+                        html = html.replace(match[0], errorDiv);
+                    }
+                }
+
+                container.innerHTML = `<div class="fullscreen-slide"><div class="fullscreen-slide-content">${html}</div></div>`;
+                
+                // Apply background to fullscreen slide
+                setTimeout(() => {
+                    const slide = container.querySelector('.fullscreen-slide');
+                    if (slide) {
+                        if (currentBackground.type === 'gradient') {
+                            slide.style.background = currentBackground.value;
+                        } else if (currentBackground.type === 'image') {
+                            slide.style.backgroundImage = `url(${currentBackground.value})`;
+                        }
+                        slide.style.setProperty('--overlay-opacity', currentBackground.opacity / 100);
+                    }
+                }, 50);
+                
+            } catch (error) {
+                console.error('Fullscreen slide rendering error:', error);
+                container.innerHTML = `<div class="fullscreen-slide"><div class="fullscreen-slide-content"><h2>Error rendering slide</h2><p>${error.message}</p></div></div>`;
+            }
+        }
+
+        function updateFullscreenCounter() {
+            const counter = document.getElementById('fs-counter');
+            if (slides.length === 0) {
+                counter.textContent = 'Slide 0 of 0';
+            } else {
+                counter.textContent = `Slide ${currentSlideIndex + 1} of ${slides.length}`;
+            }
+        }
+
+        function setupFullscreenControls() {
+            const container = document.getElementById('fullscreen-mode');
+            const controls = document.getElementById('fullscreen-controls');
+            
+            // Auto-hide controls
+            function hideControls() {
+                clearTimeout(fullscreenControlsTimeout);
+                fullscreenControlsTimeout = setTimeout(() => {
+                    controls.classList.add('hidden');
+                }, 3000);
+            }
+            
+            function showControls() {
+                controls.classList.remove('hidden');
+                hideControls();
+            }
+            
+            // Show controls on mouse move
+            container.addEventListener('mousemove', showControls);
+            container.addEventListener('click', showControls);
+            
+            // Initial hide
+            hideControls();
+        }
+
+        function toggleFullscreenHelp() {
+            alert(`Fullscreen Keyboard Shortcuts:
+
+← or Page Up: Previous slide
+→ or Page Down: Next slide
+Home: First slide
+End: Last slide
+Esc: Exit fullscreen
+Space: Next slide
+Shift + Space: Previous slide
+
+Move your mouse to show/hide controls.`);
+        }
+
+        function resetBackground() {
+            document.querySelectorAll('.gradient-option').forEach(el => el.classList.remove('selected'));
+            document.getElementById('image-upload-area').innerHTML = `
+                📷 Click to upload background image<br>
+                <small>Or drag & drop an image here</small>
+            `;
+            
+            currentBackground = { type: 'none', value: '', opacity: 90 };
+            applyBackground();
+        }
+
+        function toggleBackgroundPanel() {
+            const panel = document.getElementById('background-panel');
+            panel.classList.toggle('open');
+        }
+
+        function uploadBackgroundImage() {
+            document.getElementById('bg-image-input').click();
+        }
+
+        function handleBackgroundImageUpload(event) {
+            const file = event.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    currentBackground = { type: 'image', value: e.target.result, opacity: currentBackground.opacity };
+                    applyBackground();
+                    
+                    // Update UI
+                    document.querySelectorAll('.gradient-option').forEach(el => el.classList.remove('selected'));
+                    document.getElementById('image-upload-area').innerHTML = `
+                        ✅ Background image uploaded<br>
+                        <small>Click to change image</small>
+                    `;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function updateBackgroundOpacity(value) {
+            currentBackground.opacity = parseInt(value);
+            applyBackground();
+        }
+
+        function setupImageUpload() {
+            const uploadArea = document.getElementById('image-upload-area');
+            
+            // Drag and drop functionality
+            uploadArea.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+            
+            uploadArea.addEventListener('dragleave', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+            });
+            
+            uploadArea.addEventListener('drop', function(e) {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                
+                const files = e.dataTransfer.files;
+                if (files.length > 0 && files[0].type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        currentBackground = { type: 'image', value: e.target.result, opacity: currentBackground.opacity };
+                        applyBackground();
+                        
+                        uploadArea.innerHTML = `
+                            ✅ Background image uploaded<br>
+                            <small>Click to change image</small>
+                        `;
+                    };
+                    reader.readAsDataURL(files[0]);
+                }
+            });
+        }
+
+        // Splitter functionality
+        function initializeSplitter() {
+            const splitter = document.getElementById('splitter');
+            const editorPane = document.getElementById('editor-pane');
+            const slidesPane = document.getElementById('slides-pane');
+            const container = document.querySelector('.main-container');
+
+            splitter.addEventListener('mousedown', function(e) {
+                isDragging = true;
+                splitter.classList.add('dragging');
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+                
+                // Prevent text selection during drag
+                e.preventDefault();
+            });
+
+            document.addEventListener('mousemove', function(e) {
+                if (!isDragging) return;
+
+                const containerRect = container.getBoundingClientRect();
+                const mouseX = e.clientX - containerRect.left;
+                const containerWidth = containerRect.width;
+                
+                // Calculate percentages with bounds
+                let leftPercent = (mouseX / containerWidth) * 100;
+                leftPercent = Math.max(20, Math.min(80, leftPercent)); // Min 20%, max 80%
+                
+                const rightPercent = 100 - leftPercent;
+                
+                editorPane.style.width = leftPercent + '%';
+                slidesPane.style.width = rightPercent + '%';
+                
+                // Trigger Monaco editor resize
+                if (editor) {
+                    setTimeout(() => editor.layout(), 0);
+                }
+            });
+
+            document.addEventListener('mouseup', function() {
+                if (isDragging) {
+                    isDragging = false;
+                    splitter.classList.remove('dragging');
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                }
+            });
+        }
+
+        // Initialize Mermaid
+        mermaid.initialize({ 
+            startOnLoad: false,
+            theme: 'default',
+            securityLevel: 'loose',
+            flowchart: {
+                htmlLabels: true,
+                useMaxWidth: true
+            },
+            themeVariables: {
+                primaryColor: '#0e639c',
+                primaryTextColor: '#333',
+                primaryBorderColor: '#0e639c',
+                lineColor: '#333',
+                secondaryColor: '#f4f4f4',
+                tertiaryColor: '#fff'
+            }
+        });
+
+        // Initialize Monaco Editor
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            editor = monaco.editor.create(document.getElementById('editor-container'), {
+                value: `# Welcome to Markdown Slides
+
+This is your first slide! 🎉
+
+---
+
+# Features
+
+- ✅ Live markdown editing
+- ✅ Slide navigation  
+- ✅ Mermaid diagrams
+- ✅ PDF export
+- ✅ File upload/download
+- ✅ Resizable panes
+
+---
+
+# Mermaid Example
+
+Here's a sample diagram:
+
+\`\`\`mermaid
+graph TD
+    A[Start Presentation] --> B{Is it good?}
+    B -->|Yes| C[Share with team]
+    B -->|No| D[Edit more]
+    D --> A
+    C --> E[Success!]
+\`\`\`
+
+---
+
+# Getting Started
+
+1. Type your markdown in the left pane
+2. Use \`---\` to separate slides  
+3. Include Mermaid diagrams with \`\`\`mermaid blocks
+4. Navigate with the arrow buttons
+5. Drag the splitter to resize panes
+6. Export to PDF when ready!
+
+Enjoy creating your slides! ✨`,
+                language: 'markdown',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                wordWrap: 'on',
+                minimap: { enabled: true }
+            });
+
+            // Listen for content changes
+            editor.onDidChangeModelContent(() => {
+                parseSlides();
+            });
+
+            // Initial parse
+            parseSlides();
+        });
+
+        // Initialize splitter and backgrounds after page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeSplitter();
+            initializeBackgrounds();
+        });
+
+        function parseSlides() {
+            const content = editor.getValue();
+            slides = content.split('---').map(slide => slide.trim()).filter(slide => slide);
+            
+            currentSlideIndex = Math.min(currentSlideIndex, slides.length - 1);
+            if (currentSlideIndex < 0) currentSlideIndex = 0;
+            
+            renderCurrentSlide();
+            updateSlideCounter();
+        }
+
+        async function renderCurrentSlide() {
+            const container = document.getElementById('slides-container');
+            
+            if (slides.length === 0) {
+                container.innerHTML = '<div class="no-slides">Start typing markdown content in the editor to see slides here.<br><br>Use <code>---</code> to separate slides.</div>';
+                return;
+            }
+
+            container.innerHTML = '<div class="loading">Rendering slide...</div>';
+
+            try {
+                const slideContent = slides[currentSlideIndex];
+                let html = marked.parse(slideContent);
+                
+                // Process Mermaid diagrams
+                const mermaidRegex = /<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g;
+                let match;
+                let mermaidIndex = 0;
+                
+                while ((match = mermaidRegex.exec(html)) !== null) {
+                    const mermaidCode = match[1].trim();
+                    const mermaidId = `mermaid-${Date.now()}-${mermaidIndex++}`;
+                    
+                    try {
+                        // Clean up the mermaid code - remove HTML entities and normalize
+                        const cleanedCode = mermaidCode
+                            .replace(/&gt;/g, '>')
+                            .replace(/&lt;/g, '<')
+                            .replace(/&amp;/g, '&')
+                            .replace(/&quot;/g, '"')
+                            .replace(/&#39;/g, "'");
+                        
+                        const { svg } = await mermaid.render(mermaidId, cleanedCode);
+                        html = html.replace(match[0], `<div class="mermaid">${svg}</div>`);
+                    } catch (error) {
+                        console.error('Mermaid rendering error:', error);
+                        const errorDiv = `<div class="mermaid" style="padding: 20px; background: #ffe6e6; border: 1px solid #ff9999; border-radius: 5px; color: #cc0000;">
+                            <h4>Mermaid Diagram Error</h4>
+                            <p><strong>Error:</strong> ${error.message}</p>
+                            <details>
+                                <summary>Show diagram code</summary>
+                                <pre style="background: #f0f0f0; padding: 10px; margin-top: 10px; border-radius: 3px; color: #333;"><code>${mermaidCode}</code></pre>
+                            </details>
+                        </div>`;
+                        html = html.replace(match[0], errorDiv);
+                    }
+                }
+
+                container.innerHTML = `<div class="slide active"><div class="slide-content">${html}</div></div>`;
+            } catch (error) {
+                console.error('Slide rendering error:', error);
+                container.innerHTML = `<div class="slide active"><div class="slide-content"><h2>Error rendering slide</h2><p>${error.message}</p></div></div>`;
+            }
+
+            // Apply current background after rendering
+            setTimeout(() => applyBackground(), 50);
+        }
+
+        function updateSlideCounter() {
+            const counter = document.getElementById('slide-counter');
+            if (slides.length === 0) {
+                counter.textContent = 'Slide 0 of 0';
+            } else {
+                counter.textContent = `Slide ${currentSlideIndex + 1} of ${slides.length}`;
+            }
+        }
+
+        function previousSlide() {
+            if (currentSlideIndex > 0) {
+                currentSlideIndex--;
+                if (isFullscreen) {
+                    renderFullscreenSlide();
+                    updateFullscreenCounter();
+                } else {
+                    renderCurrentSlide();
+                }
+                updateSlideCounter();
+            }
+        }
+
+        function nextSlide() {
+            if (currentSlideIndex < slides.length - 1) {
+                currentSlideIndex++;
+                if (isFullscreen) {
+                    renderFullscreenSlide();
+                    updateFullscreenCounter();
+                } else {
+                    renderCurrentSlide();
+                }
+                updateSlideCounter();
+            }
+        }
+
+        function uploadFile() {
+            document.getElementById('file-input').click();
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    editor.setValue(e.target.result);
+                    currentSlideIndex = 0;
+                    parseSlides();
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        function downloadMarkdown() {
+            const content = editor.getValue();
+            const blob = new Blob([content], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'slides.md';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        async function exportToPDF() {
+            if (slides.length === 0) {
+                alert('No slides to export. Please add some content first.');
+                return;
+            }
+
+            // Check if jsPDF is available
+            if (typeof window.jsPDF === 'undefined' && typeof window.jspdf === 'undefined') {
+                alert('PDF library is not loaded. Please refresh the page and try again.');
+                return;
+            }
+
+            // Get the correct jsPDF constructor
+            const { jsPDF } = window.jspdf || { jsPDF: window.jsPDF };
+            
+            const container = document.getElementById('slides-container');
+            const originalIndex = currentSlideIndex;
+            
+            try {
+                const pdf = new jsPDF('l', 'mm', 'a4');
+                let isFirstSlide = true;
+
+                for (let i = 0; i < slides.length; i++) {
+                    currentSlideIndex = i;
+                    await renderCurrentSlide();
+                    
+                    // Wait a bit for rendering to complete
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    
+                    const slideElement = container.querySelector('.slide');
+                    if (slideElement) {
+                        const canvas = await html2canvas(slideElement, {
+                            scale: 2,
+                            backgroundColor: '#ffffff',
+                            logging: false,
+                            useCORS: true,
+                            allowTaint: true
+                        });
+                        
+                        const imgData = canvas.toDataURL('image/png');
+                        
+                        if (!isFirstSlide) {
+                            pdf.addPage();
+                        }
+                        
+                        // Calculate dimensions to fit the page
+                        const pageWidth = pdf.internal.pageSize.getWidth();
+                        const pageHeight = pdf.internal.pageSize.getHeight();
+                        const imgAspectRatio = canvas.width / canvas.height;
+                        const pageAspectRatio = pageWidth / pageHeight;
+                        
+                        let imgWidth, imgHeight, x, y;
+                        
+                        if (imgAspectRatio > pageAspectRatio) {
+                            // Image is wider, fit to width
+                            imgWidth = pageWidth - 20;
+                            imgHeight = imgWidth / imgAspectRatio;
+                            x = 10;
+                            y = (pageHeight - imgHeight) / 2;
+                        } else {
+                            // Image is taller, fit to height
+                            imgHeight = pageHeight - 20;
+                            imgWidth = imgHeight * imgAspectRatio;
+                            x = (pageWidth - imgWidth) / 2;
+                            y = 10;
+                        }
+                        
+                        pdf.addImage(imgData, 'PNG', x, y, imgWidth, imgHeight);
+                        isFirstSlide = false;
+                    }
+                }
+                
+                pdf.save('slides.pdf');
+                alert('PDF exported successfully!');
+            } catch (error) {
+                console.error('PDF export error:', error);
+                alert('Error exporting to PDF: ' + error.message + '\n\nTip: Try refreshing the page if this continues.');
+            } finally {
+                // Restore original slide
+                currentSlideIndex = originalIndex;
+                renderCurrentSlide();
+                updateSlideCounter();
+            }
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            if (e.target.closest('.monaco-editor')) return; // Don't interfere with editor
+            
+            if (e.key === 'Escape' && isFullscreen) {
+                e.preventDefault();
+                exitFullscreen();
+            } else if (e.key === 'F11' || (e.key === 'f' && e.altKey)) {
+                e.preventDefault();
+                toggleFullscreen();
+            } else if (e.key === 'ArrowLeft' || e.key === 'PageUp' || (e.key === ' ' && e.shiftKey)) {
+                e.preventDefault();
+                previousSlide();
+            } else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+                e.preventDefault();
+                nextSlide();
+            } else if (e.key === 'Home') {
+                e.preventDefault();
+                currentSlideIndex = 0;
+                if (isFullscreen) {
+                    renderFullscreenSlide();
+                    updateFullscreenCounter();
+                } else {
+                    renderCurrentSlide();
+                }
+                updateSlideCounter();
+            } else if (e.key === 'End') {
+                e.preventDefault();
+                currentSlideIndex = slides.length - 1;
+                if (isFullscreen) {
+                    renderFullscreenSlide();
+                    updateFullscreenCounter();
+                } else {
+                    renderCurrentSlide();
+                }
+                updateSlideCounter();
+            }
+        });
+
+        // Handle browser fullscreen changes
+        document.addEventListener('fullscreenchange', function() {
+            if (!document.fullscreenElement && isFullscreen) {
+                // User exited fullscreen via browser (F11, Esc, etc.)
+                exitFullscreen();
+            }
+        });
+    </script>
+</body>
+</html>
