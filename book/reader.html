@@ -4,10 +4,475 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Modern Book Reader</title>
-    <link rel="stylesheet" href="styles.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico">
+        :root {
+            --bg-color: #ffffff;
+            --text-color: #2d3748;
+            --secondary-text: #718096;
+            --border-color: #e2e8f0;
+            --accent-color: #4299e1;
+            --page-bg: #fafafa;
+            --shadow: 0 10px 25px rgba(0,0,0,0.1);
+            --header-height: 60px;
+        }
 
+        [data-theme="dark"] {
+            --bg-color: #1a202c;
+            --text-color: #f7fafc;
+            --secondary-text: #a0aec0;
+            --border-color: #2d3748;
+            --accent-color: #63b3ed;
+            --page-bg: #2d3748;
+            --shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+
+        [data-theme="sepia"] {
+            --bg-color: #f7f3e9;
+            --text-color: #5d4037;
+            --secondary-text: #8d6e63;
+            --border-color: #d7ccc8;
+            --accent-color: #8d6e63;
+            --page-bg: #faf6ed;
+            --shadow: 0 10px 25px rgba(139,110,99,0.1);
+        }
+
+        body {
+            font-family: 'Georgia', 'Times New Roman', serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: var(--header-height);
+            background: var(--bg-color);
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            z-index: 1000;
+            box-shadow: var(--shadow);
+            transform: translateY(-100%);
+            transition: transform 0.3s ease;
+        }
+
+        .header.visible {
+            transform: translateY(0);
+        }
+
+        .header h1 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            background: var(--accent-color);
+            color: white;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(66,153,225,0.3);
+        }
+
+        .btn-icon {
+            background: transparent;
+            color: var(--text-color);
+            padding: 8px;
+            border-radius: 50%;
+        }
+
+        .btn-icon:hover {
+            background: var(--border-color);
+        }
+
+        .theme-selector {
+            display: flex;
+            gap: 5px;
+        }
+
+        .theme-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid var(--border-color);
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .theme-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .theme-btn.light { background: #ffffff; }
+        .theme-btn.dark { background: #1a202c; }
+        .theme-btn.sepia { background: #f7f3e9; }
+
+        .reader-container {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            padding-top: calc(var(--header-height) + 20px);
+        }
+
+        .book {
+            width: 100%;
+            max-width: 800px;
+            height: 80vh;
+            background: var(--page-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow);
+            position: relative;
+            overflow: hidden;
+            cursor: grab;
+        }
+
+        .book:active {
+            cursor: grabbing;
+        }
+
+        .pages-container {
+            height: 100%;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .page {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            padding: 60px;
+            overflow-y: auto;
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            transform: translateX(100%);
+        }
+
+        .page.active {
+            transform: translateX(0);
+        }
+
+        .page.prev {
+            transform: translateX(-100%);
+        }
+
+        .page h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--accent-color);
+            line-height: 1.2;
+        }
+
+        .page h2 {
+            font-size: 2rem;
+            margin: 2rem 0 1rem 0;
+            color: var(--text-color);
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 0.5rem;
+        }
+
+        .page h3 {
+            font-size: 1.5rem;
+            margin: 1.5rem 0 1rem 0;
+            color: var(--text-color);
+        }
+
+        .page p {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            margin-bottom: 1.5rem;
+            text-align: justify;
+            color: var(--text-color);
+        }
+
+        .page ul, .page ol {
+            margin: 1.5rem 0;
+            padding-left: 2rem;
+        }
+
+        .page li {
+            font-size: 1.1rem;
+            line-height: 1.7;
+            margin-bottom: 0.5rem;
+            color: var(--text-color);
+        }
+
+        .page blockquote {
+            border-left: 4px solid var(--accent-color);
+            padding-left: 2rem;
+            margin: 2rem 0;
+            font-style: italic;
+            color: var(--secondary-text);
+            background: var(--border-color);
+            padding: 1.5rem 2rem;
+            border-radius: 0 8px 8px 0;
+        }
+
+        .page pre {
+            background: var(--border-color);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin: 1.5rem 0;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .page pre code {
+            background: none;
+            padding: 0;
+            border-radius: 0;
+            font-size: inherit;
+        }
+
+        .page code {
+            background: var(--border-color);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.9em;
+        }
+
+        .page table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1.5rem 0;
+            border: 1px solid var(--border-color);
+        }
+
+        .page th,
+        .page td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .page th {
+            background: var(--border-color);
+            font-weight: 600;
+        }
+
+        .page hr {
+            border: none;
+            height: 2px;
+            background: var(--border-color);
+            margin: 2rem 0;
+        }
+
+        /* Syntax highlighting adjustments for different themes */
+        [data-theme="dark"] .page pre {
+            background: #2d3748;
+            border-color: #4a5568;
+        }
+
+        [data-theme="dark"] .page code {
+            background: #2d3748;
+        }
+
+        [data-theme="sepia"] .page pre {
+            background: #f0ede4;
+            border-color: #d7ccc8;
+        }
+
+        [data-theme="sepia"] .page code {
+            background: #f0ede4;
+        }
+
+        .page strong {
+            font-weight: 700;
+            color: var(--accent-color);
+        }
+
+        .page em {
+            font-style: italic;
+            color: var(--secondary-text);
+        }
+
+        .navigation {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            background: var(--bg-color);
+            padding: 10px 20px;
+            border-radius: 25px;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .nav-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 20px;
+            background: transparent;
+            color: var(--text-color);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .nav-btn:hover {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .page-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: var(--secondary-text);
+            font-size: 0.9rem;
+            padding: 0 15px;
+        }
+
+        .upload-area {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 400px;
+            padding: 3rem;
+            background: var(--page-bg);
+            border-radius: 16px;
+            border: 2px dashed var(--accent-color);
+            text-align: center;
+            z-index: 1001;
+            display: none;
+        }
+
+        .upload-area.visible {
+            display: block;
+        }
+
+        .upload-area h3 {
+            margin-bottom: 1rem;
+            color: var(--text-color);
+        }
+
+        .upload-area p {
+            color: var(--secondary-text);
+            margin-bottom: 2rem;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .progress-bar {
+            position: fixed;
+            top: var(--header-height);
+            left: 0;
+            height: 3px;
+            background: var(--accent-color);
+            transition: width 0.3s ease;
+            z-index: 999;
+        }
+
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--text-color);
+            font-size: 1.2rem;
+            z-index: 1002;
+            display: none;
+        }
+
+        .loading.visible {
+            display: block;
+        }
+
+        .swipe-indicator {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--secondary-text);
+            font-size: 2rem;
+            opacity: 0.3;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .swipe-left {
+            right: 20px;
+        }
+
+        .swipe-right {
+            left: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .reader-container {
+                padding: 10px;
+            }
+
+            .page {
+                padding: 30px 25px;
+            }
+
+            .page h1 {
+                font-size: 2rem;
+            }
+
+            .page h2 {
+                font-size: 1.5rem;
+            }
+
+            .page p {
+                font-size: 1rem;
+                line-height: 1.6;
+            }
+
+            .header h1 {
+                font-size: 1rem;
+            }
+
+            .controls {
+                gap: 10px;
+            }
+        }
+    </style>
 </head>
 <body data-theme="light">
     <header class="header">
@@ -54,7 +519,337 @@
     <div class="progress-bar" id="progressBar"></div>
     <div class="loading" id="loading">Loading...</div>
 
-    <script src="app.js"></script>
+    <!-- Include marked.js for better markdown parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+    
+    <script>
+        // Book Reader State
+        let currentPageIndex = 0;
+        let pages = [];
+        let touchStartX = 0;
+        let touchEndX = 0;
+        let isAnimating = false;
 
+        // Configure marked.js
+        marked.setOptions({
+            highlight: function(code, lang) {
+                if (lang && hljs.getLanguage(lang)) {
+                    try {
+                        return hljs.highlight(code, { language: lang }).value;
+                    } catch (err) {}
+                }
+                return hljs.highlightAuto(code).value;
+            },
+            breaks: true,
+            gfm: true
+        });
+
+        // Initialize with sample content
+        const sampleMarkdown = `# Welcome to the Modern Book Reader`;
+        
+        // Initialize the app
+        window.addEventListener('load', () => {
+            initializeReader();
+            parseMarkdownContent(sampleMarkdown);
+            
+            // Check for URL parameter
+            const urlParams = new URLSearchParams(window.location.search);
+            const markdownUrl = urlParams.get('url');
+            if (markdownUrl) {
+                loadFromUrl(markdownUrl);
+            }
+        });
+
+        function initializeReader() {
+            // Theme switching
+            document.querySelectorAll('.theme-btn').forEach(btn => {
+                btn.addEventListener('click', () => setTheme(btn.dataset.theme));
+            });
+
+            // File upload
+            document.getElementById('fileInput').addEventListener('change', handleFileUpload);
+
+            // Touch/swipe events
+            const book = document.getElementById('book');
+            book.addEventListener('touchstart', handleTouchStart, { passive: true });
+            book.addEventListener('touchmove', handleTouchMove, { passive: true });
+            book.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+            // Mouse events for desktop
+            book.addEventListener('mousedown', handleMouseDown);
+            book.addEventListener('mousemove', handleMouseMove);
+            book.addEventListener('mouseup', handleMouseEnd);
+            book.addEventListener('mouseleave', handleMouseEnd);
+
+            // Keyboard navigation
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'ArrowLeft') previousPage();
+                if (e.key === 'ArrowRight') nextPage();
+                if (e.key === 'Escape') closeUpload();
+            });
+
+            // Show header on mouse move
+            let headerTimeout;
+            document.addEventListener('mousemove', () => {
+                document.querySelector('.header').classList.add('visible');
+                clearTimeout(headerTimeout);
+                headerTimeout = setTimeout(() => {
+                    document.querySelector('.header').classList.remove('visible');
+                }, 3000);
+            });
+
+            // Progress bar
+            window.addEventListener('scroll', updateProgress);
+        }
+
+        function setTheme(theme) {
+            document.body.setAttribute('data-theme', theme);
+            localStorage.setItem('bookReader-theme', theme);
+        }
+
+        function parseMarkdownContent(markdown) {
+            showLoading(true);
+            
+            // Split content into pages (approximately 800 words per page)
+            const sections = markdown.split(/(?=^#{1,2}\s)/m);
+            pages = [];
+            let currentPage = '';
+            let wordCount = 0;
+
+            sections.forEach(section => {
+                const sectionWords = section.trim().split(/\s+/).length;
+                
+                if (wordCount + sectionWords > 800 && currentPage.trim()) {
+                    pages.push(convertMarkdownToHTML(currentPage));
+                    currentPage = section;
+                    wordCount = sectionWords;
+                } else {
+                    currentPage += section;
+                    wordCount += sectionWords;
+                }
+            });
+
+            if (currentPage.trim()) {
+                pages.push(convertMarkdownToHTML(currentPage));
+            }
+
+            renderPages();
+            updateNavigation();
+            showLoading(false);
+        }
+
+        function convertMarkdownToHTML(markdown) {
+            // Use marked.js to parse markdown
+            return marked.parse(markdown);
+        }
+
+        function renderPages() {
+            const container = document.getElementById('pagesContainer');
+            container.innerHTML = '';
+
+            pages.forEach((content, index) => {
+                const pageDiv = document.createElement('div');
+                pageDiv.className = 'page';
+                if (index === currentPageIndex) pageDiv.classList.add('active');
+                pageDiv.innerHTML = content;
+                container.appendChild(pageDiv);
+            });
+
+            document.getElementById('totalPages').textContent = pages.length;
+            
+            // Set book title from first h1
+            const firstH1 = container.querySelector('h1');
+            if (firstH1) {
+                document.getElementById('bookTitle').textContent = firstH1.textContent;
+            }
+        }
+
+        function nextPage() {
+            if (isAnimating || currentPageIndex >= pages.length - 1) return;
+            navigateToPage(currentPageIndex + 1);
+        }
+
+        function previousPage() {
+            if (isAnimating || currentPageIndex <= 0) return;
+            navigateToPage(currentPageIndex - 1);
+        }
+
+        function navigateToPage(newIndex) {
+            if (newIndex < 0 || newIndex >= pages.length || isAnimating) return;
+            
+            isAnimating = true;
+            const container = document.getElementById('pagesContainer');
+            const currentPage = container.children[currentPageIndex];
+            const nextPage = container.children[newIndex];
+
+            // Determine animation direction
+            const direction = newIndex > currentPageIndex ? 'next' : 'prev';
+            
+            if (direction === 'next') {
+                nextPage.style.transform = 'translateX(100%)';
+                nextPage.classList.add('active');
+                
+                setTimeout(() => {
+                    currentPage.style.transform = 'translateX(-100%)';
+                    nextPage.style.transform = 'translateX(0)';
+                }, 10);
+            } else {
+                nextPage.style.transform = 'translateX(-100%)';
+                nextPage.classList.add('active');
+                
+                setTimeout(() => {
+                    currentPage.style.transform = 'translateX(100%)';
+                    nextPage.style.transform = 'translateX(0)';
+                }, 10);
+            }
+
+            setTimeout(() => {
+                currentPage.classList.remove('active');
+                currentPage.style.transform = direction === 'next' ? 'translateX(-100%)' : 'translateX(100%)';
+                currentPageIndex = newIndex;
+                updateNavigation();
+                isAnimating = false;
+            }, 400);
+        }
+
+        function updateNavigation() {
+            document.getElementById('currentPage').textContent = currentPageIndex + 1;
+            document.getElementById('prevBtn').disabled = currentPageIndex <= 0;
+            document.getElementById('nextBtn').disabled = currentPageIndex >= pages.length - 1;
+            updateProgress();
+        }
+
+        function updateProgress() {
+            const progress = ((currentPageIndex + 1) / pages.length) * 100;
+            document.getElementById('progressBar').style.width = progress + '%';
+        }
+
+        // Touch and mouse event handlers
+        let isDragging = false;
+        let startX = 0;
+        let currentX = 0;
+
+        function handleTouchStart(e) {
+            touchStartX = e.touches[0].clientX;
+            startX = touchStartX;
+        }
+
+        function handleTouchMove(e) {
+            if (!touchStartX) return;
+            touchEndX = e.touches[0].clientX;
+            currentX = touchEndX;
+        }
+
+        function handleTouchEnd() {
+            if (!touchStartX || !touchEndX) return;
+            
+            const deltaX = touchStartX - touchEndX;
+            const minSwipeDistance = 50;
+
+            if (Math.abs(deltaX) > minSwipeDistance) {
+                if (deltaX > 0) {
+                    nextPage(); // Swipe left - next page
+                } else {
+                    previousPage(); // Swipe right - previous page
+                }
+            }
+
+            touchStartX = 0;
+            touchEndX = 0;
+        }
+
+        function handleMouseDown(e) {
+            isDragging = true;
+            startX = e.clientX;
+            document.getElementById('book').style.cursor = 'grabbing';
+        }
+
+        function handleMouseMove(e) {
+            if (!isDragging) return;
+            currentX = e.clientX;
+        }
+
+        function handleMouseEnd() {
+            if (!isDragging) return;
+            
+            const deltaX = startX - currentX;
+            const minSwipeDistance = 100;
+
+            if (Math.abs(deltaX) > minSwipeDistance) {
+                if (deltaX > 0) {
+                    nextPage();
+                } else {
+                    previousPage();
+                }
+            }
+
+            isDragging = false;
+            document.getElementById('book').style.cursor = 'grab';
+        }
+
+        function showUpload() {
+            document.getElementById('uploadArea').classList.add('visible');
+        }
+
+        function closeUpload() {
+            document.getElementById('uploadArea').classList.remove('visible');
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                parseMarkdownContent(e.target.result);
+                closeUpload();
+                currentPageIndex = 0;
+            };
+            reader.readAsText(file);
+        }
+
+        async function loadFromUrl(url) {
+            showLoading(true);
+            try {
+                const response = await fetch(url);
+                const content = await response.text();
+                parseMarkdownContent(content);
+                currentPageIndex = 0;
+            } catch (error) {
+                console.error('Error loading from URL:', error);
+                alert('Failed to load content from URL');
+            }
+            showLoading(false);
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').classList.toggle('visible', show);
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('bookReader-theme');
+        if (savedTheme) {
+            setTheme(savedTheme);
+        }
+
+        // Smooth scrolling for pages
+        document.addEventListener('wheel', (e) => {
+            if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+                e.preventDefault();
+                if (e.deltaX > 0) {
+                    nextPage();
+                } else {
+                    previousPage();
+                }
+            }
+        }, { passive: false });
+
+        // Auto-hide header
+        setTimeout(() => {
+            document.querySelector('.header').classList.remove('visible');
+        }, 3000);
+    </script>
 </body>
 </html>

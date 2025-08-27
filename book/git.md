@@ -1396,4 +1396,742 @@ logs/
 *.pdf binary
 
 # Language-specific settings
-*.js text eol=l
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+
+# Archive files
+*.zip export-ignore
+*.tar.gz export-ignore
+```
+
+### Security Best Practices
+
+**Protecting Sensitive Information:**
+
+```bash
+# Never commit sensitive data
+echo "config/secrets.json" >> .gitignore
+echo ".env" >> .gitignore
+echo "*.key" >> .gitignore
+
+# Remove accidentally committed secrets
+git rm --cached secrets.json
+git commit -m "Remove secrets file"
+
+# Use git-secrets to prevent accidental commits
+git secrets --register-aws
+git secrets --install
+```
+
+**GPG Signing:**
+```bash
+# Generate GPG key
+gpg --gen-key
+
+# Configure Git to use GPG key
+git config --global user.signingkey YOUR_KEY_ID
+git config --global commit.gpgsign true
+
+# Sign commits and tags
+git commit -S -m "Signed commit"
+git tag -s v1.0.0 -m "Signed tag"
+```
+
+### Performance Optimization
+
+**Keeping Repositories Fast:**
+
+```bash
+# Garbage collection
+git gc --aggressive --prune=now
+
+# Optimize repository
+git repack -Ad
+
+# Check repository size
+git count-objects -vH
+
+# Shallow clones for CI/CD
+git clone --depth 1 --single-branch repository.git
+
+# Partial clones (Git 2.19+)
+git clone --filter=blob:none repository.git
+```
+
+**Large Repository Management:**
+
+```bash
+# Use Git LFS for large files
+git lfs install
+git lfs track "*.psd"
+git lfs track "*.mp4"
+git add .gitattributes
+
+# Sparse checkout for large repositories
+git config core.sparseCheckout true
+echo "src/" > .git/info/sparse-checkout
+git read-tree -m -u HEAD
+```
+
+## Git Internals: Understanding the Engine
+
+Understanding Git's internal structure helps you use it more effectively and troubleshoot complex issues.
+
+### Git Object Model
+
+Git stores everything as objects in a content-addressable file system. There are four types of objects:
+
+#### Blob Objects (File Contents)
+```bash
+# Create a blob object
+echo "Hello, Git!" | git hash-object -w --stdin
+
+# Read blob content
+git cat-file -p blob-hash
+
+# Check object type
+git cat-file -t blob-hash
+```
+
+#### Tree Objects (Directory Structure)
+```bash
+# View tree object
+git cat-file -p HEAD^{tree}
+
+# Create tree object
+git write-tree
+```
+
+#### Commit Objects (Snapshots)
+```bash
+# View commit object
+git cat-file -p HEAD
+
+# Commit structure:
+# tree [tree-hash]
+# parent [parent-hash]
+# author [name] [timestamp]
+# committer [name] [timestamp]
+# 
+# [commit message]
+```
+
+#### Tag Objects (References)
+```bash
+# Create annotated tag
+git tag -a v1.0 -m "Version 1.0"
+
+# View tag object
+git cat-file -p v1.0
+```
+
+### References and HEAD
+
+Git uses references (refs) to point to commits:
+
+```bash
+# List all references
+git for-each-ref
+
+# Show what HEAD points to
+git symbolic-ref HEAD
+
+# Show commit that HEAD points to
+git rev-parse HEAD
+
+# Reference types:
+# refs/heads/    - local branches
+# refs/remotes/  - remote branches
+# refs/tags/     - tags
+```
+
+### The Index File
+
+The index (staging area) is stored in `.git/index`:
+
+```bash
+# Show index contents
+git ls-files --stage
+
+# Show index in human-readable format
+git status --porcelain
+```
+
+### Packfiles and Compression
+
+Git compresses objects into packfiles for efficiency:
+
+```bash
+# Force packing
+git gc
+
+# Verify pack integrity
+git verify-pack .git/objects/pack/pack-*.idx
+
+# Show pack statistics
+git count-objects -v
+```
+
+## Git Configuration Deep Dive
+
+Master Git configuration to customize your workflow and improve productivity.
+
+### Configuration Hierarchy
+
+Git reads configuration from multiple locations in order:
+
+1. **System**: `/etc/gitconfig` (affects all users)
+2. **Global**: `~/.gitconfig` (affects current user)
+3. **Local**: `.git/config` (affects current repository)
+4. **Worktree**: `.git/config.worktree` (affects current worktree)
+
+### Essential Configuration Options
+
+```bash
+# Identity
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+
+# Editor settings
+git config --global core.editor "code --wait"
+git config --global sequence.editor "code --wait"
+
+# Merge and diff tools
+git config --global merge.tool vscode
+git config --global mergetool.vscode.cmd 'code --wait $MERGED'
+git config --global diff.tool vscode
+git config --global difftool.vscode.cmd 'code --wait --diff $LOCAL $REMOTE'
+
+# Default behaviors
+git config --global init.defaultBranch main
+git config --global pull.rebase false
+git config --global push.default simple
+git config --global rerere.enabled true
+
+# Performance settings
+git config --global core.preloadindex true
+git config --global core.fscache true
+git config --global gc.auto 256
+
+# Security settings
+git config --global transfer.fsckObjects true
+git config --global fetch.fsckObjects true
+git config --global receive.fsckObjects true
+```
+
+### Advanced Configuration
+
+```bash
+# Custom aliases
+git config --global alias.lg "log --color --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit"
+git config --global alias.st status
+git config --global alias.co checkout
+git config --global alias.br branch
+git config --global alias.unstage 'reset HEAD --'
+git config --global alias.last 'log -1 HEAD'
+git config --global alias.visual '!gitk'
+
+# URL rewrites
+git config --global url."git@github.com:".insteadOf "https://github.com/"
+
+# Custom attributes
+git config --global filter.tabspace.smudge 'expand --tabs=4'
+git config --global filter.tabspace.clean 'expand --tabs=4'
+```
+
+### Conditional Configuration
+
+Configure Git differently based on directory:
+
+**~/.gitconfig:**
+```ini
+[includeIf "gitdir:~/work/"]
+    path = ~/.gitconfig-work
+[includeIf "gitdir:~/personal/"]
+    path = ~/.gitconfig-personal
+```
+
+**~/.gitconfig-work:**
+```ini
+[user]
+    name = John Doe
+    email = john.doe@company.com
+    signingKey = WORK_GPG_KEY
+```
+
+## Advanced Collaboration Techniques
+
+### Managing Multiple Remotes
+
+Working with multiple remotes for complex collaboration:
+
+```bash
+# Add upstream remote (for forks)
+git remote add upstream https://github.com/original/repo.git
+
+# Fetch from all remotes
+git fetch --all
+
+# Push to multiple remotes
+git remote set-url --add origin https://github.com/backup/repo.git
+
+# Create tracking branches from different remotes
+git checkout -b feature --track upstream/feature
+```
+
+### Advanced Merging Strategies
+
+```bash
+# Merge with custom strategy
+git merge -X theirs feature-branch
+git merge -X ours feature-branch
+
+# Subtree merge
+git read-tree --prefix=lib/ -u library-branch
+
+# Octopus merge (multiple branches)
+git merge branch1 branch2 branch3
+
+# No fast-forward merge (always create merge commit)
+git merge --no-ff feature-branch
+```
+
+### Sophisticated Rebasing
+
+```bash
+# Interactive rebase with autosquash
+git commit --fixup=abc123
+git rebase -i --autosquash HEAD~5
+
+# Preserve merge commits during rebase
+git rebase --preserve-merges main
+
+# Rebase onto different branch
+git rebase --onto main feature-base feature-branch
+
+# Continue rebase after resolving conflicts
+git rebase --continue
+
+# Skip problematic commit during rebase
+git rebase --skip
+
+# Abort rebase
+git rebase --abort
+```
+
+### Patch Management
+
+```bash
+# Create patch files
+git format-patch -3 HEAD
+
+# Create patch with cover letter
+git format-patch --cover-letter -3 HEAD
+
+# Apply patch files
+git apply patch-file.patch
+
+# Apply patches as commits
+git am patch-file.patch
+
+# Create patch between branches
+git diff main..feature > feature.patch
+```
+
+## Git Hosting and CI/CD Integration
+
+### GitHub Integration
+
+**GitHub CLI Usage:**
+```bash
+# Install GitHub CLI
+# Create pull request
+gh pr create --title "Add new feature" --body "Description"
+
+# List pull requests
+gh pr list
+
+# Check out pull request locally
+gh pr checkout 123
+
+# Merge pull request
+gh pr merge 123 --merge --delete-branch
+```
+
+**GitHub Actions with Git:**
+```yaml
+# .github/workflows/ci.yml
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0  # Full history for better Git operations
+    - name: Run tests
+      run: npm test
+    - name: Check commit messages
+      run: |
+        git log --oneline -10 | grep -E '^[a-f0-9]+ (feat|fix|docs|style|refactor|test|chore):'
+```
+
+### GitLab Integration
+
+**GitLab CI with Git:**
+```yaml
+# .gitlab-ci.yml
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  GIT_DEPTH: 10
+  GIT_STRATEGY: clone
+
+build:
+  stage: build
+  script:
+    - git submodule sync --recursive
+    - git submodule update --init --recursive
+    - make build
+```
+
+### Automated Workflows
+
+**Pre-commit hooks for code quality:**
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# .pre-commit-config.yaml
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-added-large-files
+
+# Install hooks
+pre-commit install
+```
+
+## Git Performance and Scalability
+
+### Optimizing Large Repositories
+
+```bash
+# Enable partial clone
+git clone --filter=blob:none --single-branch large-repo.git
+
+# Configure for large repositories
+git config core.preloadindex true
+git config core.fscache true
+git config gc.auto 256
+
+# Use sparse checkout
+git config core.sparseCheckout true
+echo "important-directory/" > .git/info/sparse-checkout
+git read-tree -m -u HEAD
+
+# Monitor repository health
+git fsck --full
+git count-objects -vH
+```
+
+### Git LFS for Large Files
+
+```bash
+# Install Git LFS
+git lfs install
+
+# Track file types
+git lfs track "*.zip"
+git lfs track "*.mp4"
+git lfs track "design-assets/**"
+
+# Check tracked patterns
+git lfs ls-files
+
+# Migrate existing files
+git lfs migrate import --include="*.zip"
+
+# Clone with LFS
+git lfs clone repository-url
+```
+
+### Server-side Git
+
+**Setting up Git server:**
+```bash
+# Create bare repository
+git init --bare project.git
+
+# Configure Git daemon
+git daemon --reuseaddr --base-path=/opt/git/ /opt/git/
+
+# Set up SSH access
+# Add users to git group
+usermod -a -G git username
+
+# Configure post-receive hook
+#!/bin/bash
+# hooks/post-receive
+while read oldrev newrev refname; do
+    if [[ $refname == "refs/heads/main" ]]; then
+        cd /var/www/project
+        git --git-dir=/opt/git/project.git --work-tree=/var/www/project checkout -f
+        # Restart services, run tests, etc.
+    fi
+done
+```
+
+## Troubleshooting Advanced Git Issues
+
+### Repository Corruption Recovery
+
+```bash
+# Check repository integrity
+git fsck --full --no-reflogs
+
+# Recover lost commits
+git reflog expire --expire=now --all
+git gc --prune=now --aggressive
+
+# Restore from backup
+git remote add backup /path/to/backup.git
+git fetch backup
+git reset --hard backup/main
+```
+
+### Complex Merge Conflicts
+
+```bash
+# Use three-way merge tool
+git mergetool --tool=vimdiff
+
+# Resolve using specific strategy
+git merge -X patience feature-branch
+git merge -X diff-algorithm=histogram feature-branch
+
+# Manual conflict resolution
+git checkout --conflict=diff3 conflicted-file.txt
+```
+
+### Dealing with Binary Files
+
+```bash
+# Set merge strategy for binary files
+echo "*.pdf binary" >> .gitattributes
+echo "*.docx binary" >> .gitattributes
+
+# Use custom merge driver
+git config merge.ours.driver true
+echo "database.db merge=ours" >> .gitattributes
+```
+
+### Network and Authentication Issues
+
+```bash
+# Debug network issues
+GIT_TRACE=1 git push origin main
+GIT_CURL_VERBOSE=1 git push origin main
+
+# Fix SSL certificate issues
+git config --global http.sslVerify false  # Not recommended
+git config --global http.sslCAInfo /path/to/ca-bundle.crt
+
+# Use credential helpers
+git config --global credential.helper store
+git config --global credential.helper 'cache --timeout=3600'
+```
+
+## Git Tips and Tricks for Experts
+
+### Advanced Log and History Analysis
+
+```bash
+# Find commits that changed specific content
+git log -S "function_name" --source --all
+
+# Show commits that touched specific lines
+git log -L 15,23:filename.txt
+
+# Find commits by date range and author
+git log --since="2023-01-01" --until="2023-12-31" --author="John"
+
+# Show files changed in each commit
+git log --name-status --oneline
+
+# Create custom log format
+git config --global pretty.custom "%C(red)%h%C(reset) -%C(yellow)%d%C(reset) %s %C(green)(%cr) %C(bold blue)<%an>%C(reset)"
+git log --pretty=custom
+```
+
+### Powerful Git Aliases
+
+```bash
+# Advanced aliases
+git config --global alias.tree 'log --graph --pretty=format:"%h - %d %s (%cr) <%an>" --abbrev-commit'
+git config --global alias.who 'shortlog -s -n'
+git config --global alias.aliases 'config --get-regexp alias'
+git config --global alias.amend 'commit --amend --no-edit'
+git config --global alias.uncommit 'reset --soft HEAD~1'
+git config --global alias.save '!git add -A && git commit -m "SAVEPOINT"'
+git config --global alias.wipe '!git add -A && git commit -qm "WIPE SAVEPOINT" && git reset HEAD~1 --hard'
+```
+
+### Scripting with Git
+
+**Git in shell scripts:**
+```bash
+#!/bin/bash
+# deploy.sh - Automated deployment script
+
+# Check if repository is clean
+if ! git diff-index --quiet HEAD --; then
+    echo "Repository has uncommitted changes. Aborting."
+    exit 1
+fi
+
+# Get current branch
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+
+# Only deploy from main branch
+if [ "$current_branch" != "main" ]; then
+    echo "Deploy only from main branch. Currently on: $current_branch"
+    exit 1
+fi
+
+# Check if we're ahead of remote
+if [ $(git rev-list HEAD...origin/main --count) -gt 0 ]; then
+    echo "Local branch is ahead of remote. Please push first."
+    exit 1
+fi
+
+# Deploy
+echo "Deploying commit $(git rev-parse --short HEAD)..."
+# Add deployment commands here
+```
+
+### Git Integration with IDEs
+
+**VS Code Git configuration:**
+```json
+{
+    "git.autofetch": true,
+    "git.enableCommitSigning": true,
+    "git.confirmSync": false,
+    "git.defaultCloneDirectory": "~/projects",
+    "git.rebaseWhenSync": true
+}
+```
+
+**Vim Git integration:**
+```vim
+" .vimrc
+" Fugitive plugin bindings
+nnoremap <leader>gs :Git<CR>
+nnoremap <leader>gd :Gdiff<CR>
+nnoremap <leader>gc :Git commit<CR>
+nnoremap <leader>gb :Git blame<CR>
+nnoremap <leader>gl :Git log<CR>
+```
+
+## The Future of Git
+
+### Emerging Features and Trends
+
+**Git 2.40+ Features:**
+- Improved sparse-checkout performance
+- Better handling of large repositories
+- Enhanced security features
+- Improved merge conflict resolution
+
+**Next-generation version control:**
+- **Partial clone improvements**: Better support for massive repositories
+- **Git protocol v2**: More efficient data transfer
+- **Commit-graph**: Faster history queries
+- **Multi-pack-index**: Better packfile management
+
+### Git Best Practices Evolution
+
+**Modern Git workflows:**
+- Trunk-based development with feature flags
+- Continuous integration with every commit
+- Automated code review and testing
+- Security scanning in Git hooks
+
+**Emerging patterns:**
+- Micro-repositories with submodules
+- Monorepo management with Git
+- AI-powered commit message generation
+- Automated merge conflict resolution
+
+## Conclusion: Mastering Git for Professional Success
+
+Git is more than just a version control system—it's the foundation of modern software development collaboration. The journey from Git novice to expert is ongoing, as new features, workflows, and best practices continue to evolve.
+
+### Key Takeaways
+
+**Foundation Knowledge:**
+- Understand the three-state system (working directory, staging area, repository)
+- Master basic commands (add, commit, push, pull, merge)
+- Learn branching and merging strategies
+
+**Advanced Techniques:**
+- Use interactive rebase to maintain clean history
+- Implement proper Git workflows for your team
+- Leverage hooks and automation for quality control
+- Understand Git internals for better troubleshooting
+
+**Professional Practice:**
+- Write clear, meaningful commit messages
+- Organize repositories with proper structure
+- Implement security best practices
+- Optimize performance for large repositories
+
+### Continuing Your Git Journey
+
+**Resources for further learning:**
+- **Official Git documentation**: git-scm.com
+- **Pro Git book**: Available free online
+- **Git training platforms**: GitHub Learning Lab, GitLab Learn
+- **Community forums**: Stack Overflow, Reddit r/git
+
+**Practice exercises:**
+- Contribute to open source projects
+- Implement different Git workflows in personal projects
+- Practice complex scenarios in test repositories
+- Teach Git concepts to others
+
+### The Git Mindset
+
+Successful Git usage requires adopting the right mindset:
+
+- **Version control is not just about backup**—it's about collaboration and history
+- **Commits should tell a story**—each commit should represent a logical unit of change
+- **Branches are cheap**—don't be afraid to create branches for experiments
+- **History matters**—keep it clean and meaningful for future developers
+
+### Final Words
+
+Git mastery comes through consistent practice and understanding the underlying concepts, not just memorizing commands. Every mistake is a learning opportunity, and every complex merge conflict conquered makes you a better developer.
+
+As you continue your Git journey, remember that the goal is not to know every command by heart, but to understand the principles that make Git powerful. With this foundation, you can confidently tackle any version control challenge and collaborate effectively with teams around the world.
+
+The commands in this handbook are your tools, but your understanding of Git's philosophy and best practices is what will make you truly proficient. Keep practicing, keep learning, and most importantly, keep sharing your knowledge with others.
+
+*Happy Git-ing!*
+
+---
+
+**"In Git we trust, in version control we prosper."**
+
+*This handbook represents the collective wisdom of the Git community. Continue learning, practicing, and contributing to make the development world a better place.*
