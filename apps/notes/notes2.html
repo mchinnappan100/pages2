@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaborative Notes Integration</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .collaborative-toolbar {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .collaborative-toolbar button {
+            background: #007AFF;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .collaborative-toolbar button:hover {
+            background: #0056b3;
+        }
+        
+        .collaborative-toolbar button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        #collaborators-count {
+            background: #e9ecef;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #495057;
+        }
+        
+        .notes-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        
+        #note-title {
+            width: 100%;
+            border: none;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            background: #f8f9fa;
+        }
+        
+        #note-content {
+            width: 100%;
+            min-height: 400px;
+            border: none;
+            font-size: 16px;
+            line-height: 1.6;
+            padding: 10px;
+            border-radius: 4px;
+            background: #f8f9fa;
+            resize: vertical;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        
+        #note-title:focus, #note-content:focus {
+            outline: 2px solid #007AFF;
+            background: white;
+        }
+        
+        .status-bar {
+            margin-top: 10px;
+            padding: 10px;
+            font-size: 14px;
+            color: #6c757d;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .collaborators-list {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+        
+        .collaborator-badge {
+            background: #28a745;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        
+        .connection-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        
+        .connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        #collaboration-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            background: #4CAF50;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+        
+        #collaboration-notification.show {
+            transform: translateX(0);
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background-color: white;
+            margin: 15% auto;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 500px;
+        }
+        
+        .modal-header {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        
+        .modal input {
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0 15px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        .modal-buttons {
+            text-align: right;
+            gap: 10px;
+            display: flex;
+            justify-content: flex-end;
+        }
+        
+        .modal button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .btn-primary {
+            background: #007AFF;
+            color: white;
+        }
+        
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Collaborative Toolbar (will be dynamically added) -->
+    <div id="collaborative-controls" style="display: none;">
+        <div class="collaborative-toolbar">
+            <button id="create-note-btn">Create Collaborative Note</button>
+            <button id="join-note-btn">Join Collaborative Note</button>
+            <button id="leave-note-btn" disabled>Leave Collaboration</button>
+            <span id="collaborators-count">0 collaborators</span>
+            <span id="connection-status" class="connection-status disconnected">Disconnected</span>
+        </div>
+    </div>
+
+    <!-- Main Notes Interface -->
+    <div class="notes-container">
+        <input type="text" id="note-title" placeholder="Enter note title..." />
+        <textarea id="note-content" placeholder="Start typing your note here..."></textarea>
+        
+        <div class="status-bar">
+            <div>
+                <span id="save-status">Ready</span>
+                <span id="last-updated"></span>
+            </div>
+            <div class="collaborators-list" id="collaborators-list">
+                <!-- Collaborator badges will appear here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Note Modal -->
+    <div id="create-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Create Collaborative Note</div>
+            <input type="text" id="create-title" placeholder="Note title" />
+            <input type="password" id="create-passcode" placeholder="Passcode (required)" />
+            <input type="text" id="create-username" placeholder="Your username" />
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeCreateModal()">Cancel</button>
+                <button class="btn-primary" onclick="createNote()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Join Note Modal -->
+    <div id="join-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Join Collaborative Note</div>
+            <input type="text" id="join-note-id" placeholder="Note ID" />
+            <input type="password" id="join-passcode" placeholder="Passcode" />
+            <input type="text" id="join-username" placeholder="Your username" />
+            <div class="modal-buttons">
+                <button class="btn-secondary" onclick="closeJoinModal()">Cancel</button>
+                <button class="btn-primary" onclick="joinNote()">Join</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Include Socket.IO client -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    
+    <!-- Include the collaborative client -->
+    <script>
+        // Collaborative Notes Client (embedded for this example)
+        class CollaborativeNotesClient {
+            constructor(serverUrl) {
+                this.serverUrl = serverUrl;
+                this.socket = null;
+                this.sessionId = null;
+                this.currentNoteId = null;
+                this.isConnected = false;
+                this.collaborators = [];
+                this.debounceTimer = null;
+                this.cursorPositions = new Map();
+                
+                // Callbacks
+                this.onContentUpdate = null;
+                this.onTitleUpdate = null;
+                this.onCollaboratorJoined = null;
+                this.onCollaboratorLeft = null;
+                this.onError = null;
+                this.onCursorUpdate = null;
+                this.onConnectionChange = null;
+            }
+
+            async connect() {
+                return new Promise((resolve, reject) => {
+                    this.socket = io(this.serverUrl, {
+                        transports: ['websocket', 'polling']
+                    });
+
+                    this.socket.on('connect', () => {
+                        console.log('Connected to collaborative server');
+                        this.isConnected = true;
+                        this.setupEventListeners();
+                        if (this.onConnectionChange) this.onConnectionChange(true);
+                        resolve();
+                    });
+
+                    this.socket.on('connect_error', (error) => {
+                        console.error('Connection error:', error);
+                        this.isConnected = false;
+                        if (this.onConnectionChange) this.onConnectionChange(false);
+                        reject(error);
+                    });
+
+                    this.socket.on('disconnect', () => {
+                        console.log('Disconnected from collaborative server');
+                        this.isConnected = false;
+                        if (this.onConnectionChange) this.onConnectionChange(false);
+                    });
+                });
+            }
+
+            setupEventListeners() {
+                this.socket.on('text_updated', (data) => {
+                    if (this.onContentUpdate) {
+                        this.onContentUpdate(data);
+                    }
+                });
+
+                this.socket.on('title_updated', (data) => {
+                    if (this.onTitleUpdate) {
+                        this.onTitleUpdate(data);
+                    }
+                });
+
+                this.socket.on('collaborator_joined', (data) => {
+                    this.collaborators = data.collaborators || [];
+                    if (this.onCollaboratorJoined) {
+                        this.onCollaboratorJoined(data);
+                    }
+                });
+
+                this.socket.on('collaborator_left', (data) => {
+                    this.collaborators = this.collaborators.filter(c => c.user_id !== data.user_id);
+                    this.cursorPositions.delete(data.user_id);
+                    if (this.onCollaboratorLeft) {
+                        this.onCollaboratorLeft(data);
+                    }
+                });
+
+                this.socket.on('note_content', (data) => {
+                    this.collaborators = data.collaborators || [];
+                    if (this.onContentUpdate) {
+                        this.onContentUpdate({
+                            content: data.content,
+                            title: data.title,
+                            isInitial: true
+                        });
+                    }
+                });
+
+                this.socket.on('error', (data) => {
+                    console.error('Server error:', data);
+                    if (this.onError) {
+                        this.onError(data);
+                    }
+                });
+            }
+
+            async createNote(title, content, passcode) {
+                const response = await fetch(`${this.serverUrl}/api/create_note`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, content, passcode })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error);
+                return data;
+            }
+
+            async joinNote(noteId, passcode, username = 'Anonymous') {
+                const response = await fetch(`${this.serverUrl}/api/join_note`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ note_id: noteId, passcode, username })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error);
+
+                this.sessionId = data.session_id;
+                this.currentNoteId = noteId;
+
+                if (this.socket && this.isConnected) {
+                    this.socket.emit('join_collaboration', { session_id: this.sessionId });
+                }
+
+                return data;
+            }
+
+            sendTextChange(content, cursorPosition = 0) {
+                if (!this.socket || !this.isConnected || !this.sessionId) return;
+
+                clearTimeout(this.debounceTimer);
+                this.debounceTimer = setTimeout(() => {
+                    this.socket.emit('text_change', {
+                        session_id: this.sessionId,
+                        content,
+                        cursor_position: cursorPosition
+                    });
+                }, 300);
+            }
+
+            sendTitleChange(title) {
+                if (!this.socket || !this.isConnected || !this.sessionId) return;
+                
+                this.socket.emit('title_change', {
+                    session_id: this.sessionId,
+                    title
+                });
+            }
+
+            leaveCollaboration() {
+                if (this.socket && this.isConnected && this.sessionId) {
+                    this.socket.emit('leave_collaboration', { session_id: this.sessionId });
+                }
+                this.sessionId = null;
+                this.currentNoteId = null;
+                this.collaborators = [];
+                this.cursorPositions.clear();
+            }
+
+            disconnect() {
+                if (this.socket) this.socket.disconnect();
+                this.isConnected = false;
+            }
+        }
+
+        // Application State
+        let client = null;
+        let isCollaborativeMode = false;
+        let isUpdatingFromRemote = false;
+
+        // DOM Elements
+        const titleInput = document.getElementById('note-title');
+        const contentTextarea = document.getElementById('note-content');
+        const collaboratorsCount = document.getElementById('collaborators-count');
+        const connectionStatus = document.getElementById('connection-status');
+        const saveStatus = document.getElementById('save-status');
+        const collaboratorsList = document.getElementById('collaborators-list');
+
+        // Initialize the application
+        async function initializeApp() {
+            // Replace with your Heroku app URL
+            const serverUrl = 'https://kovai-collaborative-notes-app-a404c8f1b779.herokuapp.com';
+            // For local testing: const serverUrl = 'http://localhost:5000';
+            
+            console.log('Initializing app with server:', serverUrl);
+            
+            client = new CollaborativeNotesClient(serverUrl);
+            
+            // Setup event handlers
+            client.onContentUpdate = handleRemoteContentUpdate;
+            client.onTitleUpdate = handleRemoteTitleUpdate;
+            client.onCollaboratorJoined = handleCollaboratorJoined;
+            client.onCollaboratorLeft = handleCollaboratorLeft;
+            client.onError = showError;
+            client.onConnectionChange = updateConnectionStatus;
+
+            // Setup UI event handlers
+            setupEventHandlers();
+            
+            // Test server connection first
+            try {
+                console.log('Testing server connection...');
+                const healthResponse = await fetch(`${serverUrl}/health`);
+                const healthData = await healthResponse.json();
+                console.log('Server health check:', healthData);
+                
+                const debugResponse = await fetch(`${serverUrl}/debug`);
+                const debugData = await debugResponse.json();
+                console.log('Server debug info:', debugData);
+            } catch (error) {
+                console.error('Server not reachable:', error);
+                showError('Cannot reach collaboration server. Please check the server URL.');
+                return;
+            }
+            
+            // Try to connect
+            try {
+                await client.connect();
+                document.getElementById('collaborative-controls').style.display = 'block';
+                showSuccess('Connected to collaboration server!');
+            } catch (error) {
+                console.error('Connection error:', error);
+                showError('Failed to connect to collaboration server. You can still use the notes locally.');
+            }
+        }
+
+        function setupEventHandlers() {
+            // Text content changes
+            contentTextarea.addEventListener('input', (e) => {
+                if (isCollaborativeMode && !isUpdatingFromRemote) {
+                    client.sendTextChange(e.target.value, e.target.selectionStart);
+                    updateSaveStatus('Syncing...');
+                }
+            });
+
+            // Title changes
+            titleInput.addEventListener('input', (e) => {
+                if (isCollaborativeMode && !isUpdatingFromRemote) {
+                    client.sendTitleChange(e.target.value);
+                }
+            });
+
+            // Button handlers
+            document.getElementById('create-note-btn').onclick = showCreateModal;
+            document.getElementById('join-note-btn').onclick = showJoinModal;
+            document.getElementById('leave-note-btn').onclick = leaveCollaboration;
+
+            // Modal handlers
+            window.onclick = (event) => {
+                const createModal = document.getElementById('create-modal');
+                const joinModal = document.getElementById('join-modal');
+                if (event.target === createModal) closeCreateModal();
+                if (event.target === joinModal) closeJoinModal();
+            };
+        }
+
+        // Remote update handlers
+        function handleRemoteContentUpdate(data) {
+            isUpdatingFromRemote = true;
+            
+            if (data.isInitial) {
+                titleInput.value = data.title || '';
+                contentTextarea.value = data.content || '';
+            } else {
+                const currentCursor = contentTextarea.selectionStart;
+                contentTextarea.value = data.content || '';
+                contentTextarea.setSelectionRange(currentCursor, currentCursor);
+                
+                if (data.updated_by) {
+                    showNotification(`Updated by ${data.updated_by.username}`);
+                }
+            }
+            
+            updateSaveStatus('Synced');
+            setTimeout(() => { isUpdatingFromRemote = false; }, 100);
+        }
+
+        function handleRemoteTitleUpdate(data) {
+            isUpdatingFromRemote = true;
+            titleInput.value = data.title || '';
+            if (data.updated_by) {
+                showNotification(`Title updated by ${data.updated_by.username}`);
+            }
+            setTimeout(() => { isUpdatingFromRemote = false; }, 100);
+        }
+
+        function handleCollaboratorJoined(data) {
+            updateCollaboratorsList();
+            if (data.collaborator) {
+                showNotification(`${data.collaborator.username} joined`);
+            }
+        }
+
+        function handleCollaboratorLeft(data) {
+            updateCollaboratorsList();
+            showNotification('A collaborator left');
+        }
+
+        // UI Update Functions
+        function updateConnectionStatus(connected) {
+            if (connected) {
+                connectionStatus.textContent = 'Connected';
+                connectionStatus.className = 'connection-status connected';
+                document.getElementById('create-note-btn').disabled = false;
+                document.getElementById('join-note-btn').disabled = false;
+            } else {
+                connectionStatus.textContent = 'Disconnected';
+                connectionStatus.className = 'connection-status disconnected';
+                document.getElementById('create-note-btn').disabled = true;
+                document.getElementById('join-note-btn').disabled = true;
+            }
+        }
+
+        function updateCollaboratorsList() {
+            const count = client.collaborators.length;
+            collaboratorsCount.textContent = `${count} collaborator${count !== 1 ? 's' : ''}`;
+            
+            collaboratorsList.innerHTML = '';
+            client.collaborators.forEach(collaborator => {
+                const badge = document.createElement('span');
+                badge.className = 'collaborator-badge';
+                badge.textContent = collaborator.username;
+                collaboratorsList.appendChild(badge);
+            });
+        }
+
+        function updateSaveStatus(status) {
+            saveStatus.textContent = status;
+            if (status === 'Synced') {
+                document.getElementById('last-updated').textContent = `Last updated: ${new Date().toLocaleTimeString()}`;
+            }
+        }
+
+        // Modal Functions
+        function showCreateModal() {
+            document.getElementById('create-modal').style.display = 'block';
+            document.getElementById('create-username').value = localStorage.getItem('username') || '';
+        }
+
+        function closeCreateModal() {
+            document.getElementById('create-modal').style.display = 'none';
+        }
+
+        function showJoinModal() {
+            document.getElementById('join-modal').style.display = 'block';
+            document.getElementById('join-username').value = localStorage.getItem('username') || '';
+        }
+
+        function closeJoinModal() {
+            document.getElementById('join-modal').style.display = 'none';
+        }
+
+        // Collaboration Functions
+        async function createNote() {
+            const title = document.getElementById('create-title').value || 'Untitled Note';
+            const passcode = document.getElementById('create-passcode').value;
+            const username = document.getElementById('create-username').value || 'Anonymous';
+
+            if (!passcode) {
+                showError('Passcode is required');
+                return;
+            }
+
+            try {
+                console.log('Creating note...', { title, username });
+                localStorage.setItem('username', username);
+                const result = await client.createNote(title, contentTextarea.value, passcode);
+                console.log('Note created:', result);
+                
+                // Copy note ID to clipboard and show it
+                navigator.clipboard.writeText(result.note_id).then(() => {
+                    showSuccess(`Note created! ID copied to clipboard: ${result.note_id}`);
+                }).catch(() => {
+                    showSuccess(`Note created! Share this ID: ${result.note_id}`);
+                });
+                
+                closeCreateModal();
+                
+                // Small delay to ensure note is saved
+                setTimeout(async () => {
+                    await joinCollaborativeNote(result.note_id, passcode, username);
+                }, 500);
+            } catch (error) {
+                console.error('Error creating note:', error);
+                showError(`Failed to create note: ${error.message}`);
+            }
+        }
+
+        async function joinNote() {
+            const noteId = document.getElementById('join-note-id').value.trim();
+            const passcode = document.getElementById('join-passcode').value;
+            const username = document.getElementById('join-username').value || 'Anonymous';
+
+            if (!noteId || !passcode) {
+                showError('Note ID and passcode are required');
+                return;
+            }
+
+            try {
+                console.log('Joining note...', { noteId, username });
+                localStorage.setItem('username', username);
+                await joinCollaborativeNote(noteId, passcode, username);
+                closeJoinModal();
+            } catch (error) {
+                console.error('Error joining note:', error);
+                showError(`Failed to join note: ${error.message}`);
+            }
+        }
+
+        async function joinCollaborativeNote(noteId, passcode, username) {
+            try {
+                await client.joinNote(noteId, passcode, username);
+                isCollaborativeMode = true;
+                
+                document.getElementById('create-note-btn').disabled = true;
+                document.getElementById('join-note-btn').disabled = true;
+                document.getElementById('leave-note-btn').disabled = false;
+                
+                showSuccess('Successfully joined collaborative session!');
+                updateSaveStatus('Synced');
+            } catch (error) {
+                throw error;
+            }
+        }
+
+        function leaveCollaboration() {
+            client.leaveCollaboration();
+            isCollaborativeMode = false;
+            
+            document.getElementById('create-note-btn').disabled = false;
+            document.getElementById('join-note-btn').disabled = false;
+            document.getElementById('leave-note-btn').disabled = true;
+            
+            collaboratorsCount.textContent = '0 collaborators';
+            collaboratorsList.innerHTML = '';
+            
+            updateSaveStatus('Local only');
+            showNotification('Left collaborative session');
+        }
+
+        // Notification Functions
+        function showNotification(message, type = 'info') {
+            let notification = document.getElementById('collaboration-notification');
+            if (!notification) {
+                notification = document.createElement('div');
+                notification.id = 'collaboration-notification';
+                document.body.appendChild(notification);
+            }
+
+            notification.textContent = message;
+            notification.className = 'show';
+            
+            if (type === 'error') {
+                notification.style.background = '#f44336';
+            } else if (type === 'success') {
+                notification.style.background = '#4CAF50';
+            } else {
+                notification.style.background = '#2196F3';
+            }
+
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 3000);
+        }
+
+        function showError(message) {
+            showNotification(message, 'error');
+        }
+
+        function showSuccess(message) {
+            showNotification(message, 'success');
+        }
+
+        // Initialize the app when the page loads
+        document.addEventListener('DOMContentLoaded', initializeApp);
+    </script>
+</body>
+</html>
