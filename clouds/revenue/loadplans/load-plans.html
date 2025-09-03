@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>JSON Viewer/Editor • Dark</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" type="image/x-icon"
+        href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <!-- Monaco via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"
+         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <header>
+        <div class="title">JSON Files</div>
+        <div class="subtitle">Click a file to view & edit</div>
+      </header>
+      <div id="filelist" class="filelist"></div>
+    </aside>
+    <main class="right">
+      <div class="toolbar">
+        <span id="currentName" class="tag">No file selected</span>
+        <span id="jsonStatus" class="status"><span class="dot err"></span> Not validated</span>
+        <div class="spacer"></div>
+        <button id="formatBtn" class="btn">Format JSON</button>
+        <button id="downloadBtn" class="btn accent">Download</button>
+      </div>
+      <div id="editor"></div>
+      <div class="footer">
+        <span>Tip: <kbd>Cmd/Ctrl+S</kbd> to download. <kbd>Alt+Shift+F</kbd> to format.</span>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const FILES = [
+      "load-plan-dro.json",
+      "load-plan-pcm.json",
+      "load-plan-pricechange.json"
+    ];
+
+    let editor;
+    let currentFile = null;
+
+    const listEl = document.getElementById('filelist');
+
+    function makeFileItem(name) {
+      const el = document.createElement('div');
+      el.className = 'file';
+      el.dataset.name = name;
+      el.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6z"
+                stroke="#6b7280" stroke-width="1.3"/>
+          <path d="M14 3v6h6" stroke="#6b7280" stroke-width="1.3"/>
+        </svg>
+        <div class="name">${name}</div>
+        <div class="meta">JSON</div>`;
+      el.addEventListener('click', () => selectFile(name));
+      return el;
+    }
+
+    FILES.forEach(f => listEl.appendChild(makeFileItem(f)));
+
+    function updateActiveItem(name) {
+      document.querySelectorAll('.file').forEach(f => {
+        f.classList.toggle('active', f.dataset.name === name);
+      });
+    }
+
+    async function selectFile(name) {
+      currentFile = name;
+      updateActiveItem(name);
+      document.getElementById('currentName').textContent = name;
+      try {
+        const res = await fetch(name);
+        const text = await res.text();
+        editor.setValue(text);
+        validateJSON();
+      } catch (e) {
+        editor.setValue("// Failed to load " + name + "\\n" + e);
+      }
+    }
+
+    window.require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+    window.require(['vs/editor/editor.main'], function () {
+      editor = monaco.editor.create(document.getElementById('editor'), {
+        value: `{ "msg": "Select a file from the left to view/edit its JSON" }`,
+        language: 'json',
+        theme: 'vs-dark',
+        automaticLayout: true,
+        tabSize: 2
+      });
+
+      let t;
+      editor.onDidChangeModelContent(() => {
+        clearTimeout(t);
+        t = setTimeout(validateJSON, 250);
+      });
+
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => downloadCurrent());
+      editor.addCommand(monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KeyF, () => formatJSON());
+
+      if (FILES.length) selectFile(FILES[0]);
+    });
+
+    function validateJSON() {
+      const statusEl = document.getElementById('jsonStatus');
+      try {
+        JSON.parse(editor.getValue());
+        statusEl.innerHTML = '<span class="dot ok"></span> Valid JSON';
+      } catch {
+        statusEl.innerHTML = '<span class="dot err"></span> Invalid JSON';
+      }
+    }
+
+    function formatJSON() {
+      try {
+        const obj = JSON.parse(editor.getValue());
+        editor.setValue(JSON.stringify(obj, null, 2));
+      } catch { }
+    }
+
+    function downloadCurrent() {
+      if (!currentFile) return;
+      const content = editor.getValue();
+      const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = currentFile;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 0);
+    }
+
+    document.getElementById('downloadBtn').addEventListener('click', downloadCurrent);
+    document.getElementById('formatBtn').addEventListener('click', formatJSON);
+  </script>
+</body>
+</html>
