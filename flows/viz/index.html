@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salesforce Flow Visualizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #e0e6ed;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            background: rgba(15, 52, 96, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            background: linear-gradient(45deg, #64b5f6, #42a5f5);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+
+        .file-input {
+            position: absolute;
+            left: -9999px;
+        }
+
+        .btn {
+            padding: 0.7rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #2196f3, #21cbf3);
+            color: white;
+            border: 1px solid transparent;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(45deg, #1976d2, #0288d1);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(33, 150, 243, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #e0e6ed;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .main-container {
+            display: flex;
+            height: calc(100vh - 80px);
+        }
+
+        .left-pane {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            background: rgba(26, 26, 46, 0.8);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .pane-header {
+            padding: 1rem;
+            background: rgba(15, 52, 96, 0.5);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .editor-container {
+            flex: 1;
+            position: relative;
+        }
+
+        .right-pane {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            background: rgba(22, 33, 62, 0.8);
+        }
+
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: auto;
+            padding: 1rem;
+        }
+
+        #flowCanvas {
+            background: radial-gradient(circle at 30% 40%, rgba(33, 150, 243, 0.1) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 20%, rgba(33, 203, 243, 0.08) 0%, transparent 50%),
+                        rgba(15, 52, 96, 0.3);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            min-height: 400px;
+            width: 100%;
+            cursor: grab;
+        }
+
+        #flowCanvas:active {
+            cursor: grabbing;
+        }
+
+        .status {
+            padding: 0.5rem 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 0.85rem;
+            color: #a0a6ad;
+        }
+
+        .drop-zone {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+
+        .drop-zone.active {
+            opacity: 1;
+        }
+
+        .icon {
+            width: 16px;
+            height: 16px;
+            fill: currentColor;
+        }
+
+        .loading {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left: 4px solid #2196f3;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            color: #f44336;
+            background: rgba(244, 67, 54, 0.1);
+            padding: 0.5rem;
+            border-radius: 4px;
+            border-left: 3px solid #f44336;
+            margin: 1rem;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+            }
+            
+            .left-pane,
+            .right-pane {
+                width: 100%;
+                height: 50%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">⚡ Flow Visualizer</div>
+        <div class="controls">
+            <div class="file-input-wrapper">
+                <input type="file" id="fileInput" class="file-input" accept=".xml" />
+                <label for="fileInput" class="btn btn-primary">
+                    <svg class="icon" viewBox="0 0 24 24">
+                        <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z"/>
+                    </svg>
+                    Load Flow XML
+                </label>
+            </div>
+            <button id="downloadSvg" class="btn btn-secondary">
+                <svg class="icon" viewBox="0 0 24 24">
+                    <path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/>
+                </svg>
+                Download SVG
+            </button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="left-pane">
+            <div class="pane-header">
+                <span>Flow XML Editor</span>
+                <button id="parseFlow" class="btn btn-primary" style="padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+                    Parse & Visualize
+                </button>
+            </div>
+            <div class="editor-container">
+                <div id="editor"></div>
+                <div class="drop-zone" id="dropZone">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                        <polyline points="7,10 12,15 17,10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                    </svg>
+                    <p>Drop your Flow XML file here or click "Load Flow XML"</p>
+                </div>
+            </div>
+            <div class="error" id="errorMessage"></div>
+        </div>
+
+        <div class="right-pane">
+            <div class="pane-header">
+                <span>Flow Visualization</span>
+                <span id="nodeCount" style="font-size: 0.8rem; opacity: 0.7;">0 nodes</span>
+            </div>
+            <div class="canvas-container">
+                <canvas id="flowCanvas"></canvas>
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Parsing flow...</p>
+                </div>
+            </div>
+            <div class="status" id="status">Ready to load flow</div>
+        </div>
+    </div>
+
+    <script>
+        let editor;
+        let canvas;
+        let ctx;
+        let flowData = null;
+        let nodes = [];
+        let connections = [];
+        let scale = 1;
+        let offsetX = 0;
+        let offsetY = 0;
+        let isDragging = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+
+        // Initialize Monaco Editor
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            editor = monaco.editor.create(document.getElementById('editor'), {
+                value: '<!-- Load a Salesforce Flow XML file to begin -->\n',
+                language: 'xml',
+                theme: 'vs-dark',
+                automaticLayout: true,
+                minimap: { enabled: true },
+                scrollBeyondLastLine: false,
+                wordWrap: 'on',
+                fontSize: 13
+            });
+
+            editor.onDidChangeModelContent(() => {
+                if (editor.getValue().trim() !== '') {
+                    parseAndVisualize();
+                }
+                updateDropZoneVisibility();
+            });
+            
+            // Initial drop zone visibility
+            updateDropZoneVisibility();
+        });
+
+        // Initialize Canvas
+        function initCanvas() {
+            canvas = document.getElementById('flowCanvas');
+            ctx = canvas.getContext('2d');
+            
+            function resizeCanvas() {
+                const rect = canvas.getBoundingClientRect();
+                canvas.width = rect.width * window.devicePixelRatio;
+                canvas.height = rect.height * window.devicePixelRatio;
+                canvas.style.width = rect.width + 'px';
+                canvas.style.height = rect.height + 'px';
+                ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+                drawFlow();
+            }
+
+            window.addEventListener('resize', resizeCanvas);
+            resizeCanvas();
+
+            // Canvas interaction
+            canvas.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            });
+
+            canvas.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    const deltaX = e.clientX - lastMouseX;
+                    const deltaY = e.clientY - lastMouseY;
+                    offsetX += deltaX;
+                    offsetY += deltaY;
+                    lastMouseX = e.clientX;
+                    lastMouseY = e.clientY;
+                    drawFlow();
+                }
+            });
+
+            canvas.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const mouseX = e.clientX - canvas.getBoundingClientRect().left;
+                const mouseY = e.clientY - canvas.getBoundingClientRect().top;
+                
+                const wheel = e.deltaY < 0 ? 1.1 : 0.9;
+                const newScale = Math.max(0.1, Math.min(3, scale * wheel));
+                
+                offsetX = mouseX - (mouseX - offsetX) * (newScale / scale);
+                offsetY = mouseY - (mouseY - offsetY) * (newScale / scale);
+                scale = newScale;
+                
+                drawFlow();
+            });
+        }
+
+        // File handling
+        document.getElementById('fileInput').addEventListener('change', handleFile);
+        document.getElementById('parseFlow').addEventListener('click', parseAndVisualize);
+        document.getElementById('downloadSvg').addEventListener('click', downloadSVG);
+
+        function handleFile(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    editor.setValue(e.target.result);
+                    parseAndVisualize();
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        // Drag and drop
+        const dropZone = document.getElementById('dropZone');
+        
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.add('active'));
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, () => dropZone.classList.remove('active'));
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.type === 'text/xml' || file.name.endsWith('.xml')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        editor.setValue(e.target.result);
+                        parseAndVisualize();
+                    };
+                    reader.readAsText(file);
+                }
+            }
+        });
+
+        // Flow parsing and visualization
+        function parseAndVisualize() {
+            showLoading(true);
+            setTimeout(() => {
+                try {
+                    const xmlContent = editor.getValue();
+                    if (!xmlContent.trim()) {
+                        showError('No XML content to parse');
+                        return;
+                    }
+
+                    const parser = new DOMParser();
+                    const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
+                    
+                    if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+                        throw new Error('Invalid XML format');
+                    }
+
+                    flowData = parseFlowXML(xmlDoc);
+                    generateFlowVisualization();
+                    drawFlow();
+                    
+                    document.getElementById('status').textContent = `Flow loaded: ${flowData.label || 'Unnamed Flow'}`;
+                    document.getElementById('nodeCount').textContent = `${nodes.length} nodes`;
+                    hideError();
+                } catch (error) {
+                    showError('Error parsing flow: ' + error.message);
+                } finally {
+                    showLoading(false);
+                }
+            }, 100);
+        }
+
+        function parseFlowXML(xmlDoc) {
+            const flow = xmlDoc.documentElement;
+            const flowData = {
+                label: flow.getAttribute('label') || getElementText(flow, 'label'),
+                description: getElementText(flow, 'description'),
+                elements: []
+            };
+
+            // Parse different element types
+            const elementTypes = [
+                'actionCalls', 'assignments', 'decisions', 'loops', 
+                'recordCreates', 'recordUpdates', 'recordDeletes', 'recordLookups',
+                'screens', 'subflows', 'waits', 'starts'
+            ];
+
+            elementTypes.forEach(type => {
+                const elements = flow.getElementsByTagName(type.slice(0, -1)); // Remove 's' from plural
+                for (let element of elements) {
+                    flowData.elements.push({
+                        type: type.slice(0, -1),
+                        name: getElementText(element, 'name'),
+                        label: getElementText(element, 'label'),
+                        locationX: parseInt(getElementText(element, 'locationX')) || 0,
+                        locationY: parseInt(getElementText(element, 'locationY')) || 0,
+                        connector: getConnector(element),
+                        element: element
+                    });
+                }
+            });
+
+            return flowData;
+        }
+
+        function getElementText(parent, tagName) {
+            const element = parent.getElementsByTagName(tagName)[0];
+            return element ? element.textContent : '';
+        }
+
+        function getConnector(element) {
+            const connector = element.getElementsByTagName('connector')[0];
+            if (connector) {
+                return {
+                    targetReference: getElementText(connector, 'targetReference')
+                };
+            }
+            return null;
+        }
+
+        function generateFlowVisualization() {
+            nodes = [];
+            connections = [];
+
+            if (!flowData || !flowData.elements) return;
+
+            // Create nodes
+            flowData.elements.forEach((element, index) => {
+                nodes.push({
+                    id: element.name,
+                    label: element.label || element.name,
+                    type: element.type,
+                    x: element.locationX || (index % 4) * 200 + 100,
+                    y: element.locationY || Math.floor(index / 4) * 150 + 100
+                });
+
+                // Create connections
+                if (element.connector && element.connector.targetReference) {
+                    connections.push({
+                        from: element.name,
+                        to: element.connector.targetReference
+                    });
+                }
+            });
+        }
+
+        function drawFlow() {
+            if (!canvas || !ctx) return;
+
+            const rect = canvas.getBoundingClientRect();
+            ctx.clearRect(0, 0, rect.width, rect.height);
+
+            ctx.save();
+            ctx.translate(offsetX, offsetY);
+            ctx.scale(scale, scale);
+
+            // Draw connections first
+            connections.forEach(connection => {
+                const fromNode = nodes.find(n => n.id === connection.from);
+                const toNode = nodes.find(n => n.id === connection.to);
+                
+                if (fromNode && toNode) {
+                    drawConnection(fromNode, toNode);
+                }
+            });
+
+            // Draw nodes
+            nodes.forEach(node => {
+                drawNode(node);
+            });
+
+            ctx.restore();
+        }
+
+        function drawNode(node) {
+            const colors = {
+                'start': '#4CAF50',
+                'screen': '#2196F3',
+                'decision': '#FF9800',
+                'actionCall': '#9C27B0',
+                'assignment': '#607D8B',
+                'recordCreate': '#8BC34A',
+                'recordUpdate': '#FFC107',
+                'recordDelete': '#F44336',
+                'recordLookup': '#00BCD4',
+                'loop': '#E91E63',
+                'subflow': '#795548',
+                'wait': '#9E9E9E'
+            };
+
+            const color = colors[node.type] || '#757575';
+            const width = 160;
+            const height = 60;
+
+            // Draw shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(node.x + 3, node.y + 3, width, height);
+
+            // Draw node background
+            const gradient = ctx.createLinearGradient(node.x, node.y, node.x, node.y + height);
+            gradient.addColorStop(0, color);
+            gradient.addColorStop(1, adjustBrightness(color, -20));
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(node.x, node.y, width, height);
+
+            // Draw border
+            ctx.strokeStyle = adjustBrightness(color, 20);
+            ctx.lineWidth = 2;
+            ctx.strokeRect(node.x, node.y, width, height);
+
+            // Draw text
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 12px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const text = node.label.length > 20 ? node.label.substring(0, 17) + '...' : node.label;
+            ctx.fillText(text, node.x + width/2, node.y + height/2 - 8);
+            
+            // Draw type
+            ctx.font = '10px Arial';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.fillText(node.type, node.x + width/2, node.y + height/2 + 8);
+        }
+
+        function drawConnection(fromNode, toNode) {
+            const fromX = fromNode.x + 160;
+            const fromY = fromNode.y + 30;
+            const toX = toNode.x;
+            const toY = toNode.y + 30;
+
+            ctx.strokeStyle = '#64B5F6';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([]);
+
+            ctx.beginPath();
+            
+            // Curved line
+            const cpX = fromX + (toX - fromX) / 2;
+            ctx.moveTo(fromX, fromY);
+            ctx.bezierCurveTo(cpX, fromY, cpX, toY, toX, toY);
+            ctx.stroke();
+
+            // Arrow head
+            const angle = Math.atan2(toY - fromY, toX - fromX);
+            const arrowLength = 10;
+            
+            ctx.beginPath();
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(
+                toX - arrowLength * Math.cos(angle - Math.PI / 6),
+                toY - arrowLength * Math.sin(angle - Math.PI / 6)
+            );
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(
+                toX - arrowLength * Math.cos(angle + Math.PI / 6),
+                toY - arrowLength * Math.sin(angle + Math.PI / 6)
+            );
+            ctx.stroke();
+        }
+
+        function adjustBrightness(hex, percent) {
+            const num = parseInt(hex.replace("#", ""), 16);
+            const amt = Math.round(2.55 * percent);
+            const R = (num >> 16) + amt;
+            const G = (num >> 8 & 0x00FF) + amt;
+            const B = (num & 0x0000FF) + amt;
+            return "#" + (0x1000000 + (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+                (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+                (B < 255 ? B < 1 ? 0 : B : 255))
+                .toString(16).slice(1);
+        }
+
+        function downloadSVG() {
+            if (!nodes.length) {
+                showError('No flow to download. Please load and parse a flow first.');
+                return;
+            }
+
+            const svg = generateSVG();
+            const blob = new Blob([svg], { type: 'image/svg+xml' });
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${flowData.label || 'flow'}.svg`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function generateSVG() {
+            if (!nodes.length) return '';
+
+            const padding = 50;
+            const minX = Math.min(...nodes.map(n => n.x)) - padding;
+            const minY = Math.min(...nodes.map(n => n.y)) - padding;
+            const maxX = Math.max(...nodes.map(n => n.x + 160)) + padding;
+            const maxY = Math.max(...nodes.map(n => n.y + 60)) + padding;
+            
+            const width = maxX - minX;
+            const height = maxY - minY;
+
+            let svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">`;
+            svg += `<defs>
+                <style>
+                    .node-text { fill: white; font-family: Arial; text-anchor: middle; }
+                    .node-label { font-size: 12px; font-weight: bold; }
+                    .node-type { font-size: 10px; opacity: 0.8; }
+                    .connection { stroke: #64B5F6; stroke-width: 2; fill: none; }
+                    .arrow { stroke: #64B5F6; stroke-width: 2; }
+                </style>
+            </defs>`;
+
+            // Background
+            svg += `<rect width="${width}" height="${height}" fill="#0f3460"/>`;
+
+            // Draw connections
+            connections.forEach(connection => {
+                const fromNode = nodes.find(n => n.id === connection.from);
+                const toNode = nodes.find(n => n.id === connection.to);
+                
+                if (fromNode && toNode) {
+                    const fromX = fromNode.x + 160 - minX;
+                    const fromY = fromNode.y + 30 - minY;
+                    const toX = toNode.x - minX;
+                    const toY = toNode.y + 30 - minY;
+                    
+                    const cpX = fromX + (toX - fromX) / 2;
+                    
+                    svg += `<path d="M ${fromX} ${fromY} C ${cpX} ${fromY} ${cpX} ${toY} ${toX} ${toY}" class="connection"/>`;
+                    
+                    // Arrow
+                    const angle = Math.atan2(toY - fromY, toX - fromX);
+                    const arrowLength = 10;
+                    svg += `<path d="M ${toX} ${toY} L ${toX - arrowLength * Math.cos(angle - Math.PI / 6)} ${toY - arrowLength * Math.sin(angle - Math.PI / 6)} M ${toX} ${toY} L ${toX - arrowLength * Math.cos(angle + Math.PI / 6)} ${toY - arrowLength * Math.sin(angle + Math.PI / 6)}" class="arrow"/>`;
+                }
+            });
+
+            // Draw nodes
+            const colors = {
+                'start': '#4CAF50', 'screen': '#2196F3', 'decision': '#FF9800',
+                'actionCall': '#9C27B0', 'assignment': '#607D8B', 'recordCreate': '#8BC34A',
+                'recordUpdate': '#FFC107', 'recordDelete': '#F44336', 'recordLookup': '#00BCD4',
+                'loop': '#E91E63', 'subflow': '#795548', 'wait': '#9E9E9E'
+            };
+
+            nodes.forEach(node => {
+                const color = colors[node.type] || '#757575';
+                const x = node.x - minX;
+                const y = node.y - minY;
+                
+                svg += `<rect x="${x}" y="${y}" width="160" height="60" fill="${color}" stroke="${adjustBrightness(color, 20)}" stroke-width="2"/>`;
+                
+                const text = node.label.length > 20 ? node.label.substring(0, 17) + '...' : node.label;
+                svg += `<text x="${x + 80}" y="${y + 25}" class="node-text node-label">${text}</text>`;
+                svg += `<text x="${x + 80}" y="${y + 40}" class="node-text node-type">${node.type}</text>`;
+            });
+
+            svg += '</svg>';
+            return svg;
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        function showError(message) {
+            const errorEl = document.getElementById('errorMessage');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+
+        // Initialize
+        window.addEventListener('load', () => {
+            initCanvas();
+        });
+    </script>
+</body>
+</html>
