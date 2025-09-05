@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weekly Report Diff Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e, #16213e);
+            color: #e0e6ed;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #64b5f6;
+        }
+        
+        .upload-controls {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .upload-btn {
+            position: relative;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border: none;
+            padding: 0.7rem 1.5rem;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        
+        .upload-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+        
+        .upload-btn input {
+            position: absolute;
+            left: -9999px;
+        }
+        
+        .main-container {
+            display: flex;
+            height: calc(100vh - 80px);
+        }
+        
+        .pane {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .pane:last-child {
+            border-right: none;
+        }
+        
+        .pane-header {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.8rem 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .pane-title {
+            font-weight: 500;
+            color: #b0bec5;
+        }
+        
+        .file-info {
+            font-size: 0.8rem;
+            color: #78909c;
+        }
+        
+        .editor-container {
+            flex: 1;
+            position: relative;
+            background: #1e1e1e;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .monaco-editor {
+            width: 100% !important;
+            height: 100% !important;
+        }
+        
+        .drop-zone {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            height: 100%;
+            border: 2px dashed rgba(100, 181, 246, 0.3);
+            margin: 1rem;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            transition: all 0.3s ease;
+        }
+        
+        .drop-zone:hover {
+            border-color: rgba(100, 181, 246, 0.6);
+            background: rgba(100, 181, 246, 0.05);
+        }
+        
+        .drop-zone.drag-over {
+            border-color: #64b5f6;
+            background: rgba(100, 181, 246, 0.1);
+        }
+        
+        .drop-zone-content {
+            text-align: center;
+            pointer-events: none;
+        }
+        
+        .drop-zone-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        
+        .drop-zone-text {
+            font-size: 1.1rem;
+            margin-bottom: 0.5rem;
+            color: #90a4ae;
+        }
+        
+        .drop-zone-subtext {
+            font-size: 0.9rem;
+            color: #607d8b;
+        }
+        
+        .stats-bar {
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.5rem 1rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: #90a4ae;
+        }
+        
+        .diff-legend {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 2px;
+        }
+        
+        .added { background: #4caf50; }
+        .removed { background: #f44336; }
+        .modified { background: #ff9800; }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #64b5f6;
+            font-size: 0.9rem;
+        }
+        
+        .error {
+            color: #f44336;
+            text-align: center;
+            padding: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 Weekly Report Diff Viewer</h1>
+        <div class="upload-controls">
+            <label class="upload-btn">
+                📄 Upload Last Week
+                <input type="file" id="lastWeekFile" accept=".txt,.md" />
+            </label>
+            <label class="upload-btn">
+                📈 Upload This Week  
+                <input type="file" id="thisWeekFile" accept=".txt,.md" />
+            </label>
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <div class="pane">
+            <div class="pane-header">
+                <div class="pane-title">Last Week Report</div>
+                <div class="file-info" id="lastWeekInfo">No file selected</div>
+            </div>
+            <div class="editor-container">
+                <div class="drop-zone" id="lastWeekDropZone">
+                    <div class="drop-zone-content">
+                        <div class="drop-zone-icon">📄</div>
+                        <div class="drop-zone-text">Drop last week's report here</div>
+                        <div class="drop-zone-subtext">or click "Upload Last Week" above</div>
+                    </div>
+                </div>
+                <div id="lastWeekEditor" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <div class="pane">
+            <div class="pane-header">
+                <div class="pane-title">This Week Report</div>
+                <div class="file-info" id="thisWeekInfo">No file selected</div>
+            </div>
+            <div class="editor-container">
+                <div class="drop-zone" id="thisWeekDropZone">
+                    <div class="drop-zone-content">
+                        <div class="drop-zone-icon">📈</div>
+                        <div class="drop-zone-text">Drop this week's report here</div>
+                        <div class="drop-zone-subtext">or click "Upload This Week" above</div>
+                    </div>
+                </div>
+                <div id="thisWeekEditor" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="stats-bar">
+        <div id="statsInfo">Upload both files to see comparison statistics</div>
+        <div class="diff-legend">
+            <div class="legend-item">
+                <div class="legend-color added"></div>
+                <span>Added</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color removed"></div>
+                <span>Removed</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color modified"></div>
+                <span>Modified</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.41.0/min/vs/loader.min.js"></script>
+    <script>
+        require.config({ 
+            paths: { 
+                'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.41.0/min/vs' 
+            } 
+        });
+        
+        let lastWeekEditor, thisWeekEditor;
+        let lastWeekContent = '', thisWeekContent = '';
+        let diffDecorations = [];
+        
+        require(['vs/editor/editor.main'], function() {
+            // Initialize Monaco Editor
+            monaco.editor.setTheme('vs-dark');
+            
+            lastWeekEditor = monaco.editor.create(document.getElementById('lastWeekEditor'), {
+                value: '',
+                language: 'plaintext',
+                theme: 'vs-dark',
+                readOnly: true,
+                minimap: { enabled: false },
+                wordWrap: 'on',
+                lineNumbers: 'on',
+                glyphMargin: true,
+                folding: false,
+                lineDecorationsWidth: 10,
+                lineNumbersMinChars: 3,
+                renderSideBySide: false,
+                scrollbar: {
+                    vertical: 'visible',
+                    horizontal: 'visible'
+                }
+            });
+            lastWeekEditor.layout();
+            
+            thisWeekEditor = monaco.editor.create(document.getElementById('thisWeekEditor'), {
+                value: '',
+                language: 'plaintext',
+                theme: 'vs-dark',
+                readOnly: true,
+                minimap: { enabled: false },
+                wordWrap: 'on',
+                lineNumbers: 'on',
+                glyphMargin: true,
+                folding: false,
+                lineDecorationsWidth: 10,
+                lineNumbersMinChars: 3,
+                renderSideBySide: false,
+                scrollbar: {
+                    vertical: 'visible',
+                    horizontal: 'visible'
+                }
+            });
+            thisWeekEditor.layout();
+            
+            // Sync scrolling between editors
+            lastWeekEditor.onDidScrollChange(() => {
+                const scrollTop = lastWeekEditor.getScrollTop();
+                thisWeekEditor.setScrollTop(scrollTop);
+            });
+            
+            thisWeekEditor.onDidScrollChange(() => {
+                const scrollTop = thisWeekEditor.getScrollTop();
+                lastWeekEditor.setScrollTop(scrollTop);
+            });
+        });
+        
+        // File upload handlers
+        document.getElementById('lastWeekFile').addEventListener('change', (e) => {
+            handleFileUpload(e.target.files[0], 'last');
+        });
+        
+        document.getElementById('thisWeekFile').addEventListener('change', (e) => {
+            handleFileUpload(e.target.files[0], 'this');
+        });
+        
+        // Drag and drop handlers
+        setupDropZone('lastWeekDropZone', 'last');
+        setupDropZone('thisWeekDropZone', 'this');
+        
+        function setupDropZone(dropZoneId, type) {
+            const dropZone = document.getElementById(dropZoneId);
+            
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('drag-over');
+            });
+            
+            dropZone.addEventListener('dragleave', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+            });
+            
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('drag-over');
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    handleFileUpload(files[0], type);
+                }
+            });
+        }
+        
+        function handleFileUpload(file, type) {
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const content = e.target.result;
+                const infoElement = document.getElementById(type === 'last' ? 'lastWeekInfo' : 'thisWeekInfo');
+                const dropZone = document.getElementById(type === 'last' ? 'lastWeekDropZone' : 'thisWeekDropZone');
+                const editorContainer = document.getElementById(type === 'last' ? 'lastWeekEditor' : 'thisWeekEditor');
+                const editor = type === 'last' ? lastWeekEditor : thisWeekEditor;
+                
+                // Update file info
+                infoElement.textContent = `${file.name} (${formatFileSize(file.size)})`;
+                
+                // Hide drop zone, show editor
+                dropZone.style.display = 'none';
+                editorContainer.style.display = 'block';
+                
+                // Set editor content and force layout
+                if (editor) {
+                    editor.setValue(content);
+                    editor.layout();
+                    setTimeout(() => editor.layout(), 0);
+                }
+                
+                // Store content for diff
+                if (type === 'last') {
+                    lastWeekContent = content;
+                } else {
+                    thisWeekContent = content;
+                }
+                
+                // Calculate diff if both files are loaded
+                if (lastWeekContent && thisWeekContent) {
+                    calculateAndDisplayDiff();
+                }
+            };
+            
+            reader.readAsText(file);
+        }
+        
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+        
+        function calculateAndDisplayDiff() {
+            const lastLines = lastWeekContent.split('\n');
+            const thisLines = thisWeekContent.split('\n');
+            
+            // Simple diff algorithm
+            const diff = computeDiff(lastLines, thisLines);
+            
+            // Apply decorations
+            applyDiffDecorations(diff);
+            
+            // Update stats
+            updateStats(diff);
+        }
+        
+        function computeDiff(oldLines, newLines) {
+            const result = {
+                added: [],
+                removed: [],
+                modified: [],
+                unchanged: []
+            };
+            
+            let oldIndex = 0;
+            let newIndex = 0;
+            
+            while (oldIndex < oldLines.length || newIndex < newLines.length) {
+                if (oldIndex >= oldLines.length) {
+                    result.added.push({ line: newIndex + 1, content: newLines[newIndex] });
+                    newIndex++;
+                } else if (newIndex >= newLines.length) {
+                    result.removed.push({ line: oldIndex + 1, content: oldLines[oldIndex] });
+                    oldIndex++;
+                } else if (oldLines[oldIndex] === newLines[newIndex]) {
+                    result.unchanged.push({ oldLine: oldIndex + 1, newLine: newIndex + 1 });
+                    oldIndex++;
+                    newIndex++;
+                } else {
+                    let foundMatch = false;
+                    
+                    for (let lookahead = 1; lookahead <= 5; lookahead++) {
+                        if (oldIndex + lookahead < oldLines.length && 
+                            oldLines[oldIndex + lookahead] === newLines[newIndex]) {
+                            for (let i = 0; i < lookahead; i++) {
+                                result.removed.push({ 
+                                    line: oldIndex + i + 1, 
+                                    content: oldLines[oldIndex + i] 
+                                });
+                            }
+                            oldIndex += lookahead;
+                            foundMatch = true;
+                            break;
+                        }
+                        
+                        if (newIndex + lookahead < newLines.length && 
+                            newLines[newIndex + lookahead] === oldLines[oldIndex]) {
+                            for (let i = 0; i < lookahead; i++) {
+                                result.added.push({ 
+                                    line: newIndex + i + 1, 
+                                    content: newLines[newIndex + i] 
+                                });
+                            }
+                            newIndex += lookahead;
+                            foundMatch = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!foundMatch) {
+                        result.modified.push({
+                            oldLine: oldIndex + 1,
+                            newLine: newIndex + 1,
+                            oldContent: oldLines[oldIndex],
+                            newContent: newLines[newIndex]
+                        });
+                        oldIndex++;
+                        newIndex++;
+                    }
+                }
+            }
+            
+            return result;
+        }
+        
+        function applyDiffDecorations(diff) {
+            // Clear existing decorations
+            if (lastWeekEditor && thisWeekEditor) {
+                lastWeekEditor.deltaDecorations(diffDecorations, []);
+                thisWeekEditor.deltaDecorations(diffDecorations, []);
+            }
+            
+            const lastWeekDecorations = [];
+            const thisWeekDecorations = [];
+            
+            // Removed lines (highlighted in last week editor)
+            diff.removed.forEach(item => {
+                lastWeekDecorations.push({
+                    range: new monaco.Range(item.line, 1, item.line, 1),
+                    options: {
+                        isWholeLine: true,
+                        className: 'removed-line',
+                        glyphMarginClassName: 'removed-glyph',
+                        linesDecorationsClassName: 'removed-decoration'
+                    }
+                });
+            });
+            
+            // Added lines (highlighted in this week editor)
+            diff.added.forEach(item => {
+                thisWeekDecorations.push({
+                    range: new monaco.Range(item.line, 1, item.line, 1),
+                    options: {
+                        isWholeLine: true,
+                        className: 'added-line',
+                        glyphMarginClassName: 'added-glyph',
+                        linesDecorationsClassName: 'added-decoration'
+                    }
+                });
+            });
+            
+            // Modified lines (highlighted in both editors)
+            diff.modified.forEach(item => {
+                lastWeekDecorations.push({
+                    range: new monaco.Range(item.oldLine, 1, item.oldLine, 1),
+                    options: {
+                        isWholeLine: true,
+                        className: 'modified-line',
+                        glyphMarginClassName: 'modified-glyph',
+                        linesDecorationsClassName: 'modified-decoration'
+                    }
+                });
+                
+                thisWeekDecorations.push({
+                    range: new monaco.Range(item.newLine, 1, item.newLine, 1),
+                    options: {
+                        isWholeLine: true,
+                        className: 'modified-line',
+                        glyphMarginClassName: 'modified-glyph',
+                        linesDecorationsClassName: 'modified-decoration'
+                    }
+                });
+            });
+            
+            // Apply decorations
+            if (lastWeekEditor) {
+                lastWeekEditor.deltaDecorations([], lastWeekDecorations);
+            }
+            if (thisWeekEditor) {
+                thisWeekEditor.deltaDecorations([], thisWeekDecorations);
+            }
+            
+            // Add CSS for diff highlighting
+            addDiffStyles();
+        }
+        
+        function addDiffStyles() {
+            if (document.getElementById('diff-styles')) return;
+            
+            const style = document.createElement('style');
+            style.id = 'diff-styles';
+            style.textContent = `
+                .added-line { background-color: rgba(76, 175, 80, 0.2) !important; }
+                .removed-line { background-color: rgba(244, 67, 54, 0.2) !important; }
+                .modified-line { background-color: rgba(255, 152, 0, 0.2) !important; }
+                
+                .added-decoration { background-color: #4caf50 !important; width: 4px !important; }
+                .removed-decoration { background-color: #f44336 !important; width: 4px !important; }
+                .modified-decoration { background-color: #ff9800 !important; width: 4px !important; }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        function updateStats(diff) {
+            const statsElement = document.getElementById('statsInfo');
+            const addedCount = diff.added.length;
+            const removedCount = diff.removed.length;
+            const modifiedCount = diff.modified.length;
+            
+            statsElement.textContent = 
+                `Added: ${addedCount} lines | Removed: ${removedCount} lines | Modified: ${modifiedCount} lines`;
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (lastWeekEditor) lastWeekEditor.layout();
+            if (thisWeekEditor) thisWeekEditor.layout();
+        });
+    </script>
+</body>
+</html>
