@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salesforce Flow Visualizer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.1/min/vs/loader.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            height: 100vh;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            overflow: hidden;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            color: white;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+            backdrop-filter: blur(5px);
+        }
+
+        .btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .btn.primary {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            border: none;
+        }
+
+        .btn.primary:hover {
+            background: linear-gradient(135deg, #43a3f5 0%, #00d9e5 100%);
+        }
+
+        .container {
+            display: flex;
+            height: calc(100vh - 80px);
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .left-panel, .right-panel {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            overflow: hidden;
+        }
+
+        .left-panel {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .right-panel {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 1rem;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .right-panel .panel-header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        #editor {
+            flex: 1;
+            border: none;
+        }
+
+        #flowchart {
+            flex: 1;
+            background: #fafafa;
+            position: relative;
+            overflow: auto;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 1rem;
+            margin: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #c62828;
+        }
+
+        .flow-node {
+            fill: #ffffff;
+            stroke: #333;
+            stroke-width: 2;
+            filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.2));
+            cursor: pointer;
+        }
+
+        .flow-node:hover {
+            fill: #e3f2fd;
+            stroke: #1976d2;
+        }
+
+        .flow-node.start { fill: #c8e6c9; stroke: #388e3c; }
+        .flow-node.recordLookups { fill: #fff3e0; stroke: #f57c00; }
+        .flow-node.loops { fill: #e1f5fe; stroke: #0277bd; }
+        .flow-node.assignments { fill: #fce4ec; stroke: #c2185b; }
+
+        .flow-text {
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 12px;
+            text-anchor: middle;
+            pointer-events: none;
+            fill: #333;
+        }
+
+        .flow-link {
+            fill: none;
+            stroke: #666;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+        }
+
+        .tooltip {
+            position: absolute;
+            padding: 8px 12px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1000;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .sample-btn {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            border: none;
+        }
+
+        .sample-btn:hover {
+            background: linear-gradient(135deg, #f7628c 0%, #febf00 100%);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌊 Salesforce Flow Visualizer</h1>
+        <div class="controls">
+            <button class="btn sample-btn" onclick="loadSampleFlow()">Load Sample</button>
+            <input type="file" id="fileInput" accept=".xml" onchange="handleFileUpload(event)">
+            <button class="btn" onclick="document.getElementById('fileInput').click()">Upload XML</button>
+            <button class="btn primary" onclick="visualizeFlow()">Visualize Flow</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="left-panel">
+            <div class="panel-header">📝 Flow XML Editor</div>
+            <div id="editor"></div>
+        </div>
+        <div class="right-panel">
+            <div class="panel-header">📊 Flow Visualization</div>
+            <div id="flowchart">
+                <div class="loading">Upload or paste your Salesforce Flow XML to see the visualization</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+        let editor;
+        let flowData = null;
+
+        // Initialize Monaco Editor
+        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.1/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            editor = monaco.editor.create(document.getElementById('editor'), {
+                value: '',
+                language: 'xml',
+                theme: 'vs-light',
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                fontSize: 14,
+                lineNumbers: 'on',
+                roundedSelection: false,
+                automaticLayout: true
+            });
+
+            // Auto-visualize on content change with debounce
+            let debounceTimer;
+            editor.onDidChangeModelContent(() => {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(visualizeFlow, 1000);
+            });
+        });
+
+        const sampleXML = `<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>64.0</apiVersion>
+    <assignments>
+        <description>Add all qualifying experience details to the prompt instructions.</description>
+        <name>Send_Experience_Details_to_the_Prompt_Template</name>
+        <elementSubtype>AddPromptInstructions</elementSubtype>
+        <label>Send Experience Details to the Prompt Template</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <assignmentItems>
+            <assignToReference>$Output.Prompt</assignToReference>
+            <operator>Add</operator>
+            <value>
+                <stringValue>(Experience Name: {!Loop_Experiences.Name},
+ Experience Location:{!Loop_Experiences.Location__c} ,
+ Experience Details: {!Loop_Experiences.Description__c})
+</stringValue>
+            </value>
+        </assignmentItems>
+    </assignments>
+    <description>Filter all guest experience data to return to guests.</description>
+    <environments>Default</environments>
+    <interviewLabel>Get Experience Newsletter Data {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Get Experience Newsletter Data</label>
+    <loops>
+        <description>Loop through the collection of guest experiences.</description>
+        <name>Loop_Experiences</name>
+        <label>Loop Experiences</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <collectionReference>Guest_Experience</collectionReference>
+        <iterationOrder>Asc</iterationOrder>
+        <noMoreValuesConnector>
+            <targetReference>Send_Experience_Details_to_the_Prompt_Template</targetReference>
+        </noMoreValuesConnector>
+    </loops>
+    <processMetadataValues>
+        <name>BuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>CanvasMode</name>
+        <value>
+            <stringValue>AUTO_LAYOUT_CANVAS</stringValue>
+        </value>
+    </processMetadataValues>
+    <processMetadataValues>
+        <name>OriginBuilderType</name>
+        <value>
+            <stringValue>LightningFlowBuilder</stringValue>
+        </value>
+    </processMetadataValues>
+    <processType>PromptFlow</processType>
+    <recordLookups>
+        <description>Get all experience data</description>
+        <name>Guest_Experience</name>
+        <label>Guest Experience</label>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>Loop_Experiences</targetReference>
+        </connector>
+        <getFirstRecordOnly>false</getFirstRecordOnly>
+        <object>Experience__c</object>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+    <start>
+        <locationX>0</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>Guest_Experience</targetReference>
+        </connector>
+        <triggerType>Capability</triggerType>
+    </start>
+    <status>Active</status>
+    <variables>
+        <name>Experience</name>
+        <dataType>SObject</dataType>
+        <isCollection>false</isCollection>
+        <isInput>true</isInput>
+        <isOutput>false</isOutput>
+        <objectType>Experience__c</objectType>
+    </variables>
+    <variables>
+        <name>Reservation</name>
+        <dataType>SObject</dataType>
+        <isCollection>false</isCollection>
+        <isInput>true</isInput>
+        <isOutput>false</isOutput>
+        <objectType>External_Reservation__c</objectType>
+    </variables>
+</Flow>`;
+
+        function loadSampleFlow() {
+            if (editor) {
+                editor.setValue(sampleXML);
+                setTimeout(visualizeFlow, 500);
+            }
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (file && file.type === 'text/xml') {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    if (editor) {
+                        editor.setValue(e.target.result);
+                        setTimeout(visualizeFlow, 500);
+                    }
+                };
+                reader.readAsText(file);
+            } else {
+                alert('Please select a valid XML file.');
+            }
+        }
+
+        function parseFlowXML(xmlString) {
+            try {
+                const parser = new DOMParser();
+                const xmlDoc = parser.parseFromString(xmlString, 'text/xml');
+                
+                if (xmlDoc.getElementsByTagName('parsererror').length > 0) {
+                    throw new Error('Invalid XML format');
+                }
+
+                const flow = xmlDoc.getElementsByTagName('Flow')[0];
+                if (!flow) {
+                    throw new Error('No Flow element found');
+                }
+
+                const nodes = [];
+                const links = [];
+
+                // Parse start element
+                const startElements = flow.getElementsByTagName('start');
+                if (startElements.length > 0) {
+                    const start = startElements[0];
+                    const connector = start.getElementsByTagName('connector')[0];
+                    const targetRef = connector ? connector.getElementsByTagName('targetReference')[0]?.textContent : null;
+                    
+                    nodes.push({
+                        id: 'start',
+                        type: 'start',
+                        label: 'Start',
+                        description: 'Flow Start Point'
+                    });
+
+                    if (targetRef) {
+                        links.push({ source: 'start', target: targetRef });
+                    }
+                }
+
+                // Parse different element types
+                const elementTypes = ['recordLookups', 'loops', 'assignments', 'decisions', 'screens', 'subflows'];
+                
+                elementTypes.forEach(elementType => {
+                    const elements = flow.getElementsByTagName(elementType);
+                    for (let element of elements) {
+                        const name = element.getElementsByTagName('name')[0]?.textContent || 'Unnamed';
+                        const label = element.getElementsByTagName('label')[0]?.textContent || name;
+                        const description = element.getElementsByTagName('description')[0]?.textContent || '';
+
+                        nodes.push({
+                            id: name,
+                            type: elementType,
+                            label: label,
+                            description: description
+                        });
+
+                        // Parse connectors
+                        const connectors = element.getElementsByTagName('connector');
+                        for (let connector of connectors) {
+                            const targetRef = connector.getElementsByTagName('targetReference')[0]?.textContent;
+                            if (targetRef) {
+                                links.push({ source: name, target: targetRef });
+                            }
+                        }
+
+                        // Parse special connectors (like noMoreValuesConnector for loops)
+                        const specialConnectors = element.querySelectorAll('noMoreValuesConnector, defaultConnector, faultConnector');
+                        for (let connector of specialConnectors) {
+                            const targetRef = connector.getElementsByTagName('targetReference')[0]?.textContent;
+                            if (targetRef) {
+                                links.push({ source: name, target: targetRef });
+                            }
+                        }
+                    }
+                });
+
+                return { nodes, links };
+
+            } catch (error) {
+                throw new Error(`Failed to parse XML: ${error.message}`);
+            }
+        }
+
+        function visualizeFlow() {
+            if (!editor) return;
+
+            const xmlContent = editor.getValue().trim();
+            if (!xmlContent) {
+                document.getElementById('flowchart').innerHTML = '<div class="loading">Please enter Flow XML content</div>';
+                return;
+            }
+
+            try {
+                flowData = parseFlowXML(xmlContent);
+                renderFlowChart(flowData);
+            } catch (error) {
+                document.getElementById('flowchart').innerHTML = `<div class="error">Error parsing XML: ${error.message}</div>`;
+            }
+        }
+
+        function renderFlowChart(data) {
+            const container = document.getElementById('flowchart');
+            container.innerHTML = '';
+
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            const svg = d3.select('#flowchart')
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height);
+
+            // Define arrow marker
+            svg.append('defs').append('marker')
+                .attr('id', 'arrowhead')
+                .attr('viewBox', '0 -5 10 10')
+                .attr('refX', 8)
+                .attr('refY', 0)
+                .attr('markerWidth', 6)
+                .attr('markerHeight', 6)
+                .attr('orient', 'auto')
+                .append('path')
+                .attr('d', 'M0,-5L10,0L0,5')
+                .attr('fill', '#666');
+
+            // Create simulation
+            const simulation = d3.forceSimulation(data.nodes)
+                .force('link', d3.forceLink(data.links).id(d => d.id).distance(200))
+                .force('charge', d3.forceManyBody().strength(-800))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(80));
+
+            // Create links
+            const link = svg.append('g')
+                .selectAll('path')
+                .data(data.links)
+                .enter().append('path')
+                .attr('class', 'flow-link');
+
+            // Create nodes
+            const node = svg.append('g')
+                .selectAll('g')
+                .data(data.nodes)
+                .enter().append('g')
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended));
+
+            // Add shapes based on node type
+            node.each(function(d) {
+                const g = d3.select(this);
+                
+                if (d.type === 'start') {
+                    g.append('circle')
+                        .attr('r', 30)
+                        .attr('class', `flow-node ${d.type}`);
+                } else {
+                    g.append('rect')
+                        .attr('width', 140)
+                        .attr('height', 60)
+                        .attr('x', -70)
+                        .attr('y', -30)
+                        .attr('rx', 8)
+                        .attr('class', `flow-node ${d.type}`);
+                }
+            });
+
+            // Add labels
+            node.append('text')
+                .attr('class', 'flow-text')
+                .attr('dy', '.35em')
+                .text(d => {
+                    const maxLength = d.type === 'start' ? 10 : 16;
+                    return d.label.length > maxLength ? d.label.substring(0, maxLength) + '...' : d.label;
+                });
+
+            // Add type labels
+            node.filter(d => d.type !== 'start')
+                .append('text')
+                .attr('class', 'flow-text')
+                .attr('dy', '-15')
+                .style('font-size', '10px')
+                .style('fill', '#666')
+                .text(d => d.type);
+
+            // Tooltip
+            const tooltip = d3.select('#tooltip');
+
+            node.on('mouseover', function(event, d) {
+                tooltip.style('opacity', 1)
+                    .html(`<strong>${d.label}</strong><br/>Type: ${d.type}<br/>${d.description || 'No description'}`)
+                    .style('left', (event.pageX + 10) + 'px')
+                    .style('top', (event.pageY - 10) + 'px');
+            })
+            .on('mouseout', function() {
+                tooltip.style('opacity', 0);
+            });
+
+            // Update positions on simulation tick
+            simulation.on('tick', () => {
+                link.attr('d', d => {
+                    // Calculate the direction vector
+                    const dx = d.target.x - d.source.x;
+                    const dy = d.target.y - d.source.y;
+                    const dr = Math.sqrt(dx * dx + dy * dy);
+                    
+                    // Calculate node boundary points
+                    let sourceX = d.source.x;
+                    let sourceY = d.source.y;
+                    let targetX = d.target.x;
+                    let targetY = d.target.y;
+                    
+                    // Adjust for node shapes (source node)
+                    if (d.source.type === 'start') {
+                        // Circle node - radius 30
+                        const sourceRadius = 30;
+                        sourceX = d.source.x + (dx / dr) * sourceRadius;
+                        sourceY = d.source.y + (dy / dr) * sourceRadius;
+                    } else {
+                        // Rectangle node - adjust to edge
+                        const sourceWidth = 70;
+                        const sourceHeight = 30;
+                        if (Math.abs(dx) > Math.abs(dy)) {
+                            sourceX = d.source.x + (dx > 0 ? sourceWidth : -sourceWidth);
+                            sourceY = d.source.y + (dy / Math.abs(dx)) * sourceWidth;
+                        } else {
+                            sourceX = d.source.x + (dx / Math.abs(dy)) * sourceHeight;
+                            sourceY = d.source.y + (dy > 0 ? sourceHeight : -sourceHeight);
+                        }
+                    }
+                    
+                    // Adjust for node shapes (target node)
+                    if (d.target.type === 'start') {
+                        // Circle node - radius 30
+                        const targetRadius = 30;
+                        targetX = d.target.x - (dx / dr) * targetRadius;
+                        targetY = d.target.y - (dy / dr) * targetRadius;
+                    } else {
+                        // Rectangle node - adjust to edge
+                        const targetWidth = 70;
+                        const targetHeight = 30;
+                        if (Math.abs(dx) > Math.abs(dy)) {
+                            targetX = d.target.x - (dx > 0 ? targetWidth : -targetWidth);
+                            targetY = d.target.y - (dy / Math.abs(dx)) * targetWidth;
+                        } else {
+                            targetX = d.target.x - (dx / Math.abs(dy)) * targetHeight;
+                            targetY = d.target.y - (dy > 0 ? targetHeight : -targetHeight);
+                        }
+                    }
+                    
+                    // Create curved path for better visibility
+                    const curve = dr * 0.1; // Slight curve
+                    return `M${sourceX},${sourceY}Q${(sourceX + targetX) / 2 + curve},${(sourceY + targetY) / 2 - curve} ${targetX},${targetY}`;
+                });
+
+                node.attr('transform', d => `translate(${d.x},${d.y})`);
+            });
+
+            function dragstarted(event, d) {
+                if (!event.active) simulation.alphaTarget(0.3).restart();
+                d.fx = d.x;
+                d.fy = d.y;
+            }
+
+            function dragged(event, d) {
+                d.fx = event.x;
+                d.fy = event.y;
+            }
+
+            function dragended(event, d) {
+                if (!event.active) simulation.alphaTarget(0);
+                d.fx = null;
+                d.fy = null;
+            }
+        }
+
+        // Initialize with sample flow
+        window.onload = function() {
+            setTimeout(() => {
+                loadSampleFlow();
+            }, 1000);
+        };
+    </script>
+</body>
+</html>
