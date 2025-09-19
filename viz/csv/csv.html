@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Analyzer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+    <style>
+        .monaco-editor-container {
+            height: 300px;
+            border: 1px solid #374151;
+            border-radius: 0.5rem;
+        }
+        
+        .tab-active {
+            background-color: #1f2937;
+            color: #ffffff;
+            border-bottom: 2px solid #3b82f6;
+        }
+        
+        .tab-inactive {
+            background-color: #111827;
+            color: #9ca3af;
+        }
+        
+        .tab-inactive:hover {
+            background-color: #1f2937;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 px-6 py-4">
+        <div class="max-w-7xl mx-auto">
+            <h1 class="text-2xl font-bold text-blue-400">CSV Analyzer</h1>
+            <p class="text-gray-400 mt-1">Upload, Query, and Visualize your CSV data</p>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-6 py-8">
+        <!-- File Upload Section -->
+        <div class="mb-8">
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h2 class="text-lg font-semibold mb-4 text-blue-400">Upload CSV File</h2>
+                <div class="border-2 border-dashed border-gray-600 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
+                    <input type="file" id="csvFile" accept=".csv" class="hidden">
+                    <label for="csvFile" class="cursor-pointer">
+                        <div class="text-4xl mb-4">📁</div>
+                        <p class="text-lg mb-2">Click to upload CSV file</p>
+                        <p class="text-gray-400">or drag and drop</p>
+                    </label>
+                </div>
+                <div id="fileInfo" class="mt-4 text-sm text-gray-400 hidden"></div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="mb-6">
+            <div class="border-b border-gray-700">
+                <nav class="-mb-px flex space-x-8">
+                    <button id="dataTab" class="tab-inactive py-2 px-4 border-b-2 border-transparent font-medium text-sm">
+                        Data View
+                    </button>
+                    <button id="queryTab" class="tab-active py-2 px-4 border-b-2 font-medium text-sm">
+                        Query
+                    </button>
+                    <button id="vizTab" class="tab-inactive py-2 px-4 border-b-2 border-transparent font-medium text-sm">
+                        Visualization
+                    </button>
+                </nav>
+            </div>
+        </div>
+
+        <!-- Data View Tab Content -->
+        <div id="dataContent" class="space-y-6 hidden">
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-blue-400">CSV Data View</h3>
+                    <div class="flex gap-2">
+                        <button id="exportOriginal" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-md font-medium text-sm">
+                            Export Original CSV
+                        </button>
+                        <button id="refreshData" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md font-medium text-sm">
+                            Refresh View
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Search and Filter -->
+                <div class="flex gap-4 mb-4">
+                    <div class="flex-1">
+                        <input type="text" id="dataSearch" placeholder="Search in data..." 
+                               class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm">
+                    </div>
+                    <div>
+                        <select id="searchColumn" class="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm">
+                            <option value="">All columns</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Data Table Controls -->
+                <div class="flex justify-between items-center mb-4">
+                    <div class="text-sm text-gray-400">
+                        <span id="dataRecordsInfo">No data loaded</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-gray-400">Rows per page:</label>
+                        <select id="dataPageSize" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Data Table -->
+                <div class="overflow-x-auto">
+                    <table id="dataTable" class="w-full text-sm">
+                        <thead class="bg-gray-700">
+                            <!-- Dynamic headers -->
+                        </thead>
+                        <tbody>
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Data Pagination -->
+                <div class="flex justify-center mt-4">
+                    <div class="flex gap-2">
+                        <button id="dataPrevPage" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm disabled:bg-gray-800 disabled:cursor-not-allowed">
+                            Previous
+                        </button>
+                        <span id="dataPageInfo" class="px-3 py-1 text-sm text-gray-400">Page 1 of 1</span>
+                        <button id="dataNextPage" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm disabled:bg-gray-800 disabled:cursor-not-allowed">
+                            Next
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Query Tab Content -->
+        <div id="queryContent" class="space-y-6">
+            <!-- SQL Editor -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h3 class="text-lg font-semibold mb-4 text-blue-400">SQL Query Editor</h3>
+                <div id="sqlEditor" class="monaco-editor-container mb-4"></div>
+                <div class="flex gap-4">
+                    <button id="runQuery" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md font-medium disabled:bg-gray-600 disabled:cursor-not-allowed">
+                        Run Query
+                    </button>
+                    <button id="clearQuery" class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-md font-medium">
+                        Clear
+                    </button>
+                </div>
+            </div>
+
+            <!-- Query Results -->
+            <div id="resultsSection" class="bg-gray-800 rounded-lg p-6 border border-gray-700 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-semibold text-blue-400">Query Results</h3>
+                    <div class="flex gap-2">
+                        <button id="exportResults" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-md font-medium text-sm">
+                            Export CSV
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Pagination Controls -->
+                <div class="flex justify-between items-center mb-4">
+                    <div class="text-sm text-gray-400">
+                        <span id="recordsInfo">Showing 0 of 0 records</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-gray-400">Rows per page:</label>
+                        <select id="pageSize" class="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Results Table -->
+                <div class="overflow-x-auto">
+                    <table id="resultsTable" class="w-full text-sm">
+                        <thead class="bg-gray-700">
+                            <!-- Dynamic headers -->
+                        </thead>
+                        <tbody>
+                            <!-- Dynamic content -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                <div class="flex justify-center mt-4">
+                    <div class="flex gap-2">
+                        <button id="prevPage" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm disabled:bg-gray-800 disabled:cursor-not-allowed">
+                            Previous
+                        </button>
+                        <span id="pageInfo" class="px-3 py-1 text-sm text-gray-400">Page 1 of 1</span>
+                        <button id="nextPage" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded text-sm disabled:bg-gray-800 disabled:cursor-not-allowed">
+                            Next
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Visualization Tab Content -->
+        <div id="vizContent" class="space-y-6 hidden">
+            <!-- Chart Configuration -->
+            <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                <h3 class="text-lg font-semibold mb-4 text-blue-400">Chart Configuration</h3>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Chart Type</label>
+                        <select id="chartType" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                            <option value="bar">Bar Chart</option>
+                            <option value="line">Line Chart</option>
+                            <option value="pie">Pie Chart</option>
+                            <option value="doughnut">Doughnut Chart</option>
+                            <option value="scatter">Scatter Plot</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">X-Axis</label>
+                        <select id="xAxis" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                            <option value="">Select column...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Y-Axis</label>
+                        <select id="yAxis" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                            <option value="">Select column...</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Aggregation</label>
+                        <select id="aggregation" class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                            <option value="none">None</option>
+                            <option value="sum">Sum</option>
+                            <option value="count">Count</option>
+                            <option value="avg">Average</option>
+                            <option value="min">Min</option>
+                            <option value="max">Max</option>
+                        </select>
+                    </div>
+                    <div class="md:col-span-2 lg:col-span-1">
+                        <label class="block text-sm font-medium mb-2">Chart Title</label>
+                        <input type="text" id="chartTitle" placeholder="Enter chart title..." class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2">
+                    </div>
+                </div>
+                <div class="flex gap-4 mt-6">
+                    <button id="generateChart" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md font-medium disabled:bg-gray-600 disabled:cursor-not-allowed">
+                        Generate Chart
+                    </button>
+                    <button id="downloadSVG" style='display:none;' class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-md font-medium hidden">
+                        Download SVG
+                    </button>
+                    <button id="downloadPNG" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-md font-medium hidden">
+                        Download PNG
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chart Display -->
+            <div id="chartSection" class="bg-gray-800 rounded-lg p-6 border border-gray-700 hidden">
+                <div class="relative">
+                    <canvas id="chart" width="400" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script src="app.js"></script>
+        <!-- Footer -->
+    <footer class="bg-gray-800 border-t border-gray-700 px-6 py-4 mt-8">
+        <div class="max-w-7xl mx-auto text-center text-gray-400 text-sm">
+            Made with ❤️ from <a href="https://en.wikipedia.org/wiki/New_Hampshire" class="text-blue-400 hover:text-blue-300" target="_blank">New Hampshire</a> by <a href="https://mohan-chinnappan-n.github.io/about/cv.html" class="text-blue-400 hover:text-blue-300" target="_blank">MC</a>
+        </div>
+    </footer>
+
+  
+</body>
+</html>
