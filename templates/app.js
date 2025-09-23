@@ -1,13 +1,19 @@
-        let templateEditor, variablesEditor, outputEditor;
-        let isDragging = false;
-        let dragType = '';
+let templateEditor, variablesEditor, outputEditor;
+let isDragging = false;
+let dragType = "";
 
-        // Initialize Monaco Editor
-        require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.1/min/vs' } });
-        require(['vs/editor/editor.main'], function () {
-            // Template Editor
-            templateEditor = monaco.editor.create(document.getElementById('templateEditor'), {
-                value: `Hello {{name}}!
+// Initialize Monaco Editor
+require.config({
+  paths: {
+    vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.34.1/min/vs",
+  },
+});
+require(["vs/editor/editor.main"], function () {
+  // Template Editor
+  templateEditor = monaco.editor.create(
+    document.getElementById("templateEditor"),
+    {
+      value: `Hello {{name}}!
 
 {{#if showWelcome}}
 Welcome to our template engine.
@@ -22,15 +28,18 @@ Welcome to our template engine.
 {{#case "inactive"}}Status is inactive{{/case}}
 {{#default}}Unknown status{{/default}}
 {{/switch}}`,
-                language: 'html',
-                theme: 'vs-dark',
-                automaticLayout: true,
-                minimap: { enabled: false }
-            });
+      language: "html",
+      theme: "vs-dark",
+      automaticLayout: true,
+      minimap: { enabled: false },
+    }
+  );
 
-            // Variables Editor
-            variablesEditor = monaco.editor.create(document.getElementById('variablesEditor'), {
-                value: `{
+  // Variables Editor
+  variablesEditor = monaco.editor.create(
+    document.getElementById("variablesEditor"),
+    {
+      value: `{
   "name": "John Doe",
   "showWelcome": true,
   "status": "active",
@@ -45,198 +54,223 @@ Welcome to our template engine.
     }
   ]
 }`,
-                language: 'json',
-                theme: 'vs-dark',
-                automaticLayout: true,
-                minimap: { enabled: false }
-            });
+      language: "json",
+      theme: "vs-dark",
+      automaticLayout: true,
+      minimap: { enabled: false },
+    }
+  );
 
-            // Output Editor
-            outputEditor = monaco.editor.create(document.getElementById('outputEditor'), {
-                value: 'Click "Process Template" to see the output here...',
-                language: 'html',
-                theme: 'vs-dark',
-                automaticLayout: true,
-                minimap: { enabled: false },
-                readOnly: true
-            });
+  // Output Editor
+  outputEditor = monaco.editor.create(document.getElementById("outputEditor"), {
+    value: 'Click "Process Template" to see the output here...',
+    language: "html",
+    theme: "vs-dark",
+    automaticLayout: true,
+    minimap: { enabled: false },
+    readOnly: true,
+  });
 
-            // Auto-process on changes
-            templateEditor.onDidChangeModelContent(() => processTemplate());
-            variablesEditor.onDidChangeModelContent(() => processTemplate());
-        });
+  // Auto-process on changes
+  templateEditor.onDidChangeModelContent(() => processTemplate());
+  variablesEditor.onDidChangeModelContent(() => processTemplate());
+});
 
-        // Template Processing Engine
-        function processTemplate() {
-            try {
-                const template = templateEditor.getValue();
-                const variables = JSON.parse(variablesEditor.getValue());
-                const result = renderTemplate(template, variables);
-                outputEditor.setValue(result);
-            } catch (error) {
-                outputEditor.setValue(`Error: ${error.message}`);
-            }
+// Template Processing Engine
+function processTemplate() {
+  try {
+    const template = templateEditor.getValue();
+    const variables = JSON.parse(variablesEditor.getValue());
+    const result = renderTemplate(template, variables);
+    outputEditor.setValue(result);
+  } catch (error) {
+    outputEditor.setValue(`Error: ${error.message}`);
+  }
+}
+
+function renderTemplate(template, data) {
+  let result = template;
+
+  // Variable replacement {{variable}}
+  result = result.replace(/\{\{([^#/}]+)\}\}/g, (match, varName) => {
+    const value = getNestedValue(data, varName.trim());
+    return value !== undefined ? value : match;
+  });
+
+  // If statements {{#if condition}}...{{/if}}
+  result = result.replace(
+    /\{\{#if\s+([^}]+)\}\}([\s\S]*?)\{\{\/if\}\}/g,
+    (match, condition, content) => {
+      const value = getNestedValue(data, condition.trim());
+      return value ? content : "";
+    }
+  );
+
+  // Each loops {{#each array}}...{{/each}}
+  result = result.replace(
+    /\{\{#each\s+([^}]+)\}\}([\s\S]*?)\{\{\/each\}\}/g,
+    (match, arrayName, content) => {
+      const array = getNestedValue(data, arrayName.trim());
+      if (!Array.isArray(array)) return "";
+
+      return array
+        .map((item) => {
+          return content.replace(/\{\{this\.([^}]+)\}\}/g, (match, prop) => {
+            return item[prop] !== undefined ? item[prop] : match;
+          });
+        })
+        .join("");
+    }
+  );
+
+  // Switch statements {{#switch value}}{{#case "val"}}...{{/case}}{{#default}}...{{/default}}{{/switch}}
+  result = result.replace(
+    /\{\{#switch\s+([^}]+)\}\}([\s\S]*?)\{\{\/switch\}\}/g,
+    (match, switchVar, content) => {
+      const switchValue = getNestedValue(data, switchVar.trim());
+
+      // Find matching case
+      const caseRegex = /\{\{#case\s+"([^"]+)"\}\}([\s\S]*?)\{\{\/case\}\}/g;
+      let caseMatch;
+      while ((caseMatch = caseRegex.exec(content)) !== null) {
+        if (caseMatch[1] === switchValue) {
+          return caseMatch[2];
         }
+      }
 
-        function renderTemplate(template, data) {
-            let result = template;
+      // Check for default case
+      const defaultMatch = content.match(
+        /\{\{#default\}\}([\s\S]*?)\{\{\/default\}\}/
+      );
+      return defaultMatch ? defaultMatch[1] : "";
+    }
+  );
 
-            // Variable replacement {{variable}}
-            result = result.replace(/\{\{([^#/}]+)\}\}/g, (match, varName) => {
-                const value = getNestedValue(data, varName.trim());
-                return value !== undefined ? value : match;
-            });
+  return result;
+}
 
-            // If statements {{#if condition}}...{{/if}}
-            result = result.replace(/\{\{#if\s+([^}]+)\}\}([\s\S]*?)\{\{\/if\}\}/g, (match, condition, content) => {
-                const value = getNestedValue(data, condition.trim());
-                return value ? content : '';
-            });
+function getNestedValue(obj, path) {
+  return path.split(".").reduce((current, key) => {
+    return current && current[key] !== undefined ? current[key] : undefined;
+  }, obj);
+}
 
-            // Each loops {{#each array}}...{{/each}}
-            result = result.replace(/\{\{#each\s+([^}]+)\}\}([\s\S]*?)\{\{\/each\}\}/g, (match, arrayName, content) => {
-                const array = getNestedValue(data, arrayName.trim());
-                if (!Array.isArray(array)) return '';
+// File Handling
+document
+  .getElementById("templateFile")
+  .addEventListener("change", function (e) {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        templateEditor.setValue(e.target.result);
+      };
+      reader.readAsText(file);
+    }
+  });
 
-                return array.map(item => {
-                    return content.replace(/\{\{this\.([^}]+)\}\}/g, (match, prop) => {
-                        return item[prop] !== undefined ? item[prop] : match;
-                    });
-                }).join('');
-            });
-
-            // Switch statements {{#switch value}}{{#case "val"}}...{{/case}}{{#default}}...{{/default}}{{/switch}}
-            result = result.replace(/\{\{#switch\s+([^}]+)\}\}([\s\S]*?)\{\{\/switch\}\}/g, (match, switchVar, content) => {
-                const switchValue = getNestedValue(data, switchVar.trim());
-
-                // Find matching case
-                const caseRegex = /\{\{#case\s+"([^"]+)"\}\}([\s\S]*?)\{\{\/case\}\}/g;
-                let caseMatch;
-                while ((caseMatch = caseRegex.exec(content)) !== null) {
-                    if (caseMatch[1] === switchValue) {
-                        return caseMatch[2];
-                    }
-                }
-
-                // Check for default case
-                const defaultMatch = content.match(/\{\{#default\}\}([\s\S]*?)\{\{\/default\}\}/);
-                return defaultMatch ? defaultMatch[1] : '';
-            });
-
-            return result;
+document
+  .getElementById("variablesFile")
+  .addEventListener("change", function (e) {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        try {
+          JSON.parse(e.target.result); // Validate JSON
+          variablesEditor.setValue(e.target.result);
+        } catch (error) {
+          alert("Invalid JSON file");
         }
+      };
+      reader.readAsText(file);
+    }
+  });
 
-        function getNestedValue(obj, path) {
-            return path.split('.').reduce((current, key) => {
-                return current && current[key] !== undefined ? current[key] : undefined;
-            }, obj);
-        }
+// Download Functions
+function downloadTemplate() {
+  downloadFile(templateEditor.getValue(), "template.txt", "text/plain");
+}
 
-        // File Handling
-        document.getElementById('templateFile').addEventListener('change', function (e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    templateEditor.setValue(e.target.result);
-                };
-                reader.readAsText(file);
-            }
-        });
+function downloadVariables() {
+  downloadFile(
+    variablesEditor.getValue(),
+    "variables.json",
+    "application/json"
+  );
+}
 
-        document.getElementById('variablesFile').addEventListener('change', function (e) {
-            const file = e.target.files[0];
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = function (e) {
-                    try {
-                        JSON.parse(e.target.result); // Validate JSON
-                        variablesEditor.setValue(e.target.result);
-                    } catch (error) {
-                        alert('Invalid JSON file');
-                    }
-                };
-                reader.readAsText(file);
-            }
-        });
+function downloadOutput() {
+  downloadFile(outputEditor.getValue(), "output.txt", "text/plain");
+}
 
-        // Download Functions
-        function downloadTemplate() {
-            downloadFile(templateEditor.getValue(), 'template.txt', 'text/plain');
-        }
+function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
 
-        function downloadVariables() {
-            downloadFile(variablesEditor.getValue(), 'variables.json', 'application/json');
-        }
+// Resizing functionality
+const leftPanel = document.getElementById("leftPanel");
+const rightPanel = document.getElementById("rightPanel");
+const bottomPanel = document.getElementById("bottomPanel");
+const verticalResizer = document.getElementById("verticalResizer");
+const horizontalResizer = document.getElementById("horizontalResizer");
 
-        function downloadOutput() {
-            downloadFile(outputEditor.getValue(), 'output.txt', 'text/plain');
-        }
+verticalResizer.addEventListener("mousedown", (e) => {
+  isDragging = true;
+  dragType = "vertical";
+  document.body.style.cursor = "col-resize";
+});
 
-        function downloadFile(content, filename, mimeType) {
-            const blob = new Blob([content], { type: mimeType });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        }
+horizontalResizer.addEventListener("mousedown", (e) => {
+  isDragging = true;
+  dragType = "horizontal";
+  document.body.style.cursor = "row-resize";
+});
 
-        // Resizing functionality
-        const leftPanel = document.getElementById('leftPanel');
-        const rightPanel = document.getElementById('rightPanel');
-        const bottomPanel = document.getElementById('bottomPanel');
-        const verticalResizer = document.getElementById('verticalResizer');
-        const horizontalResizer = document.getElementById('horizontalResizer');
+document.addEventListener("mousemove", (e) => {
+  if (!isDragging) return;
 
-        verticalResizer.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            dragType = 'vertical';
-            document.body.style.cursor = 'col-resize';
-        });
+  if (dragType === "vertical") {
+    const containerWidth = leftPanel.parentElement.offsetWidth;
+    const newLeftWidth = (e.clientX / containerWidth) * 100;
 
-        horizontalResizer.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            dragType = 'horizontal';
-            document.body.style.cursor = 'row-resize';
-        });
+    if (newLeftWidth > 20 && newLeftWidth < 80) {
+      leftPanel.style.width = newLeftWidth + "%";
+      rightPanel.style.width = 100 - newLeftWidth + "%";
+    }
+  } else if (dragType === "horizontal") {
+    const container = document.querySelector(".flex-1");
+    const containerHeight = container.offsetHeight;
+    const newBottomHeight =
+      ((container.offsetHeight + container.offsetTop - e.clientY) /
+        window.innerHeight) *
+      100;
 
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
+    if (newBottomHeight > 15 && newBottomHeight < 60) {
+      bottomPanel.style.height = newBottomHeight + "%";
+    }
+  }
+});
 
-            if (dragType === 'vertical') {
-                const containerWidth = leftPanel.parentElement.offsetWidth;
-                const newLeftWidth = (e.clientX / containerWidth) * 100;
+document.addEventListener("mouseup", () => {
+  if (isDragging) {
+    isDragging = false;
+    dragType = "";
+    document.body.style.cursor = "default";
+  }
+});
 
-                if (newLeftWidth > 20 && newLeftWidth < 80) {
-                    leftPanel.style.width = newLeftWidth + '%';
-                    rightPanel.style.width = (100 - newLeftWidth) + '%';
-                }
-            } else if (dragType === 'horizontal') {
-                const container = document.querySelector('.flex-1');
-                const containerHeight = container.offsetHeight;
-                const newBottomHeight = ((container.offsetHeight + container.offsetTop - e.clientY) / window.innerHeight) * 100;
-
-                if (newBottomHeight > 15 && newBottomHeight < 60) {
-                    bottomPanel.style.height = newBottomHeight + '%';
-                }
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
-            if (isDragging) {
-                isDragging = false;
-                dragType = '';
-                document.body.style.cursor = 'default';
-            }
-        });
-
-        // Initial template processing
-        setTimeout(() => {
-            if (templateEditor && variablesEditor && outputEditor) {
-                processTemplate();
-            }
-        }, 1000);
+// Initial template processing
+setTimeout(() => {
+  if (templateEditor && variablesEditor && outputEditor) {
+    processTemplate();
+  }
+}, 1000);
