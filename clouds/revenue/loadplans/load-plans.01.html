@@ -119,9 +119,8 @@
         <div class="spacer"></div>
         <button id="formatBtn" class="btn">Format JSON</button>
         <button id="objectsBtn" class="btn">Objects</button>
-        <button id="exportCSVBtn" class="btn accent">Export CSV (All Files)</button>
         <button id="downloadBtn" class="btn accent">Download</button>
-        <a href='../../../smt/smt.html' class="btn">Migration Tool Documentation</a>
+        <a href='../../../smt/smt.html' class="btn">Migration Tool Documenation</a>
       </div>
       <div id="editor"></div>
       <div class="footer">
@@ -158,6 +157,7 @@
 
     let editor;
     let currentFile = null;
+
     const listEl = document.getElementById('filelist');
     const searchInput = document.getElementById('searchInput');
 
@@ -184,10 +184,15 @@
     }
 
     renderFileList();
-    searchInput.addEventListener("input", () => renderFileList(searchInput.value));
+
+    searchInput.addEventListener("input", () => {
+      renderFileList(searchInput.value);
+    });
 
     function updateActiveItem(name) {
-      document.querySelectorAll('.file').forEach(f => f.classList.toggle('active', f.dataset.name === name));
+      document.querySelectorAll('.file').forEach(f => {
+        f.classList.toggle('active', f.dataset.name === name);
+      });
     }
 
     async function selectFile(name) {
@@ -264,56 +269,36 @@
     const closeModal = document.getElementById("closeModal");
     const objectList = document.getElementById("objectList");
 
-    function extractObjects(text) {
+    document.getElementById("objectsBtn").addEventListener("click", () => {
       try {
-        const obj = JSON.parse(text);
+        const obj = JSON.parse(editor.getValue());
+        let keys = [];
         if (Array.isArray(obj)) {
-          return obj.map(item => {
+          keys = obj.map((item, i) => {
             if (item && typeof item === "object") {
-              return item.object || item.name || item.Name || item.developerName || item.DeveloperName || "[Unnamed]";
+              const preferredKey = ["object", "name", "Name", "id", "Id", "developerName", "DeveloperName"]
+                .find(k => k in item);
+              return preferredKey ? `${item[preferredKey]}` : `[${i}]`;
             }
-            return "[Invalid]";
+            return `[${i}]`;
           });
         } else if (typeof obj === "object" && obj !== null) {
-          return Object.keys(obj);
+          keys = Object.keys(obj);
         } else {
-          return [`(Root type: ${typeof obj})`];
+          keys = [`(Root type: ${typeof obj})`];
         }
-      } catch {
-        return ["Invalid JSON"];
-      }
-    }
 
-    document.getElementById("objectsBtn").addEventListener("click", () => {
-      const objs = extractObjects(editor.getValue());
-      objectList.innerHTML = objs.map(o => `<li>${o}</li>`).join("");
-      modal.classList.remove("hidden");
+        objectList.innerHTML = keys.map(k => `<li>${k}</li>`).join("");
+        modal.classList.remove("hidden");
+      } catch (e) {
+        objectList.innerHTML = `<li style="color:#f66;">Invalid JSON</li>`;
+        modal.classList.remove("hidden");
+      }
     });
 
     closeModal.addEventListener("click", () => modal.classList.add("hidden"));
-    modal.addEventListener("click", (e) => { if (e.target === modal) modal.classList.add("hidden"); });
-
-    // Export CSV for all files
-    document.getElementById("exportCSVBtn").addEventListener("click", async () => {
-      const rows = ["JSON File,Object"];
-      for (const file of FILES) {
-        try {
-          const res = await fetch(file);
-          const text = await res.text();
-          const objs = extractObjects(text);
-          objs.forEach(o => rows.push(`"${file}","${o}"`));
-        } catch {
-          rows.push(`"${file}","[Failed to load]"`);
-        }
-      }
-      const blob = new Blob([rows.join("\n")], { type: "text/csv;charset=utf-8" });
-      const a = document.createElement("a");
-      a.href = URL.createObjectURL(blob);
-      a.download = "all-json-objects.csv";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 0);
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.classList.add("hidden");
     });
   </script>
 </body>
