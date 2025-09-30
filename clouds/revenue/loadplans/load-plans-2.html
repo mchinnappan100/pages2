@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Load Plans - JSON Viewer/Editor • Dark</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="icon" type="image/x-icon"
+        href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <!-- Monaco via CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"
+         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+  <style>
+    body { margin: 0; font-family: sans-serif; }
+    .app { display: flex; height: 100vh; }
+    .sidebar {
+      width: 250px; background: #111827; color: #fff; overflow-y: auto;
+      display: flex; flex-direction: column;
+    }
+    .sidebar header { padding: 1rem; border-bottom: 1px solid #374151; }
+    .sidebar .title { font-size: 1.2rem; font-weight: bold; }
+    .sidebar .subtitle { font-size: 0.9rem; color: #9ca3af; }
+    .filelist { flex: 1; overflow-y: auto; }
+    .file {
+      display: flex; align-items: center; padding: 0.5rem;
+      border-bottom: 1px solid #1f2937; cursor: pointer;
+    }
+    .file:hover { background: #1f2937; }
+    .file.active { background: #374151; }
+    .file .name { flex: 1; margin-left: 0.5rem; }
+    .file .meta { font-size: 0.8rem; color: #9ca3af; }
+
+    .right { flex: 1; display: flex; flex-direction: column; background: #1e1e1e; color: #fff; }
+    .toolbar {
+      display: flex; align-items: center; padding: 0.5rem; border-bottom: 1px solid #333;
+    }
+    .toolbar .btn {
+      margin-left: 0.5rem; padding: 0.3rem 0.6rem; background: #374151; border: none;
+      color: #fff; border-radius: 4px; cursor: pointer;
+    }
+    .toolbar .btn:hover { background: #4b5563; }
+    .toolbar .btn.accent { background: #2563eb; }
+    .toolbar .btn.accent:hover { background: #1d4ed8; }
+    .toolbar .spacer { flex: 1; }
+
+    #editor { flex: 1; }
+    .footer { padding: 0.5rem; border-top: 1px solid #333; font-size: 0.85rem; color: #9ca3af; }
+
+    /* Modal styles */
+    .modal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal.hidden { display: none; }
+    .modal-content {
+      background: #1e1e1e;
+      color: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      width: 400px;
+      max-height: 70%;
+      overflow-y: auto;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    .modal-content h2 {
+      margin-top: 0;
+      font-size: 1.2em;
+      border-bottom: 1px solid #444;
+      padding-bottom: 8px;
+    }
+    .modal-content ul {
+      list-style: none;
+      padding: 0;
+      margin: 10px 0 0 0;
+    }
+    .modal-content li {
+      padding: 4px 0;
+      border-bottom: 1px solid #333;
+    }
+    .close {
+      float: right;
+      cursor: pointer;
+      font-size: 1.4em;
+      margin-top: -6px;
+    }
+    .close:hover { color: #f66; }
+    .dot.ok { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-right: 4px; }
+    .dot.err { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-right: 4px; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <header>
+        <div class="title">Load Plans - JSON Files</div>
+        <div class="subtitle">Click a file to view & edit</div>
+      </header>
+      <div id="filelist" class="filelist"></div>
+    </aside>
+    <main class="right">
+      <div class="toolbar">
+        <span id="currentName" class="tag">No file selected</span>
+        <span id="jsonStatus" class="status"><span class="dot err"></span> Not validated</span>
+        <div class="spacer"></div>
+        <button id="formatBtn" class="btn">Format JSON</button>
+        <button id="objectsBtn" class="btn">Objects</button>
+        <button id="downloadBtn" class="btn accent">Download</button>
+        <a href='../../../smt/smt.html' class="btn">Migration Tool Documenation</a>
+      </div>
+      <div id="editor"></div>
+      <div class="footer">
+        <span>Tip: <kbd>Cmd/Ctrl+S</kbd> to download. <kbd>Alt+Shift+F</kbd> to format.</span>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div id="objectsModal" class="modal hidden">
+    <div class="modal-content">
+      <span id="closeModal" class="close">&times;</span>
+      <h2>Objects in JSON</h2>
+      <ul id="objectList"></ul>
+    </div>
+  </div>
+
+  <script>
+    const FILES = [
+      "load-plan-calc-proc.json",
+      "load-plan-CLM.json",
+      "load-plan-ContextDefinition.json",
+      "locd-plan-DocumentTemplate.json",
+      "load-plan-dro.json",
+      "load-plan-experssionset.json",
+      "load-plan-OmniProcess.json",
+      "load-plan-pcm.json",
+      "load-plan-PriceAdjustmentSchedule.json",
+      "load-plan-pricechange.json",
+      "load-plan-product-qualification.json",
+      "load-plan-productCategory.json",
+      "load-plan-SalesContractLine.json",
+    ];
+
+    let editor;
+    let currentFile = null;
+
+    const listEl = document.getElementById('filelist');
+
+    function makeFileItem(name) {
+      const el = document.createElement('div');
+      el.className = 'file';
+      el.dataset.name = name;
+      el.innerHTML = `
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9l-6-6z"
+                stroke="#6b7280" stroke-width="1.3"/>
+          <path d="M14 3v6h6" stroke="#6b7280" stroke-width="1.3"/>
+        </svg>
+        <div class="name">${name}</div>
+        <div class="meta">JSON</div>`;
+      el.addEventListener('click', () => selectFile(name));
+      return el;
+    }
+
+    FILES.forEach(f => listEl.appendChild(makeFileItem(f)));
+
+    function updateActiveItem(name) {
+      document.querySelectorAll('.file').forEach(f => {
+        f.classList.toggle('active', f.dataset.name === name);
+      });
+    }
+
+    async function selectFile(name) {
+      currentFile = name;
+      updateActiveItem(name);
+      document.getElementById('currentName').textContent = name;
+      try {
+        const res = await fetch(name);
+        const text = await res.text();
+        editor.setValue(text);
+        validateJSON();
+      } catch (e) {
+        editor.setValue("// Failed to load " + name + "\\n" + e);
+      }
+    }
+
+    window.require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+    window.require(['vs/editor/editor.main'], function () {
+      editor = monaco.editor.create(document.getElementById('editor'), {
+        value: `{ "msg": "Select a file from the left to view/edit its JSON" }`,
+        language: 'json',
+        theme: 'vs-dark',
+        automaticLayout: true,
+        tabSize: 2
+      });
+
+      let t;
+      editor.onDidChangeModelContent(() => {
+        clearTimeout(t);
+        t = setTimeout(validateJSON, 250);
+      });
+
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => downloadCurrent());
+      editor.addCommand(monaco.KeyMod.Alt | monaco.KeyMod.Shift | monaco.KeyCode.KeyF, () => formatJSON());
+
+      if (FILES.length) selectFile(FILES[0]);
+    });
+
+    function validateJSON() {
+      const statusEl = document.getElementById('jsonStatus');
+      try {
+        JSON.parse(editor.getValue());
+        statusEl.innerHTML = '<span class="dot ok"></span> Valid JSON';
+      } catch {
+        statusEl.innerHTML = '<span class="dot err"></span> Invalid JSON';
+      }
+    }
+
+    function formatJSON() {
+      try {
+        const obj = JSON.parse(editor.getValue());
+        editor.setValue(JSON.stringify(obj, null, 2));
+      } catch { }
+    }
+
+    function downloadCurrent() {
+      if (!currentFile) return;
+      const content = editor.getValue();
+      const blob = new Blob([content], { type: 'application/json;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = currentFile;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 0);
+    }
+
+    document.getElementById('downloadBtn').addEventListener('click', downloadCurrent);
+    document.getElementById('formatBtn').addEventListener('click', formatJSON);
+
+    // Modal logic
+    const modal = document.getElementById("objectsModal");
+    const closeModal = document.getElementById("closeModal");
+    const objectList = document.getElementById("objectList");
+
+    document.getElementById("objectsBtn").addEventListener("click", () => {
+      try {
+        const obj = JSON.parse(editor.getValue());
+        const keys = Array.isArray(obj)
+          ? obj.map((_, i) => `[${i}]`)
+          : Object.keys(obj);
+
+        objectList.innerHTML = keys.map(k => `<li>${k}</li>`).join("");
+        modal.classList.remove("hidden");
+      } catch (e) {
+        objectList.innerHTML = `<li style="color:#f66;">Invalid JSON</li>`;
+        modal.classList.remove("hidden");
+      }
+    });
+
+    closeModal.addEventListener("click", () => modal.classList.add("hidden"));
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) modal.classList.add("hidden");
+    });
+  </script>
+</body>
+</html>
