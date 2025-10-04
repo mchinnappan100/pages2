@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FileDiff Pro - Modern File Comparison</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+    };
+  </script>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #container { height: calc(100vh - 140px); }
+    #editors { height: 100%; }
+    #diffEditor { height: 100%; }
+    
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .animate-in { animation: slideIn 0.3s ease-out; }
+    
+    .drop-zone {
+      transition: all 0.2s ease;
+    }
+    
+    .drop-zone.drag-over {
+      background-color: rgba(59, 130, 246, 0.1);
+      border-color: rgb(59, 130, 246);
+    }
+    
+    .tooltip {
+      position: relative;
+    }
+    
+    .tooltip:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 4px 8px;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      font-size: 12px;
+      white-space: nowrap;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      z-index: 1000;
+    }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 text-gray-200 flex flex-col h-screen">
+  <header class="sticky top-0 bg-gray-800/80 backdrop-blur-lg border-b border-gray-700/50 p-4 flex justify-between items-center z-50 shadow-lg">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">FileDiff Pro</h1>
+        <p class="text-xs text-gray-400">Advanced File Comparison</p>
+      </div>
+    </div>
+    <div class="flex gap-2">
+      <button id="compareBtn" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 rounded-lg font-medium transition-all transform hover:scale-105 shadow-lg tooltip" data-tooltip="Compare files side-by-side">
+        <span class="flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+          </svg>
+          Compare
+        </span>
+      </button>
+      <button id="toggleTheme" class="px-4 py-2 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg transition-all tooltip" data-tooltip="Toggle light/dark theme">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+        </svg>
+      </button>
+      <button id="clearAll" class="px-4 py-2 bg-red-600/80 hover:bg-red-500 rounded-lg transition-all tooltip" data-tooltip="Clear all content">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main id="container" class="flex-1 w-full p-4">
+    <div id="editors" class="grid grid-cols-1 lg:grid-cols-2 gap-4 w-full h-full animate-in">
+      <div class="flex flex-col h-full bg-gray-800/50 rounded-xl border border-gray-700/50 overflow-hidden shadow-xl backdrop-blur-sm drop-zone" id="leftDropZone">
+        <div class="flex justify-between items-center p-3 bg-gradient-to-r from-gray-800 to-gray-700/50 border-b border-gray-700/50">
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span class="text-sm font-medium">Original</span>
+            <span id="leftFilename" class="text-xs text-gray-400 italic"></span>
+          </div>
+          <div class="flex gap-2">
+            <input type="file" id="leftFile" class="hidden" />
+            <button onclick="document.getElementById('leftFile').click()" class="px-3 py-1.5 bg-blue-600/80 hover:bg-blue-500 rounded-lg text-xs font-medium transition-all tooltip" data-tooltip="Upload file">
+              <svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+              </svg>
+              Upload
+            </button>
+            <button onclick="downloadFile('left')" class="px-3 py-1.5 bg-gray-600/80 hover:bg-gray-500 rounded-lg text-xs font-medium transition-all tooltip" data-tooltip="Download file">
+              <svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Download
+            </button>
+            <button onclick="copyToClipboard('left')" class="px-3 py-1.5 bg-gray-600/80 hover:bg-gray-500 rounded-lg text-xs font-medium transition-all tooltip" data-tooltip="Copy to clipboard">
+              <svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+              Copy
+            </button>
+          </div>
+        </div>
+        <div id="leftEditor" class="flex-1"></div>
+      </div>
+
+      <div class="flex flex-col h-full bg-gray-800/50 rounded-xl border border-gray-700/50 overflow-hidden shadow-xl backdrop-blur-sm drop-zone" id="rightDropZone">
+        <div class="flex justify-between items-center p-3 bg-gradient-to-r from-gray-700/50 to-gray-800 border-b border-gray-700/50">
+          <div class="flex items-center gap-2">
+            <div class="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+            <span class="text-sm font-medium">Modified</span>
+            <span id="rightFilename" class="text-xs text-gray-400 italic"></span>
+          </div>
+          <div class="flex gap-2">
+            <input type="file" id="rightFile" class="hidden" />
+            <button onclick="document.getElementById('rightFile').click()" class="px-3 py-1.5 bg-blue-600/80 hover:bg-blue-500 rounded-lg text-xs font-medium transition-all tooltip" data-tooltip="Upload file">
+              <svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+              </svg>
+              Upload
+            </button>
+            <button onclick="downloadFile('right')" class="px-3 py-1.5 bg-gray-600/80 hover:bg-gray-500 rounded-lg text-xs font-medium transition-all tooltip" data-tooltip="Download file">
+              <svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Download
+            </button>
+            <button onclick="copyToClipboard('right')" class="px-3 py-1.5 bg-gray-600/80 hover:bg-gray-500 rounded-lg text-xs font-medium transition-all tooltip" data-tooltip="Copy to clipboard">
+              <svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+              Copy
+            </button>
+          </div>
+        </div>
+        <div id="rightEditor" class="flex-1"></div>
+      </div>
+    </div>
+
+    <div id="diffContainer" class="hidden w-full h-full animate-in">
+      <div class="flex justify-between items-center p-3 bg-gray-800/50 rounded-t-xl border border-b-0 border-gray-700/50">
+        <div class="flex items-center gap-2">
+          <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+          <span class="text-sm font-medium">Diff View</span>
+        </div>
+        <button onclick="exitDiffView()" class="px-3 py-1.5 bg-gray-600/80 hover:bg-gray-500 rounded-lg text-xs font-medium transition-all">
+          <svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"/>
+          </svg>
+          Back to Edit
+        </button>
+      </div>
+      <div id="diffEditor" class="rounded-b-xl border border-gray-700/50 overflow-hidden shadow-xl"></div>
+    </div>
+  </main>
+
+  <footer class="sticky bottom-0 bg-gray-800/80 backdrop-blur-lg border-t border-gray-700/50 p-3 text-center shadow-lg">
+    <div class="flex justify-center items-center gap-4 text-xs text-gray-400">
+      <span class="flex items-center gap-1">
+        <svg class="w-4 h-4 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+        </svg>
+        Advnaced Editor
+      </span>
+      <span>•</span>
+      <span class="flex items-center gap-1">
+        <svg class="w-4 h-4 text-purple-400" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M12.316 3.051a1 1 0 01.633 1.265l-4 12a1 1 0 11-1.898-.632l4-12a1 1 0 011.265-.633zM5.707 6.293a1 1 0 010 1.414L3.414 10l2.293 2.293a1 1 0 11-1.414 1.414l-3-3a1 1 0 010-1.414l3-3a1 1 0 011.414 0zm8.586 0a1 1 0 011.414 0l3 3a1 1 0 010 1.414l-3 3a1 1 0 11-1.414-1.414L16.586 10l-2.293-2.293a1 1 0 010-1.414z" clip-rule="evenodd"/>
+        </svg>
+        Syntax Highlighting
+      </span>
+      <span>•</span>
+      <span>Drag & Drop Support</span>
+      <span>•</span>
+      <span class="text-gray-500">MC -  FileDiff Pro</span>
+    </div>
+  </footer>
+
+  <script>
+    let editorLeft, editorRight, diffEditor;
+    let filenameLeft = 'left.txt';
+    let filenameRight = 'right.txt';
+
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+    require(["vs/editor/editor.main"], function() {
+      editorLeft = monaco.editor.create(document.getElementById('leftEditor'), {
+        value: "",
+        language: "plaintext",
+        theme: "vs-dark",
+        automaticLayout: true
+      });
+
+      editorRight = monaco.editor.create(document.getElementById('rightEditor'), {
+        value: "",
+        language: "plaintext",
+        theme: "vs-dark",
+        automaticLayout: true
+      });
+
+      diffEditor = monaco.editor.createDiffEditor(document.getElementById('diffEditor'), {
+        theme: "vs-dark",
+        automaticLayout: true,
+      });
+    });
+
+    document.getElementById('compareBtn').addEventListener('click', () => {
+      document.getElementById('editors').classList.add('hidden');
+      document.getElementById('diffContainer').classList.remove('hidden');
+      const leftModel = editorLeft.getModel();
+      const rightModel = editorRight.getModel();
+      diffEditor.setModel({ original: leftModel, modified: rightModel });
+      showToast('Comparing files...', 'success');
+    });
+
+    function exitDiffView() {
+      document.getElementById('editors').classList.remove('hidden');
+      document.getElementById('diffContainer').classList.add('hidden');
+    }
+
+    document.getElementById('clearAll').addEventListener('click', () => {
+      if (confirm('Clear all content? This cannot be undone.')) {
+        editorLeft.setValue('');
+        editorRight.setValue('');
+        filenameLeft = 'left.txt';
+        filenameRight = 'right.txt';
+        document.getElementById('leftFilename').textContent = '';
+        document.getElementById('rightFilename').textContent = '';
+        exitDiffView();
+        showToast('All content cleared', 'info');
+      }
+    });
+
+    document.getElementById('toggleTheme').addEventListener('click', () => {
+      const html = document.documentElement;
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark');
+        monaco.editor.setTheme('vs');
+      } else {
+        html.classList.add('dark');
+        monaco.editor.setTheme('vs-dark');
+      }
+    });
+
+    document.getElementById('leftFile').addEventListener('change', e => handleFileInput(e, 'left'));
+    document.getElementById('rightFile').addEventListener('change', e => handleFileInput(e, 'right'));
+
+    function handleFileInput(e, which) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        if (which === 'left') {
+          editorLeft.setValue(ev.target.result);
+          filenameLeft = file.name;
+          document.getElementById('leftFilename').textContent = file.name;
+          setLanguage(editorLeft, file.name);
+        } else {
+          editorRight.setValue(ev.target.result);
+          filenameRight = file.name;
+          document.getElementById('rightFilename').textContent = file.name;
+          setLanguage(editorRight, file.name);
+        }
+        showToast(`Loaded ${file.name}`, 'success');
+      };
+      reader.readAsText(file);
+    }
+
+    function setLanguage(editor, filename) {
+      const ext = filename.split('.').pop().toLowerCase();
+      let lang = 'plaintext';
+      if (ext === 'js') lang = 'javascript';
+      else if (ext === 'json') lang = 'json';
+      else if (ext === 'py') lang = 'python';
+      else if (ext === 'html') lang = 'html';
+      else if (ext === 'css') lang = 'css';
+      else if (ext === 'xml') lang = 'xml';
+      else if (ext === 'java') lang = 'java';
+      else if (ext === 'cpp' || ext === 'c' || ext === 'h') lang = 'cpp';
+      else if (ext === 'ts') lang = 'typescript';
+      else if (ext === 'md') lang = 'markdown';
+      else if (ext === 'sql') lang = 'sql';
+      monaco.editor.setModelLanguage(editor.getModel(), lang);
+    }
+
+    async function copyToClipboard(which) {
+      let text = '';
+      if (which === 'left') text = editorLeft.getValue();
+      else if (which === 'right') text = editorRight.getValue();
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast('Copied to clipboard!', 'success');
+      } catch {
+        showToast('Failed to copy', 'error');
+      }
+    }
+
+    function downloadFile(which) {
+      const text = which === 'left' ? editorLeft.getValue() : editorRight.getValue();
+      const filename = which === 'left' ? filenameLeft : filenameRight;
+      const blob = new Blob([text], {type: 'text/plain'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      showToast(`Downloaded ${filename}`, 'success');
+    }
+
+    function showToast(msg, type = 'info') {
+      const colors = {
+        success: 'bg-green-600',
+        error: 'bg-red-600',
+        info: 'bg-blue-600'
+      };
+      const el = document.createElement('div');
+      el.textContent = msg;
+      el.className = `fixed right-6 bottom-20 ${colors[type]} text-white px-4 py-3 rounded-lg shadow-2xl z-50 animate-in flex items-center gap-2`;
+      document.body.appendChild(el);
+      setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateY(10px)';
+        el.style.transition = 'all 0.3s ease';
+        setTimeout(() => el.remove(), 300);
+      }, 2000);
+    }
+
+    // Drag and drop support
+    ['leftDropZone', 'rightDropZone'].forEach(id => {
+      const zone = document.getElementById(id);
+      const which = id.includes('left') ? 'left' : 'right';
+      
+      zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        zone.classList.add('drag-over');
+      });
+      
+      zone.addEventListener('dragleave', () => {
+        zone.classList.remove('drag-over');
+      });
+      
+      zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        const file = e.dataTransfer.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = ev => {
+            if (which === 'left') {
+              editorLeft.setValue(ev.target.result);
+              filenameLeft = file.name;
+              document.getElementById('leftFilename').textContent = file.name;
+              setLanguage(editorLeft, file.name);
+            } else {
+              editorRight.setValue(ev.target.result);
+              filenameRight = file.name;
+              document.getElementById('rightFilename').textContent = file.name;
+              setLanguage(editorRight, file.name);
+            }
+            showToast(`Dropped ${file.name}`, 'success');
+          };
+          reader.readAsText(file);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
