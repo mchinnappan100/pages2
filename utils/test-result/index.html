@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Apex Test Results</title>
+
+  <!-- Tailwind (class-based dark mode) -->
+  <script>
+    window.tailwind = {
+      config: {
+        darkMode: 'class',
+        theme: { extend: {} }
+      }
+    }
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" type="image/x-icon"
+        href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+
+  <!-- DataTables CSS + Buttons -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+  <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
+
+  <style>
+    /* small adjustments for Tailwind + DataTables */
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; }
+    .dt-topbar { display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .kpi { min-height:72px; }
+
+    /* Dark-mode overrides for DataTables */
+    .dark .dataTables_wrapper, .dark table.dataTable {
+      --dt-bg: #0f172a; /* slate-900 */
+      --dt-foreground: #e6eef8; /* light */
+      --dt-border: #1f2937; /* slate-800 */
+      background: var(--dt-bg);
+      color: var(--dt-foreground);
+    }
+    .dark table.dataTable thead th {
+      background: #0b1220; /* slightly different */
+      color: var(--dt-foreground);
+      border-bottom: 1px solid var(--dt-border);
+    }
+    .dark table.dataTable tbody td {
+      border-bottom: 1px dashed var(--dt-border);
+      color: var(--dt-foreground);
+    }
+    /* Buttons look in dark mode */
+    .dark .dt-button, .dark .dt-button:active, .dark .dt-button:focus {
+      background: #0f172a;
+      color: #e6eef8;
+      border: 1px solid #334155;
+    }
+
+    /* Row badges */
+    .badge-pass { background: rgba(16,185,129,0.12); color: #059669; padding:4px 8px; border-radius:999px; font-weight:600; }
+    .badge-fail { background: rgba(239,68,68,0.12); color:#dc2626; padding:4px 8px; border-radius:999px; font-weight:600; }
+  </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 transition-colors">
+
+  <div class="max-w-7xl mx-auto p-6">
+    <header class="flex items-start justify-between gap-4 mb-6">
+      <div>
+        <h1 class="text-2xl font-bold">🧪 Apex Test Results — Viewer </h1>
+        <p class="text-sm text-slate-600 dark:text-slate-400 mt-1">Upload your Salesforce test result JSON.</p>
+        <p>To get test results JSON, run this command:
+          <br>
+          sf apex run test -o username -w 15 -r json > output.json
+
+        </p>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <div class="text-xs text-slate-500 dark:text-slate-400 mr-2">Theme</div>
+        <button id="themeToggle" class="px-3 py-2 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm">Toggle</button>
+      </div>
+    </header>
+
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+      <div class="lg:col-span-3">
+        <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
+          <div class="flex items-center justify-between dt-topbar">
+            <div>
+              <label class="inline-flex items-center gap-2 cursor-pointer">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V7m-4 0l-3-3m0 0L12 4m0 0L7 4" /></svg>
+                <span class="text-sm font-medium">Upload JSON</span>
+                <input id="jsonFile" type="file" accept=".json,application/json" class="hidden">
+              </label>
+              <span id="runInfo" class="ml-4 text-xs text-slate-500 dark:text-slate-400"></span>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button id="loadSample" class="px-3 py-2 bg-indigo-600 text-white rounded-md text-sm">Load Sample</button>
+              <button id="clearBtn" class="px-3 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-700 rounded-md text-sm">Clear</button>
+            </div>
+          </div>
+
+          <div class="mt-4">
+            <table id="testTable" class="stripe hover" style="width:100%">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Class Name</th>
+                  <th>Method</th>
+                  <th>Full Name</th>
+                  <th>Outcome</th>
+                  <th>Run Time (ms)</th>
+                  <th>Message / StackTrace</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+
+      <aside class="lg:col-span-1">
+        <div class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
+          <h3 class="text-sm font-semibold mb-3">KPIs</h3>
+          <div id="kpiContainer" class="space-y-3">
+            <!-- KPI cards rendered here -->
+          </div>
+        </div>
+
+        <div id="quickLists" class="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm mt-4">
+          <h4 class="text-sm font-semibold mb-2">Quick Lists</h4>
+          <div>
+            <div class="text-xs text-slate-500 dark:text-slate-400 mb-2">Top slowest tests</div>
+            <ul id="slowList" class="space-y-2 text-sm"></ul>
+          </div>
+
+          <div class="mt-4">
+            <div class="text-xs text-slate-500 dark:text-slate-400 mb-2">Failing tests</div>
+            <ul id="failList" class="space-y-2 text-sm"></ul>
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <footer class="text-xs text-slate-500 dark:text-slate-400 mt-6">All processing happens in your browser.</footer>
+  </div>
+
+  <!-- jQuery & DataTables + Buttons -->
+  <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <script>
+    // --- Theme toggle (persisted) ---
+    const themeToggle = document.getElementById('themeToggle');
+    function setTheme(theme) {
+      if (theme === 'dark') document.documentElement.classList.add('dark');
+      else document.documentElement.classList.remove('dark');
+      localStorage.setItem('apex-theme', theme);
+    }
+    (function initTheme() {
+      const saved = localStorage.getItem('apex-theme');
+      if (saved) setTheme(saved);
+      else {
+        // default to system preference
+        const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        setTheme(prefersDark ? 'dark' : 'light');
+      }
+    })();
+    themeToggle.addEventListener('click', () => {
+      setTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark');
+    });
+
+    // --- DataTables setup ---
+    let dt = null;
+    const tableEl = $('#testTable');
+
+    // create initial empty DataTable
+    function initDataTable() {
+      if (dt) dt.destroy();
+      dt = tableEl.DataTable({
+        data: [],
+        columns: [
+          { data: 'index', title: '#', width: '40px' },
+          { data: 'className', title: 'Class Name' },
+          { data: 'methodName', title: 'Method' },
+          { data: 'fullName', title: 'Full Name', visible: false },
+          { data: 'outcome', title: 'Outcome' },
+          { data: 'runTime', title: 'Run Time (ms)', className: 'dt-right' },
+          { data: 'message', title: 'Message / StackTrace' }
+        ],
+        order: [[5, 'desc']], // default order by runTime desc
+        pageLength: 10,
+        lengthMenu: [10, 25, 50, 100],
+        responsive: true,
+        dom: 'Bfrtip', // buttons, filter, table
+        buttons: [
+          {
+            extend: 'csvHtml5',
+            text: '⬇️ Export CSV',
+            bom: true,
+            filename: function() {
+              const runId = currentSummary?.testRunId || 'apex-test-results';
+              return runId + '-tests';
+            },
+            exportOptions: { columns: ':visible' }
+          }
+        ],
+        createdRow: function(row, data) {
+          // color rows for pass/fail
+          const out = (data.outcome || '').toLowerCase();
+          if (out === 'pass') $(row).addClass('bg-green-50');
+          else if (out === 'fail') $(row).addClass('bg-red-50');
+        },
+        language: {
+          search: "_INPUT_",
+          searchPlaceholder: "Search tests (class, method, message...)"
+        },
+        columnDefs: [
+          { targets: 0, orderable: false }
+        ]
+      });
+    }
+
+    // init
+    initDataTable();
+
+    // --- Helpers & state ---
+    let currentTests = [];
+    let currentSummary = null;
+
+    function normalizeTest(t, idx) {
+      // Extract class name from ApexClass object or existing fields
+      const className =
+        (t.ApexClass && (t.ApexClass.Name || t.ApexClass.name)) ||
+        t.ApexClassName ||
+        t.className ||
+        (t.FullName ? (t.FullName.split('.')[0] || '') : '') ||
+        '';
+
+      const methodName = t.MethodName || t.methodName || (t.FullName ? (t.FullName.split('.').slice(1).join('.') || '') : '');
+      const outcome = t.Outcome || t.outcome || '';
+      // runtime: try many possible keys
+      const runTime = Number(t.RunTime ?? t.runTime ?? t['RunTime(ms)'] ?? t['RunTime'] ?? t.runtime ?? 0) || 0;
+      const message = String(t.Message ?? t.message ?? '') + (t.StackTrace ? ('\n' + t.StackTrace) : '');
+
+      return {
+        index: idx + 1,
+        className,
+        methodName,
+        fullName: t.FullName || '',
+        outcome,
+        runTime,
+        message
+      };
+    }
+
+    function computeKpis(summary, tests) {
+      const total =
+        summary.testsRan ??
+        summary.total ??
+        summary.numTestsRun ??
+        tests.length;
+
+      const passing =
+        summary.passing ??
+        summary.passed ??
+        summary.numPassing ??
+        tests.filter(t => (t.Outcome || t.outcome || '').toLowerCase() === 'pass').length;
+
+      const failing =
+        summary.failing ??
+        summary.failed ??
+        summary.numFailures ??
+        tests.filter(t => (t.Outcome || t.outcome || '').toLowerCase() === 'fail').length;
+
+      // prefer pre-computed passRate string if present
+      let passRate = summary.passRate || summary.passrate || summary.pass_percentage;
+      if (!passRate) passRate = total > 0 ? ((passing / total) * 100).toFixed(2) + '%' : '0%';
+
+      return { total, passing, failing, passRate };
+    }
+
+    function renderKPIs(summaryObj, tests) {
+      const kpiEl = document.getElementById('kpiContainer');
+      kpiEl.innerHTML = '';
+      const k = computeKpis(summaryObj || {}, tests || []);
+      currentSummary = summaryObj || {};
+
+      // small helper to create card
+      function card(title, value, hint = '') {
+        const d = document.createElement('div');
+        d.className = 'kpi bg-slate-50 dark:bg-slate-900/60 rounded-lg p-3';
+        d.innerHTML = `
+          <div class="text-xs text-slate-500 dark:text-slate-400">${title}</div>
+          <div class="mt-1 text-xl font-semibold">${value}</div>
+          ${hint ? `<div class="text-xs text-slate-400 mt-1">${hint}</div>` : ''}
+        `;
+        return d;
+      }
+
+      kpiEl.appendChild(card('Total Tests', k.total));
+      kpiEl.appendChild(card('✅ Passed', k.passing));
+      kpiEl.appendChild(card('❌ Failed', k.failing));
+      kpiEl.appendChild(card('📊 Pass Rate', k.passRate));
+      // optional: test run id / hostname
+      if (summaryObj?.testRunId) {
+        kpiEl.appendChild(card('Test Run', summaryObj.testRunId, summaryObj.hostname || ''));
+      } else if (summaryObj?.testExecutionTime) {
+        kpiEl.appendChild(card('Exec Time (raw)', summaryObj.testExecutionTime));
+      }
+    }
+
+    function renderLists(tests) {
+      // slowest
+      const slowList = document.getElementById('slowList');
+      slowList.innerHTML = '';
+      const topSlow = [...tests].sort((a,b) => (b.RunTime||b.runTime||0) - (a.RunTime||a.runTime||0)).slice(0,6);
+      topSlow.forEach(t => {
+        const name = (t.ApexClass && (t.ApexClass.Name || t.ApexClass.name)) || t.ApexClassName || t.className || '';
+        const li = document.createElement('li');
+        li.textContent = `${name || t.FullName || '—'} — ${t.RunTime ?? t.runTime ?? 0} ms`;
+        slowList.appendChild(li);
+      });
+
+      // failing tests
+      const failList = document.getElementById('failList');
+      failList.innerHTML = '';
+      const fails = tests.filter(t => ((t.Outcome||t.outcome||'').toLowerCase() === 'fail')).slice(0,8);
+      if (fails.length === 0) {
+        failList.innerHTML = '<li class="text-slate-500 dark:text-slate-400">No failing tests</li>';
+      } else {
+        fails.forEach(t => {
+          const li = document.createElement('li');
+          const name = (t.ApexClass && (t.ApexClass.Name || t.ApexClass.name)) || t.ApexClassName || t.className || '';
+          const msg = (t.Message || t.message || '').split('\n')[0] || '';
+          li.innerHTML = `<div class="font-medium">${name || t.FullName || ''}</div><div class="text-xs text-slate-500 dark:text-slate-400">${msg}</div>`;
+          failList.appendChild(li);
+        });
+      }
+    }
+
+    // --- File handling ---
+    document.getElementById('jsonFile').addEventListener('change', async (ev) => {
+      const f = ev.target.files[0];
+      if (!f) return;
+      try {
+        const txt = await f.text();
+        const json = JSON.parse(txt);
+        onLoadJson(json);
+      } catch (err) {
+        alert('Invalid JSON: ' + err.message);
+      }
+    });
+
+    // load sample (the JSON you provided) - inserted as string to avoid CORS; you can paste your own file
+    document.getElementById('loadSample').addEventListener('click', () => {
+      const sample = {
+        "status": 100,
+        "result": {
+          "summary": {
+            "failRate": "8%",
+            "failing": 4,
+            "hostname": "https://dhs000000qasyma4-dev-ed.develop.my.salesforce.com",
+            "orgId": "00DHs000000QASYMA4",
+            "outcome": "Failed",
+            "passRate": "92%",
+            "passing": 44,
+            "skipped": 0,
+            "testRunId": "707Hs0000Lu5ZDQ",
+            "testStartTime": "2025-10-07T15:54:54.000Z",
+            "testsRan": 48,
+            "userId": "005Hs00000BkK19IAF",
+            "username": "mohan.chinnappan.n.ea10@gmail.com",
+            "commandTime": "114 ms",
+            "testExecutionTime": "159714 ms",
+            "testTotalTime": "159714 ms"
+          },
+          "tests": [
+            {
+              "Id": "07MHs00000HVKahMAH",
+              "MethodName": "testSiteLoginController",
+              "Outcome": "Pass",
+              "ApexClass": { "Id": "01pHs00000LlVm1IAF", "Name": "SiteLoginControllerTest" },
+              "RunTime": 8,
+              "FullName": "SiteLoginControllerTest.testSiteLoginController"
+            },
+            {
+              "Id": "07MHs00000HVKa8MAH",
+              "MethodName": "testQueueable",
+              "Outcome": "Fail",
+              "ApexClass": { "Id": "01pHs000007R6YPIA0", "Name": "DataManager_QuotaTest" },
+              "RunTime": 63,
+              "Message": "System.AssertException: Assertion Failed: Expected: 248, Actual: 261",
+              "StackTrace": "Class.DataManager_QuotaTest.testQueueable: line 14, column 1",
+              "FullName": "DataManager_QuotaTest.testQueueable"
+            }
+            // ... (truncated) ...
+          ]
+        }
+      };
+      onLoadJson(sample);
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      currentTests = [];
+      currentSummary = null;
+      renderKPIs({}, []);
+      renderLists([]);
+      if (dt) {
+        dt.clear().draw();
+      }
+      document.getElementById('runInfo').textContent = '';
+    });
+
+    function onLoadJson(json) {
+      const result = json.result || json;
+      const summary = result.summary || json.summary || {};
+      const tests = result.tests || json.tests || [];
+
+      // normalize tests and push to DataTable
+      currentTests = tests;
+      currentSummary = summary;
+
+      const rows = tests.map((t, idx) => normalizeTest(t, idx));
+
+      // set run info
+      const runInfo = document.getElementById('runInfo');
+      runInfo.textContent = summary.testRunId ? `Run: ${summary.testRunId}` : (summary.testsRan ? `Tests: ${summary.testsRan}` : '');
+
+      // render KPIs and lists
+      renderKPIs(summary, tests);
+      renderLists(tests);
+
+      // populate datatable
+      dt.clear();
+      dt.rows.add(rows);
+      dt.draw();
+    }
+
+    // Initialize sample if you want to auto-load on page load: (commented)
+    // document.getElementById('loadSample').click();
+
+  </script>
+</body>
+</html>
