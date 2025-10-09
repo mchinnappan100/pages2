@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Car Comparison App</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- jQuery (Required for DataTables) -->
+  <script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+
+  <!-- DataTables -->
+  <script src="https://cdn.datatables.net/2.0.3/js/dataTables.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.datatables.net/2.0.3/css/dataTables.tailwindcss.css" />
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bg: '#0f172a',
+            card: '#1e293b',
+            accent: '#38bdf8',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+
+<body class="bg-bg text-gray-200 min-h-screen flex flex-col items-center p-6">
+
+  <!-- Header -->
+  <header class="w-full sticky top-0 bg-card shadow-lg rounded-2xl p-4 text-center text-xl font-bold text-accent">
+    🚗 Car Comparison Dashboard
+  </header>
+
+  <!-- Main -->
+  <main class="w-full max-w-5xl mt-6 bg-card rounded-2xl shadow-lg p-6">
+    <div class="flex flex-wrap gap-3 mb-6 justify-center">
+      <input id="carInput" type="text" placeholder="Enter car (e.g., Tesla Model Y)"
+        class="flex-1 rounded-lg p-3 bg-bg border border-gray-600 focus:outline-none focus:border-accent text-gray-100 placeholder-gray-400" />
+      <button id="addCarBtn" class="bg-accent hover:bg-sky-400 text-black px-5 py-2 rounded-lg font-semibold transition">Add</button>
+      <button id="downloadBtn" class="bg-green-500 hover:bg-green-400 text-black px-5 py-2 rounded-lg font-semibold transition">Download CSV</button>
+    </div>
+
+    <div id="loading" class="hidden text-center text-accent font-semibold mb-4">Fetching car details...</div>
+
+    <div class="overflow-x-auto">
+      <table id="carTable" class="min-w-full display text-sm text-gray-300 w-full"></table>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="mt-10 text-gray-500 text-sm text-center">
+    © 2025 Car Compare | Powered by CarQuery API
+  </footer>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const carInput = document.getElementById('carInput');
+      const addCarBtn = document.getElementById('addCarBtn');
+      const downloadBtn = document.getElementById('downloadBtn');
+      const loading = document.getElementById('loading');
+      const carTableEl = document.getElementById('carTable');
+
+      let cars = JSON.parse(localStorage.getItem('cars') || '[]');
+      let table = null;
+
+      // Render DataTable
+      function renderTable() {
+        if (table) {
+          table.destroy();
+        }
+
+        carTableEl.innerHTML = `
+          <thead>
+            <tr>
+              <th>Car</th>
+              <th>Year</th>
+              <th>Price</th>
+              <th>Engine</th>
+              <th>MPG</th>
+              <th>Range</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${cars.map(c => `
+              <tr>
+                <td>${c.name}</td>
+                <td>${c.year || ''}</td>
+                <td>${c.price || ''}</td>
+                <td>${c.engine || ''}</td>
+                <td>${c.mpg || ''}</td>
+                <td>${c.range || ''}</td>
+                <td>${c.notes || ''}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        `;
+
+        table = new DataTable('#carTable', {
+          perPage: 5,
+          searchable: true,
+          sortable: true
+        });
+      }
+
+      // Save + rerender
+      function saveAndRender() {
+        localStorage.setItem('cars', JSON.stringify(cars));
+        renderTable();
+      }
+
+      // Fetch car info from CarQuery API
+      async function fetchCarDetails(model) {
+        try {
+          loading.classList.remove('hidden');
+          const resp = await fetch(`https://www.carqueryapi.com/api/0.3/?cmd=getTrims&keyword=${encodeURIComponent(model)}`);
+          const text = await resp.text();
+          const json = JSON.parse(text.replace("var carquery = ", ""));
+          const car = json.Trims && json.Trims[0];
+          if (!car) return null;
+
+          return {
+            year: car.model_year,
+            price: car.model_price || '',
+            engine: `${car.model_engine_fuel || ''} ${car.model_engine_cc || ''}cc`,
+            mpg: `${car.model_mpg_city || ''}/${car.model_mpg_highway || ''}`,
+            range: car.model_top_speed_kph ? Math.round(car.model_top_speed_kph / 1.6) + ' mph' : '',
+            notes: ''
+          };
+        } catch (err) {
+          console.error('Error fetching car details:', err);
+          return null;
+        } finally {
+          loading.classList.add('hidden');
+        }
+      }
+
+      // Add button
+      addCarBtn.addEventListener('click', async () => {
+        const val = carInput.value.trim();
+        if (!val) return;
+        carInput.value = '';
+
+        const newCar = { name: val };
+        cars.push(newCar);
+        saveAndRender();
+
+        const details = await fetchCarDetails(val);
+        if (details) Object.assign(newCar, details);
+        saveAndRender();
+      });
+
+      // Download CSV
+      downloadBtn.addEventListener('click', () => {
+        const headers = ['Car', 'Year', 'Price', 'Engine', 'MPG', 'Range', 'Notes'];
+        const rows = cars.map(c => [c.name, c.year, c.price, c.engine, c.mpg, c.range, c.notes]);
+        const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'car_comparison.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      renderTable();
+    });
+  </script>
+
+</body>
+</html>
