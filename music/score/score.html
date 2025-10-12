@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Score Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .note-button {
+            transition: all 0.2s;
+        }
+        .note-button:hover {
+            transform: translateY(-2px);
+        }
+        .staff-line {
+            stroke: currentColor;
+            stroke-width: 1;
+        }
+        .note-head {
+            fill: currentColor;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">🎵 Score Editor</h1>
+                    <div class="flex gap-2">
+                        <button onclick="clearScore()" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition">
+                            Clear
+                        </button>
+                        <button onclick="exportScore()" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition">
+                            Export
+                        </button>
+                    </div>
+                </div>
+                <button onclick="toggleTheme()" class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+                    <span class="dark:hidden">🌙</span>
+                    <span class="hidden dark:inline">☀️</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex overflow-hidden">
+            <!-- Left Pane - Score Editor -->
+            <div class="flex-1 p-6 overflow-auto">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 h-full">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Music Score</h2>
+                    
+                    <!-- Note Palette -->
+                    <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Add Notes</h3>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="addNote('C4', 'C')" class="note-button px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">C</button>
+                            <button onclick="addNote('D4', 'D')" class="note-button px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">D</button>
+                            <button onclick="addNote('E4', 'E')" class="note-button px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">E</button>
+                            <button onclick="addNote('F4', 'F')" class="note-button px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">F</button>
+                            <button onclick="addNote('G4', 'G')" class="note-button px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">G</button>
+                            <button onclick="addNote('A4', 'A')" class="note-button px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">A</button>
+                            <button onclick="addNote('B4', 'B')" class="note-button px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">B</button>
+                            <button onclick="addNote('C5', 'C5')" class="note-button px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-medium">C5</button>
+                        </div>
+                        <div class="mt-3">
+                            <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">Duration:</label>
+                            <select id="noteDuration" class="px-3 py-1 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-gray-900 dark:text-white">
+                                <option value="4n">Quarter (♩)</option>
+                                <option value="8n">Eighth (♪)</option>
+                                <option value="2n">Half (𝅗𝅥)</option>
+                                <option value="1n">Whole (𝅝)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Score Display -->
+                    <div class="bg-white dark:bg-gray-900 rounded-lg p-6 border-2 border-gray-200 dark:border-gray-600">
+                        <svg id="scoreCanvas" width="100%" height="300" class="text-gray-900 dark:text-white">
+                            <!-- Staff lines -->
+                            <line x1="50" y1="80" x2="800" y2="80" class="staff-line" />
+                            <line x1="50" y1="100" x2="800" y2="100" class="staff-line" />
+                            <line x1="50" y1="120" x2="800" y2="120" class="staff-line" />
+                            <line x1="50" y1="140" x2="800" y2="140" class="staff-line" />
+                            <line x1="50" y1="160" x2="800" y2="160" class="staff-line" />
+                            <!-- Treble clef -->
+                            <text x="55" y="145" font-size="60" class="fill-current">𝄞</text>
+                        </svg>
+                    </div>
+
+                    <!-- Note List -->
+                    <div class="mt-6">
+                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Current Notes</h3>
+                        <div id="noteList" class="flex flex-wrap gap-2 min-h-[40px] p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                            <span class="text-gray-500 dark:text-gray-400 text-sm">No notes yet</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Pane - Playback Controls -->
+            <div class="w-96 p-6 bg-gray-100 dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-auto">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">Playback</h2>
+                    
+                    <!-- Instrument Selection -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Instrument
+                        </label>
+                        <select id="instrumentSelect" class="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                            <option value="piano">🎹 Piano</option>
+                            <option value="guitar">🎸 Guitar</option>
+                            <option value="synth">🎛️ Synthesizer</option>
+                            <option value="organ">🎵 Organ</option>
+                        </select>
+                    </div>
+
+                    <!-- Tempo Control -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Tempo: <span id="tempoValue">120</span> BPM
+                        </label>
+                        <input type="range" id="tempoSlider" min="60" max="200" value="120" class="w-full h-2 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <!-- Volume Control -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Volume: <span id="volumeValue">50</span>%
+                        </label>
+                        <input type="range" id="volumeSlider" min="0" max="100" value="50" class="w-full h-2 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <!-- Playback Buttons -->
+                    <div class="space-y-3">
+                        <button onclick="playScore()" class="w-full px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition flex items-center justify-center gap-2">
+                            <span>▶️</span> Play Score
+                        </button>
+                        <button onclick="stopPlayback()" class="w-full px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition flex items-center justify-center gap-2">
+                            <span>⏹️</span> Stop
+                        </button>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="mt-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</h3>
+                        <p id="statusText" class="text-sm text-gray-600 dark:text-gray-400">Ready to play</p>
+                    </div>
+
+                    <!-- Info -->
+                    <div class="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <h3 class="text-sm font-medium text-blue-900 dark:text-blue-300 mb-2">💡 Quick Tips</h3>
+                        <ul class="text-xs text-blue-800 dark:text-blue-400 space-y-1">
+                            <li>• Click notes to add them to your score</li>
+                            <li>• Select duration before adding notes</li>
+                            <li>• Choose your instrument and tempo</li>
+                            <li>• Click Play to hear your composition</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let notes = [];
+        let synth = null;
+        let isPlaying = false;
+
+        // Initialize synth
+        function initSynth() {
+            const instrument = document.getElementById('instrumentSelect').value;
+            
+            if (synth) {
+                synth.dispose();
+            }
+
+            switch(instrument) {
+                case 'piano':
+                    synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: 'triangle' },
+                        envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 }
+                    }).toDestination();
+                    break;
+                case 'guitar':
+                    synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: 'sawtooth' },
+                        envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 1.5 }
+                    }).toDestination();
+                    break;
+                case 'organ':
+                    synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: 'sine' },
+                        envelope: { attack: 0.02, decay: 0.1, sustain: 0.9, release: 0.5 }
+                    }).toDestination();
+                    break;
+                default:
+                    synth = new Tone.PolySynth(Tone.Synth).toDestination();
+            }
+
+            updateVolume();
+        }
+
+        // Theme toggle
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+        }
+
+        // Add note
+        function addNote(pitch, label) {
+            const duration = document.getElementById('noteDuration').value;
+            notes.push({ pitch, label, duration });
+            updateScore();
+            updateNoteList();
+        }
+
+        // Update score visualization
+        function updateScore() {
+            const svg = document.getElementById('scoreCanvas');
+            const existingNotes = svg.querySelectorAll('.note-element');
+            existingNotes.forEach(el => el.remove());
+
+            const notePositions = {
+                'C': 160, 'D': 150, 'E': 140, 'F': 130, 'G': 120,
+                'A': 110, 'B': 100, 'C5': 90
+            };
+
+            notes.forEach((note, i) => {
+                const x = 120 + (i * 40);
+                const y = notePositions[note.label] || 120;
+
+                // Note head
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('rx', note.duration === '1n' ? 8 : 6);
+                circle.setAttribute('ry', note.duration === '1n' ? 6 : 5);
+                circle.setAttribute('class', 'note-head note-element');
+                circle.setAttribute('fill', note.duration === '2n' || note.duration === '1n' ? 'none' : 'currentColor');
+                circle.setAttribute('stroke', 'currentColor');
+                circle.setAttribute('stroke-width', '2');
+                svg.appendChild(circle);
+
+                // Stem
+                if (note.duration !== '1n') {
+                    const stem = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    stem.setAttribute('x1', x + 6);
+                    stem.setAttribute('y1', y);
+                    stem.setAttribute('x2', x + 6);
+                    stem.setAttribute('y2', y - 35);
+                    stem.setAttribute('class', 'staff-line note-element');
+                    stem.setAttribute('stroke-width', '2');
+                    svg.appendChild(stem);
+                }
+            });
+        }
+
+        // Update note list
+        function updateNoteList() {
+            const list = document.getElementById('noteList');
+            if (notes.length === 0) {
+                list.innerHTML = '<span class="text-gray-500 dark:text-gray-400 text-sm">No notes yet</span>';
+                return;
+            }
+
+            list.innerHTML = notes.map((note, i) => 
+                `<span class="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm font-medium cursor-pointer hover:bg-red-100 dark:hover:bg-red-900" onclick="removeNote(${i})">${note.label}</span>`
+            ).join('');
+        }
+
+        // Remove note
+        function removeNote(index) {
+            notes.splice(index, 1);
+            updateScore();
+            updateNoteList();
+        }
+
+        // Clear score
+        function clearScore() {
+            notes = [];
+            updateScore();
+            updateNoteList();
+        }
+
+        // Play score
+        async function playScore() {
+            if (notes.length === 0) {
+                document.getElementById('statusText').textContent = 'No notes to play!';
+                return;
+            }
+
+            if (!synth) {
+                initSynth();
+            }
+
+            await Tone.start();
+            isPlaying = true;
+            document.getElementById('statusText').textContent = 'Playing...';
+
+            const tempo = document.getElementById('tempoSlider').value;
+            Tone.Transport.bpm.value = tempo;
+
+            const sequence = new Tone.Sequence((time, note) => {
+                synth.triggerAttackRelease(note.pitch, note.duration, time);
+            }, notes.map(n => ({ pitch: n.pitch, duration: n.duration })), "4n");
+
+            sequence.start(0);
+            Tone.Transport.start();
+
+            setTimeout(() => {
+                stopPlayback();
+            }, notes.length * (60000 / tempo));
+        }
+
+        // Stop playback
+        function stopPlayback() {
+            Tone.Transport.stop();
+            Tone.Transport.cancel();
+            isPlaying = false;
+            document.getElementById('statusText').textContent = 'Ready to play';
+        }
+
+        // Update tempo display
+        document.getElementById('tempoSlider').addEventListener('input', (e) => {
+            document.getElementById('tempoValue').textContent = e.target.value;
+            if (isPlaying) {
+                Tone.Transport.bpm.value = e.target.value;
+            }
+        });
+
+        // Update volume
+        function updateVolume() {
+            const volume = document.getElementById('volumeSlider').value;
+            if (synth) {
+                synth.volume.value = Tone.gainToDb(volume / 100);
+            }
+        }
+
+        document.getElementById('volumeSlider').addEventListener('input', (e) => {
+            document.getElementById('volumeValue').textContent = e.target.value;
+            updateVolume();
+        });
+
+        // Instrument change
+        document.getElementById('instrumentSelect').addEventListener('change', initSynth);
+
+        // Export score
+        function exportScore() {
+            const data = JSON.stringify(notes, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'music-score.json';
+            a.click();
+        }
+
+        // Initialize
+        initSynth();
+    </script>
+</body>
+</html>

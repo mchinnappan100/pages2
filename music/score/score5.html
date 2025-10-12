@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Score Editor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.28/build/Midi.min.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .note-button {
+            transition: all 0.2s;
+        }
+        .note-button:hover {
+            transform: translateY(-2px);
+        }
+        .staff-line {
+            stroke: currentColor;
+            stroke-width: 1;
+        }
+        .note-head {
+            fill: currentColor;
+        }
+        .bar-line {
+            stroke: currentColor;
+            stroke-width: 2;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+    <div class="min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+            <div class="px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">🎵 Score Editor</h1>
+                    <div class="flex gap-2">
+                        <button onclick="clearScore()" class="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition">
+                            Clear
+                        </button>
+                        <button onclick="exportJSON()" class="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition">
+                            Export JSON
+                        </button>
+                        <button onclick="exportMIDI()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition">
+                            Export MIDI
+                        </button>
+                        <button onclick="exportPDF()" class="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition">
+                            Export PDF
+                        </button>
+                        <label class="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition cursor-pointer">
+                            Upload
+                            <input type="file" id="fileInput" accept=".json,.mid,.midi" class="hidden" onchange="uploadFile(event)">
+                        </label>
+                    </div>
+                </div>
+                <button onclick="toggleTheme()" class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 transition">
+                    <span class="dark:hidden">🌙</span>
+                    <span class="hidden dark:inline">☀️</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex overflow-hidden">
+            <!-- Left Pane - Score Editor -->
+            <div class="flex-1 p-6 overflow-auto">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">Music Score</h2>
+                    
+                    <!-- Note Palette -->
+                    <div class="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Add Notes</h3>
+                        <div class="flex flex-wrap gap-2 mb-3">
+                            <button onclick="addNote('C4', 'C')" class="note-button px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">C</button>
+                            <button onclick="addNote('D4', 'D')" class="note-button px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">D</button>
+                            <button onclick="addNote('E4', 'E')" class="note-button px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">E</button>
+                            <button onclick="addNote('F4', 'F')" class="note-button px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">F</button>
+                            <button onclick="addNote('G4', 'G')" class="note-button px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">G</button>
+                            <button onclick="addNote('A4', 'A')" class="note-button px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">A</button>
+                            <button onclick="addNote('B4', 'B')" class="note-button px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium">B</button>
+                            <button onclick="addNote('C5', 'C5')" class="note-button px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-medium">C5</button>
+                        </div>
+                        <div class="flex gap-4 items-center">
+                            <div>
+                                <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">Duration:</label>
+                                <select id="noteDuration" class="px-3 py-1 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-gray-900 dark:text-white">
+                                    <option value="4n">Quarter ♩</option>
+                                    <option value="8n">Eighth ♪</option>
+                                    <option value="2n">Half 𝅗𝅥</option>
+                                    <option value="1n">Whole 𝅝</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">Notes per bar:</label>
+                                <select id="notesPerBar" onchange="updateScore()" class="px-3 py-1 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-gray-900 dark:text-white">
+                                    <option value="4">4 (4/4)</option>
+                                    <option value="3">3 (3/4)</option>
+                                    <option value="6">6 (6/8)</option>
+                                    <option value="8">8 (8/8)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Score Display -->
+                    <div class="bg-white dark:bg-gray-900 rounded-lg p-6 border-2 border-gray-200 dark:border-gray-600 overflow-x-auto">
+                        <svg id="scoreCanvas" width="100%" height="600" class="text-gray-900 dark:text-white">
+                        </svg>
+                    </div>
+
+                    <!-- Note List -->
+                    <div class="mt-6">
+                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Current Notes (Click to delete)</h3>
+                        <div id="noteList" class="flex flex-wrap gap-2 min-h-[40px] p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                            <span class="text-gray-500 dark:text-gray-400 text-sm">No notes yet</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Pane - Playback Controls -->
+            <div class="w-96 p-6 bg-gray-100 dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 overflow-auto">
+                <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+                    <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-6">Playback</h2>
+                    
+                    <!-- Instrument Selection -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Instrument
+                        </label>
+                        <select id="instrumentSelect" class="w-full px-4 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500">
+                            <option value="piano">🎹 Piano</option>
+                            <option value="guitar">🎸 Guitar</option>
+                            <option value="banjo">🪕 Banjo</option>
+                            <option value="flute">🪈 Flute</option>
+                            <option value="organ">🎵 Organ</option>
+                        </select>
+                    </div>
+
+                    <!-- Tempo Control -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Tempo: <span id="tempoValue">120</span> BPM
+                        </label>
+                        <input type="range" id="tempoSlider" min="60" max="200" value="120" class="w-full h-2 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <!-- Volume Control -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            Volume: <span id="volumeValue">50</span>%
+                        </label>
+                        <input type="range" id="volumeSlider" min="0" max="100" value="50" class="w-full h-2 bg-gray-300 dark:bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                    </div>
+
+                    <!-- Playback Buttons -->
+                    <div class="space-y-3">
+                        <button onclick="playScore()" class="w-full px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold transition flex items-center justify-center gap-2">
+                            <span>▶️</span> Play Score
+                        </button>
+                        <button onclick="stopPlayback()" class="w-full px-6 py-3 bg-red-500 hover:bg-red-600 text-white rounded-lg font-semibold transition flex items-center justify-center gap-2">
+                            <span>⏹️</span> Stop
+                        </button>
+                    </div>
+
+                    <!-- Status -->
+                    <div class="mt-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</h3>
+                        <p id="statusText" class="text-sm text-gray-600 dark:text-gray-400">Ready to play</p>
+                    </div>
+
+                    <!-- Info -->
+                    <div class="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <h3 class="text-sm font-medium text-blue-900 dark:text-blue-300 mb-2">💡 Quick Tips</h3>
+                        <ul class="text-xs text-blue-800 dark:text-blue-400 space-y-1">
+                            <li>• Click notes to add to your score</li>
+                            <li>• Click note badges to delete them</li>
+                            <li>• Select duration before adding notes</li>
+                            <li>• Multi-line staff with bar lines</li>
+                            <li>• Export/Import JSON, MIDI, and PDF</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let notes = [];
+        let synth = null;
+        let isPlaying = false;
+        let currentPart = null;
+
+        // Initialize synth
+        function initSynth() {
+            const instrument = document.getElementById('instrumentSelect').value;
+            
+            if (synth) {
+                synth.dispose();
+            }
+
+            switch(instrument) {
+                case 'piano':
+                    synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: 'triangle' },
+                        envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 }
+                    }).toDestination();
+                    break;
+                case 'guitar':
+                    synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: 'sawtooth' },
+                        envelope: { attack: 0.01, decay: 0.2, sustain: 0.2, release: 1.5 }
+                    }).toDestination();
+                    break;
+                case 'banjo':
+                    synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: 'square' },
+                        envelope: { attack: 0.001, decay: 0.15, sustain: 0.1, release: 0.8 }
+                    }).toDestination();
+                    break;
+                case 'flute':
+                    synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: 'sine' },
+                        envelope: { attack: 0.05, decay: 0.1, sustain: 0.8, release: 0.3 }
+                    }).toDestination();
+                    break;
+                case 'organ':
+                    synth = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: 'sine' },
+                        envelope: { attack: 0.02, decay: 0.1, sustain: 0.9, release: 0.5 }
+                    }).toDestination();
+                    break;
+                default:
+                    synth = new Tone.PolySynth(Tone.Synth).toDestination();
+            }
+
+            updateVolume();
+        }
+
+        // Theme toggle
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+        }
+
+        // Add note
+        function addNote(pitch, label) {
+            const duration = document.getElementById('noteDuration').value;
+            notes.push({ pitch, label, duration });
+            updateScore();
+            updateNoteList();
+        }
+
+        // Draw staff lines
+        function drawStaff(svg, startY, width) {
+            for (let i = 0; i < 5; i++) {
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', 50);
+                line.setAttribute('y1', startY + i * 20);
+                line.setAttribute('x2', width);
+                line.setAttribute('y2', startY + i * 20);
+                line.setAttribute('class', 'staff-line');
+                svg.appendChild(line);
+            }
+
+            // Treble clef
+            const clef = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+            clef.setAttribute('x', 55);
+            clef.setAttribute('y', startY + 65);
+            clef.setAttribute('font-size', 60);
+            clef.setAttribute('class', 'fill-current');
+            clef.textContent = '𝄞';
+            svg.appendChild(clef);
+        }
+
+        // Update score visualization
+        function updateScore() {
+            const svg = document.getElementById('scoreCanvas');
+            svg.innerHTML = '';
+
+            const notesPerBar = parseInt(document.getElementById('notesPerBar').value);
+            const noteWidth = 40;
+            const barWidth = notesPerBar * noteWidth + 60;
+            const staffWidth = Math.max(800, barWidth * Math.ceil(notes.length / notesPerBar) + 100);
+            
+            svg.setAttribute('width', staffWidth);
+
+            const notePositions = {
+                'C': 80, 'D': 70, 'E': 60, 'F': 50, 'G': 40,
+                'A': 30, 'B': 20, 'C5': 10
+            };
+
+            const linesNeeded = Math.ceil(notes.length / (notesPerBar * 3)) || 1;
+            const staffSpacing = 140;
+
+            // Draw multiple staff lines
+            for (let line = 0; line < linesNeeded; line++) {
+                const startY = 40 + (line * staffSpacing);
+                drawStaff(svg, startY, staffWidth - 50);
+
+                // Draw bar lines for this staff
+                const notesInThisLine = Math.min(notesPerBar * 3, notes.length - (line * notesPerBar * 3));
+                const barsInLine = Math.ceil(notesInThisLine / notesPerBar);
+                
+                for (let bar = 0; bar <= barsInLine; bar++) {
+                    const barLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    const barX = 120 + (bar * barWidth);
+                    barLine.setAttribute('x1', barX);
+                    barLine.setAttribute('y1', startY);
+                    barLine.setAttribute('x2', barX);
+                    barLine.setAttribute('y2', startY + 80);
+                    barLine.setAttribute('class', 'bar-line');
+                    svg.appendChild(barLine);
+                }
+            }
+
+            // Draw notes
+            notes.forEach((note, i) => {
+                const lineIndex = Math.floor(i / (notesPerBar * 3));
+                const noteInLine = i % (notesPerBar * 3);
+                const barInLine = Math.floor(noteInLine / notesPerBar);
+                const noteInBar = noteInLine % notesPerBar;
+
+                const baseY = 40 + (lineIndex * staffSpacing);
+                const x = 120 + (barInLine * barWidth) + (noteInBar * noteWidth) + 20;
+                const y = baseY + (notePositions[note.label] || 40);
+
+                // Note head
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+                circle.setAttribute('cx', x);
+                circle.setAttribute('cy', y);
+                circle.setAttribute('rx', note.duration === '1n' ? 8 : 6);
+                circle.setAttribute('ry', note.duration === '1n' ? 6 : 5);
+                circle.setAttribute('class', 'note-head note-element');
+                
+                if (note.duration === '2n' || note.duration === '1n') {
+                    circle.setAttribute('fill', 'none');
+                    circle.setAttribute('stroke', 'currentColor');
+                    circle.setAttribute('stroke-width', '2');
+                } else {
+                    circle.setAttribute('fill', 'currentColor');
+                }
+                svg.appendChild(circle);
+
+                // Stem
+                if (note.duration !== '1n') {
+                    const stem = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    stem.setAttribute('x1', x + 6);
+                    stem.setAttribute('y1', y);
+                    stem.setAttribute('x2', x + 6);
+                    stem.setAttribute('y2', y - 35);
+                    stem.setAttribute('class', 'staff-line note-element');
+                    stem.setAttribute('stroke-width', '2');
+                    svg.appendChild(stem);
+
+                    // Flag for eighth notes
+                    if (note.duration === '8n') {
+                        const flag = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        flag.setAttribute('d', `M ${x + 6} ${y - 35} q 8 5 8 15`);
+                        flag.setAttribute('stroke', 'currentColor');
+                        flag.setAttribute('fill', 'none');
+                        flag.setAttribute('stroke-width', '2');
+                        svg.appendChild(flag);
+                    }
+                }
+            });
+        }
+
+        // Update note list
+        function updateNoteList() {
+            const list = document.getElementById('noteList');
+            if (notes.length === 0) {
+                list.innerHTML = '<span class="text-gray-500 dark:text-gray-400 text-sm">No notes yet</span>';
+                return;
+            }
+
+            const durationSymbols = {
+                '4n': '♩',
+                '8n': '♪',
+                '2n': '𝅗𝅥',
+                '1n': '𝅝'
+            };
+
+            list.innerHTML = notes.map((note, i) => 
+                `<span class="px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm font-medium cursor-pointer hover:bg-red-100 dark:hover:bg-red-900 transition" onclick="removeNote(${i})" title="Click to delete">${note.label} ${durationSymbols[note.duration]}</span>`
+            ).join('');
+        }
+
+        // Remove note
+        function removeNote(index) {
+            notes.splice(index, 1);
+            updateScore();
+            updateNoteList();
+        }
+
+        // Clear score
+        function clearScore() {
+            notes = [];
+            updateScore();
+            updateNoteList();
+        }
+
+        // Convert duration to seconds
+        function durationToSeconds(duration, bpm) {
+            const beatDuration = 60 / bpm;
+            const durations = {
+                '1n': beatDuration * 4,
+                '2n': beatDuration * 2,
+                '4n': beatDuration,
+                '8n': beatDuration / 2
+            };
+            return durations[duration] || beatDuration;
+        }
+
+        // Play score
+        async function playScore() {
+            if (notes.length === 0) {
+                document.getElementById('statusText').textContent = 'No notes to play!';
+                return;
+            }
+
+            if (!synth) {
+                initSynth();
+            }
+
+            await Tone.start();
+            stopPlayback();
+            
+            isPlaying = true;
+            document.getElementById('statusText').textContent = 'Playing...';
+
+            const tempo = parseFloat(document.getElementById('tempoSlider').value);
+            Tone.Transport.bpm.value = tempo;
+
+            let time = 0;
+            const events = notes.map(note => {
+                const duration = durationToSeconds(note.duration, tempo);
+                const event = { time, note: note.pitch, duration: note.duration };
+                time += duration;
+                return event;
+            });
+
+            currentPart = new Tone.Part((time, value) => {
+                synth.triggerAttackRelease(value.note, value.duration, time);
+            }, events.map(e => [e.time, { note: e.note, duration: e.duration }]));
+
+            currentPart.start(0);
+            Tone.Transport.start();
+
+            setTimeout(() => {
+                stopPlayback();
+            }, time * 1000 + 500);
+        }
+
+        // Stop playback
+        function stopPlayback() {
+            if (currentPart) {
+                currentPart.stop();
+                currentPart.dispose();
+                currentPart = null;
+            }
+            Tone.Transport.stop();
+            Tone.Transport.cancel();
+            isPlaying = false;
+            document.getElementById('statusText').textContent = 'Ready to play';
+        }
+
+        // Export JSON
+        function exportJSON() {
+            const data = JSON.stringify({ notes, tempo: document.getElementById('tempoSlider').value }, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'music-score.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Export MIDI
+        function exportMIDI() {
+            if (notes.length === 0) {
+                alert('No notes to export!');
+                return;
+            }
+
+            try {
+                const midi = new Midi();
+                const tempo = parseFloat(document.getElementById('tempoSlider').value);
+                midi.header.setTempo(60000000 / tempo);
+
+                const track = midi.addTrack();
+                let time = 0;
+
+                notes.forEach(note => {
+                    const duration = durationToSeconds(note.duration, tempo);
+                    const midiNote = Tone.Frequency(note.pitch).toMidi();
+                    if (!isNaN(midiNote)) {
+                        track.addNote({
+                            midi: midiNote,
+                            time: time,
+                            duration: duration,
+                            velocity: 0.8
+                        });
+                        time += duration;
+                    }
+                });
+
+                const midiArray = midi.toArray();
+                if (!midiArray || midiArray.length === 0) {
+                    throw new Error('MIDI file generation failed: Empty buffer');
+                }
+
+                const blob = new Blob([midiArray], { type: 'audio/midi' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'music-score.mid';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                document.getElementById('statusText').textContent = 'MIDI exported successfully!';
+            } catch (error) {
+                console.error('Error exporting MIDI:', error);
+                alert('Failed to export MIDI: ' + error.message);
+                document.getElementById('statusText').textContent = 'Error exporting MIDI';
+            }
+        }
+
+        // Export PDF
+        function exportPDF() {
+            if (notes.length === 0) {
+                alert('No notes to export!');
+                return;
+            }
+
+            try {
+                // Mapping for note durations to musicography commands
+                const durationMap = {
+                    '1n': 'whole',
+                    '2n': 'half',
+                    '4n': 'quarter',
+                    '8n': 'eighth'
+                };
+
+                // Mapping for note labels to musicography pitch
+                const noteMap = {
+                    'C': 'c', 'D': 'd', 'E': 'e', 'F': 'f', 'G': 'g', 'A': 'a', 'B': 'b', 'C5': 'c\''
+                };
+
+                // Generate LaTeX score
+                let scoreContent = '';
+                const notesPerBar = parseInt(document.getElementById('notesPerBar').value);
+                const tempo = parseFloat(document.getElementById('tempoSlider').value);
+                let noteCount = 0;
+
+                notes.forEach((note, i) => {
+                    const pitch = noteMap[note.label] || 'c';
+                    const duration = durationMap[note.duration] || 'quarter';
+                    scoreContent += `\\${duration}${pitch} `;
+                    noteCount++;
+                    if (noteCount % notesPerBar === 0 && i < notes.length - 1) {
+                        scoreContent += '| ';
+                    }
+                });
+
+                // LaTeX document
+                const latex = `\\documentclass[12pt]{article}
+\\usepackage{musicography}
+\\usepackage{geometry}
+\\geometry{a4paper, margin=1in}
+
+\\begin{document}
+\\begin{center}
+    \\textbf{Music Score} \\\\
+    Tempo: ${tempo.toFixed(0)} BPM \\\\
+    Time Signature: ${notesPerBar}/4
+\\end{center}
+
+\\begin{music}
+    \\staff{%
+        \\musicalclef{treble}
+        ${scoreContent}
+    }
+\\end{music}
+
+\\end{document}`;
+
+                // Trigger download
+                const blob = new Blob([latex], { type: 'text/latex' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'music-score.tex';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+
+                document.getElementById('statusText').textContent = 'PDF source (LaTeX) exported successfully! Compile with latexmk to generate PDF.';
+            } catch (error) {
+                console.error('Error exporting PDF:', error);
+                alert('Failed to export PDF: ' + error.message);
+                document.getElementById('statusText').textContent = 'Error exporting PDF';
+            }
+        }
+
+        // Upload file
+        async function uploadFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const extension = file.name.split('.').pop().toLowerCase();
+
+            if (extension === 'json') {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        notes = data.notes || [];
+                        if (data.tempo) {
+                            document.getElementById('tempoSlider').value = data.tempo;
+                            document.getElementById('tempoValue').textContent = data.tempo;
+                        }
+                        updateScore();
+                        updateNoteList();
+                        document.getElementById('statusText').textContent = 'JSON loaded successfully!';
+                    } catch (err) {
+                        alert('Error loading JSON file: ' + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            } else if (extension === 'mid' || extension === 'midi') {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const midi = new Midi(e.target.result);
+                        notes = [];
+
+                        // Get tempo from MIDI file (microseconds per quarter note)
+                        const tempo = midi.header.tempo ? 60000000 / midi.header.tempo : 120;
+                        document.getElementById('tempoSlider').value = tempo;
+                        document.getElementById('tempoValue').textContent = tempo.toFixed(0);
+
+                        if (midi.tracks.length > 0) {
+                            const track = midi.tracks[0];
+                            track.notes.forEach(midiNote => {
+                                const pitch = Tone.Frequency(midiNote.midi, 'midi').toNote();
+                                // Calculate duration with more forgiving thresholds
+                                const beatDuration = 60 / tempo;
+                                const duration = midiNote.duration <= beatDuration * 0.75 ? '8n' :
+                                                midiNote.duration <= beatDuration * 1.5 ? '4n' :
+                                                midiNote.duration <= beatDuration * 3 ? '2n' : '1n';
+                                // Debug logging
+                                console.log(`MIDI Note: pitch=${pitch}, duration=${midiNote.duration}, mapped=${duration}`);
+                                // Use pitch as label if it's C5, otherwise remove octave number
+                                const label = pitch === 'C5' ? 'C5' : pitch.replace(/[0-9]/g, '');
+                                if (label && pitch) {
+                                    notes.push({ pitch, label, duration });
+                                }
+                            });
+                        }
+
+                        if (notes.length === 0) {
+                            throw new Error('No valid notes found in MIDI file');
+                        }
+
+                        updateScore();
+                        updateNoteList();
+                        document.getElementById('statusText').textContent = 'MIDI loaded successfully!';
+                    } catch (err) {
+                        console.error('Error loading MIDI:', err);
+                        alert('Error loading MIDI file: ' + err.message);
+                        document.getElementById('statusText').textContent = 'Error loading MIDI';
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            }
+            
+            event.target.value = '';
+        }
+
+        // Update tempo display
+        document.getElementById('tempoSlider').addEventListener('input', (e) => {
+            document.getElementById('tempoValue').textContent = e.target.value;
+            if (isPlaying) {
+                Tone.Transport.bpm.value = e.target.value;
+            }
+        });
+
+        // Update volume
+        function updateVolume() {
+            const volume = document.getElementById('volumeSlider').value;
+            if (synth) {
+                synth.volume.value = Tone.gainToDb(volume / 100);
+            }
+        }
+
+        document.getElementById('volumeSlider').addEventListener('input', (e) => {
+            document.getElementById('volumeValue').textContent = e.target.value;
+            updateVolume();
+        });
+
+        // Instrument change
+        document.getElementById('instrumentSelect').addEventListener('change', initSynth);
+
+        // Initialize
+        initSynth();
+        updateScore();
+    </script>
+</body>
+</html>
