@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Radar Map by ZIP</title>
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
+  />
+  <style>
+    #map { height: 100vh; width: 100%; }
+  </style>
+</head>
+<body>
+  <input id="zip" placeholder="Enter ZIP code" />
+  <button id="go">Go</button>
+  <div id="map"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <script>
+    const map = L.map('map').setView([39.5, -98.35], 4); // default USA view
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap'
+    }).addTo(map);
+
+    let radarLayer = null;
+
+    async function geocodeZip(zip) {
+      const resp = await fetch(`https://nominatim.openstreetmap.org/search?format=json&postalcode=${zip}&country=US`);
+      const data = await resp.json();
+      if (data && data[0]) {
+        return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+      }
+      throw new Error('Unable to geocode ZIP');
+    }
+
+    async function loadRadarOverlay(lat, lon) {
+      const resp = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+      const json = await resp.json();
+      const latest = json.radar.past.slice(-1)[0]; // latest frame
+      const host = json.host;
+      const path = latest.path;
+
+      const urlTemplate = `${host}${path}/{z}/{x}/{y}.png`;
+      if (radarLayer) {
+        map.removeLayer(radarLayer);
+      }
+      radarLayer = L.tileLayer(urlTemplate, {
+        opacity: 0.5,
+        attribution: 'Radar © RainViewer'
+      }).addTo(map);
+
+      map.setView([lat, lon], 8);
+    }
+
+    document.getElementById('go').addEventListener('click', async () => {
+      const zip = document.getElementById('zip').value;
+      try {
+        const [lat, lon] = await geocodeZip(zip);
+        await loadRadarOverlay(lat, lon);
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    });
+  </script>
+</body>
+</html>
