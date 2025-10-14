@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Radar Map by ZIP</title>
    <link rel="icon" type="image/x-icon"
         href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
-  <title>Live Radar Map by ZIP</title>
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css"
@@ -28,12 +28,19 @@
       transform: translateX(-50%);
       z-index: 1000;
       display: flex;
+      flex-direction: column;
       gap: 10px;
       background: rgba(30, 30, 30, 0.95);
       padding: 15px 20px;
       border-radius: 12px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
       backdrop-filter: blur(10px);
+      max-width: 90%;
+    }
+    .search-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
     }
     #zip {
       padding: 12px 16px;
@@ -74,6 +81,41 @@
       background: #555;
       cursor: not-allowed;
       transform: none;
+    }
+    .timeline-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .time-label {
+      font-size: 14px;
+      color: #aaa;
+      font-weight: 600;
+    }
+    .time-btn {
+      padding: 8px 16px;
+      background: #2a2a2a;
+      color: #fff;
+      border: 2px solid #444;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+    }
+    .time-btn:hover {
+      border-color: #3b82f6;
+      background: #333;
+    }
+    .time-btn.active {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      border-color: #3b82f6;
+      font-weight: 600;
+    }
+    .time-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
     }
     #map {
       height: 100vh;
@@ -133,18 +175,74 @@
       height: 15px;
       border-radius: 3px;
     }
+    .play-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .play-btn {
+      padding: 8px 16px;
+      background: #10b981;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .play-btn:hover {
+      background: #059669;
+    }
+    .play-btn.playing {
+      background: #ef4444;
+    }
+    .play-btn.playing:hover {
+      background: #dc2626;
+    }
+    @media (max-width: 768px) {
+      #controls {
+        font-size: 12px;
+      }
+      #zip {
+        width: 150px;
+        font-size: 14px;
+      }
+      .time-btn {
+        padding: 6px 12px;
+        font-size: 12px;
+      }
+    }
   </style>
 </head>
 <body>
   <div id="controls">
-    <input 
-      id="zip" 
-      type="text" 
-      placeholder="Enter ZIP code (e.g. 90210)" 
-      maxlength="5"
-      pattern="[0-9]{5}"
-    />
-    <button id="go">Show Radar</button>
+    <div class="search-row">
+      <input 
+        id="zip" 
+        type="text" 
+        placeholder="Enter ZIP code (e.g. 90210)" 
+        maxlength="5"
+        pattern="[0-9]{5}"
+      />
+      <button id="go">Show Radar</button>
+    </div>
+    
+    <div class="timeline-controls">
+      <span class="time-label">Forecast:</span>
+      <button class="time-btn active" data-offset="0">Now</button>
+      <button class="time-btn" data-offset="1">+1hr</button>
+      <button class="time-btn" data-offset="2">+2hr</button>
+      <button class="time-btn" data-offset="3">+3hr</button>
+      <button class="time-btn" data-offset="6">+6hr</button>
+      <button class="time-btn" data-offset="12">+12hr</button>
+      <button class="time-btn" data-offset="24">+24hr</button>
+    </div>
+    
+    <div class="play-controls">
+      <button class="play-btn" id="playBtn">▶ Play Animation</button>
+      <span id="currentTime" style="font-size: 14px; color: #aaa;"></span>
+    </div>
   </div>
   
   <div id="map"></div>
@@ -173,10 +271,8 @@
 
   <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
   <script>
-    // Initialize map with dark tile layer
     const map = L.map('map').setView([39.5, -98.35], 4);
     
-    // Use a dark theme tile layer
     L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
       attribution: '© OpenStreetMap © CartoDB',
       maxZoom: 19
@@ -184,11 +280,18 @@
 
     let radarLayer = null;
     let locationMarker = null;
+    let radarData = null;
+    let currentLocation = null;
+    let animationInterval = null;
+    let currentFrameIndex = 0;
+    
     const infoDiv = document.getElementById('info');
     const zipInput = document.getElementById('zip');
     const goButton = document.getElementById('go');
+    const timeButtons = document.querySelectorAll('.time-btn');
+    const playBtn = document.getElementById('playBtn');
+    const currentTimeSpan = document.getElementById('currentTime');
 
-    // Geocode ZIP code using zippopotam.us (more reliable for US ZIPs)
     async function geocodeZip(zip) {
       if (!/^\d{5}$/.test(zip)) {
         throw new Error('Please enter a valid 5-digit ZIP code');
@@ -209,8 +312,7 @@
       }
     }
 
-    // Load radar overlay from RainViewer
-    async function loadRadarOverlay(lat, lon) {
+    async function fetchRadarData() {
       try {
         const resp = await fetch('https://api.rainviewer.com/public/weather-maps.json');
         if (!resp.ok) {
@@ -218,32 +320,66 @@
         }
         const json = await resp.json();
         
-        if (!json.radar || !json.radar.past || json.radar.past.length === 0) {
+        if (!json.radar) {
           throw new Error('No radar data available at this time');
         }
 
-        const latest = json.radar.past[json.radar.past.length - 1];
-        const host = json.host;
-        const path = latest.path;
-        const urlTemplate = `${host}${path}/256/{z}/{x}/{y}/2/1_1.png`;
+        radarData = {
+          host: json.host,
+          past: json.radar.past || [],
+          nowcast: json.radar.nowcast || []
+        };
 
-        // Remove old radar layer
-        if (radarLayer) {
-          map.removeLayer(radarLayer);
-        }
+        return radarData;
+      } catch (err) {
+        throw new Error('Failed to load radar: ' + err.message);
+      }
+    }
 
-        // Add new radar layer
-        radarLayer = L.tileLayer(urlTemplate, {
-          opacity: 0.6,
-          attribution: 'Radar © RainViewer',
-          maxZoom: 19,
-          tileSize: 256
-        }).addTo(map);
+    function updateRadarLayer(frameIndex, hoursOffset = 0) {
+      if (!radarData) return;
 
-        // Set view to location
+      let frame;
+      let timeLabel;
+      
+      // Determine which frame to show based on offset
+      if (hoursOffset === 0) {
+        // Current radar - use latest past frame
+        frame = radarData.past[radarData.past.length - 1];
+        timeLabel = 'Now';
+      } else {
+        // Future forecast - use nowcast frames
+        const frameOffset = Math.floor(hoursOffset / 0.25); // Nowcast is typically 15-min intervals
+        const nowcastIndex = Math.min(frameOffset, radarData.nowcast.length - 1);
+        frame = radarData.nowcast[nowcastIndex] || radarData.nowcast[radarData.nowcast.length - 1];
+        timeLabel = `+${hoursOffset}hr`;
+      }
+
+      if (!frame) return;
+
+      const urlTemplate = `${radarData.host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+
+      if (radarLayer) {
+        map.removeLayer(radarLayer);
+      }
+
+      radarLayer = L.tileLayer(urlTemplate, {
+        opacity: 0.6,
+        attribution: 'Radar © RainViewer',
+        maxZoom: 19,
+        tileSize: 256
+      }).addTo(map);
+
+      const timestamp = new Date(frame.time * 1000);
+      currentTimeSpan.textContent = `${timeLabel} - ${timestamp.toLocaleString()}`;
+    }
+
+    async function loadRadarForLocation(lat, lon) {
+      try {
+        await fetchRadarData();
+        
         map.setView([lat, lon], 9);
 
-        // Add or update location marker
         if (locationMarker) {
           map.removeLayer(locationMarker);
         }
@@ -256,16 +392,17 @@
           })
         }).addTo(map);
 
-        // Show timestamp
-        const timestamp = new Date(latest.time * 1000);
-        showInfo(`Radar updated: ${timestamp.toLocaleString()}`);
+        updateRadarLayer(0, 0);
+        
+        const activeBtn = document.querySelector('.time-btn.active');
+        const offset = parseInt(activeBtn.dataset.offset);
+        updateRadarLayer(0, offset);
 
       } catch (err) {
-        throw new Error('Failed to load radar: ' + err.message);
+        throw err;
       }
     }
 
-    // Show info message
     function showInfo(message) {
       infoDiv.textContent = message;
       infoDiv.classList.add('show');
@@ -274,7 +411,6 @@
       }, 5000);
     }
 
-    // Handle Go button click
     goButton.addEventListener('click', async () => {
       const zip = zipInput.value.trim();
       
@@ -287,9 +423,9 @@
       goButton.innerHTML = '<span class="loading"></span>';
 
       try {
-        const { lat, lon, location } = await geocodeZip(zip);
-        await loadRadarOverlay(lat, lon);
-        showInfo(`Showing radar for ${location}`);
+        currentLocation = await geocodeZip(zip);
+        await loadRadarForLocation(currentLocation.lat, currentLocation.lon);
+        showInfo(`Showing radar for ${currentLocation.location}`);
       } catch (err) {
         alert('Error: ' + err.message);
       } finally {
@@ -298,34 +434,96 @@
       }
     });
 
-    // Allow Enter key to trigger search
-    zipInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') {
-        goButton.click();
-      }
+    timeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (!radarData) {
+          alert('Please search for a location first');
+          return;
+        }
+
+        stopAnimation();
+        
+        timeButtons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        
+        const offset = parseInt(btn.dataset.offset);
+        updateRadarLayer(0, offset);
+      });
     });
 
-    // Only allow numbers in ZIP input
-    zipInput.addEventListener('input', (e) => {
-      e.target.value = e.target.value.replace(/[^0-9]/g, '');
-    });
-
-    // Load default radar on page load (centered on USA)
-    window.addEventListener('load', async () => {
-      try {
-        const resp = await fetch('https://api.rainviewer.com/public/weather-maps.json');
-        const json = await resp.json();
-        const latest = json.radar.past[json.radar.past.length - 1];
-        const host = json.host;
-        const path = latest.path;
-        const urlTemplate = `${host}${path}/256/{z}/{x}/{y}/2/1_1.png`;
-
+    function playAnimation() {
+      if (!radarData || animationInterval) return;
+      
+      playBtn.textContent = '⏸ Stop';
+      playBtn.classList.add('playing');
+      
+      const allFrames = [...radarData.past, ...radarData.nowcast];
+      currentFrameIndex = 0;
+      
+      animationInterval = setInterval(() => {
+        if (currentFrameIndex >= allFrames.length) {
+          currentFrameIndex = 0;
+        }
+        
+        const frame = allFrames[currentFrameIndex];
+        const urlTemplate = `${radarData.host}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+        
+        if (radarLayer) {
+          map.removeLayer(radarLayer);
+        }
+        
         radarLayer = L.tileLayer(urlTemplate, {
           opacity: 0.6,
           attribution: 'Radar © RainViewer',
           maxZoom: 19,
           tileSize: 256
         }).addTo(map);
+        
+        const timestamp = new Date(frame.time * 1000);
+        const isPast = currentFrameIndex < radarData.past.length;
+        const label = isPast ? 'Past' : 'Forecast';
+        currentTimeSpan.textContent = `${label} - ${timestamp.toLocaleString()}`;
+        
+        currentFrameIndex++;
+      }, 500);
+    }
+
+    function stopAnimation() {
+      if (animationInterval) {
+        clearInterval(animationInterval);
+        animationInterval = null;
+        playBtn.textContent = '▶ Play Animation';
+        playBtn.classList.remove('playing');
+      }
+    }
+
+    playBtn.addEventListener('click', () => {
+      if (!radarData) {
+        alert('Please search for a location first');
+        return;
+      }
+      
+      if (animationInterval) {
+        stopAnimation();
+      } else {
+        playAnimation();
+      }
+    });
+
+    zipInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        goButton.click();
+      }
+    });
+
+    zipInput.addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/[^0-9]/g, '');
+    });
+
+    window.addEventListener('load', async () => {
+      try {
+        await fetchRadarData();
+        updateRadarLayer(0, 0);
       } catch (err) {
         console.error('Failed to load initial radar:', err);
       }
