@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech Recorder - Standalone</title>
+     <link rel="icon" type="image/x-icon"
+        href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        /* ✅ RESIZABLE SPLITTER */
+        .splitter {
+            width: 4px;
+            background: linear-gradient(90deg, #3b82f6, #10b981);
+            cursor: col-resize;
+            position: relative;
+            z-index: 10;
+        }
+        .splitter:hover {
+            background: linear-gradient(90deg, #2563eb, #059669);
+            width: 6px;
+        }
+        .splitter:active {
+            background: linear-gradient(90deg, #1d4ed8, #047857);
+        }
+        .panel {
+            transition: width 0.2s ease;
+        }
+        
+        /* FULL MARKDOWN STYLES */
+        .markdown-full {
+            font-size: 1.25rem;
+            line-height: 1.8;
+            padding: 2rem;
+        }
+        .prose-invert { 
+            color: #e5e7eb; 
+            max-width: none !important;
+        }
+        .prose-invert h1 { 
+            @apply text-3xl font-bold my-6 text-white border-b border-blue-500 pb-2;
+        }
+        .prose-invert h2 { 
+            @apply text-2xl font-semibold my-5 text-white border-l-4 border-green-500 pl-3;
+        }
+        .prose-invert h3 { 
+            @apply text-xl font-semibold my-4 text-white;
+        }
+        .prose-invert p { 
+            @apply my-4 text-lg leading-relaxed;
+        }
+        .prose-invert strong { 
+            @apply text-blue-300 font-bold;
+        }
+        .prose-invert em { 
+            @apply text-yellow-300 italic;
+        }
+        .prose-invert code { 
+            @apply bg-gray-700 px-2 py-1 rounded font-mono text-sm;
+        }
+        .prose-invert ul, .prose-invert ol {
+            @apply my-4 pl-6;
+        }
+        .prose-invert li {
+            @apply my-2 text-lg;
+        }
+        /* Scroll indicator */
+        .scroll-indicator {
+            position: sticky;
+            top: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #3b82f6, #10b981);
+            transition: width 0.3s ease;
+        }
+        #videoPreview { 
+            aspect-ratio: 16/9; 
+            max-height: 300px; 
+        }
+        .status-recording { 
+            @apply bg-red-600; 
+        }
+        .status-ready { 
+            @apply bg-green-600; 
+        }
+        @keyframes pulse { 
+            0%,100%{opacity:1} 
+            50%{opacity:.5} 
+        }
+        .recording .bg-red-600 { 
+            animation: pulse 2s infinite; 
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <div class="flex h-screen max-w-7xl mx-auto">
+        <!-- LEFT PANE - MARKDOWN -->
+        <div id="markdownPane" class="panel w-1/2 flex flex-col border-r border-gray-700">
+            <!-- Scroll Progress Bar -->
+            <div class="scroll-indicator" id="scrollIndicator" style="width: 0%"></div>
+            
+            <div class="p-6 flex-grow overflow-y-auto">
+                <div class="flex justify-between items-center mb-8">
+                    <h1 class="text-3xl font-bold text-white">📝 Speech Script</h1>
+                    <label class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg cursor-pointer font-semibold">
+                        <input type="file" id="markdownFile" accept=".md,.txt" class="hidden">
+                        📁 Upload
+                    </label>
+                </div>
+                <div id="markdownContent" class="markdown-full prose prose-invert bg-gray-800 rounded-xl">
+                    <p class="text-gray-400 italic text-xl">Upload a markdown file to begin...<br><br>
+                    <small class="text-gray-600">Supports: # Headers • **Bold** • *Italic* • Lists • Code</small></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ✅ DRAGGABLE SPLITTER -->
+        <div id="splitter" class="splitter"></div>
+
+        <!-- RIGHT PANE - RECORDER -->
+        <div id="recorderPane" class="panel w-1/2 p-6 flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-3xl font-bold">🎥 Recording Studio</h1>
+                <button id="refreshDevices" class="text-blue-400 hover:text-blue-200 text-sm px-3 py-1 rounded">🔄 Refresh</button>
+            </div>
+            
+            <!-- Device Selection -->
+            <div class="space-y-4 mb-6 flex-grow">
+                <div>
+                    <label class="block text-sm font-medium mb-2">🎤 Microphone</label>
+                    <select id="micSelect" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2">
+                        <option>Loading...</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium mb-2">📹 Camera</label>
+                    <select id="cameraSelect" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2">
+                        <option>Loading...</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Video Preview -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium mb-2">Preview</label>
+                <video id="videoPreview" class="w-full bg-black rounded-lg" autoplay muted></video>
+            </div>
+
+            <!-- Recording Controls -->
+            <div class="space-y-4">
+                <div class="flex space-x-4">
+                    <button id="startBtn" class="flex-1 bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-semibold text-lg">
+                        🎬 Start Recording (Ctrl+R)
+                    </button>
+                    <button id="stopBtn" class="flex-1 bg-gray-600 hover:bg-gray-500 px-6 py-3 rounded-lg font-semibold text-lg hidden">
+                        ⏹️ Stop (Ctrl+R)
+                    </button>
+                </div>
+                <button id="downloadBtn" class="w-full bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-semibold text-lg hidden">
+                    💾 Download Video (Ctrl+S)
+                </button>
+            </div>
+
+            <!-- Recording Status -->
+            <div id="status" class="mt-4 p-4 rounded-lg hidden"></div>
+        </div>
+    </div>
+
+    <script>
+        class SpeechRecorder {
+            constructor() {
+                this.mediaRecorder = null;
+                this.chunks = [];
+                this.recordedBlob = null;
+                this.scrollInterval = null;
+                this.initializeSplitter();
+                this.initializeEventListeners();
+                this.requestPermissionsAndLoadDevices();
+            }
+
+            // ✅ SPLITTER LOGIC
+            initializeSplitter() {
+                const splitter = document.getElementById('splitter');
+                const leftPane = document.getElementById('markdownPane');
+                const rightPane = document.getElementById('recorderPane');
+                
+                let isResizing = false;
+                
+                splitter.addEventListener('mousedown', (e) => {
+                    isResizing = true;
+                    document.body.style.userSelect = 'none';
+                    e.preventDefault();
+                });
+                
+                document.addEventListener('mousemove', (e) => {
+                    if (!isResizing) return;
+                    
+                    const containerRect = document.querySelector('.flex').getBoundingClientRect();
+                    const containerWidth = containerRect.width;
+                    let newLeftWidth = ((e.clientX - containerRect.left) / containerWidth) * 100;
+                    
+                    // Min/max width constraints
+                    newLeftWidth = Math.max(20, Math.min(80, newLeftWidth));
+                    
+                    leftPane.style.width = newLeftWidth + '%';
+                    rightPane.style.width = (100 - newLeftWidth) + '%';
+                });
+                
+                document.addEventListener('mouseup', () => {
+                    isResizing = false;
+                    document.body.style.userSelect = '';
+                });
+            }
+
+            async requestPermissionsAndLoadDevices() {
+                try {
+                    await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                    await this.initializeDevices();
+                } catch (err) {
+                    console.error('Permission error:', err);
+                    this.updateStatus('🔒 Please allow microphone & camera access', 'bg-yellow-600');
+                    this.initializeDevices();
+                }
+            }
+
+            async initializeDevices() {
+                try {
+                    const devices = await navigator.mediaDevices.enumerateDevices();
+                    const mics = devices.filter(d => d.kind === 'audioinput');
+                    const cameras = devices.filter(d => d.kind === 'videoinput');
+                    
+                    this.populateSelect('#micSelect', mics);
+                    this.populateSelect('#cameraSelect', cameras);
+                } catch (err) {
+                    console.error('Device error:', err);
+                }
+            }
+
+            populateSelect(selectId, devices) {
+                const select = document.querySelector(selectId);
+                if (!select) return;
+                
+                if (devices.length === 0) {
+                    select.innerHTML = '<option>No devices</option>';
+                    return;
+                }
+                
+                const options = devices.map(d => {
+                    const label = d.label || `Device ${d.deviceId.slice(-4)}`;
+                    return `<option value="${d.deviceId}">${label}</option>`;
+                });
+                
+                select.innerHTML = '<option value="">Select device</option>' + options.join('');
+            }
+
+            initializeEventListeners() {
+                // File upload
+                document.getElementById('markdownFile').addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            document.getElementById('markdownContent').innerHTML = 
+                                marked.parse(e.target.result);
+                            this.updateScrollIndicator();
+                        };
+                        reader.readAsText(file);
+                    }
+                });
+
+                // Controls
+                document.getElementById('startBtn').addEventListener('click', () => this.startRecording());
+                document.getElementById('stopBtn').addEventListener('click', () => this.stopRecording());
+                document.getElementById('downloadBtn').addEventListener('click', () => this.downloadVideo());
+                document.getElementById('refreshDevices').addEventListener('click', () => 
+                    this.requestPermissionsAndLoadDevices()
+                );
+
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey || e.metaKey) {
+                        switch(e.key) {
+                            case 'r': e.preventDefault(); 
+                                document.getElementById('startBtn').classList.contains('hidden') ?
+                                    this.stopRecording() : this.startRecording(); break;
+                            case 's': e.preventDefault(); 
+                                document.getElementById('downloadBtn').click(); break;
+                        }
+                    }
+                });
+
+                // Scroll indicator
+                document.getElementById('markdownContent').addEventListener('scroll', () => {
+                    this.updateScrollIndicator();
+                });
+            }
+
+            updateScrollIndicator() {
+                const content = document.getElementById('markdownContent');
+                const scrollPercent = (content.scrollTop / (content.scrollHeight - content.clientHeight)) * 100;
+                document.getElementById('scrollIndicator').style.width = scrollPercent + '%';
+            }
+
+            async startRecording() {
+                try {
+                    const micId = document.getElementById('micSelect').value;
+                    const cameraId = document.getElementById('cameraSelect').value;
+
+                    if (!micId || !cameraId) {
+                        this.updateStatus('⚠️ Select microphone AND camera', 'bg-red-600');
+                        return;
+                    }
+
+                    const constraints = {
+                        audio: { deviceId: { exact: micId } },
+                        video: { 
+                            deviceId: { exact: cameraId },
+                            width: { ideal: 1280 },
+                            height: { ideal: 720 },
+                            facingMode: 'user'
+                        }
+                    };
+
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    this.mediaRecorder = new MediaRecorder(stream);
+
+                    this.chunks = [];
+                    this.mediaRecorder.ondataavailable = (e) => this.chunks.push(e.data);
+                    this.mediaRecorder.onstop = () => this.onRecordingStopped();
+
+                    document.getElementById('videoPreview').srcObject = stream;
+                    
+                    document.getElementById('startBtn').classList.add('hidden');
+                    document.getElementById('stopBtn').classList.remove('hidden');
+                    document.getElementById('downloadBtn').classList.add('hidden');
+                    
+                    this.updateStatus('🎬 Recording... (Ctrl+R to stop)', 'status-recording');
+                    this.mediaRecorder.start(1000);
+                    this.startAutoScroll();
+                    document.body.classList.add('recording');
+
+                } catch (err) {
+                    this.updateStatus(`❌ ${err.message}`, 'bg-red-600');
+                }
+            }
+
+            stopRecording() {
+                if (this.mediaRecorder?.state === 'recording') {
+                    this.mediaRecorder.stop();
+                    this.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                    document.getElementById('videoPreview').srcObject = null;
+                    document.body.classList.remove('recording');
+                }
+            }
+
+            onRecordingStopped() {
+                this.recordedBlob = new Blob(this.chunks, { type: 'video/webm' });
+                document.getElementById('stopBtn').classList.add('hidden');
+                document.getElementById('downloadBtn').classList.remove('hidden');
+                this.updateStatus('✅ Complete! Click Download (Ctrl+S)', 'status-ready');
+                this.stopAutoScroll();
+            }
+
+            downloadVideo() {
+                if (this.recordedBlob) {
+                    const url = URL.createObjectURL(this.recordedBlob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `speech-${new Date().toISOString().slice(0,19).replace(/:/g,'')}.webm`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    this.updateStatus('💾 Downloaded to Downloads!', 'bg-green-600');
+                }
+            }
+
+            updateStatus(message, className) {
+                const status = document.getElementById('status');
+                status.textContent = message;
+                status.className = `p-4 rounded-lg text-white font-semibold ${className}`;
+                status.classList.remove('hidden');
+            }
+
+            startAutoScroll() {
+                const content = document.getElementById('markdownContent');
+                if (!content) return;
+                
+                this.scrollInterval = setInterval(() => {
+                    content.scrollTop += 2;
+                    this.updateScrollIndicator();
+                    if (content.scrollTop >= content.scrollHeight - content.clientHeight - 50) {
+                        this.stopAutoScroll();
+                    }
+                }, 200);
+            }
+
+            stopAutoScroll() {
+                if (this.scrollInterval) {
+                    clearInterval(this.scrollInterval);
+                    this.scrollInterval = null;
+                }
+            }
+        }
+
+        // Initialize
+        const recorder = new SpeechRecorder();
+    </script>
+</body>
+</html>
