@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Speech Recorder - Pro Edition</title>
+    <link rel="icon" type="image/x-icon"
+        href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!-- MONACO EDITOR -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+    <style>
+        .splitter {
+            width: 4px;
+            background: linear-gradient(90deg, #3b82f6, #10b981);
+            cursor: col-resize;
+            position: relative;
+            z-index: 10;
+        }
+        .splitter:hover { background: linear-gradient(90deg, #2563eb, #059669); width: 6px; }
+        .splitter:active { background: linear-gradient(90deg, #1d4ed8, #047857); }
+        .panel { transition: width 0.2s ease; }
+        .markdown-full { font-size: 1.25rem; line-height: 1.8; padding: 2rem; }
+        .prose-invert { color: #e5e7eb; max-width: none !important; }
+        .prose-invert h1 { @apply text-3xl font-bold my-6 text-white border-b border-blue-500 pb-2; }
+        .prose-invert h2 { @apply text-2xl font-semibold my-5 text-white border-l-4 border-green-500 pl-3; }
+        .prose-invert h3 { @apply text-xl font-semibold my-4 text-white; }
+        .prose-invert p { @apply my-4 text-lg leading-relaxed; }
+        .prose-invert strong { @apply text-blue-300 font-bold; }
+        .prose-invert em { @apply text-yellow-300 italic; }
+        .prose-invert code { @apply bg-gray-700 px-2 py-1 rounded font-mono text-sm; }
+        .prose-invert ul, .prose-invert ol { @apply my-4 pl-6; }
+        .prose-invert li { @apply my-2 text-lg; }
+        .scroll-indicator {
+            position: sticky; top: 0; height: 4px;
+            background: linear-gradient(90deg, #3b82f6, #10b981);
+            transition: width 0.3s ease;
+        }
+        #videoPreview { 
+            aspect-ratio: 16/9; 
+            max-height: 300px; 
+            width: 100%; 
+        }
+        .status-recording { @apply bg-red-600; }
+        .status-ready { @apply bg-green-600; }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+        .recording .bg-red-600 { animation: pulse 2s infinite; }
+        .monaco-editor { height: 300px !important; }
+        .listening { @apply bg-yellow-600 animate-pulse; }
+        /* ✅ FIXED HEIGHTS */
+        .top-pane { height: 60vh; }
+        .bottom-pane { height: 40vh; }
+        /* ✅ ALL BUTTONS STYLING */
+        .video-controls { @apply space-y-3 mb-4; }
+        .transcript-controls { @apply flex space-x-2 mt-2; }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <!-- ✅ ROW 1: RECORDING PANE (60vh - FIXED!) -->
+    <div class="flex top-pane">
+        <!-- LEFT: MARKDOWN -->
+        <div id="markdownPane" class="panel w-1/2 flex flex-col border-r border-gray-700">
+            <div class="scroll-indicator" id="scrollIndicator" style="width: 0%"></div>
+            <div class="p-6 flex-grow overflow-y-auto">
+                <div class="flex justify-between items-center mb-8">
+                    <h1 class="text-3xl font-bold text-white">📝 Speech Script</h1>
+                    <label class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg cursor-pointer font-semibold">
+                        <input type="file" id="markdownFile" accept=".md,.txt" class="hidden">
+                        📁 Upload
+                    </label>
+                </div>
+                <div id="markdownContent" class="markdown-full prose prose-invert bg-gray-800 rounded-xl">
+                    <p class="text-gray-400 italic text-xl">Upload a markdown file to begin...<br><br>
+                    <small class="text-gray-600">Supports: # Headers • **Bold** • *Italic* • Lists • Code</small></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SPLITTER -->
+        <div id="splitter" class="splitter"></div>
+
+        <!-- RIGHT: RECORDER -->
+        <div id="recorderPane" class="panel w-1/2 p-6 flex flex-col">
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-3xl font-bold">🎥 Recording Studio</h1>
+                <button id="refreshDevices" class="text-blue-400 hover:text-blue-200 text-sm px-3 py-1 rounded">🔄 Refresh</button>
+            </div>
+            
+            <!-- ✅ DEVICE SELECTION -->
+            <div class="space-y-4 mb-6 flex-grow">
+                <div><label class="block text-sm font-medium mb-2">🎤 Microphone</label>
+                    <select id="micSelect" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2"><option>Loading...</option></select>
+                </div>
+                <div><label class="block text-sm font-medium mb-2">📹 Camera</label>
+                    <select id="cameraSelect" class="w-full bg-gray-800 border border-gray-600 rounded-lg px-3 py-2"><option>Loading...</option></select>
+                </div>
+            </div>
+
+            <!-- ✅ VIDEO CONTROLS (TOP - 100% CLICKABLE!) -->
+            <div class="video-controls">
+                <div class="flex space-x-4">
+                    <button id="startBtn" class="flex-1 bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-semibold text-lg">
+                        🎬 Start Recording (Ctrl+R)
+                    </button>
+                    <button id="stopBtn" class="flex-1 bg-gray-600 hover:bg-gray-500 px-6 py-3 rounded-lg font-semibold text-lg hidden">
+                        ⏹️ Stop (Ctrl+R)
+                    </button>
+                </div>
+                <button id="downloadBtn" class="w-full bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-semibold text-lg hidden">
+                    💾 Download Video
+                </button>
+            </div>
+
+            <!-- ✅ ALL TRANSCRIPT BUTTONS HERE (ABOVE VIDEO!) -->
+            <div class="transcript-controls">
+                <button id="transcribeBtn" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded font-semibold hidden">
+                    🎤 Transcribe (Ctrl+T)
+                </button>
+                <button id="downloadTranscriptBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded font-semibold hidden">
+                    💾 Download TXT (Ctrl+S)
+                </button>
+                <button id="copyBtn" class="bg-gray-600 hover:bg-gray-500 px-4 py-2 rounded font-semibold hidden">
+                    📋 Copy
+                </button>
+            </div>
+
+            <!-- ✅ PURE VIDEO PREVIEW (NO BUTTONS!) -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium mb-2">Preview</label>
+                <div class="bg-black rounded-lg overflow-hidden">
+                    <video id="videoPreview" class="w-full" autoplay muted></video>
+                </div>
+            </div>
+
+            <!-- ✅ STATUS BELOW VIDEO -->
+            <div id="status" class="p-4 rounded-lg hidden"></div>
+
+            <div class="text-sm text-gray-400 mt-2">
+                <div id="transcriptStatus" class="hidden">Ready to transcribe...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ✅ ROW 2: MONACO TRANSCRIPT PANE (40vh - FIXED!) -->
+    <div class="bottom-pane">
+        <div id="monacoContainer" class="h-full bg-gray-900 hidden"></div>
+    </div>
+
+    <script>
+        class SpeechRecorder {
+            constructor() {
+                this.mediaRecorder = null;
+                this.audioRecorder = null;
+                this.chunks = [];
+                this.audioChunks = [];
+                this.recordedBlob = null;
+                this.audioBlob = null;
+                this.scrollInterval = null;
+                this.editor = null;
+                this.recognition = null;
+                this.initializeSplitter();
+                this.initializeEventListeners();
+                this.loadMonaco();
+                this.requestPermissionsAndLoadDevices();
+            }
+
+            async loadMonaco() {
+                await new Promise((resolve) => {
+                    require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+                    require(['vs/editor/editor.main'], () => {
+                        this.editor = monaco.editor.create(document.getElementById('monacoContainer'), {
+                            value: '// Record speech, then press Ctrl+T for instant transcript!\n// Edit here like VS Code...',
+                            language: 'plaintext',
+                            theme: 'vs-dark',
+                            fontSize: 14,
+                            lineNumbers: 'on',
+                            minimap: { enabled: false },
+                            scrollBeyondLastLine: false,
+                            wordWrap: 'on',
+                            automaticLayout: true
+                        });
+                        resolve();
+                    });
+                });
+            }
+
+            // ✅ INSTANT BROWSER SPEECH-TO-TEXT
+            async generateTranscript() {
+                if (!this.audioBlob) {
+                    this.updateStatus('No audio to transcribe', 'bg-red-600');
+                    return;
+                }
+
+                const statusEl = document.getElementById('transcriptStatus');
+                const transcribeBtn = document.getElementById('transcribeBtn');
+                
+                statusEl.textContent = '🎤 Listening...';
+                statusEl.classList.remove('hidden');
+                document.getElementById('monacoContainer').classList.remove('hidden');
+                transcribeBtn.classList.add('listening');
+
+                try {
+                    this.recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+                    this.recognition.continuous = true;
+                    this.recognition.interimResults = false;
+                    this.recognition.lang = 'en-US';
+
+                    let transcript = '';
+
+                    this.recognition.onresult = (event) => {
+                        for (let i = event.resultIndex; i < event.results.length; i++) {
+                            transcript += event.results[i][0].transcript + ' ';
+                        }
+                        this.editor.setValue(transcript.trim());
+                    };
+
+                    this.recognition.onend = () => {
+                        transcribeBtn.classList.remove('listening');
+                        if (transcript.trim()) {
+                            document.getElementById('downloadTranscriptBtn').classList.remove('hidden');
+                            document.getElementById('copyBtn').classList.remove('hidden');
+                            statusEl.textContent = `✅ Ready! (${transcript.trim().length} chars)`;
+                            this.updateStatus('✅ Instant transcript ready! Edit & Ctrl+S to download', 'status-ready');
+                        } else {
+                            statusEl.textContent = 'No speech detected';
+                        }
+                    };
+
+                    this.recognition.onerror = (event) => {
+                        transcribeBtn.classList.remove('listening');
+                        statusEl.textContent = `Error: ${event.error}`;
+                        this.updateStatus('❌ Speech recognition failed', 'bg-red-600');
+                    };
+
+                    // PLAY AUDIO & TRANSCRIBE
+                    const audioUrl = URL.createObjectURL(this.audioBlob);
+                    const audio = new Audio(audioUrl);
+                    audio.play();
+                    
+                    this.recognition.start();
+                    audio.onended = () => this.recognition.stop();
+
+                } catch (err) {
+                    statusEl.textContent = 'Speech API not supported';
+                    this.updateStatus('❌ Browser speech recognition not available (use Chrome/Edge)', 'bg-red-600');
+                }
+            }
+
+            copyTranscript() {
+                const transcript = this.editor.getValue();
+                navigator.clipboard.writeText(transcript).then(() => {
+                    this.updateStatus('📋 Copied to clipboard!', 'bg-green-600');
+                });
+            }
+
+            downloadTranscript() {
+                const transcript = this.editor.getValue();
+                const txtBlob = new Blob([transcript], { type: 'text/plain' });
+                const txtUrl = URL.createObjectURL(txtBlob);
+                const a = document.createElement('a');
+                a.href = txtUrl; 
+                a.download = `transcript-${new Date().toISOString().slice(0,19).replace(/:/g,'')}.txt`;
+                document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                URL.revokeObjectURL(txtUrl);
+                this.updateStatus('💾 Transcript downloaded!', 'bg-green-600');
+            }
+
+            initializeSplitter() {
+                const splitter = document.getElementById('splitter');
+                const leftPane = document.getElementById('markdownPane');
+                const rightPane = document.getElementById('recorderPane');
+                let isResizing = false;
+                
+                splitter.addEventListener('mousedown', (e) => {
+                    isResizing = true; document.body.style.userSelect = 'none'; e.preventDefault();
+                });
+                
+                document.addEventListener('mousemove', (e) => {
+                    if (!isResizing) return;
+                    const containerRect = document.querySelector('.top-pane').getBoundingClientRect();
+                    let newLeftWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+                    newLeftWidth = Math.max(20, Math.min(80, newLeftWidth));
+                    leftPane.style.width = newLeftWidth + '%';
+                    rightPane.style.width = (100 - newLeftWidth) + '%';
+                });
+                
+                document.addEventListener('mouseup', () => {
+                    isResizing = false; document.body.style.userSelect = '';
+                });
+            }
+
+            async requestPermissionsAndLoadDevices() {
+                try {
+                    await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                    await this.initializeDevices();
+                } catch (err) {
+                    this.updateStatus('🔒 Please allow microphone & camera access', 'bg-yellow-600');
+                    this.initializeDevices();
+                }
+            }
+
+            async initializeDevices() {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const mics = devices.filter(d => d.kind === 'audioinput');
+                const cameras = devices.filter(d => d.kind === 'videoinput');
+                this.populateSelect('#micSelect', mics);
+                this.populateSelect('#cameraSelect', cameras);
+            }
+
+            populateSelect(selectId, devices) {
+                const select = document.querySelector(selectId);
+                if (!select || devices.length === 0) return;
+                const options = devices.map(d => {
+                    const label = d.label || `Device ${d.deviceId.slice(-4)}`;
+                    return `<option value="${d.deviceId}">${label}</option>`;
+                });
+                select.innerHTML = '<option value="">Select device</option>' + options.join('');
+            }
+
+            initializeEventListeners() {
+                document.getElementById('markdownFile').addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            document.getElementById('markdownContent').innerHTML = marked.parse(e.target.result);
+                            this.updateScrollIndicator();
+                        };
+                        reader.readAsText(file);
+                    }
+                });
+
+                document.getElementById('startBtn').addEventListener('click', () => this.startRecording());
+                document.getElementById('stopBtn').addEventListener('click', () => this.stopRecording());
+                document.getElementById('downloadBtn').addEventListener('click', () => this.downloadVideo());
+                document.getElementById('transcribeBtn').addEventListener('click', () => this.generateTranscript());
+                document.getElementById('downloadTranscriptBtn').addEventListener('click', () => this.downloadTranscript());
+                document.getElementById('copyBtn').addEventListener('click', () => this.copyTranscript());
+                document.getElementById('refreshDevices').addEventListener('click', () => this.requestPermissionsAndLoadDevices());
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.ctrlKey || e.metaKey) {
+                        switch(e.key) {
+                            case 'r': e.preventDefault(); 
+                                document.getElementById('startBtn').classList.contains('hidden') ?
+                                    this.stopRecording() : this.startRecording(); break;
+                            case 's': e.preventDefault(); 
+                                document.getElementById(this.audioBlob ? 'downloadTranscriptBtn' : 'downloadBtn').click(); break;
+                            case 't': e.preventDefault(); 
+                                this.generateTranscript(); break;
+                            case 'c': e.preventDefault(); 
+                                if (this.audioBlob) this.copyTranscript(); break;
+                        }
+                    }
+                });
+
+                document.getElementById('markdownContent').addEventListener('scroll', () => this.updateScrollIndicator());
+            }
+
+            updateScrollIndicator() {
+                const content = document.getElementById('markdownContent');
+                const scrollPercent = (content.scrollTop / (content.scrollHeight - content.clientHeight)) * 100;
+                document.getElementById('scrollIndicator').style.width = scrollPercent + '%';
+            }
+
+            async startRecording() {
+                try {
+                    const micId = document.getElementById('micSelect').value;
+                    const cameraId = document.getElementById('cameraSelect').value;
+                    if (!micId || !cameraId) {
+                        this.updateStatus('⚠️ Select microphone AND camera', 'bg-red-600');
+                        return;
+                    }
+
+                    const videoConstraints = {
+                        audio: { deviceId: { exact: micId } },
+                        video: { deviceId: { exact: cameraId }, width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }
+                    };
+                    const videoStream = await navigator.mediaDevices.getUserMedia(videoConstraints);
+                    this.mediaRecorder = new MediaRecorder(videoStream, { mimeType: 'video/webm;codecs=vp9' });
+
+                    const audioConstraints = { audio: { deviceId: { exact: micId } } };
+                    const audioStream = await navigator.mediaDevices.getUserMedia(audioConstraints);
+                    this.audioRecorder = new MediaRecorder(audioStream, { mimeType: 'audio/webm;codecs=opus' });
+
+                    this.chunks = []; this.audioChunks = [];
+                    this.mediaRecorder.ondataavailable = (e) => this.chunks.push(e.data);
+                    this.audioRecorder.ondataavailable = (e) => this.audioChunks.push(e.data);
+                    this.mediaRecorder.onstop = () => this.onRecordingStopped();
+
+                    document.getElementById('videoPreview').srcObject = videoStream;
+                    document.getElementById('startBtn').classList.add('hidden');
+                    document.getElementById('stopBtn').classList.remove('hidden');
+                    document.getElementById('downloadBtn').classList.add('hidden');
+                    document.getElementById('transcribeBtn').classList.remove('hidden');
+                    
+                    this.updateStatus('🎬 Recording... (Ctrl+R to stop)', 'status-recording');
+                    this.mediaRecorder.start(1000);
+                    this.audioRecorder.start(1000);
+                    this.startAutoScroll();
+                    document.body.classList.add('recording');
+
+                } catch (err) {
+                    this.updateStatus(`❌ ${err.message}`, 'bg-red-600');
+                }
+            }
+
+            stopRecording() {
+                if (this.mediaRecorder?.state === 'recording') {
+                    this.mediaRecorder.stop();
+                    this.audioRecorder.stop();
+                    this.mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                    this.audioRecorder.stream.getTracks().forEach(track => track.stop());
+                    document.getElementById('videoPreview').srcObject = null;
+                    document.body.classList.remove('recording');
+                    this.audioBlob = new Blob(this.audioChunks, { type: 'audio/webm' });
+                }
+            }
+
+            onRecordingStopped() {
+                this.recordedBlob = new Blob(this.chunks, { type: 'video/webm' });
+                document.getElementById('stopBtn').classList.add('hidden');
+                document.getElementById('downloadBtn').classList.remove('hidden');
+                this.updateStatus('✅ Complete! Ctrl+T for INSTANT transcript', 'status-ready');
+                this.stopAutoScroll();
+            }
+
+            downloadVideo() {
+                if (this.recordedBlob) {
+                    const url = URL.createObjectURL(this.recordedBlob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = `speech-${new Date().toISOString().slice(0,19).replace(/:/g,'')}.webm`;
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    this.updateStatus('💾 Video downloaded!', 'bg-green-600');
+                }
+            }
+
+            updateStatus(message, className) {
+                const status = document.getElementById('status');
+                status.textContent = message;
+                status.className = `p-4 rounded-lg text-white font-semibold ${className}`;
+                status.classList.remove('hidden');
+                setTimeout(() => status.classList.add('hidden'), 5000);
+            }
+
+            startAutoScroll() {
+                const content = document.getElementById('markdownContent');
+                if (!content) return;
+                this.scrollInterval = setInterval(() => {
+                    content.scrollTop += 2;
+                    this.updateScrollIndicator();
+                    if (content.scrollTop >= content.scrollHeight - content.clientHeight - 50) {
+                        this.stopAutoScroll();
+                    }
+                }, 200);
+            }
+
+            stopAutoScroll() {
+                if (this.scrollInterval) {
+                    clearInterval(this.scrollInterval);
+                    this.scrollInterval = null;
+                }
+            }
+        }
+
+        const recorder = new SpeechRecorder();
+    </script>
+</body>
+</html>
