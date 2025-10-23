@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>NPM Packages — README Viewer</title>
+
+    <!-- Tailwind CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      .sidebar::-webkit-scrollbar { width: 10px; }
+      .sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 9999px; }
+      .markdown img { max-width: 100%; height: auto; border-radius: 0.5rem; }
+      .markdown pre { background-color: #1e1e2e !important; padding: 1rem; border-radius: 0.75rem; overflow-x: auto; }
+      .markdown code { background-color: #2a2a3d; padding: 0.2rem 0.4rem; border-radius: 0.25rem; }
+      .markdown a { color: #93c5fd; text-decoration: underline; }
+      .markdown h1, .markdown h2, .markdown h3 { color: #e0e7ff; margin-top: 1.5rem; }
+      .markdown ul, .markdown ol { margin-left: 1.5rem; }
+    </style>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@2.4.0/dist/purify.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
+  </head>
+
+  <body class="bg-gray-950 text-gray-200 min-h-screen antialiased">
+    <!-- Header -->
+    <header class="sticky top-0 z-20 bg-gray-900 border-b border-gray-800 backdrop-blur-sm">
+      <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <h1 class="text-lg font-semibold text-indigo-400">NPM Packages — README Viewer</h1>
+        <span class="text-sm text-gray-400">Maintainer: <span class="font-mono">mohanchinnappan</span></span>
+      </div>
+    </header>
+
+    <!-- Main content -->
+    <main class="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <!-- Left: packages list -->
+      <aside class="lg:col-span-1 bg-gray-900 border border-gray-800 rounded-lg shadow-md overflow-hidden flex flex-col">
+        <div class="p-3 border-b border-gray-800 flex items-center justify-between">
+          <h2 class="text-sm font-medium">Packages</h2>
+          <span id="count" class="text-xs text-gray-400">—</span>
+        </div>
+        <div class="p-2 border-b border-gray-800">
+          <input id="search" type="search" placeholder="Search packages..." class="w-full px-3 py-2 rounded-md bg-gray-800 border border-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+        </div>
+        <div class="sidebar flex-1 overflow-auto p-2 space-y-1" id="packagesList"></div>
+        <div class="p-3 border-t border-gray-800 text-xs text-gray-400">Packages loaded from npm registry.</div>
+      </aside>
+
+      <!-- Right: README viewer -->
+      <section class="lg:col-span-3 bg-gray-900 border border-gray-800 rounded-lg shadow-md overflow-hidden flex flex-col">
+        <div class="p-4 border-b border-gray-800 flex items-center justify-between">
+          <div>
+            <h3 id="pkgTitle" class="text-xl font-semibold">Select a package</h3>
+            <p id="pkgVersion" class="text-sm text-gray-400">README will appear here when you select a package.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <a id="openNpm" target="_blank" rel="noopener" class="text-xs px-3 py-1 bg-gray-800 border border-gray-700 rounded-md hover:bg-gray-700">Open on npm</a>
+            <button id="copyBtn" class="text-xs px-3 py-1 bg-gray-800 border border-gray-700 rounded-md hover:bg-gray-700">Copy name</button>
+          </div>
+        </div>
+        <div id="content" class="p-6 overflow-auto markdown prose prose-invert max-h-[68vh]"></div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="sticky bottom-0 bg-gray-900 border-t border-gray-800 text-xs text-gray-400 py-2 text-center">Tailwind Dark Theme • npm registry viewer</footer>
+
+    <script>
+      const maintainer = 'mohanchinnappan';
+      const searchEl = document.getElementById('search');
+      const listEl = document.getElementById('packagesList');
+      const countEl = document.getElementById('count');
+      const contentEl = document.getElementById('content');
+      const pkgTitleEl = document.getElementById('pkgTitle');
+      const pkgVersionEl = document.getElementById('pkgVersion');
+      const openNpm = document.getElementById('openNpm');
+      const copyBtn = document.getElementById('copyBtn');
+
+      let packages = [];
+      let filtered = [];
+
+      async function fetchPackages() {
+        listEl.innerHTML = '<div class="p-4 text-sm text-gray-400">Loading packages…</div>';
+        const res = await fetch(`https://registry.npmjs.org/-/v1/search?text=maintainer:${maintainer}&size=250`);
+        const json = await res.json();
+        packages = json.objects.map(o => ({ name: o.package.name, desc: o.package.description || '', version: o.package.version }));
+        filtered = packages;
+        renderList();
+      }
+
+      function renderList() {
+        countEl.textContent = `${filtered.length}`;
+        listEl.innerHTML = filtered.map(p => `
+          <button class='w-full text-left px-3 py-2 hover:bg-gray-800 rounded-md flex items-start gap-2' onclick='selectPackage("${p.name}")'>
+            <div class='flex-1'>
+              <div class='text-sm font-medium text-indigo-400'>${p.name}</div>
+              <div class='text-xs text-gray-400 mt-0.5'>${p.desc}</div>
+            </div>
+            <div class='text-xs text-gray-500'>${p.version}</div>
+          </button>
+        `).join('');
+      }
+
+      searchEl.addEventListener('input', e => {
+        const q = e.target.value.toLowerCase();
+        filtered = packages.filter(p => p.name.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q));
+        renderList();
+      });
+
+      async function selectPackage(name) {
+        pkgTitleEl.textContent = name;
+        pkgVersionEl.textContent = 'Loading README...';
+        openNpm.href = `https://www.npmjs.com/package/${name}`;
+
+        const res = await fetch(`https://registry.npmjs.org/${name}`);
+        const json = await res.json();
+        const readme = json.readme || 'No README found.';
+        const html = DOMPurify.sanitize(marked.parse(readme));
+        contentEl.innerHTML = html;
+        document.querySelectorAll('pre code').forEach(block => hljs.highlightElement(block));
+        pkgVersionEl.textContent = `Latest: ${json['dist-tags']?.latest || ''}`;
+
+        copyBtn.onclick = () => {
+          navigator.clipboard.writeText(name);
+          copyBtn.textContent = 'Copied!';
+          setTimeout(() => (copyBtn.textContent = 'Copy name'), 1000);
+        };
+      }
+
+      fetchPackages();
+    </script>
+  </body>
+</html>
