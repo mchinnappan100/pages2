@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drawing App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        .splitter {
+            width: 4px;
+            cursor: col-resize;
+            background: #374151;
+            transition: background 0.2s;
+        }
+        .splitter:hover {
+            background: #4b5563;
+        }
+        canvas {
+            cursor: crosshair;
+        }
+        .tool-btn {
+            transition: all 0.2s;
+        }
+        .tool-btn:hover {
+            transform: translateY(-2px);
+        }
+        .tool-btn.active {
+            background: #3b82f6;
+            color: white;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <div id="app" class="flex h-screen">
+        <!-- Left Panel -->
+        <div id="leftPanel" class="bg-gray-800 p-6 overflow-y-auto" style="width: 320px;">
+            <h1 class="text-2xl font-bold mb-6 text-blue-400">Drawing Tools</h1>
+            
+            <!-- Drawing Tools -->
+            <div class="mb-6">
+                <h2 class="text-sm font-semibold mb-3 text-gray-400">TOOLS</h2>
+                <div class="grid grid-cols-3 gap-2">
+                    <button class="tool-btn active px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="line">Line</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="circle">Circle</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="square">Square</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="rect">Rectangle</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="curve">Curve</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="text">Text</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="pencil">Pencil</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="eraser">Eraser</button>
+                </div>
+            </div>
+
+            <!-- Colors -->
+            <div class="mb-6">
+                <h2 class="text-sm font-semibold mb-3 text-gray-400">COLORS</h2>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm mb-2">Foreground</label>
+                        <input type="color" id="fgColor" value="#3b82f6" class="w-full h-10 rounded cursor-pointer">
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-2">Background</label>
+                        <input type="color" id="bgColor" value="#1f2937" class="w-full h-10 rounded cursor-pointer">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Line Thickness -->
+            <div class="mb-6">
+                <h2 class="text-sm font-semibold mb-3 text-gray-400">LINE THICKNESS</h2>
+                <input type="range" id="lineThickness" min="1" max="50" value="3" class="w-full">
+                <div class="text-sm text-gray-400 mt-2">Width: <span id="thicknessValue">3</span>px</div>
+            </div>
+
+            <!-- Actions -->
+            <div class="mb-6">
+                <h2 class="text-sm font-semibold mb-3 text-gray-400">ACTIONS</h2>
+                <div class="space-y-2">
+                    <button id="undoBtn" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm">↶ Undo</button>
+                    <button id="redoBtn" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm">↷ Redo</button>
+                    <button id="clearBtn" class="w-full px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm">Clear Canvas</button>
+                </div>
+            </div>
+
+            <!-- File Operations -->
+            <div>
+                <h2 class="text-sm font-semibold mb-3 text-gray-400">FILE</h2>
+                <div class="space-y-2">
+                    <button id="saveJsonBtn" class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm">Save as JSON</button>
+                    <button id="loadJsonBtn" class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm">Load JSON</button>
+                    <button id="savePngBtn" class="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm">Save as PNG</button>
+                </div>
+                <input type="file" id="fileInput" accept=".json" class="hidden">
+            </div>
+        </div>
+
+        <!-- Splitter -->
+        <div id="splitter" class="splitter"></div>
+
+        <!-- Right Panel (Canvas) -->
+        <div id="rightPanel" class="flex-1 flex items-center justify-center bg-gray-900 p-6">
+            <canvas id="canvas" class="border-2 border-gray-700 rounded-lg shadow-2xl"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let currentTool = 'line';
+        let isDrawing = false;
+        let startX, startY;
+        let fgColor = '#3b82f6';
+        let bgColor = '#1f2937';
+        let lineThickness = 3;
+        let history = [];
+        let historyStep = -1;
+        let curvePoints = [];
+
+        // Initialize canvas
+        function initCanvas() {
+            const container = document.getElementById('rightPanel');
+            canvas.width = container.clientWidth - 48;
+            canvas.height = container.clientHeight - 48;
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            saveState();
+        }
+
+        initCanvas();
+
+        // Save state for undo/redo
+        function saveState() {
+            historyStep++;
+            if (historyStep < history.length) {
+                history.length = historyStep;
+            }
+            history.push(canvas.toDataURL());
+        }
+
+        function restoreState(step) {
+            const img = new Image();
+            img.src = history[step];
+            img.onload = () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+            };
+        }
+
+        // Tool selection
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentTool = btn.dataset.tool;
+                curvePoints = [];
+            });
+        });
+
+        // Color selection
+        document.getElementById('fgColor').addEventListener('input', (e) => {
+            fgColor = e.target.value;
+        });
+
+        document.getElementById('bgColor').addEventListener('input', (e) => {
+            bgColor = e.target.value;
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            saveState();
+        });
+
+        // Line thickness
+        document.getElementById('lineThickness').addEventListener('input', (e) => {
+            lineThickness = e.target.value;
+            document.getElementById('thicknessValue').textContent = lineThickness;
+        });
+
+        // Drawing functions
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+            isDrawing = true;
+
+            if (currentTool === 'pencil' || currentTool === 'eraser') {
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+            }
+
+            if (currentTool === 'text') {
+                const text = prompt('Enter text:');
+                if (text) {
+                    ctx.fillStyle = fgColor;
+                    ctx.font = `${lineThickness * 8}px Arial`;
+                    ctx.fillText(text, startX, startY);
+                    saveState();
+                }
+                isDrawing = false;
+            }
+
+            if (currentTool === 'curve') {
+                curvePoints.push({ x: startX, y: startY });
+                if (curvePoints.length >= 3) {
+                    drawCurve();
+                    curvePoints = [];
+                    saveState();
+                }
+                isDrawing = false;
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isDrawing) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            if (currentTool === 'pencil') {
+                ctx.strokeStyle = fgColor;
+                ctx.lineWidth = lineThickness;
+                ctx.lineCap = 'round';
+                ctx.lineTo(x, y);
+                ctx.stroke();
+            } else if (currentTool === 'eraser') {
+                ctx.strokeStyle = bgColor;
+                ctx.lineWidth = lineThickness * 2;
+                ctx.lineCap = 'round';
+                ctx.lineTo(x, y);
+                ctx.stroke();
+            }
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (!isDrawing) return;
+            isDrawing = false;
+
+            const rect = canvas.getBoundingClientRect();
+            const endX = e.clientX - rect.left;
+            const endY = e.clientY - rect.top;
+
+            ctx.strokeStyle = fgColor;
+            ctx.lineWidth = lineThickness;
+            ctx.lineCap = 'round';
+
+            switch (currentTool) {
+                case 'line':
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    ctx.lineTo(endX, endY);
+                    ctx.stroke();
+                    break;
+
+                case 'circle':
+                    const radius = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+                    ctx.beginPath();
+                    ctx.arc(startX, startY, radius, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    break;
+
+                case 'square':
+                    const size = Math.max(Math.abs(endX - startX), Math.abs(endY - startY));
+                    ctx.strokeRect(startX, startY, size, size);
+                    break;
+
+                case 'rect':
+                    ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+                    break;
+
+                case 'pencil':
+                case 'eraser':
+                    break;
+
+                default:
+                    return;
+            }
+
+            if (currentTool !== 'curve') {
+                saveState();
+            }
+        });
+
+        function drawCurve() {
+            if (curvePoints.length < 3) return;
+
+            ctx.strokeStyle = fgColor;
+            ctx.lineWidth = lineThickness;
+            ctx.beginPath();
+            ctx.moveTo(curvePoints[0].x, curvePoints[0].y);
+
+            for (let i = 1; i < curvePoints.length - 1; i++) {
+                const xc = (curvePoints[i].x + curvePoints[i + 1].x) / 2;
+                const yc = (curvePoints[i].y + curvePoints[i + 1].y) / 2;
+                ctx.quadraticCurveTo(curvePoints[i].x, curvePoints[i].y, xc, yc);
+            }
+
+            ctx.stroke();
+        }
+
+        // Undo/Redo
+        document.getElementById('undoBtn').addEventListener('click', () => {
+            if (historyStep > 0) {
+                historyStep--;
+                restoreState(historyStep);
+            }
+        });
+
+        document.getElementById('redoBtn').addEventListener('click', () => {
+            if (historyStep < history.length - 1) {
+                historyStep++;
+                restoreState(historyStep);
+            }
+        });
+
+        // Clear canvas
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            saveState();
+        });
+
+        // Save as JSON
+        document.getElementById('saveJsonBtn').addEventListener('click', () => {
+            const data = {
+                width: canvas.width,
+                height: canvas.height,
+                image: canvas.toDataURL(),
+                bgColor: bgColor
+            };
+            const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'drawing.json';
+            a.click();
+        });
+
+        // Load JSON
+        document.getElementById('loadJsonBtn').addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const data = JSON.parse(event.target.result);
+                    canvas.width = data.width;
+                    canvas.height = data.height;
+                    bgColor = data.bgColor;
+                    const img = new Image();
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0);
+                        saveState();
+                    };
+                    img.src = data.image;
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // Save as PNG
+        document.getElementById('savePngBtn').addEventListener('click', () => {
+            const a = document.createElement('a');
+            a.href = canvas.toDataURL('image/png');
+            a.download = 'drawing.png';
+            a.click();
+        });
+
+        // Splitter functionality
+        const splitter = document.getElementById('splitter');
+        const leftPanel = document.getElementById('leftPanel');
+        let isResizing = false;
+
+        splitter.addEventListener('mousedown', () => {
+            isResizing = true;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const newWidth = e.clientX;
+            if (newWidth > 200 && newWidth < 500) {
+                leftPanel.style.width = newWidth + 'px';
+                initCanvas();
+                if (historyStep >= 0) {
+                    restoreState(historyStep);
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isResizing = false;
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            const imgData = canvas.toDataURL();
+            initCanvas();
+            const img = new Image();
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = imgData;
+        });
+    </script>
+</body>
+</html>

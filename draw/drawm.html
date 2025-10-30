@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Drawing App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { margin: 0; overflow: hidden; touch-action: none; }
+        .splitter {
+            width: 4px;
+            cursor: col-resize;
+            background: #374151;
+            transition: background 0.2s;
+        }
+        .splitter:hover {
+            background: #4b5563;
+        }
+        canvas {
+            cursor: crosshair;
+            touch-action: none;
+        }
+        canvas.selecting {
+            cursor: crosshair;
+        }
+        canvas.moving {
+            cursor: move;
+        }
+        .selection-box {
+            position: absolute;
+            border: 2px dashed #3b82f6;
+            background: rgba(59, 130, 246, 0.1);
+            pointer-events: none;
+        }
+        .tool-btn {
+            transition: all 0.2s;
+        }
+        .tool-btn:hover {
+            transform: translateY(-2px);
+        }
+        .tool-btn.active {
+            background: #3b82f6;
+            color: white;
+        }
+        /* Mobile styles */
+        @media (max-width: 768px) {
+            #app {
+                flex-direction: column;
+            }
+            #leftPanel {
+                width: 100% !important;
+                max-height: 40vh;
+                overflow-y: auto;
+            }
+            #splitter {
+                display: none;
+            }
+            #rightPanel {
+                flex: 1;
+                padding: 1rem;
+            }
+            .grid {
+                grid-template-columns: repeat(4, 1fr) !important;
+            }
+            .tool-btn {
+                padding: 0.5rem !important;
+                font-size: 0.75rem !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <div id="app" class="flex h-screen">
+        <!-- Left Panel -->
+        <div id="leftPanel" class="bg-gray-800 p-6 overflow-y-auto" style="width: 320px;">
+            <h1 class="text-2xl font-bold mb-6 text-blue-400">Drawing Tools</h1>
+            
+            <!-- Drawing Tools -->
+            <div class="mb-6">
+                <h2 class="text-sm font-semibold mb-3 text-gray-400">TOOLS</h2>
+                <div class="grid grid-cols-3 gap-2">
+                    <button class="tool-btn active px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="line">📏 Line</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="circle">⭕ Circle</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="square">◻️ Square</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="rect">▭ Rectangle</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="curve">〰️ Curve</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="text">✍️ Text</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="pencil">✏️ Pencil</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="eraser">🧹 Eraser</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="select">🔲 Select</button>
+                </div>
+            </div>
+
+            <!-- Selection Actions -->
+            <div id="selectionActions" class="mb-6 hidden">
+                <h2 class="text-sm font-semibold mb-3 text-gray-400">SELECTION</h2>
+                <div class="space-y-2">
+                    <button id="deleteSelectionBtn" class="w-full px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm">🗑️ Delete Selection</button>
+                    <button id="cancelSelectionBtn" class="w-full px-4 py-2 bg-gray-600 hover:bg-gray-700 rounded-lg text-sm">❌ Cancel Selection</button>
+                </div>
+            </div>
+
+            <!-- Colors -->
+            <div class="mb-6">
+                <h2 class="text-sm font-semibold mb-3 text-gray-400">COLORS</h2>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm mb-2">Foreground</label>
+                        <input type="color" id="fgColor" value="#3b82f6" class="w-full h-10 rounded cursor-pointer">
+                    </div>
+                    <div>
+                        <label class="block text-sm mb-2">Background</label>
+                        <input type="color" id="bgColor" value="#1f2937" class="w-full h-10 rounded cursor-pointer">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Line Thickness -->
+            <div class="mb-6">
+                <h2 class="text-sm font-semibold mb-3 text-gray-400">LINE THICKNESS</h2>
+                <input type="range" id="lineThickness" min="1" max="50" value="3" class="w-full">
+                <div class="text-sm text-gray-400 mt-2">Width: <span id="thicknessValue">3</span>px</div>
+            </div>
+
+            <!-- Actions -->
+            <div class="mb-6">
+                <h2 class="text-sm font-semibold mb-3 text-gray-400">ACTIONS</h2>
+                <div class="space-y-2">
+                    <button id="undoBtn" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm">↶ Undo</button>
+                    <button id="redoBtn" class="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm">↷ Redo</button>
+                    <button id="clearBtn" class="w-full px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg text-sm">🗑️ Clear Canvas</button>
+                </div>
+            </div>
+
+            <!-- File Operations -->
+            <div>
+                <h2 class="text-sm font-semibold mb-3 text-gray-400">FILE</h2>
+                <div class="space-y-2">
+                    <button id="saveJsonBtn" class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm">💾 Save as JSON</button>
+                    <button id="loadJsonBtn" class="w-full px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg text-sm">📂 Load JSON</button>
+                    <button id="savePngBtn" class="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm">🖼️ Save as PNG</button>
+                </div>
+                <input type="file" id="fileInput" accept=".json" class="hidden">
+            </div>
+        </div>
+
+        <!-- Splitter -->
+        <div id="splitter" class="splitter"></div>
+
+        <!-- Right Panel (Canvas) -->
+        <div id="rightPanel" class="flex-1 flex items-center justify-center bg-gray-900 p-6">
+            <canvas id="canvas" class="border-2 border-gray-700 rounded-lg shadow-2xl"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        let currentTool = 'line';
+        let isDrawing = false;
+        let startX, startY;
+        let fgColor = '#3b82f6';
+        let bgColor = '#1f2937';
+        let lineThickness = 3;
+        let history = [];
+        let historyStep = -1;
+        let curvePoints = [];
+        let selection = null;
+        let selectedImage = null;
+        let isDragging = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        // Initialize canvas
+        function initCanvas() {
+            const container = document.getElementById('rightPanel');
+            canvas.width = container.clientWidth - 48;
+            canvas.height = container.clientHeight - 48;
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            saveState();
+        }
+
+        initCanvas();
+
+        // Save state for undo/redo
+        function saveState() {
+            historyStep++;
+            if (historyStep < history.length) {
+                history.length = historyStep;
+            }
+            history.push(canvas.toDataURL());
+        }
+
+        function restoreState(step) {
+            const img = new Image();
+            img.src = history[step];
+            img.onload = () => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(img, 0, 0);
+            };
+        }
+
+        // Tool selection
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentTool = btn.dataset.tool;
+                curvePoints = [];
+                cancelSelection();
+            });
+        });
+
+        // Color selection
+        document.getElementById('fgColor').addEventListener('input', (e) => {
+            fgColor = e.target.value;
+        });
+
+        document.getElementById('bgColor').addEventListener('input', (e) => {
+            bgColor = e.target.value;
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            saveState();
+        });
+
+        // Line thickness
+        document.getElementById('lineThickness').addEventListener('input', (e) => {
+            lineThickness = e.target.value;
+            document.getElementById('thicknessValue').textContent = lineThickness;
+        });
+
+        // Drawing functions
+        function getCoordinates(e) {
+            const rect = canvas.getBoundingClientRect();
+            const touch = e.touches ? e.touches[0] : e;
+            return {
+                x: touch.clientX - rect.left,
+                y: touch.clientY - rect.top
+            };
+        }
+
+        function handleStart(e) {
+            e.preventDefault();
+            const coords = getCoordinates(e);
+            startX = coords.x;
+            startY = coords.y;
+            isDrawing = true;
+
+            // Handle selection tool
+            if (currentTool === 'select') {
+                if (selection && isPointInSelection(startX, startY)) {
+                    // Start dragging
+                    isDragging = true;
+                    dragOffsetX = startX - selection.x;
+                    dragOffsetY = startY - selection.y;
+                    canvas.classList.add('moving');
+                } else {
+                    // Start new selection
+                    cancelSelection();
+                }
+                return;
+            }
+
+            if (currentTool === 'pencil' || currentTool === 'eraser') {
+                ctx.beginPath();
+                ctx.moveTo(startX, startY);
+            }
+
+            if (currentTool === 'text') {
+                const text = prompt('Enter text:');
+                if (text) {
+                    ctx.fillStyle = fgColor;
+                    ctx.font = `${lineThickness * 8}px Arial`;
+                    ctx.fillText(text, startX, startY);
+                    saveState();
+                }
+                isDrawing = false;
+            }
+
+            if (currentTool === 'curve') {
+                curvePoints.push({ x: startX, y: startY });
+                if (curvePoints.length >= 3) {
+                    drawCurve();
+                    curvePoints = [];
+                    saveState();
+                }
+                isDrawing = false;
+            }
+        }
+
+        canvas.addEventListener('mousedown', handleStart);
+        canvas.addEventListener('touchstart', handleStart);
+
+        function handleMove(e) {
+            e.preventDefault();
+            const coords = getCoordinates(e);
+            const x = coords.x;
+            const y = coords.y;
+
+            // Handle selection dragging
+            if (currentTool === 'select' && isDragging) {
+                moveSelection(x - dragOffsetX, y - dragOffsetY);
+                return;
+            }
+
+            if (!isDrawing) return;
+
+            // Draw selection rectangle
+            if (currentTool === 'select') {
+                drawSelectionRect(startX, startY, x, y);
+                return;
+            }
+
+            if (currentTool === 'pencil') {
+                ctx.strokeStyle = fgColor;
+                ctx.lineWidth = lineThickness;
+                ctx.lineCap = 'round';
+                ctx.lineTo(x, y);
+                ctx.stroke();
+            } else if (currentTool === 'eraser') {
+                ctx.strokeStyle = bgColor;
+                ctx.lineWidth = lineThickness * 2;
+                ctx.lineCap = 'round';
+                ctx.lineTo(x, y);
+                ctx.stroke();
+            }
+        }
+
+        canvas.addEventListener('mousemove', handleMove);
+        canvas.addEventListener('touchmove', handleMove);
+
+        function handleEnd(e) {
+            e.preventDefault();
+            if (currentTool === 'select' && isDragging) {
+                isDragging = false;
+                canvas.classList.remove('moving');
+                commitSelection();
+                return;
+            }
+
+            if (!isDrawing) return;
+            isDrawing = false;
+
+            const coords = getCoordinates(e.changedTouches ? e.changedTouches[0] : e);
+            const endX = coords.x;
+            const endY = coords.y;
+
+            // Finalize selection
+            if (currentTool === 'select') {
+                createSelection(startX, startY, endX, endY);
+                return;
+            }
+
+            ctx.strokeStyle = fgColor;
+            ctx.lineWidth = lineThickness;
+            ctx.lineCap = 'round';
+
+            switch (currentTool) {
+                case 'line':
+                    ctx.beginPath();
+                    ctx.moveTo(startX, startY);
+                    ctx.lineTo(endX, endY);
+                    ctx.stroke();
+                    break;
+
+                case 'circle':
+                    const radius = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+                    ctx.beginPath();
+                    ctx.arc(startX, startY, radius, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    break;
+
+                case 'square':
+                    const size = Math.max(Math.abs(endX - startX), Math.abs(endY - startY));
+                    ctx.strokeRect(startX, startY, size, size);
+                    break;
+
+                case 'rect':
+                    ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+                    break;
+
+                case 'pencil':
+                case 'eraser':
+                    break;
+
+                default:
+                    return;
+            }
+
+            if (currentTool !== 'curve') {
+                saveState();
+            }
+        }
+
+        canvas.addEventListener('mouseup', handleEnd);
+        canvas.addEventListener('touchend', handleEnd);
+
+        function drawCurve() {
+            if (curvePoints.length < 3) return;
+
+            ctx.strokeStyle = fgColor;
+            ctx.lineWidth = lineThickness;
+            ctx.beginPath();
+            ctx.moveTo(curvePoints[0].x, curvePoints[0].y);
+
+            for (let i = 1; i < curvePoints.length - 1; i++) {
+                const xc = (curvePoints[i].x + curvePoints[i + 1].x) / 2;
+                const yc = (curvePoints[i].y + curvePoints[i + 1].y) / 2;
+                ctx.quadraticCurveTo(curvePoints[i].x, curvePoints[i].y, xc, yc);
+            }
+
+            ctx.stroke();
+        }
+
+        // Selection functions
+        function isPointInSelection(x, y) {
+            if (!selection) return false;
+            return x >= selection.x && x <= selection.x + selection.width &&
+                   y >= selection.y && y <= selection.y + selection.height;
+        }
+
+        function createSelection(x1, y1, x2, y2) {
+            const x = Math.min(x1, x2);
+            const y = Math.min(y1, y2);
+            const width = Math.abs(x2 - x1);
+            const height = Math.abs(y2 - y1);
+
+            if (width < 5 || height < 5) return;
+
+            selection = { x, y, width, height };
+            
+            // Capture selected area
+            selectedImage = ctx.getImageData(x, y, width, height);
+            
+            // Draw selection border
+            drawSelectionBorder();
+            
+            // Show selection actions
+            document.getElementById('selectionActions').classList.remove('hidden');
+        }
+
+        function drawSelectionRect(x1, y1, x2, y2) {
+            // Redraw canvas from history
+            if (historyStep >= 0) {
+                const img = new Image();
+                img.src = history[historyStep];
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0);
+                    
+                    // Draw selection rectangle
+                    ctx.strokeStyle = '#3b82f6';
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([5, 5]);
+                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                    ctx.setLineDash([]);
+                };
+            }
+        }
+
+        function drawSelectionBorder() {
+            if (!selection) return;
+            
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.strokeRect(selection.x, selection.y, selection.width, selection.height);
+            ctx.setLineDash([]);
+        }
+
+        function moveSelection(newX, newY) {
+            if (!selection || !selectedImage) return;
+
+            // Restore canvas
+            if (historyStep >= 0) {
+                const img = new Image();
+                img.src = history[historyStep];
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0);
+                    
+                    // Draw moved selection
+                    ctx.putImageData(selectedImage, newX, newY);
+                    
+                    // Update selection position
+                    selection.x = newX;
+                    selection.y = newY;
+                    
+                    // Draw border
+                    drawSelectionBorder();
+                };
+            }
+        }
+
+        function commitSelection() {
+            if (!selection || !selectedImage) return;
+            
+            // Clear original area
+            if (historyStep >= 0) {
+                const img = new Image();
+                img.src = history[historyStep];
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0);
+                    ctx.putImageData(selectedImage, selection.x, selection.y);
+                    saveState();
+                    
+                    // Redraw selection border
+                    drawSelectionBorder();
+                };
+            }
+        }
+
+        function cancelSelection() {
+            if (selection && selectedImage) {
+                // Restore to state before selection
+                if (historyStep >= 0) {
+                    const img = new Image();
+                    img.src = history[historyStep];
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0);
+                    };
+                }
+            }
+            
+            selection = null;
+            selectedImage = null;
+            isDragging = false;
+            canvas.classList.remove('moving');
+            document.getElementById('selectionActions').classList.add('hidden');
+        }
+
+        function deleteSelection() {
+            if (!selection) return;
+            
+            // Fill selection with background color
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(selection.x, selection.y, selection.width, selection.height);
+            
+            saveState();
+            cancelSelection();
+        }
+
+        // Selection action buttons
+        document.getElementById('deleteSelectionBtn').addEventListener('click', deleteSelection);
+        document.getElementById('cancelSelectionBtn').addEventListener('click', cancelSelection);
+
+        // Undo/Redo
+        document.getElementById('undoBtn').addEventListener('click', () => {
+            if (historyStep > 0) {
+                historyStep--;
+                restoreState(historyStep);
+            }
+        });
+
+        document.getElementById('redoBtn').addEventListener('click', () => {
+            if (historyStep < history.length - 1) {
+                historyStep++;
+                restoreState(historyStep);
+            }
+        });
+
+        // Clear canvas
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            ctx.fillStyle = bgColor;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            saveState();
+        });
+
+        // Save as JSON
+        document.getElementById('saveJsonBtn').addEventListener('click', () => {
+            const data = {
+                width: canvas.width,
+                height: canvas.height,
+                image: canvas.toDataURL(),
+                bgColor: bgColor
+            };
+            const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'drawing.json';
+            a.click();
+        });
+
+        // Load JSON
+        document.getElementById('loadJsonBtn').addEventListener('click', () => {
+            document.getElementById('fileInput').click();
+        });
+
+        document.getElementById('fileInput').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const data = JSON.parse(event.target.result);
+                    canvas.width = data.width;
+                    canvas.height = data.height;
+                    bgColor = data.bgColor;
+                    const img = new Image();
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0);
+                        saveState();
+                    };
+                    img.src = data.image;
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        // Save as PNG
+        document.getElementById('savePngBtn').addEventListener('click', () => {
+            const a = document.createElement('a');
+            a.href = canvas.toDataURL('image/png');
+            a.download = 'drawing.png';
+            a.click();
+        });
+
+        // Splitter functionality
+        const splitter = document.getElementById('splitter');
+        const leftPanel = document.getElementById('leftPanel');
+        let isResizing = false;
+
+        splitter.addEventListener('mousedown', () => {
+            isResizing = true;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const newWidth = e.clientX;
+            if (newWidth > 200 && newWidth < 500) {
+                leftPanel.style.width = newWidth + 'px';
+                initCanvas();
+                if (historyStep >= 0) {
+                    restoreState(historyStep);
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isResizing = false;
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            const imgData = canvas.toDataURL();
+            initCanvas();
+            const img = new Image();
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0);
+            };
+            img.src = imgData;
+        });
+    </script>
+</body>
+</html>
