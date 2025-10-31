@@ -2,12 +2,12 @@
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Drawing App</title>
       <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { margin: 0; overflow: hidden; }
+        body { margin: 0; overflow: hidden; touch-action: none; }
         .splitter {
             width: 4px;
             cursor: col-resize;
@@ -19,6 +19,7 @@
         }
         canvas {
             cursor: crosshair;
+            touch-action: none;
         }
         canvas.selecting {
             cursor: crosshair;
@@ -42,6 +43,31 @@
             background: #3b82f6;
             color: white;
         }
+        /* Mobile styles */
+        @media (max-width: 768px) {
+            #app {
+                flex-direction: column;
+            }
+            #leftPanel {
+                width: 100% !important;
+                max-height: 40vh;
+                overflow-y: auto;
+            }
+            #splitter {
+                display: none;
+            }
+            #rightPanel {
+                flex: 1;
+                padding: 1rem;
+            }
+            .grid {
+                grid-template-columns: repeat(4, 1fr) !important;
+            }
+            .tool-btn {
+                padding: 0.5rem !important;
+                font-size: 0.75rem !important;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-white">
@@ -54,12 +80,13 @@
             <div class="mb-6">
                 <h2 class="text-sm font-semibold mb-3 text-gray-400">TOOLS</h2>
                 <div class="grid grid-cols-3 gap-2">
-                    <button class="tool-btn active px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="line">📏 Line</button>
+                    <button class="tool-btn active px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="freehand">✍️ Freehand</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="line">📏 Line</button>
                     <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="circle">⭕ Circle</button>
                     <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="square">◻️ Square</button>
                     <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="rect">▭ Rectangle</button>
                     <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="curve">〰️ Curve</button>
-                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="text">✍️ Text</button>
+                    <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="text">📝 Text</button>
                     <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="pencil">✏️ Pencil</button>
                     <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="eraser">🧹 Eraser</button>
                     <button class="tool-btn px-4 py-3 bg-gray-700 rounded-lg text-sm" data-tool="select">🔲 Select</button>
@@ -131,7 +158,7 @@
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        let currentTool = 'line';
+        let currentTool = 'freehand';
         let isDrawing = false;
         let startX, startY;
         let fgColor = '#3b82f6';
@@ -145,6 +172,7 @@
         let isDragging = false;
         let dragOffsetX = 0;
         let dragOffsetY = 0;
+        let freehandPoints = [];
 
         // Initialize canvas
         function initCanvas() {
@@ -206,10 +234,20 @@
         });
 
         // Drawing functions
-        canvas.addEventListener('mousedown', (e) => {
+        function getCoordinates(e) {
             const rect = canvas.getBoundingClientRect();
-            startX = e.clientX - rect.left;
-            startY = e.clientY - rect.top;
+            const touch = e.touches ? e.touches[0] : e;
+            return {
+                x: touch.clientX - rect.left,
+                y: touch.clientY - rect.top
+            };
+        }
+
+        function handleStart(e) {
+            e.preventDefault();
+            const coords = getCoordinates(e);
+            startX = coords.x;
+            startY = coords.y;
             isDrawing = true;
 
             // Handle selection tool
@@ -225,6 +263,11 @@
                     cancelSelection();
                 }
                 return;
+            }
+
+            if (currentTool === 'freehand') {
+                freehandPoints = [];
+                freehandPoints.push({ x: startX, y: startY });
             }
 
             if (currentTool === 'pencil' || currentTool === 'eraser') {
@@ -252,12 +295,16 @@
                 }
                 isDrawing = false;
             }
-        });
+        }
 
-        canvas.addEventListener('mousemove', (e) => {
-            const rect = canvas.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
+        canvas.addEventListener('mousedown', handleStart);
+        canvas.addEventListener('touchstart', handleStart);
+
+        function handleMove(e) {
+            e.preventDefault();
+            const coords = getCoordinates(e);
+            const x = coords.x;
+            const y = coords.y;
 
             // Handle selection dragging
             if (currentTool === 'select' && isDragging) {
@@ -273,6 +320,11 @@
                 return;
             }
 
+            if (currentTool === 'freehand') {
+                freehandPoints.push({ x, y });
+                drawSmoothCurve();
+            }
+
             if (currentTool === 'pencil') {
                 ctx.strokeStyle = fgColor;
                 ctx.lineWidth = lineThickness;
@@ -286,9 +338,13 @@
                 ctx.lineTo(x, y);
                 ctx.stroke();
             }
-        });
+        }
 
-        canvas.addEventListener('mouseup', (e) => {
+        canvas.addEventListener('mousemove', handleMove);
+        canvas.addEventListener('touchmove', handleMove);
+
+        function handleEnd(e) {
+            e.preventDefault();
             if (currentTool === 'select' && isDragging) {
                 isDragging = false;
                 canvas.classList.remove('moving');
@@ -299,9 +355,9 @@
             if (!isDrawing) return;
             isDrawing = false;
 
-            const rect = canvas.getBoundingClientRect();
-            const endX = e.clientX - rect.left;
-            const endY = e.clientY - rect.top;
+            const coords = getCoordinates(e.changedTouches ? e.changedTouches[0] : e);
+            const endX = coords.x;
+            const endY = coords.y;
 
             // Finalize selection
             if (currentTool === 'select') {
@@ -339,6 +395,7 @@
 
                 case 'pencil':
                 case 'eraser':
+                case 'freehand':
                     break;
 
                 default:
@@ -348,7 +405,42 @@
             if (currentTool !== 'curve') {
                 saveState();
             }
-        });
+
+            // Reset freehand points
+            freehandPoints = [];
+        }
+
+        canvas.addEventListener('mouseup', handleEnd);
+        canvas.addEventListener('touchend', handleEnd);
+
+        function drawSmoothCurve() {
+            if (freehandPoints.length < 2) return;
+
+            ctx.strokeStyle = fgColor;
+            ctx.lineWidth = lineThickness;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+
+            // Move to first point
+            ctx.moveTo(freehandPoints[0].x, freehandPoints[0].y);
+
+            // Use quadratic curves for smooth drawing
+            for (let i = 1; i < freehandPoints.length - 1; i++) {
+                const xc = (freehandPoints[i].x + freehandPoints[i + 1].x) / 2;
+                const yc = (freehandPoints[i].y + freehandPoints[i + 1].y) / 2;
+                ctx.quadraticCurveTo(freehandPoints[i].x, freehandPoints[i].y, xc, yc);
+            }
+
+            // Draw to last point
+            if (freehandPoints.length > 1) {
+                const lastPoint = freehandPoints[freehandPoints.length - 1];
+                const prevPoint = freehandPoints[freehandPoints.length - 2];
+                ctx.quadraticCurveTo(prevPoint.x, prevPoint.y, lastPoint.x, lastPoint.y);
+            }
+
+            ctx.stroke();
+        }
 
         function drawCurve() {
             if (curvePoints.length < 3) return;
