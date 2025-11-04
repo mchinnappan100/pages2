@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en" class="min-h-screen">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>NPM Packages</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .sortable { cursor: pointer; user-select: none; }
+    .sort-indicator { width: 1rem; display: inline-block; }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen">
+  <div class="max-w-6xl mx-auto p-6">
+    <header class="flex items-center justify-between gap-4">
+      <div>
+        <h1 id="title" class="text-2xl font-bold">📦 NPM Packages</h1>
+        <p class="text-sm text-gray-600 dark:text-gray-300">Search, sort, paginate, and export CSV</p>
+      </div>
+      <div class="flex gap-3 items-center">
+        <label class="flex items-center gap-2 text-sm">
+          <input id="darkToggle" type="checkbox" class="h-4 w-4"/> Dark mode
+        </label>
+        <button id="exportCsvBtn" class="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-500">Export CSV</button>
+      </div>
+    </header>
+
+    <section class="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+      <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <input id="searchInput" type="search" placeholder="Search by name or description..." class="px-3 py-2 rounded border w-72 bg-transparent focus:outline-none" />
+          <select id="pageSize" class="px-2 py-1 rounded border bg-transparent text-sm">
+            <option value="5">5 / page</option>
+            <option value="10" selected>10 / page</option>
+            <option value="25">25 / page</option>
+          </select>
+        </div>
+        <div class="text-sm text-gray-600 dark:text-gray-300">Showing <span id="shownCount">0</span> of <strong id="totalCount">0</strong></div>
+      </div>
+
+      <div class="mt-4 overflow-x-auto">
+        <table id="pkgTable" class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead class="bg-gray-100 dark:bg-gray-700 sticky top-0">
+            <tr>
+              <th class="px-4 py-2 text-left sortable" data-col="name">Name <span id="si-name" class="sort-indicator"></span></th>
+              <th class="px-4 py-2 text-left sortable" data-col="version">Version <span id="si-version" class="sort-indicator"></span></th>
+              <th class="px-4 py-2 text-left sortable" data-col="description">Description <span id="si-description" class="sort-indicator"></span></th>
+              <th class="px-4 py-2 text-left sortable" data-col="date">Published <span id="si-date" class="sort-indicator"></span></th>
+              <th class="px-4 py-2">Link</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <nav class="mt-4 flex items-center justify-between">
+        <div>
+          <button id="prevPage" class="px-3 py-1 rounded border text-sm mr-2">Prev</button>
+          <button id="nextPage" class="px-3 py-1 rounded border text-sm">Next</button>
+        </div>
+        <div class="text-sm">Page <span id="currentPage">1</span> / <span id="pageCount">1</span></div>
+      </nav>
+    </section>
+  </div>
+
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const publisher = urlParams.get("u");
+    const titleEl = document.getElementById("title");
+    const tableBody = document.getElementById("tableBody");
+    const searchInput = document.getElementById("searchInput");
+    const shownCount = document.getElementById("shownCount");
+    const totalCount = document.getElementById("totalCount");
+    const pageSizeEl = document.getElementById("pageSize");
+    const prevPageBtn = document.getElementById("prevPage");
+    const nextPageBtn = document.getElementById("nextPage");
+    const currentPageEl = document.getElementById("currentPage");
+    const pageCountEl = document.getElementById("pageCount");
+    const exportCsvBtn = document.getElementById("exportCsvBtn");
+    const darkToggle = document.getElementById("darkToggle");
+
+    let packages = [];
+    let state = { query: "", sortBy: null, sortDir: 1, page: 1, pageSize: 10 };
+
+    if (!publisher) {
+      tableBody.innerHTML = '<tr><td colspan="5" class="px-4 py-8 text-center text-red-500">❌ Add ?u=publisher to the URL</td></tr>';
+      throw new Error("Missing publisher name");
+    }
+
+    titleEl.textContent = `📦 NPM Packages — ${publisher}`;
+
+    async function fetchData() {
+      const url = `https://registry.npmjs.org/-/v1/search?text=maintainer:${encodeURIComponent(publisher)}&size=250`;
+      const res = await fetch(url);
+      const data = await res.json();
+      packages = data.objects.map(obj => ({
+        name: obj.package.name,
+        version: obj.package.version,
+        description: obj.package.description || "",
+        link: obj.package.links.npm,
+        date: obj.package.date
+      }));
+      totalCount.textContent = packages.length;
+      render();
+    }
+
+    function filterAndSort() {
+      const q = state.query.toLowerCase();
+      let filtered = packages.filter(p =>
+        p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q)
+      );
+      if (state.sortBy) {
+        filtered.sort((a, b) => {
+          const aVal = state.sortBy === "date" ? new Date(a.date) : a[state.sortBy].toLowerCase();
+          const bVal = state.sortBy === "date" ? new Date(b.date) : b[state.sortBy].toLowerCase();
+          if (aVal < bVal) return -state.sortDir;
+          if (aVal > bVal) return state.sortDir;
+          return 0;
+        });
+      }
+      return filtered;
+    }
+
+    function render() {
+      const filtered = filterAndSort();
+      const total = filtered.length;
+      const pageCount = Math.ceil(total / state.pageSize);
+      state.page = Math.min(state.page, pageCount || 1);
+      currentPageEl.textContent = state.page;
+      pageCountEl.textContent = pageCount;
+      const start = (state.page - 1) * state.pageSize;
+      const end = start + state.pageSize;
+      const pageItems = filtered.slice(start, end);
+      shownCount.textContent = pageItems.length;
+      tableBody.innerHTML = pageItems
+        .map(p => `
+          <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+            <td class="px-4 py-3"><a href="${p.link}" target="_blank" class="underline">${p.name}</a></td>
+            <td class="px-4 py-3">${p.version}</td>
+            <td class="px-4 py-3">${p.description}</td>
+            <td class="px-4 py-3">${new Date(p.date).toLocaleDateString()}</td>
+            <td class="px-4 py-3"><a href="${p.link}" target="_blank" class="text-sm">View</a></td>
+          </tr>`).join("") || `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No results</td></tr>`;
+    }
+
+    searchInput.addEventListener("input", e => {
+      state.query = e.target.value;
+      state.page = 1;
+      render();
+    });
+
+    pageSizeEl.addEventListener("change", e => {
+      state.pageSize = parseInt(e.target.value);
+      state.page = 1;
+      render();
+    });
+
+    prevPageBtn.addEventListener("click", () => {
+      if (state.page > 1) { state.page--; render(); }
+    });
+
+    nextPageBtn.addEventListener("click", () => {
+      const filtered = filterAndSort();
+      const pageCount = Math.ceil(filtered.length / state.pageSize);
+      if (state.page < pageCount) { state.page++; render(); }
+    });
+
+    document.querySelectorAll(".sortable").forEach(th => {
+      th.addEventListener("click", () => {
+        const col = th.dataset.col;
+        if (state.sortBy === col) state.sortDir = -state.sortDir;
+        else { state.sortBy = col; state.sortDir = 1; }
+        document.querySelectorAll(".sort-indicator").forEach(el => el.textContent = "");
+        document.getElementById(`si-${col}`).textContent = state.sortDir === 1 ? "▲" : "▼";
+        render();
+      });
+    });
+
+    exportCsvBtn.addEventListener("click", () => {
+      const filtered = filterAndSort();
+      const csv = ["name,version,description,date,link"]
+        .concat(filtered.map(p => `"${p.name}","${p.version}","${p.description.replace(/"/g,'""')}","${p.date}","${p.link}"`))
+        .join("\n");
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${publisher}_packages.csv`;
+      a.click();
+    });
+
+    darkToggle.addEventListener("change", e => {
+      document.documentElement.classList.toggle("dark", e.target.checked);
+    });
+
+    fetchData();
+  </script>
+</body>
+</html>
