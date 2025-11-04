@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en" class="h-full dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>💰 Finance Intro App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #splitter {
+      width: 6px;
+      background: #374151;
+      cursor: col-resize;
+    }
+    #leftPane { width: 30%; min-width: 200px; overflow-y: auto; }
+    #rightPane { flex: 1; overflow-y: auto; }
+    pre { background: #1f2937; color: #d1d5db; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans flex h-full">
+  <!-- Left Pane -->
+  <div id="leftPane" class="border-r border-gray-700 p-4">
+    <h1 class="text-xl font-bold mb-3">📘 Finance Terms</h1>
+    <input id="searchInput" type="text" placeholder="🔍 Search term..." class="w-full mb-3 px-2 py-1 rounded bg-gray-800 border border-gray-700 focus:outline-none focus:ring" />
+    <ul id="termList" class="space-y-1"></ul>
+  </div>
+
+  <!-- Splitter -->
+  <div id="splitter"></div>
+
+  <!-- Right Pane -->
+  <div id="rightPane" class="p-6">
+    <h1 id="termTitle" class="text-2xl font-bold mb-2">Welcome to Finance 101 💰</h1>
+    <p id="termDefinition" class="mb-4 text-gray-300">Select a term from the left to learn about it.</p>
+    <p id="termExample" class="mb-4 text-gray-400 italic"></p>
+    <pre id="termCode" class="hidden"></pre>
+    <button id="downloadBtn" class="hidden mt-4 px-3 py-1 bg-blue-600 hover:bg-blue-500 rounded text-white text-sm">⬇️ Download Term Info</button>
+  </div>
+
+  <script>
+    let terms = [];
+
+    async function loadTerms() {
+      try {
+        const res = await fetch('fin.json');
+        if (!res.ok) throw new Error("Failed to load fin.json");
+        terms = await res.json();
+        renderList();
+      } catch (err) {
+        document.getElementById("termList").innerHTML =
+          `<li class="text-red-400">⚠️ Error loading fin.json: ${err.message}</li>`;
+      }
+    }
+
+    // Populate term list
+    const termList = document.getElementById("termList");
+    function renderList(filter = "") {
+      termList.innerHTML = terms
+        .filter(t => t.name.toLowerCase().includes(filter.toLowerCase()))
+        .map(t => `<li><button class="w-full text-left px-2 py-1 rounded hover:bg-gray-700" data-name="${t.name}">${t.name}</button></li>`)
+        .join("");
+    }
+
+    // Search box
+    document.getElementById("searchInput").addEventListener("input", e => renderList(e.target.value));
+
+    // Handle selection
+    termList.addEventListener("click", e => {
+      if (!e.target.dataset.name) return;
+      const term = terms.find(t => t.name === e.target.dataset.name);
+      showTerm(term);
+    });
+
+    function showTerm(term) {
+      document.getElementById("termTitle").textContent = `💡 ${term.name}`;
+      document.getElementById("termDefinition").textContent = term.def;
+      document.getElementById("termExample").textContent = term.example;
+      const codeEl = document.getElementById("termCode");
+      codeEl.textContent = term.code || "";
+      codeEl.classList.toggle("hidden", !term.code);
+      const btn = document.getElementById("downloadBtn");
+      btn.classList.remove("hidden");
+      btn.onclick = () => downloadTerm(term);
+    }
+
+    function downloadTerm(term) {
+      const content = `# ${term.name}\n\n**Definition:** ${term.def}\n\n**Example:** ${term.example}\n\n**Python Code:**\n\`\`\`python\n${term.code}\n\`\`\``;
+      const blob = new Blob([content], { type: "text/markdown" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${term.name}.md`;
+      a.click();
+    }
+
+    // Splitter behavior
+    const left = document.getElementById("leftPane");
+    const splitter = document.getElementById("splitter");
+    let isResizing = false;
+
+    splitter.addEventListener("mousedown", () => isResizing = true);
+    window.addEventListener("mousemove", e => {
+      if (!isResizing) return;
+      left.style.width = e.clientX + "px";
+    });
+    window.addEventListener("mouseup", () => isResizing = false);
+
+    // Init
+    loadTerms();
+  </script>
+</body>
+</html>
