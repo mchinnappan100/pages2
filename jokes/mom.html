@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en" class="min-h-screen">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mom Jokes — Data Viz</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html,body { height: 100% }
+    #splitter { width: 6px; background: rgba(100,116,139,0.35); cursor: col-resize; }
+    .sortable { cursor: pointer; user-select: none; }
+    .sort-indicator { width: 1rem; display: inline-block; }
+    pre.code { background: #0b1220; color: #d1d5db; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+  <div class="max-w-7xl mx-auto h-screen flex flex-col">
+    <header class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
+      <div class="flex items-center gap-4">
+        <h1 class="text-lg font-semibold">🤣 Mom Jokes — Data Viz</h1>
+        <p class="text-sm text-gray-600 dark:text-gray-300">Search • Sort • Paginate • Export</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <label class="flex items-center gap-2 text-sm">
+          <input id="darkToggle" type="checkbox" class="h-4 w-4" />
+          Dark
+        </label>
+        <button id="exportCsvBtn" class="px-3 py-1 rounded bg-blue-600 text-white text-sm hover:bg-blue-500">Export CSV</button>
+        <button id="downloadAllBtn" class="px-3 py-1 rounded border text-sm">Download JSON</button>
+      </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+      <!-- LEFT PANE -->
+      <aside id="leftPane" class="w-1/3 min-w-[240px] bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 p-4 overflow-auto">
+        <div class="mb-3">
+          <input id="searchInput" type="search" placeholder="Search name or joke..." class="w-full px-3 py-2 rounded bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 focus:outline-none" />
+        </div>
+
+        <div class="flex items-center gap-2 mb-3">
+          <select id="sortCol" class="px-2 py-1 bg-transparent border rounded text-sm">
+            <option value="name">Sort: Name</option>
+            <option value="joke">Sort: Joke</option>
+          </select>
+          <button id="sortDirBtn" class="px-2 py-1 rounded border text-sm">▲</button>
+          <select id="pageSize" class="ml-auto px-2 py-1 bg-transparent border rounded text-sm">
+            <option value="5">5 / page</option>
+            <option value="10" selected>10 / page</option>
+            <option value="25">25 / page</option>
+            <option value="50">50 / page</option>
+          </select>
+        </div>
+
+        <ul id="list" class="space-y-1"></ul>
+
+        <nav class="mt-4 flex items-center justify-between text-sm">
+          <div class="flex items-center gap-2">
+            <button id="prevBtn" class="px-3 py-1 rounded border">Prev</button>
+            <button id="nextBtn" class="px-3 py-1 rounded border">Next</button>
+          </div>
+          <div>Page <span id="currentPage">1</span> / <span id="pageCount">1</span></div>
+        </nav>
+
+        <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">Showing <span id="shownCount">0</span> / <span id="totalCount">0</span></p>
+      </aside>
+
+      <!-- SPLITTER -->
+      <div id="splitter" title="Drag to resize"></div>
+
+      <!-- RIGHT PANE -->
+      <main id="rightPane" class="flex-1 p-6 overflow-auto bg-white dark:bg-gray-900">
+        <div id="detailEmpty" class="text-gray-600 dark:text-gray-300">
+          <h2 class="text-2xl font-bold mb-2">Select a joke from left</h2>
+          <p class="mb-4">You can view details here, copy, or download a single joke.</p>
+        </div>
+
+        <section id="detail" class="hidden">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <h2 id="detailName" class="text-2xl font-bold"></h2>
+              <p id="detailId" class="text-xs text-gray-500 dark:text-gray-400 mt-1"></p>
+            </div>
+            <div class="flex gap-2">
+              <button id="copyBtn" class="px-3 py-1 rounded border text-sm">Copy</button>
+              <button id="downloadBtn" class="px-3 py-1 rounded bg-green-600 text-white text-sm hover:bg-green-500">Download</button>
+            </div>
+          </div>
+
+          <div class="mt-4">
+            <h3 class="text-sm text-gray-500 dark:text-gray-400">Joke</h3>
+            <p id="detailJoke" class="mt-2 text-lg"></p>
+          </div>
+
+          <div class="mt-6">
+            <h3 class="text-sm text-gray-500 dark:text-gray-400">Example / Usage</h3>
+            <p id="detailExample" class="mt-2 text-sm italic text-gray-600 dark:text-gray-300">—</p>
+          </div>
+
+          <div class="mt-6">
+            <h3 class="text-sm text-gray-500 dark:text-gray-400">Raw</h3>
+            <pre id="detailRaw" class="code mt-2 text-sm"></pre>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Embedded CSV source (the Mom Jokes sample you asked for)
+    const csvData = `id,name,joke
+001a2b3c-4d5e-678f-9012-abcdef123456,Super Mom,Why did the mom bring a ladder to the store? Because prices were through the roof!
+00f2e3d4-5678-49ab-8cde-abcdef987654,Mother Nature,Why did the mom plant light bulbs? She wanted to grow power plants!
+0123abcd-ef45-6789-abcd-987654321000,Mom Logic,If at first you don’t succeed, do it the way Mom told you to in the first place.
+0234bcde-7890-4fab-cdef-654321098765,Spice Rack,Why did Mom bring pepper spray to the grocery store? She heard there might be some "chili" customers.
+0345cdef-8901-5abc-def0-543210987654,Breakfast Boss,Why did Mom sit on the pancake? She wanted a balanced breakfast.
+0456def0-9012-6bcd-ef01-432109876543,Laundry Day,Why did the mom sit next to the washing machine? She wanted to keep things spin-teresting.
+0567ef01-0123-7cde-f012-321098765432,Mom Math,Why do moms make great calculators? Because they can count on themselves.
+0678f012-1234-8def-0123-210987654321,Quiet Time,Why did Mom cross the playground quietly? To get to the other “slide” of peace.
+0789f123-2345-9ef0-1234-109876543210,Motherboard,Why did the computer call its mom? It had a bad connection.
+0890f234-3456-a0f1-2345-098765432109,Coffee Queen,Why do moms love coffee so much? Because it’s “mug-nificent”.
+0991f345-4567-b1f2-3456-187654321098,Mom Jokes 101,Why did Mom go to school? To improve her "parent-thesis".
+0aa2f456-5678-c2f3-4567-276543210987,Snack Inspector,Why did Mom hide in the cupboard? To see if the cookies were up to "snuff".
+0bb3f567-6789-d3f4-5678-365432109876,WiFi Whisperer,Why do moms never lose signal? Because they always find a better connection.
+0cc4f678-7890-e4f5-6789-454321098765,Master Chef,Why did Mom bring string to the dinner table? To tie up loose ends.
+0dd5f789-8901-f5f6-7890-543210987654,Time Traveler,Why do moms love early mornings? Because it’s their time machine for peace and quiet.
+0ee6f890-9012-a6f7-8901-632109876543,Supervision,Why do moms wear sunglasses in the kitchen? Because their future meals are so bright.
+0ff7f901-0123-b7f8-9012-721098765432,Homework Hero,Why did the mom carry a pencil everywhere? She always wanted to draw attention.
+1008fa12-1234-c8f9-0123-810987654321,Healthy Mom,Why did Mom go on a diet of music? She wanted a better “tone”.
+1119fb23-2345-d9fa-1234-909876543210,Bedtime Story,Why did the mom take her kids to the library? Because she wanted to check out for a bit.
+122afb34-3456-eafb-2345-998765432109,Multitasker,Moms don’t need superheroes — they just call themselves in three directions at once.
+133bfc45-4567-fb0c-3456-887654321098,Kind Reminder,Why did Mom bring a broom to the meeting? To sweep everyone off their feet.
+144cfd56-5678-ac1d-4567-776543210987,Sunday Rest,What’s a mom’s favorite day of the week? Any day that starts with coffee and ends with sleep.
+155dfe67-6789-bd2e-5678-665432109876,Memory Lane,Why did Mom never lose at trivia? Because she remembers everything you ever did wrong.
+166eff78-7890-ce3f-6789-554321098765,Tech Savvy,Why did Mom start coding? Because she wanted to debug life.
+177f0089-8901-df40-7890-443210987654,Mom’s GPS,Why don’t moms need maps? Because they already know where you’ve been.
+1880019a-9012-e041-8901-332109876543,Love Language,Why did the mom become a translator? Because she speaks fluent “eye roll”.`;
+
+    // Parse CSV to objects (simple parser for this known format)
+    function parseCSV(csv) {
+      const lines = csv.split(/\r?\n/).filter(Boolean);
+      const headers = lines.shift().split(',').map(h => h.trim());
+      return lines.map(line => {
+        // split only first two commas so joke can contain commas
+        const parts = line.split(',');
+        const id = parts.shift();
+        const name = parts.shift();
+        const joke = parts.join(',').trim();
+        return { id: id.trim(), name: name.trim(), joke };
+      });
+    }
+
+    let data = parseCSV(csvData);
+    let state = { q: '', sortBy: 'name', dir: 1, page: 1, pageSize: 10 };
+
+    // UI refs
+    const listEl = document.getElementById('list');
+    const searchInput = document.getElementById('searchInput');
+    const sortCol = document.getElementById('sortCol');
+    const sortDirBtn = document.getElementById('sortDirBtn');
+    const pageSizeEl = document.getElementById('pageSize');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const currentPage = document.getElementById('currentPage');
+    const pageCount = document.getElementById('pageCount');
+    const shownCount = document.getElementById('shownCount');
+    const totalCount = document.getElementById('totalCount');
+
+    const detail = document.getElementById('detail');
+    const detailEmpty = document.getElementById('detailEmpty');
+    const detailName = document.getElementById('detailName');
+    const detailId = document.getElementById('detailId');
+    const detailJoke = document.getElementById('detailJoke');
+    const detailExample = document.getElementById('detailExample');
+    const detailRaw = document.getElementById('detailRaw');
+    const copyBtn = document.getElementById('copyBtn');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    const exportCsvBtn = document.getElementById('exportCsvBtn');
+    const downloadAllBtn = document.getElementById('downloadAllBtn');
+    const darkToggle = document.getElementById('darkToggle');
+
+    // Resizable splitter
+    const leftPane = document.getElementById('leftPane');
+    const splitter = document.getElementById('splitter');
+    let isResizing = false;
+    splitter.addEventListener('mousedown', () => isResizing = true);
+    window.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      const min = 200, max = window.innerWidth - 300;
+      const w = Math.max(min, Math.min(max, e.clientX));
+      leftPane.style.width = w + 'px';
+    });
+    window.addEventListener('mouseup', () => isResizing = false);
+
+    // Filtering + sorting
+    function applyFilterSort() {
+      const q = state.q.trim().toLowerCase();
+      let filtered = data.filter(d => d.name.toLowerCase().includes(q) || d.joke.toLowerCase().includes(q));
+      filtered.sort((a,b) => {
+        const key = state.sortBy;
+        const av = (a[key] || '').toLowerCase();
+        const bv = (b[key] || '').toLowerCase();
+        if (av < bv) return -1 * state.dir;
+        if (av > bv) return 1 * state.dir;
+        return 0;
+      });
+      return filtered;
+    }
+
+    // Render list with pagination
+    function render() {
+      const filtered = applyFilterSort();
+      const total = filtered.length;
+      totalCount.textContent = total;
+      const ps = state.pageSize;
+      const pages = Math.max(1, Math.ceil(total / ps));
+      state.page = Math.min(Math.max(1, state.page), pages);
+      currentPage.textContent = state.page;
+      pageCount.textContent = pages;
+
+      const start = (state.page - 1) * ps;
+      const pageItems = filtered.slice(start, start + ps);
+      shownCount.textContent = pageItems.length;
+
+      listEl.innerHTML = pageItems.map(item => `
+        <li>
+          <button data-id="${item.id}" class="w-full text-left p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-800 flex items-start gap-3">
+            <div class="flex-1">
+              <div class="font-medium">${escapeHtml(item.name)}</div>
+              <div class="text-sm text-gray-500 dark:text-gray-400 mt-1">${escapeHtml(truncate(item.joke, 120))}</div>
+            </div>
+            <div class="text-xs text-gray-400">${escapeHtml(item.id.slice(0,8))}</div>
+          </button>
+        </li>
+      `).join('') || `<li class="p-4 text-sm text-gray-500">No results</li>`;
+    }
+
+    // Helpers
+    function escapeHtml(s) {
+      if (!s) return '';
+      return s.replaceAll('&', '&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+    }
+    function truncate(s, n) { return s.length > n ? s.slice(0,n-1) + '…' : s; }
+
+    // Events
+    searchInput.addEventListener('input', e => {
+      state.q = e.target.value; state.page = 1; render();
+    });
+    sortCol.addEventListener('change', e => { state.sortBy = e.target.value; render(); });
+    sortDirBtn.addEventListener('click', () => { state.dir = -state.dir; sortDirBtn.textContent = state.dir === 1 ? '▲' : '▼'; render(); });
+    pageSizeEl.addEventListener('change', e => { state.pageSize = parseInt(e.target.value); state.page = 1; render(); });
+    prevBtn.addEventListener('click', () => { if (state.page>1) { state.page--; render(); } });
+    nextBtn.addEventListener('click', () => { const filtered = applyFilterSort(); const pages = Math.max(1, Math.ceil(filtered.length/state.pageSize)); if (state.page < pages) { state.page++; render(); } });
+
+    // Click a list item
+    listEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-id]');
+      if (!btn) return;
+      const id = btn.dataset.id;
+      const item = data.find(d => d.id === id);
+      if (!item) return;
+      showDetail(item);
+    });
+
+    function showDetail(item) {
+      detailEmpty.classList.add('hidden');
+      detail.classList.remove('hidden');
+      detailName.textContent = item.name;
+      detailId.textContent = item.id;
+      detailJoke.textContent = item.joke;
+      detailExample.textContent = `Use this as a quick, friendly one-liner to break the ice.`;
+      detailRaw.textContent = JSON.stringify(item, null, 2);
+      // copy & download handlers
+      copyBtn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(`${item.name}\n\n${item.joke}`);
+          copyBtn.textContent = 'Copied ✓';
+          setTimeout(()=> copyBtn.textContent = 'Copy', 1500);
+        } catch {
+          alert('Copy failed — your browser may block clipboard access.');
+        }
+      };
+      downloadBtn.onclick = () => {
+        const blob = new Blob([JSON.stringify(item, null, 2)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `${sanitizeFilename(item.name)}.json`;
+        a.click();
+      };
+    }
+
+    function sanitizeFilename(s){ return s.replace(/[^\w\-]+/g,'_').slice(0,120); }
+
+    // Export filtered CSV
+    exportCsvBtn.addEventListener('click', () => {
+      const filtered = applyFilterSort();
+      const headers = ['id','name','joke'];
+      const rows = filtered.map(r => [r.id, r.name, r.joke]);
+      const csv = [headers, ...rows].map(row => row.map(cell => `"${(cell||'').replaceAll('"','""')}"`).join(',')).join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `mom_jokes_export.csv`;
+      a.click();
+    });
+
+    // Download full JSON
+    downloadAllBtn.addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'mom_jokes.json';
+      a.click();
+    });
+
+    // Dark mode toggle
+    darkToggle.addEventListener('change', (e) => {
+      document.documentElement.classList.toggle('dark', e.target.checked);
+    });
+
+    // Initial render
+    totalCount.textContent = data.length;
+    render();
+
+    // Utility: keyboard navigation (optional)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowRight') { const filtered=applyFilterSort(); const pages = Math.max(1, Math.ceil(filtered.length/state.pageSize)); if (state.page < pages) { state.page++; render(); } }
+      if (e.key === 'ArrowLeft') { if (state.page>1) { state.page--; render(); } }
+    });
+  </script>
+</body>
+</html>
