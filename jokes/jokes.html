@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CSV Viewer</title>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+
+  <!-- ✅ TailwindCSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- ✅ PapaParse for CSV parsing -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <!-- ✅ DataTables (browser build) -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
+
+  <style>
+    body { background-color: #0f172a; color: #f8fafc; }
+    table.dataTable { color: #f8fafc; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-start p-6">
+
+  <h1 id="title" class="text-2xl font-bold mb-6 text-blue-400">CSV Viewer</h1>
+  <div id="table-container" class="w-full max-w-6xl"></div>
+
+  <script>
+    async function init() {
+      const params = new URLSearchParams(window.location.search);
+      const url = params.get("d");
+
+      if (!url) {
+        document.getElementById("table-container").innerHTML =
+          `<p class="text-gray-400">❌ No CSV URL provided. Use ?d=&lt;csv_url&gt;</p>`;
+        return;
+      }
+
+      const titleElem = document.getElementById("title");
+      const filename = url.split("/").pop().split(".")[0];
+      titleElem.textContent = `📊 ${filename}`;
+
+      try {
+        const response = await fetch(url);
+        const csvText = await response.text();
+
+        const parsed = Papa.parse(csvText, { header: true });
+        const data = parsed.data.filter(row => Object.values(row).some(v => v !== ""));
+        const headers = parsed.meta.fields;
+
+        renderTable(headers, data);
+      } catch (err) {
+        document.getElementById("table-container").innerHTML =
+          `<p class="text-red-400">Error loading CSV: ${err.message}</p>`;
+      }
+    }
+
+    function renderTable(headers, data) {
+      const container = document.getElementById("table-container");
+      const tableId = "csvTable";
+      const headerHTML = headers.map(h => `<th>${h}</th>`).join("");
+      const rowsHTML = data.map(row => 
+        `<tr>${headers.map(h => `<td>${row[h] || ""}</td>`).join("")}</tr>`
+      ).join("");
+
+      container.innerHTML = `
+        <table id="${tableId}" class="display stripe hover row-border w-full text-sm">
+          <thead><tr>${headerHTML}</tr></thead>
+          <tbody>${rowsHTML}</tbody>
+        </table>
+      `;
+
+      // ✅ Initialize DataTable (now that jQuery + DataTables are available)
+      $(`#${tableId}`).DataTable({
+        paging: true,
+        searching: true,
+        ordering: true,
+        pageLength: 10
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>
