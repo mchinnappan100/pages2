@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>North American Trees Explorer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <script>
+    tailwind.config = { darkMode: 'class' };
+  </script>
+  <style>
+    .splitter {
+      width: 4px;
+      background: #374151;
+      cursor: col-resize;
+      transition: background 0.2s;
+    }
+    .splitter:hover {
+      background: #4b5563;
+    }
+    .splitter:active {
+      background: #3b82f6;
+    }
+    .tree-item {
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .tree-item:hover {
+      background: #374151;
+      transform: translateX(4px);
+    }
+    .tree-item.active {
+      background: #1e40af;
+      border-left: 4px solid #3b82f6;
+    }
+    .detail-card {
+      animation: fadeIn 0.3s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 h-screen overflow-hidden flex flex-col">
+  <!-- Header -->
+  <header class="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <i class="fas fa-tree text-green-500 text-3xl"></i>
+      <div>
+        <h1 class="text-2xl font-bold">North American Trees Explorer</h1>
+        <p class="text-sm text-gray-400">Discover native trees of North America</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <input 
+        id="searchInput" 
+        type="text" 
+        placeholder="🔍 Search trees..." 
+        class="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none w-64"
+      >
+      <button 
+        onclick="downloadCSV()" 
+        class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center gap-2"
+      >
+        <i class="fas fa-download"></i>
+        Export CSV
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content with Splitter -->
+  <div class="flex flex-1 overflow-hidden">
+    <!-- Left Pane - Tree List -->
+    <div id="leftPane" class="bg-gray-800 overflow-y-auto" style="width: 350px;">
+      <div class="p-4">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-300">
+            <i class="fas fa-list mr-2"></i>Tree Species (<span id="treeCount">0</span>)
+          </h2>
+        </div>
+        <div id="treeList" class="space-y-1"></div>
+      </div>
+    </div>
+
+    <!-- Splitter -->
+    <div id="splitter" class="splitter"></div>
+
+    <!-- Right Pane - Tree Details -->
+    <div id="rightPane" class="flex-1 bg-gray-900 overflow-y-auto p-6">
+      <div id="treeDetails" class="max-w-4xl mx-auto">
+        <div class="text-center py-20 text-gray-500">
+          <i class="fas fa-hand-pointer text-6xl mb-4 opacity-50"></i>
+          <p class="text-xl">Select a tree from the list to view details</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Comprehensive tree database
+    const trees = [
+      {
+        name: "Sugar Maple",
+        scientificName: "Acer saccharum",
+        family: "Sapindaceae",
+        description: "A large deciduous tree known for its spectacular fall foliage and sap used to make maple syrup. The sugar maple is the state tree of Vermont, West Virginia, Wisconsin, and New York.",
+        hardiness: "3-8",
+        height: "60-75 feet",
+        spread: "40-50 feet",
+        sunlight: "Full sun to part shade",
+        soil: "Well-drained, slightly acidic to neutral",
+        growth: "Slow to medium",
+        uses: ["Lumber for furniture and flooring", "Maple syrup production", "Ornamental shade tree", "Wood for musical instruments"],
+        wildlife: "Seeds eaten by birds and small mammals",
+        nativeRange: "Eastern North America",
+        fallColor: "Orange, red, yellow"
+      },
+      {
+        name: "Red Maple",
+        scientificName: "Acer rubrum",
+        family: "Sapindaceae",
+        description: "One of the most common trees in eastern North America, valued for its brilliant red fall color and adaptability to various soil conditions.",
+        hardiness: "3-9",
+        height: "40-70 feet",
+        spread: "30-50 feet",
+        sunlight: "Full sun to part shade",
+        soil: "Adaptable, prefers moist",
+        growth: "Medium to fast",
+        uses: ["Ornamental landscaping", "Lumber for furniture", "Urban street tree", "Firewood"],
+        wildlife: "Flowers provide early nectar for bees",
+        nativeRange: "Eastern United States and Canada",
+        fallColor: "Brilliant red to orange"
+      },
+      {
+        name: "Eastern White Pine",
+        scientificName: "Pinus strobus",
+        family: "Pinaceae",
+        description: "The tallest tree in eastern North America, featuring soft, flexible needles in bundles of five. Historically important for ship masts and lumber.",
+        hardiness: "3-8",
+        height: "50-80 feet",
+        spread: "20-40 feet",
+        sunlight: "Full sun",
+        soil: "Well-drained, acidic to neutral",
+        growth: "Medium to fast",
+        uses: ["Softwood lumber", "Construction timber", "Woodworking", "Christmas trees"],
+        wildlife: "Seeds eaten by birds and squirrels",
+        nativeRange: "Northeastern North America",
+        fallColor: "Evergreen"
+      },
+      {
+        name: "Ponderosa Pine",
+        scientificName: "Pinus ponderosa",
+        family: "Pinaceae",
+        description: "A massive western pine with distinctive orange-red bark plates and long needles. Known for its vanilla-scented bark and drought tolerance.",
+        hardiness: "3-7",
+        height: "60-100 feet",
+        spread: "25-30 feet",
+        sunlight: "Full sun",
+        soil: "Well-drained, tolerates poor soil",
+        growth: "Medium",
+        uses: ["Lumber for construction", "Telephone poles", "Railroad ties", "Firewood"],
+        wildlife: "Important for cavity-nesting birds",
+        nativeRange: "Western North America",
+        fallColor: "Evergreen"
+      },
+      {
+        name: "White Oak",
+        scientificName: "Quercus alba",
+        family: "Fagaceae",
+        description: "A majestic hardwood tree with rounded lobes on leaves, producing sweet acorns. The white oak is prized for its strong, durable wood and is the state tree of Illinois, Connecticut, and Maryland.",
+        hardiness: "3-9",
+        height: "50-80 feet",
+        spread: "50-80 feet",
+        sunlight: "Full sun",
+        soil: "Deep, moist, well-drained",
+        growth: "Slow to medium",
+        uses: ["Premium furniture wood", "Whiskey barrel construction", "Flooring", "Shipbuilding"],
+        wildlife: "Acorns are prime food for deer, turkeys, and squirrels",
+        nativeRange: "Eastern and Central United States",
+        fallColor: "Red to burgundy"
+      },
+      {
+        name: "Red Oak",
+        scientificName: "Quercus rubra",
+        family: "Fagaceae",
+        description: "A fast-growing oak with pointed leaf lobes and bitter acorns. Widely planted as a street and shade tree due to its tolerance of urban conditions.",
+        hardiness: "3-8",
+        height: "60-75 feet",
+        spread: "40-60 feet",
+        sunlight: "Full sun",
+        soil: "Well-drained, slightly acidic",
+        growth: "Fast for an oak",
+        uses: ["Lumber for furniture and cabinets", "Flooring", "Interior trim", "Firewood"],
+        wildlife: "Acorns support diverse wildlife",
+        nativeRange: "Eastern North America",
+        fallColor: "Red to russet-red"
+      },
+      {
+        name: "Black Walnut",
+        scientificName: "Juglans nigra",
+        family: "Juglandaceae",
+        description: "A valuable hardwood tree producing edible nuts and one of the most expensive native hardwoods. The tree releases juglone, which inhibits growth of some nearby plants.",
+        hardiness: "4-9",
+        height: "50-75 feet",
+        spread: "50-75 feet",
+        sunlight: "Full sun",
+        soil: "Deep, fertile, well-drained",
+        growth: "Medium to fast",
+        uses: ["Premium furniture and veneer", "Gunstocks", "Edible nuts", "Natural wood dye"],
+        wildlife: "Nuts eaten by squirrels",
+        nativeRange: "Eastern United States",
+        fallColor: "Yellow"
+      },
+      {
+        name: "Shagbark Hickory",
+        scientificName: "Carya ovata",
+        family: "Juglandaceae",
+        description: "Named for its distinctive shaggy bark that peels in large strips. Produces sweet, edible nuts and extremely hard, shock-resistant wood.",
+        hardiness: "4-8",
+        height: "60-80 feet",
+        spread: "40-50 feet",
+        sunlight: "Full sun",
+        soil: "Deep, moist, well-drained",
+        growth: "Slow",
+        uses: ["Tool handles and axe handles", "Smoking meat", "Edible nuts", "Firewood - excellent heat"],
+        wildlife: "Nuts highly valuable for wildlife",
+        nativeRange: "Eastern United States",
+        fallColor: "Golden yellow"
+      },
+      {
+        name: "American Chestnut",
+        scientificName: "Castanea dentata",
+        family: "Fagaceae",
+        description: "Once dominant in eastern forests, nearly wiped out by chestnut blight in early 1900s. Efforts underway to breed blight-resistant varieties.",
+        hardiness: "4-8",
+        height: "50-75 feet (historically to 100 feet)",
+        spread: "50-75 feet",
+        sunlight: "Full sun",
+        soil: "Well-drained, slightly acidic",
+        growth: "Fast",
+        uses: ["Rot-resistant lumber (historical)", "Edible nuts", "Tannin extraction", "Restoration projects"],
+        wildlife: "Nuts were crucial food source for wildlife",
+        nativeRange: "Eastern United States (now rare)",
+        fallColor: "Yellow-brown"
+      },
+      {
+        name: "American Elm",
+        scientificName: "Ulmus americana",
+        family: "Ulmaceae",
+        description: "An iconic vase-shaped tree that once lined streets across America. Dutch elm disease has devastated populations, but disease-resistant cultivars are being developed.",
+        hardiness: "2-9",
+        height: "60-80 feet",
+        spread: "60-80 feet",
+        sunlight: "Full sun to part shade",
+        soil: "Adaptable, prefers moist",
+        growth: "Fast",
+        uses: ["Historic street tree", "Shade tree", "Lumber for furniture", "Basket making"],
+        wildlife: "Seeds eaten by birds and small mammals",
+        nativeRange: "Eastern North America",
+        fallColor: "Yellow"
+      },
+      {
+        name: "Bald Cypress",
+        scientificName: "Taxodium distichum",
+        family: "Cupressaceae",
+        description: "A deciduous conifer that thrives in swamps and wet areas. Develops distinctive 'knees' (pneumatophores) when growing in water.",
+        hardiness: "4-10",
+        height: "50-70 feet",
+        spread: "20-30 feet",
+        sunlight: "Full sun",
+        soil: "Wet to dry, very adaptable",
+        growth: "Medium",
+        uses: ["Rot-resistant lumber", "Landscaping near water", "Mulch from shredded bark", "Furniture"],
+        wildlife: "Seeds eaten by waterfowl",
+        nativeRange: "Southeastern United States",
+        fallColor: "Russet-brown before dropping"
+      },
+      {
+        name: "Douglas Fir",
+        scientificName: "Pseudotsuga menziesii",
+        family: "Pinaceae",
+        description: "Not a true fir, but one of the most important timber trees in North America. Can live over 500 years and reach enormous sizes.",
+        hardiness: "4-6",
+        height: "40-80 feet (to 200+ feet in nature)",
+        spread: "12-20 feet",
+        sunlight: "Full sun",
+        soil: "Well-drained, acidic",
+        growth: "Medium to fast",
+        uses: ["Construction lumber", "Plywood", "Christmas trees", "Flooring and veneers"],
+        wildlife: "Seeds important for birds and small mammals",
+        nativeRange: "Western North America",
+        fallColor: "Evergreen"
+      },
+      {
+        name: "American Beech",
+        scientificName: "Fagus grandifolia",
+        family: "Fagaceae",
+        description: "Smooth gray bark makes this tree distinctive. Holds its copper-colored dead leaves through winter, providing year-round interest.",
+        hardiness: "3-9",
+        height: "50-70 feet",
+        spread: "40-60 feet",
+        sunlight: "Full sun to part shade",
+        soil: "Moist, well-drained, slightly acidic",
+        growth: "Slow to medium",
+        uses: ["Hardwood flooring", "Furniture", "Veneer", "Firewood"],
+        wildlife: "Beechnuts feed many species",
+        nativeRange: "Eastern United States",
+        fallColor: "Golden bronze"
+      },
+      {
+        name: "Black Cherry",
+        scientificName: "Prunus serotina",
+        family: "Rosaceae",
+        description: "Valued for its beautiful reddish-brown wood used in fine furniture. Produces small black cherries eaten by wildlife but bitter to humans.",
+        hardiness: "3-9",
+        height: "50-80 feet",
+        spread: "30-60 feet",
+        sunlight: "Full sun to part shade",
+        soil: "Well-drained, adaptable",
+        growth: "Medium to fast",
+        uses: ["Premium furniture wood", "Cabinets", "Musical instruments", "Flavoring extract from bark"],
+        wildlife: "Cherries important food for birds",
+        nativeRange: "Eastern North America",
+        fallColor: "Yellow to red"
+      },
+      {
+        name: "Quaking Aspen",
+        scientificName: "Populus tremuloides",
+        family: "Salicaceae",
+        description: "The most widely distributed tree in North America. Leaves tremble in the slightest breeze due to flattened petioles. Forms large clonal colonies.",
+        hardiness: "1-6",
+        height: "40-50 feet",
+        spread: "20-30 feet",
+        sunlight: "Full sun",
+        soil: "Moist, well-drained",
+        growth: "Fast",
+        uses: ["Pulpwood for paper", "Oriented strand board (OSB)", "Matchsticks", "Erosion control"],
+        wildlife: "Bark important food for elk and deer in winter",
+        nativeRange: "Across North America",
+        fallColor: "Brilliant golden yellow"
+      },
+      {
+        name: "Sweetgum",
+        scientificName: "Liquidambar styraciflua",
+        family: "Altingiaceae",
+        description: "Known for star-shaped leaves and spiky seed balls. Excellent fall color, but the seed balls can be a maintenance issue.",
+        hardiness: "5-9",
+        height: "60-75 feet",
+        spread: "40-50 feet",
+        sunlight: "Full sun",
+        soil: "Moist, acidic, well-drained",
+        growth: "Medium to fast",
+        uses: ["Lumber for furniture and cabinets", "Veneer", "Plywood", "Storax resin for perfumes"],
+        wildlife: "Seeds eaten by birds and squirrels",
+        nativeRange: "Southeastern United States",
+        fallColor: "Yellow, orange, red, purple"
+      },
+      {
+        name: "Tulip Tree",
+        scientificName: "Liriodendron tulipifera",
+        family: "Magnoliaceae",
+        description: "Also called Yellow Poplar, one of the tallest eastern hardwoods. Tulip-shaped flowers appear in spring, and leaves are distinctively shaped.",
+        hardiness: "4-9",
+        height: "70-90 feet",
+        spread: "30-50 feet",
+        sunlight: "Full sun",
+        soil: "Deep, moist, well-drained",
+        growth: "Fast",
+        uses: ["Lumber for furniture", "Cabinets and millwork", "Pulpwood", "Honey production from flowers"],
+        wildlife: "Seeds eaten by birds and small mammals",
+        nativeRange: "Eastern United States",
+        fallColor: "Yellow"
+      },
+      {
+        name: "Flowering Dogwood",
+        scientificName: "Cornus florida",
+        family: "Cornaceae",
+        description: "A small ornamental tree with showy spring flowers (actually bracts). State tree of Virginia and Missouri. Provides excellent fall color and winter berries.",
+        hardiness: "5-9",
+        height: "15-30 feet",
+        spread: "15-30 feet",
+        sunlight: "Part shade to full sun",
+        soil: "Moist, well-drained, acidic",
+        growth: "Slow to medium",
+        uses: ["Ornamental landscaping", "Tool handles (historically)", "Small woodworking projects", "Wildlife plantings"],
+        wildlife: "Berries eaten by many bird species",
+        nativeRange: "Eastern United States",
+        fallColor: "Red to reddish-purple"
+      },
+      {
+        name: "Eastern Redcedar",
+        scientificName: "Juniperus virginiana",
+        family: "Cupressaceae",
+        description: "Actually a juniper, not a cedar. Dense wood is aromatic and naturally moth-repellent. Pioneer species often first to colonize fields.",
+        hardiness: "2-9",
+        height: "40-50 feet",
+        spread: "8-20 feet",
+        sunlight: "Full sun",
+        soil: "Adaptable, drought tolerant",
+        growth: "Slow to medium",
+        uses: ["Cedar chests and closet lining", "Pencils", "Fence posts", "Essential oil"],
+        wildlife: "Berries important winter food for birds",
+        nativeRange: "Eastern and Central United States",
+        fallColor: "Evergreen (bronze in winter)"
+      },
+      {
+        name: "Bigleaf Maple",
+        scientificName: "Acer macrophyllum",
+        family: "Sapindaceae",
+        description: "The largest maple in North America with leaves up to 12 inches across. Pacific Northwest native valued for figured wood grain.",
+        hardiness: "6-9",
+        height: "50-75 feet",
+        spread: "30-50 feet",
+        sunlight: "Full sun to part shade",
+        soil: "Moist, well-drained",
+        growth: "Medium to fast",
+        uses: ["Figured wood for guitars and furniture", "Veneer", "Syrup production (less than sugar maple)", "Flooring"],
+        wildlife: "Seeds eaten by birds and small mammals",
+        nativeRange: "Pacific Coast",
+        fallColor: "Yellow to orange"
+      }
+    ];
+
+    let filteredTrees = [...trees];
+    let selectedTree = null;
+
+    // Initialize
+    function init() {
+      renderTreeList();
+      setupSplitter();
+      setupSearch();
+      document.getElementById('treeCount').textContent = trees.length;
+    }
+
+    // Render tree list
+    function renderTreeList() {
+      const treeList = document.getElementById('treeList');
+      treeList.innerHTML = filteredTrees.map((tree, index) => `
+        <div class="tree-item p-3 rounded-lg border border-gray-700 ${selectedTree === tree ? 'active' : ''}" 
+             onclick="selectTree(${trees.indexOf(tree)})">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="font-semibold text-gray-100">${tree.name}</div>
+              <div class="text-xs text-gray-400 italic">${tree.scientificName}</div>
+            </div>
+            <i class="fas fa-chevron-right text-gray-600"></i>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Select tree and show details
+    function selectTree(index) {
+      selectedTree = trees[index];
+      renderTreeList();
+      showTreeDetails(selectedTree);
+    }
+
+    // Show tree details
+    function showTreeDetails(tree) {
+      const detailsDiv = document.getElementById('treeDetails');
+      detailsDiv.innerHTML = `
+        <div class="detail-card">
+          <div class="bg-gray-800 rounded-xl p-8 border border-gray-700 shadow-xl">
+            <div class="flex items-start justify-between mb-6">
+              <div>
+                <h2 class="text-3xl font-bold text-gray-100 mb-2">${tree.name}</h2>
+                <p class="text-lg text-gray-400 italic">${tree.scientificName}</p>
+                <p class="text-sm text-gray-500 mt-1">Family: ${tree.family}</p>
+              </div>
+              <div class="text-right">
+                <span class="badge bg-green-600 text-white">
+                  <i class="fas fa-snowflake mr-1"></i>Zone ${tree.hardiness}
+                </span>
+              </div>
+            </div>
+
+            <div class="prose prose-invert max-w-none mb-8">
+              <p class="text-gray-300 leading-relaxed">${tree.description}</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                <h3 class="text-sm font-semibold text-gray-400 mb-3 flex items-center">
+                  <i class="fas fa-ruler-vertical mr-2 text-blue-400"></i>Physical Characteristics
+                </h3>
+                <dl class="space-y-2 text-sm">
+                  <div class="flex justify-between">
+                    <dt class="text-gray-400">Height:</dt>
+                    <dd class="text-gray-200 font-medium">${tree.height}</dd>
+                  </div>
+                  <div class="flex justify-between">
+                    <dt class="text-gray-400">Spread:</dt>
+                    <dd class="text-gray-200 font-medium">${tree.spread}</dd>
+                  </div>
+                  <div class="flex justify-between">
+                    <dt class="text-gray-400">Growth Rate:</dt>
+                    <dd class="text-gray-200 font-medium">${tree.growth}</dd>
+                  </div>
+                  <div class="flex justify-between">
+                    <dt class="text-gray-400">Fall Color:</dt>
+                    <dd class="text-gray-200 font-medium">${tree.fallColor}</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+                <h3 class="text-sm font-semibold text-gray-400 mb-3 flex items-center">
+                  <i class="fas fa-seedling mr-2 text-green-400"></i>Growing Conditions
+                </h3>
+                <dl class="space-y-2 text-sm">
+                  <div class="flex justify-between">
+                    <dt class="text-gray-400">Sunlight:</dt>
+                    <dd class="text-gray-200 font-medium">${tree.sunlight}</dd>
+                  </div>
+                  <div class="flex justify-between">
+                    <dt class="text-gray-400">Soil:</dt>
+                    <dd class="text-gray-200 font-medium">${tree.soil}</dd>
+                  </div>
+                  <div class="flex justify-between">
+                    <dt class="text-gray-400">Native Range:</dt>
+                    <dd class="text-gray-200 font-medium">${tree.nativeRange}</dd>
+                  </div>
+                </dl>
+              </div>
+            </div>
+
+            <div class="bg-gray-900 rounded-lg p-4 border border-gray-700 mb-6">
+              <h3 class="text-sm font-semibold text-gray-400 mb-3 flex items-center">
+                <i class="fas fa-hammer mr-2 text-orange-400"></i>Common Uses
+              </h3>
+              <ul class="space-y-1">
+                ${tree.uses.map(use => `
+                  <li class="text-sm text-gray-300 flex items-start">
+                    <i class="fas fa-check text-green-500 mr-2 mt-1"></i>
+                    <span>${use}</span>
+                  </li>
+                `).join('')}
+              </ul>
+            </div>
+
+            <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+              <h3 class="text-sm font-semibold text-gray-400 mb-2 flex items-center">
+                <i class="fas fa-paw mr-2 text-purple-400"></i>Wildlife Value
+              </h3>
+              <p class="text-sm text-gray-300">${tree.wildlife}</p>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Setup splitter
+    function setupSplitter() {
+      const splitter = document.getElementById('splitter');
+      const leftPane = document.getElementById('leftPane');
+      let isResizing = false;
+
+      splitter.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        
+        const newWidth = e.clientX;
+        if (newWidth > 200 && newWidth < 600) {
+          leftPane.style.width = newWidth + 'px';
+        }
+      });
+
+      document.addEventListener('mouseup', () => {
+        isResizing = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      });
+    }
+
+    // Setup search
+    function setupSearch() {
+      const searchInput = document.getElementById('searchInput');
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        filteredTrees = trees.filter(tree => 
+          tree.name.toLowerCase().includes(query) ||
+          tree.scientificName.toLowerCase().includes(query) ||
+          tree.description.toLowerCase().includes(query)
+        );
+        renderTreeList();
+      });
+    }
+
+    // Download CSV
+    function downloadCSV() {
+      const headers = ['Name', 'Scientific Name', 'Family', 'Hardiness Zone', 'Height', 'Spread', 'Growth Rate', 'Sunlight', 'Soil', 'Native Range', 'Fall Color', 'Description', 'Uses', 'Wildlife Value'];
+      
+      const csvContent = [
+        headers.join(','),
+        ...trees.map(tree => [
+          `"${tree.name}"`,
+          `"${tree.scientificName}"`,
+          `"${tree.family}"`,
+          `"${tree.hardiness}"`,
+          `"${tree.height}"`,
+          `"${tree.spread}"`,
+          `"${tree.growth}"`,
+          `"${tree.sunlight}"`,
+          `"${tree.soil}"`,
+          `"${tree.nativeRange}"`,
+          `"${tree.fallColor}"`,
+          `"${tree.description.replace(/"/g, '""')}"`,
+          `"${tree.uses.join('; ')}"`,
+          `"${tree.wildlife.replace(/"/g, '""')}"`
+        ].join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `north-american-trees-${Date.now()}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Initialize on load
+    init();
+  </script>
+</body>
+</html>
