@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Explorer</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' };
+  </script>
+  <style>
+    .splitter {
+      width: 4px;
+      background: #374151;
+      cursor: col-resize;
+      transition: background 0.2s;
+    }
+    .splitter:hover {
+      background: #4b5563;
+    }
+    .splitter:active {
+      background: #3b82f6;
+    }
+    .item {
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .item:hover {
+      background: #374151;
+      transform: translateX(4px);
+    }
+    .item.active {
+      background: #1e40af;
+      border-left: 4px solid #3b82f6;
+    }
+    .detail-card {
+      animation: fadeIn 0.3s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 h-screen overflow-hidden flex flex-col">
+  <!-- Header -->
+  <header class="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <i class="fas fa-database text-blue-500 text-3xl"></i>
+      <div>
+        <h1 class="text-2xl font-bold" id="appTitle">Data Explorer</h1>
+        <p class="text-sm text-gray-400" id="appSubtitle">Loading data...</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <input 
+        id="searchInput" 
+        type="text" 
+        placeholder="🔍 Search..." 
+        class="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none w-64"
+      >
+      <button 
+        onclick="downloadCSV()" 
+        class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center gap-2"
+      >
+        <i class="fas fa-download"></i>
+        Export CSV
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content with Splitter -->
+  <div class="flex flex-1 overflow-hidden">
+    <!-- Left Pane - Item List -->
+    <div id="leftPane" class="bg-gray-800 overflow-y-auto" style="width: 350px;">
+      <div class="p-4">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-semibold text-gray-300">
+            <i class="fas fa-list mr-2"></i><span id="listTitle">Items</span> (<span id="itemCount">0</span>)
+          </h2>
+        </div>
+        <div id="itemList" class="space-y-1">
+          <div class="text-center py-10 text-gray-500">
+            <div class="loading mx-auto mb-3"></div>
+            <p>Loading data...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Splitter -->
+    <div id="splitter" class="splitter"></div>
+
+    <!-- Right Pane - Item Details -->
+    <div id="rightPane" class="flex-1 bg-gray-900 overflow-y-auto p-6">
+      <div id="itemDetails" class="max-w-4xl mx-auto">
+        <div class="text-center py-20 text-gray-500">
+          <i class="fas fa-hand-pointer text-6xl mb-4 opacity-50"></i>
+          <p class="text-xl">Select an item from the list to view details</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let data = [];
+    let filteredData = [];
+    let selectedItem = null;
+    let headers = [];
+    let config = {
+      title: 'Data Explorer',
+      subtitle: 'Explore your data',
+      listTitle: 'Items',
+      primaryField: 'name',
+      secondaryField: 'scientificName',
+      icon: 'fa-database'
+    };
+
+    // Get URL parameter
+    function getUrlParameter(name) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(name);
+    }
+
+    // Load CSV from URL
+    async function loadCSV(url) {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Failed to fetch CSV');
+        const csvText = await response.text();
+        
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          dynamicTyping: false,
+          complete: function(results) {
+            data = results.data;
+            headers = results.meta.fields;
+            detectConfig();
+            init();
+          },
+          error: function(error) {
+            showError('Error parsing CSV: ' + error.message);
+          }
+        });
+      } catch (error) {
+        showError('Error loading CSV: ' + error.message);
+      }
+    }
+
+    // Detect configuration from CSV headers
+    function detectConfig() {
+      if (headers.length === 0) return;
+      
+      const firstRow = data[0];
+      const lowerHeaders = headers.map(h => h.toLowerCase());
+      
+      // Try to detect name field
+      const nameFields = ['name', 'title', 'commonname', 'common_name'];
+      config.primaryField = nameFields.find(f => lowerHeaders.includes(f)) || headers[0];
+      
+      // Try to detect secondary field
+      const secondaryFields = ['scientificname', 'scientific_name', 'subtitle', 'description'];
+      config.secondaryField = secondaryFields.find(f => lowerHeaders.includes(f)) || headers[1];
+      
+      // Set title based on data
+      if (firstRow) {
+        const firstValue = firstRow[config.primaryField];
+        if (firstValue && firstValue.toLowerCase().includes('tree')) {
+          config.title = 'Tree Explorer';
+          config.subtitle = 'Explore tree species';
+          config.listTitle = 'Tree Species';
+          config.icon = 'fa-tree';
+        }
+      }
+    }
+
+    // Initialize
+    function init() {
+      filteredData = [...data];
+      renderItemList();
+      setupSplitter();
+      setupSearch();
+      updateUI();
+    }
+
+    // Update UI with config
+    function updateUI() {
+      document.getElementById('appTitle').textContent = config.title;
+      document.getElementById('appSubtitle').textContent = config.subtitle;
+      document.getElementById('listTitle').textContent = config.listTitle;
+      document.getElementById('itemCount').textContent = data.length;
+      document.querySelector('header i').className = `fas ${config.icon} text-blue-500 text-3xl`;
+    }
+
+    // Render item list
+    function renderItemList() {
+      const itemList = document.getElementById('itemList');
+      
+      if (filteredData.length === 0) {
+        itemList.innerHTML = '<div class="text-center py-10 text-gray-500"><p>No items found</p></div>';
+        return;
+      }
+      
+      itemList.innerHTML = filteredData.map((item, index) => {
+        const primaryValue = item[config.primaryField] || 'Untitled';
+        const secondaryValue = item[config.secondaryField] || '';
+        
+        return `
+          <div class="item p-3 rounded-lg border border-gray-700 ${selectedItem === item ? 'active' : ''}" 
+               onclick="selectItem(${data.indexOf(item)})">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="font-semibold text-gray-100">${primaryValue}</div>
+                ${secondaryValue ? `<div class="text-xs text-gray-400 italic">${secondaryValue}</div>` : ''}
+              </div>
+              <i class="fas fa-chevron-right text-gray-600"></i>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Select item and show details
+    function selectItem(index) {
+      selectedItem = data[index];
+      renderItemList();
+      showItemDetails(selectedItem);
+    }
+
+    // Show item details
+    function showItemDetails(item) {
+      const detailsDiv = document.getElementById('itemDetails');
+      
+      // Build details HTML
+      let detailsHTML = `
+        <div class="detail-card">
+          <div class="bg-gray-800 rounded-xl p-8 border border-gray-700 shadow-xl">
+            <div class="mb-6">
+              <h2 class="text-3xl font-bold text-gray-100 mb-2">${item[config.primaryField] || 'Untitled'}</h2>
+              ${item[config.secondaryField] ? `<p class="text-lg text-gray-400 italic">${item[config.secondaryField]}</p>` : ''}
+            </div>
+      `;
+      
+      // Group fields into sections
+      const excludeFromDetails = [config.primaryField, config.secondaryField];
+      const remainingFields = headers.filter(h => !excludeFromDetails.includes(h));
+      
+      // Create cards for each field
+      const halfPoint = Math.ceil(remainingFields.length / 2);
+      const firstHalf = remainingFields.slice(0, halfPoint);
+      const secondHalf = remainingFields.slice(halfPoint);
+      
+      detailsHTML += '<div class="grid grid-cols-1 md:grid-cols-2 gap-6">';
+      
+      // First column
+      detailsHTML += '<div class="space-y-4">';
+      firstHalf.forEach(field => {
+        const value = item[field];
+        if (value) {
+          detailsHTML += `
+            <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+              <h3 class="text-sm font-semibold text-gray-400 mb-2">${formatFieldName(field)}</h3>
+              <p class="text-sm text-gray-300 whitespace-pre-wrap">${formatValue(value)}</p>
+            </div>
+          `;
+        }
+      });
+      detailsHTML += '</div>';
+      
+      // Second column
+      detailsHTML += '<div class="space-y-4">';
+      secondHalf.forEach(field => {
+        const value = item[field];
+        if (value) {
+          detailsHTML += `
+            <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
+              <h3 class="text-sm font-semibold text-gray-400 mb-2">${formatFieldName(field)}</h3>
+              <p class="text-sm text-gray-300 whitespace-pre-wrap">${formatValue(value)}</p>
+            </div>
+          `;
+        }
+      });
+      detailsHTML += '</div>';
+      
+      detailsHTML += '</div></div></div>';
+      
+      detailsDiv.innerHTML = detailsHTML;
+    }
+
+    // Format field names
+    function formatFieldName(field) {
+      return field
+        .replace(/([A-Z])/g, ' $1')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase())
+        .trim();
+    }
+
+    // Format values (handle lists)
+    function formatValue(value) {
+      if (typeof value === 'string' && (value.includes(';') || value.includes(','))) {
+        const items = value.split(/[;,]/).map(item => item.trim()).filter(Boolean);
+        if (items.length > 1) {
+          return items.map(item => `• ${item}`).join('<br>');
+        }
+      }
+      return value;
+    }
+
+    // Setup splitter
+    function setupSplitter() {
+      const splitter = document.getElementById('splitter');
+      const leftPane = document.getElementById('leftPane');
+      let isResizing = false;
+
+      splitter.addEventListener('mousedown', (e) => {
+        isResizing = true;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (!isResizing) return;
+        
+        const newWidth = e.clientX;
+        if (newWidth > 200 && newWidth < 600) {
+          leftPane.style.width = newWidth + 'px';
+        }
+      });
+
+      document.addEventListener('mouseup', () => {
+        isResizing = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      });
+    }
+
+    // Setup search
+    function setupSearch() {
+      const searchInput = document.getElementById('searchInput');
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        filteredData = data.filter(item => {
+          return Object.values(item).some(value => 
+            value && value.toString().toLowerCase().includes(query)
+          );
+        });
+        renderItemList();
+      });
+    }
+
+    // Download CSV
+    function downloadCSV() {
+      const csvContent = [
+        headers.join(','),
+        ...data.map(item => 
+          headers.map(header => {
+            const value = item[header] || '';
+            return `"${value.toString().replace(/"/g, '""')}"`;
+          }).join(',')
+        )
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `data-export-${Date.now()}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Show error
+    function showError(message) {
+      document.getElementById('itemList').innerHTML = `
+        <div class="text-center py-10 text-red-500">
+          <i class="fas fa-exclamation-triangle text-4xl mb-3"></i>
+          <p class="font-semibold">${message}</p>
+          <p class="text-sm text-gray-400 mt-2">Please check the CSV file URL</p>
+        </div>
+      `;
+      document.getElementById('appSubtitle').textContent = 'Error loading data';
+    }
+
+    // Initialize on load
+    const csvUrl = getUrlParameter('d');
+    if (csvUrl) {
+      loadCSV(csvUrl);
+    } else {
+      showError('No CSV file specified. Use ?d=your-file.csv');
+    }
+  </script>
+</body>
+</html>
