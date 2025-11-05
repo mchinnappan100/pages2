@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Explorer</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' };
+  </script>
+  <style>
+    .splitter {
+      width: 4px;
+      background: #374151;
+      cursor: col-resize;
+      transition: background 0.2s;
+    }
+    .splitter:hover {
+      background: #4b5563;
+    }
+    .splitter:active {
+      background: #3b82f6;
+    }
+    .item {
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    .item:hover {
+      background: #374151;
+      transform: translateX(4px);
+    }
+    .item.active {
+      background: #1e40af;
+      border-left: 4px solid #3b82f6;
+    }
+    .detail-card {
+      animation: fadeIn 0.3s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s ease-in-out infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Modal Styles */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      backdrop-filter: blur(6px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 50;
+    }
+    .modal.active {
+      display: flex;
+    }
+    .modal-content {
+      background: #1f2937;
+      width: 90%;
+      height: 80%;
+      border-radius: 1rem;
+      overflow: hidden;
+      box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 h-screen overflow-hidden flex flex-col">
+  <!-- Header -->
+  <header class="bg-gray-800 border-b border-gray-700 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <i class="fas fa-database text-blue-500 text-3xl"></i>
+      <div>
+        <h1 class="text-2xl font-bold" id="appTitle">Data Explorer</h1>
+        <p class="text-sm text-gray-400" id="appSubtitle">Loading data...</p>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <input 
+        id="searchInput" 
+        type="text" 
+        placeholder="🔍 Search..." 
+        class="px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none w-64"
+      >
+      <button 
+        onclick="downloadCSV()" 
+        class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition-colors flex items-center gap-2"
+      >
+        <i class="fas fa-download"></i>
+        Export CSV
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Layout -->
+  <div class="flex flex-1 overflow-hidden">
+    <!-- Left Pane -->
+    <div id="leftPane" class="bg-gray-800 overflow-y-auto" style="width: 350px;">
+      <div class="p-4">
+        <h2 class="text-lg font-semibold text-gray-300 mb-4">
+          <i class="fas fa-list mr-2"></i><span id="listTitle">Items</span> (<span id="itemCount">0</span>)
+        </h2>
+        <div id="itemList" class="space-y-1">
+          <div class="text-center py-10 text-gray-500">
+            <div class="loading mx-auto mb-3"></div>
+            <p>Loading data...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Splitter -->
+    <div id="splitter" class="splitter"></div>
+
+    <!-- Right Pane -->
+    <div id="rightPane" class="flex-1 bg-gray-900 overflow-y-auto p-6">
+      <div id="itemDetails" class="max-w-4xl mx-auto text-center py-20 text-gray-500">
+        <i class="fas fa-hand-pointer text-6xl mb-4 opacity-50"></i>
+        <p class="text-xl">Select an item from the list to view details</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Wikipedia Modal -->
+  <div id="wikiModal" class="modal">
+    <div class="modal-content flex flex-col">
+      <div class="flex justify-between items-center p-4 bg-gray-800 border-b border-gray-700">
+        <h3 id="wikiTitle" class="text-lg font-semibold text-gray-200">Wikipedia</h3>
+        <button onclick="closeWikiModal()" class="text-gray-400 hover:text-white"><i class="fas fa-times text-2xl"></i></button>
+      </div>
+      <iframe id="wikiFrame" src="" class="flex-1 w-full border-0"></iframe>
+    </div>
+  </div>
+
+  <script>
+    let data = [], filteredData = [], selectedItem = null, headers = [];
+    let config = {
+      title: 'Data Explorer',
+      subtitle: 'Explore your data',
+      listTitle: 'Items',
+      primaryField: 'name',
+      secondaryField: 'scientificName',
+      icon: 'fa-database'
+    };
+
+    function getUrlParameter(name) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(name);
+    }
+
+    async function loadCSV(url) {
+      try {
+        const response = await fetch(url);
+        const csvText = await response.text();
+        Papa.parse(csvText, {
+          header: true, skipEmptyLines: true,
+          complete: (results) => {
+            data = results.data;
+            headers = results.meta.fields;
+            detectConfig(); init();
+          }
+        });
+      } catch (e) {
+        showError('Error loading CSV: ' + e.message);
+      }
+    }
+
+    function detectConfig() {
+      if (headers.length === 0) return;
+      const firstRow = data[0];
+      const lower = headers.map(h => h.toLowerCase());
+      const nameFields = ['name', 'title'];
+      config.primaryField = nameFields.find(f => lower.includes(f)) || headers[0];
+      const descFields = ['description', 'details'];
+      config.secondaryField = descFields.find(f => lower.includes(f)) || headers[1];
+    }
+
+    function init() {
+      filteredData = [...data];
+      renderItemList();
+      setupSplitter();
+      setupSearch();
+      updateUI();
+    }
+
+    function updateUI() {
+      document.getElementById('appTitle').textContent = config.title;
+      document.getElementById('appSubtitle').textContent = config.subtitle;
+      document.getElementById('listTitle').textContent = config.listTitle;
+      document.getElementById('itemCount').textContent = data.length;
+    }
+
+    function renderItemList() {
+      const list = document.getElementById('itemList');
+      if (filteredData.length === 0) {
+        list.innerHTML = '<div class="text-center py-10 text-gray-500">No items found</div>';
+        return;
+      }
+      list.innerHTML = filteredData.map((item, i) => `
+        <div class="item p-3 rounded-lg border border-gray-700 ${selectedItem === item ? 'active' : ''}" onclick="selectItem(${i})">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="font-semibold">${item[config.primaryField] || 'Untitled'}</div>
+              ${item[config.secondaryField] ? `<div class="text-xs text-gray-400">${item[config.secondaryField]}</div>` : ''}
+            </div>
+            <i class="fas fa-chevron-right text-gray-600"></i>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function selectItem(index) {
+      selectedItem = filteredData[index];
+      renderItemList();
+      showItemDetails(selectedItem);
+    }
+
+    function showItemDetails(item) {
+      const div = document.getElementById('itemDetails');
+      let html = `
+        <div class="detail-card bg-gray-800 rounded-xl p-8 border border-gray-700 shadow-xl">
+          <h2 class="text-3xl font-bold mb-2">${item[config.primaryField]}</h2>
+          ${item[config.secondaryField] ? `<p class="text-gray-400 mb-4">${item[config.secondaryField]}</p>` : ''}
+          <button class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg mt-2" onclick="openWiki('${encodeURIComponent(item[config.primaryField])}')">
+            <i class="fab fa-wikipedia-w mr-2"></i>View on Wikipedia
+          </button>
+          <div class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+      `;
+      headers.forEach(h => {
+        const val = item[h];
+        if (val && h !== config.primaryField && h !== config.secondaryField) {
+          html += `
+            <div class="bg-gray-900 p-4 rounded-lg border border-gray-700">
+              <h3 class="text-sm text-gray-400 mb-1">${h}</h3>
+              <p class="text-gray-300">${val}</p>
+            </div>
+          `;
+        }
+      });
+      html += `</div></div>`;
+      div.innerHTML = html;
+    }
+
+    function openWiki(query) {
+      const modal = document.getElementById('wikiModal');
+      const frame = document.getElementById('wikiFrame');
+      const title = document.getElementById('wikiTitle');
+      title.textContent = decodeURIComponent(query);
+      frame.src = `https://en.wikipedia.org/wiki/${query}`;
+      modal.classList.add('active');
+    }
+
+    function closeWikiModal() {
+      const modal = document.getElementById('wikiModal');
+      modal.classList.remove('active');
+      document.getElementById('wikiFrame').src = '';
+    }
+
+    function setupSplitter() {
+      const splitter = document.getElementById('splitter');
+      const left = document.getElementById('leftPane');
+      let isDragging = false;
+      splitter.addEventListener('mousedown', () => { isDragging = true; });
+      window.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        const w = e.clientX;
+        if (w > 200 && w < 600) left.style.width = w + 'px';
+      });
+      window.addEventListener('mouseup', () => { isDragging = false; });
+    }
+
+    function setupSearch() {
+      document.getElementById('searchInput').addEventListener('input', e => {
+        const q = e.target.value.toLowerCase();
+        filteredData = data.filter(r => Object.values(r).some(v => v && v.toString().toLowerCase().includes(q)));
+        renderItemList();
+      });
+    }
+
+    function downloadCSV() {
+      const csv = [
+        headers.join(','),
+        ...data.map(r => headers.map(h => `"${(r[h] || '').replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'data-export.csv';
+      a.click();
+    }
+
+    function showError(msg) {
+      document.getElementById('itemList').innerHTML = `<div class="text-center py-10 text-red-500">${msg}</div>`;
+    }
+
+    const csvUrl = getUrlParameter('d');
+    if (csvUrl) loadCSV(csvUrl); else showError('No CSV specified (?d=url)');
+  </script>
+</body>
+</html>
