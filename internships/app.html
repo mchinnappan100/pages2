@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<title>US Internship Finder</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+
+<style>
+    body { background-color: #111827; }
+    #splitter { width: 6px; cursor: col-resize; background: #374151; }
+</style>
+
+</head>
+<body class="text-gray-300">
+
+<header class="p-4 bg-gray-900 text-xl font-bold border-b border-gray-700">
+    US Internship Finder
+</header>
+
+<div class="flex h-[calc(100vh-64px)]">
+
+    <!-- LEFT PANE -->
+    <div id="leftPane" class="w-1/4 bg-gray-900 p-4 overflow-auto">
+
+        <!-- Search input -->
+        <input id="citySearch"
+               type="text"
+               placeholder="Search city..."
+               class="w-full p-2 mb-3 rounded bg-gray-800 text-gray-200 outline-none focus:ring-2 focus:ring-indigo-600">
+
+        <!-- Dynamic city list -->
+        <ul id="cityList" class="space-y-2"></ul>
+    </div>
+
+    <!-- SPLITTER -->
+    <div id="splitter"></div>
+
+    <!-- RIGHT PANE -->
+    <div id="rightPane" class="flex-1 bg-gray-800 p-4 overflow-auto">
+        <h2 id="cityTitle" class="text-lg font-bold mb-3">Select a city</h2>
+
+        <table class="w-full border border-gray-700" id="internTable">
+            <thead class="bg-gray-700">
+                <tr>
+                    <th class="p-2 border border-gray-600">Company</th>
+                    <th class="p-2 border border-gray-600">Industry</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+// -----------------------------------------------------------
+// 1. Load CSV from ?d=URL
+// -----------------------------------------------------------
+let internshipData = [];
+let cities = [];
+
+function parseCSV(text) {
+    const rows = text.trim().split("\n").map(r => r.split(","));
+    const objects = rows.slice(1).map(r => ({
+        city: r[0],
+        company: r[1],
+        industry: r[2]
+    }));
+    return objects;
+}
+
+async function loadCSV() {
+    const url = new URL(window.location.href);
+    const csvURL = url.searchParams.get("d");
+    if (!csvURL) return;
+
+    const resp = await fetch(csvURL);
+    const csvText = await resp.text();
+    internshipData = parseCSV(csvText);
+
+    cities = [...new Set(internshipData.map(r => r.city))].sort();
+    displayCityList(cities);
+}
+
+loadCSV();
+
+// -----------------------------------------------------------
+// 2. Display City List
+// -----------------------------------------------------------
+const cityListEl = document.getElementById("cityList");
+
+function displayCityList(list) {
+    cityListEl.innerHTML = "";
+    list.forEach(city => {
+        const li = document.createElement("li");
+        li.textContent = city;
+        li.className =
+            "p-2 rounded bg-gray-700 hover:bg-gray-600 cursor-pointer";
+        li.onclick = () => showCityDetails(city);
+        cityListEl.appendChild(li);
+    });
+}
+
+// -----------------------------------------------------------
+// 3. Search Cities in Left Pane
+// -----------------------------------------------------------
+document.getElementById("citySearch").addEventListener("input", (e) => {
+    const query = e.target.value.toLowerCase();
+    const filtered = cities.filter(c => c.toLowerCase().includes(query));
+    displayCityList(filtered);
+});
+
+// -----------------------------------------------------------
+// 4. Show City Details on Right Pane
+// -----------------------------------------------------------
+const internTableBody = document.querySelector("#internTable tbody");
+const cityTitle = document.getElementById("cityTitle");
+
+function showCityDetails(city) {
+    cityTitle.textContent = city;
+
+    const filtered = internshipData.filter(row =>
+        row.city.toLowerCase() === city.toLowerCase()
+    );
+
+    internTableBody.innerHTML = "";
+    filtered.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+            <td class="p-2 border border-gray-700">${r.company}</td>
+            <td class="p-2 border border-gray-700">${r.industry}</td>
+        `;
+        internTableBody.appendChild(tr);
+    });
+}
+
+// -----------------------------------------------------------
+// 5. Splitter logic
+// -----------------------------------------------------------
+const splitter = document.getElementById("splitter");
+const leftPane = document.getElementById("leftPane");
+let dragging = false;
+
+splitter.addEventListener("mousedown", () => dragging = true);
+
+window.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    leftPane.style.width = e.clientX + "px";
+});
+
+window.addEventListener("mouseup", () => dragging = false);
+
+</script>
+
+</body>
+</html>
