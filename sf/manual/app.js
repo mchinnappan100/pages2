@@ -1,10 +1,19 @@
-// app.js
-
 let steps = [];
 let currentStepIndex = -1;
 let isResizing = false;
 let leftPane = document.getElementById("leftPane");
 let rightPane = document.getElementById("rightPane");
+
+// Load saved splitter position from memory (not localStorage)
+let splitterPosition = 30; // Default 30%
+
+// Apply saved splitter position on load
+function applySplitterPosition() {
+  leftPane.style.flex = `0 0 ${splitterPosition}%`;
+  rightPane.style.flex = "1";
+}
+
+applySplitterPosition();
 
 // Resizer functionality
 const resizer = document.getElementById("resizer");
@@ -18,11 +27,13 @@ document.addEventListener("mousemove", (e) => {
   const container = document.querySelector(".split-container");
   const containerRect = container.getBoundingClientRect();
   const newLeftWidth = e.clientX - containerRect.left;
-  const minWidth = 250;
-  const maxWidth = containerRect.width - 300;
+  const newLeftPercent = (newLeftWidth / containerRect.width) * 100;
+  const minPercent = 20;
+  const maxPercent = 70;
 
-  if (newLeftWidth >= minWidth && newLeftWidth <= maxWidth) {
-    leftPane.style.flex = `0 0 ${newLeftWidth}px`;
+  if (newLeftPercent >= minPercent && newLeftPercent <= maxPercent) {
+    splitterPosition = newLeftPercent;
+    leftPane.style.flex = `0 0 ${newLeftPercent}%`;
     rightPane.style.flex = "1";
   }
 });
