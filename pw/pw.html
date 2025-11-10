@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playwright for Salesforce Automation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+    <link rel="stylesheet" data-name="vs/editor/editor.main" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/editor/editor.main.min.css"/>
+    <style>
+        body { margin: 0; background: #1a1a1a; color: #e5e7eb; font-family: system-ui; }
+        .splitter { width: 6px; background: #374151; cursor: col-resize; transition: background 0.2s; }
+        .splitter:hover { background: #4b5563; }
+        .slide-item { padding: 12px 16px; border-bottom: 1px solid #374151; cursor: pointer; transition: all 0.2s; }
+        .slide-item:hover { background: #252f3f; }
+        .slide-item.active { background: #1e40af; font-weight: 600; }
+        .code-container { height: 320px; border: 1px solid #374151; border-radius: 8px; overflow: hidden; margin: 16px 0; }
+        #slide-content pre { background: #1e1e1e; padding: 16px; border-radius: 8px; overflow-x: auto; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+
+    <!-- Left Pane: Slide Navigation -->
+    <div id="left-pane" class="w-96 bg-gray-900 border-r border-gray-700 overflow-y-auto">
+        <div class="p-6 border-b border-gray-700">
+            <h1 class="text-2xl font-bold text-blue-400">Playwright for Salesforce</h1>
+        </div>
+        <div id="slide-list"></div>
+    </div>
+
+    <!-- Splitter -->
+    <div id="splitter" class="splitter"></div>
+
+    <!-- Right Pane: Slide Content -->
+    <div id="right-pane" class="flex-1 overflow-y-auto bg-gray-950 p-10">
+        <div id="slide-content" class="max-w-5xl mx-auto"></div>
+        
+        <div class="mt-12 flex justify-between items-center">
+            <button id="prev-btn" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                Previous
+            </button>
+            <div class="text-sm text-gray-500">
+                Slide <span id="current-num">1</span> of <span id="total-slides">20</span>
+            </div>
+            <button id="next-btn" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                Next
+            </button>
+        </div>
+    </div>
+
+    <script>
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
+        require(['vs/editor/editor.main'], function () {
+            window.monacoReady = true;
+        });
+
+        let slides = [];
+        let currentSlide = 0;
+
+        // Load slides from ?d=slides.json or fallback to embedded
+        async function loadSlides() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const dataUrl = urlParams.get('d');
+            
+            if (dataUrl) {
+                try {
+                    const res = await fetch(dataUrl);
+                    slides = await res.json();
+                } catch (e) {
+                    console.warn("Failed to load external slides, using embedded");
+                    slides = getEmbeddedSlides();
+                }
+            } else {
+                slides = getEmbeddedSlides();
+            }
+            renderNavigation();
+            showSlide(0);
+        }
+
+        function getEmbeddedSlides() {
+            return [
+                { title: "Playwright: Next-Gen Automation", brief: "Modern browser automation built for reliability", content: `<h1 class="text-4xl font-bold text-blue-400 mb-6">Playwright</h1><p class="text-xl leading-relaxed">Microsoft's open-source automation library that enables reliable end-to-end testing for modern web apps. Supports Chromium, Firefox, and WebKit with a single API.</p><div class="mt-8 grid grid-cols-3 gap-6"><div class="bg-gray-800 p-6 rounded-lg"><h3 class="font-bold text-green-400">Auto-wait</h3><p>Never flake again</p></div><div class="bg-gray-800 p-6 rounded-lg"><h3 class="font-bold text-purple-400">Cross-browser</h3><p>All major engines</p></div><div class="bg-gray-800 p-6 rounded-lg"><h3 class="font-bold text-yellow-400">Fast Execution</h3><p>Parallel + isolation</p></div></div>` },
+                { title: "Why Playwright for Salesforce?", brief: "Perfect for complex SPAs like Lightning Experience", content: `<h1 class="text-4xl font-bold mb-6">Salesforce + Playwright = Power Combo</h1><ul class="text-lg space-y-4"><li>Handles dynamic Lightning Web Components (LWC)</li><li>Auto-waits for shadow DOM and async operations</li><li>Runs in headless mode in CI/CD</li><li>Real user simulation (not Selenium)</li></ul>` },
+                { title: "Installation", brief: "npm init playwright@latest", content: `<h1 class="text-4xl font-bold mb-6">Quick Setup</h1><div class="code-container" id="code-0"></div><p class="mt-4">Run: <code class="bg-gray-800 px-3 py-1 rounded">npx playwright install</code> to download browsers</p>` },
+                { title: "Core Concepts", brief: "Browser → Context → Page", content: `<h1 class="text-4xl font-bold mb-6">Architecture</h1><pre class="text-lg">Browser (Chromium/Firefox/WebKit)\n└── Context (isolated session)\n    └── Page (tab)\n        └── Frame (iframe/shadow DOM)</pre>` },
+                { title: "Smart Locators", brief: "Never write flaky XPath again", content: `<h1 class="text-4xl font-bold mb-6">Best Selectors for Salesforce</h1><div class="code-container" id="code-1"></div>` },
+                { title: "Login Automation", brief: "Handle MFA, SSO, and custom domains", content: `<h1 class="text-4xl font-bold mb-6">Production-Ready Login</h1><div class="code-container" id="code-2"></div>` },
+                { title: "App Launcher Navigation", brief: "Click → Search → Launch", content: `<h1 class="text-4xl font-bold mb-6">Navigate Like a Pro</h1><div class="code-container" id="code-3"></div>` },
+                { title: "Creating Records", brief: "New Account, Contact, Opportunity", content: `<h1 class="text-4xl font-bold mb-6">Create Account</h1><div class="code-container" id="code-4"></div>` },
+                { title: "Dynamic List Views", brief: "Search, filter, inline edit", content: `<h1 class="text-4xl font-bold mb-6">List View Mastery</h1><div class="code-container" id="code-5"></div>` },
+                { title: "Modal & Popup Handling", brief: "Lightning modals, toast messages", content: `<h1 class="text-4xl font-bold mb-6">Modal Patterns</h1><div class="code-container" id="code-6"></div>` },
+                { title: "File Upload & Download", brief: "Notes & Attachments, ContentVersion", content: `<h1 class="text-4xl font-bold mb-6">File Operations</h1><div class="code-container" id="code-7"></div>` },
+                { title: "Shadow DOM Penetration", brief: "Access LWC internal elements", content: `<h1 class="text-4xl font-bold mb-6">Break into Shadow DOM</h1><div class="code-container" id="code-8"></div>` },
+                { title: "Handling Toast Messages", brief: "Wait for success/error notifications", content: `<h1 class="text-4xl font-bold mb-6">Toast Assertion</h1><div class="code-container" id="code-9"></div>` },
+                { title: "Data Cleanup Strategies", brief: "Avoid test data pollution", content: `<h1 class="text-4xl font-bold mb-6">Keep Sandbox Clean</h1><div class="code-container" id="code-10"></div>` },
+                { title: "Parallel Execution", brief: "Run 50 tests in 2 minutes", content: `<h1 class="text-4xl font-bold mb-6">Scale with Workers</h1><pre class="text-lg">npx playwright test --workers=10</pre>` },
+                { title: "CI/CD Integration", brief: "GitHub Actions + Playwright", content: `<h1 class="text-4xl font-bold mb-6">Production Pipeline</h1><div class="code-container" id="code-11"></div>` },
+                { title: "Visual Regression", brief: "Pixel-perfect testing", content: `<h1 class="text-4xl font-bold mb-6">Never Miss UI Breaks</h1><div class="code-container" id="code-12"></div>` },
+                { title: "API + UI Hybrid Testing", brief: "Create data via REST, validate in UI", content: `<h1 class="text-4xl font-bold mb-6">Best of Both Worlds</h1><div class="code-container" id="code-13"></div>` },
+                { title: "Debugging Mastery", brief: "Trace viewer, screenshot, video", content: `<h1 class="text-4xl font-bold mb-6">Zero-Friction Debugging</h1><p class="text-2xl">Run with <code>PWDEBUG=1</code> or use trace viewer</p>` },
+                { title: "Resources", brief: "Start automating Salesforce today", content: `<div class="text-center"><h1 class="text-6xl font-bold text-blue-400 mb-8">Thank You!</h1><p class="text-2xl mb-8">Built with Playwright by automation engineers</p><div class="space-y-4 text-left max-w-2xl mx-auto"><p>Resources:</p><ul class="list-disc text-lg"><li>GitHub: <a href="https://github.com/microsoft/playwright" class="text-blue-400 underline">microsoft/playwright</a></li><li>Salesforce Playwright book: <a href="https://mohan-chinnappan-n5.github.io/books/playwright/index.html" class="text-blue-400 underline">https://mohan-chinnappan-n5.github.io/books/playwright/index.html</a></li>
+               <li>Playwright API: <a href="https://playwright.dev/docs/api/class-playwright" class="text-blue-400 underline">https://playwright.dev/docs/api/class-playwright</a></li> 
+             <li>Playwright codegen: <a href="https://playwright.dev/docs/codegen" class="text-blue-400 underline">https://playwright.dev/docs/codegen</a></li>
+            
+                </ul></div></div>` }
+            ];
+        }
+
+        function renderNavigation() {
+            const list = document.getElementById('slide-list');
+            list.innerHTML = slides.map((slide, i) => `
+                <div class="slide-item" data-index="${i}">
+                    <div class="font-semibold">${i + 1}. ${slide.title}</div>
+                    <div class="text-sm text-gray-400 mt-1">${slide.brief}</div>
+                </div>
+            `).join('');
+
+            document.querySelectorAll('.slide-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    currentSlide = parseInt(item.dataset.index);
+                    showSlide(currentSlide);
+                });
+            });
+        }
+
+        function createEditor(containerId, code, language = 'javascript') {
+            if (!window.monacoReady) {
+                setTimeout(() => createEditor(containerId, code, language), 100);
+                return;
+            }
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            container.innerHTML = '';
+            monaco.editor.create(container, {
+                value: code,
+                language,
+                theme: 'vs-dark',
+                readOnly: true,
+                fontSize: 14,
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                automaticLayout: true
+            });
+        }
+
+        const codeSamples = [
+            `// Initialize Playwright
+npm init playwright@latest
+
+// Install browsers
+npx playwright install`,
+            `// Recommended selectors for Salesforce
+await page.getByRole('button', { name: 'New' }).click();
+await page.getByLabel('Account Name').fill('Acme Corp');
+await page.getByTestId('save-button').click();`,
+            `async function login(page) {
+  await page.goto('https://login.salesforce.com');
+  await page.fill('#username', process.env.SF_USER);
+  await page.fill('#password', process.env.SF_PASS);
+  await page.click('#Login');
+
+  // Handle MFA if prompted
+  const mfa = page.locator('#mfa');
+  if (await mfa.isVisible({ timeout: 5000 })) {
+    // Use auth session or manual
+  }
+}`,
+            `await page.click('[aria-label="App Launcher"]');
+await page.click('text=Service');
+await page.click('text=Cases');`,
+            `await page.click('text=New');
+await page.getByLabel('Case Subject').fill('Server Down');
+await page.getByRole('combobox', { name: 'Priority' }).click();
+await page.click('text=High');
+await page.click('text=Save');`,
+            `await page.fill('input[placeholder="Search this list..."]', 'Acme');
+await page.keyboard.press('Enter');
+await page.click('text=Edit');
+await page.fill('input[name="Phone"]', '555-1234');`,
+            `const modal = page.locator('lightning-modal');
+await modal.waitFor({ state: 'visible' });
+await modal.getByRole('button', { name: 'Save' }).click();`,
+            `const [download] = await Promise.all([
+  page.waitForEvent('download'),
+  page.click('text=Download')
+]);
+await download.saveAs('./files/report.csv');`,
+            `// Pierce shadow DOM
+const input = await page.locator('my-component')
+  .locator('>> internal:control')
+  .evaluateHandle(el => el.shadowRoot.querySelector('input'));`,
+            `await expect(page.locator('.toastMessage')).toContainText('successfully');`,
+            `test.afterEach(async ({ page }) => {
+  await page.request.delete(\`/services/data/v64.0/sobjects/Account/\${recordId}\`);
+});`,
+            `// playwright.config.ts
+{
+  workers: process.env.CI ? 8 : 4,
+  retries: process.env.CI ? 2 : 0
+}`,
+            `await expect(page).toHaveScreenshot('home-page.png', {
+  fullPage: true,
+  mask: [page.locator('.user-avatar')]
+});`,
+            `// Create via API, validate in UI
+const response = await request.post('/services/data/v64.0/sobjects/Opportunity', {
+  data: { Name: 'Test Opp', StageName: 'Prospecting', CloseDate: '2025-12-31' }
+});
+await page.goto(\`\${baseUrl}/\${response.data.id}\`);
+await expect(page.getByText('Test Opp')).toBeVisible();`
+        ];
+
+        function showSlide(index) {
+            currentSlide = index;
+            const slide = slides[index];
+            document.getElementById('slide-content').innerHTML = slide.content;
+
+            // Update active state
+            document.querySelectorAll('.slide-item').forEach((el, i) => {
+                el.classList.toggle('active', i === index);
+            });
+
+            // Update counters
+            document.getElementById('current-num').textContent = index + 1;
+            document.getElementById('total-slides').textContent = slides.length;
+
+            // Update buttons
+            document.getElementById('prev-btn').disabled = index === 0;
+            document.getElementById('next-btn').disabled = index === slides.length - 1;
+
+            // Create code editors
+            setTimeout(() => {
+                for (let i = 0; i < codeSamples.length; i++) {
+                    const container = document.getElementById(`code-${i}`);
+                    if (container) {
+                        createEditor(`code-${i}`, codeSamples[i]);
+                    }
+                }
+            }, 100);
+        }
+
+        // Navigation
+        document.getElementById('prev-btn').addEventListener('click', () => {
+            if (currentSlide > 0) showSlide(currentSlide - 1);
+        });
+
+        document.getElementById('next-btn').addEventListener('click', () => {
+            if (currentSlide < slides.length - 1) showSlide(currentSlide + 1);
+        });
+
+        // Splitter
+        const splitter = document.getElementById('splitter');
+        const leftPane = document.getElementById('left-pane');
+        let isDragging = false;
+
+        splitter.addEventListener('mousedown', e => {
+            isDragging = true;
+            e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            const width = e.clientX;
+            if (width > 300 && width < 600) {
+                leftPane.style.width = width + 'px';
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Keyboard navigation
+        document.addEventListener('keydown', e => {
+            if (e.key === 'ArrowLeft') document.getElementById('prev-btn').click();
+            if (e.key === 'ArrowRight') document.getElementById('next-btn').click();
+        });
+
+        // Load slides
+        loadSlides();
+    </script>
+</body>
+</html>

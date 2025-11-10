@@ -1,0 +1,2911 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Playwright Slideshow - Salesforce Automation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" data-name="vs" href="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs.min.js"></script>
+    <style>
+        body { background-color: #1f2937; color: #f9fafb; }
+        .splitter { width: 5px; background: #4b5563; cursor: col-resize; }
+        .splitter:hover { background: #6b7280; }
+        .slide-item:hover { background-color: #374151; }
+        .slide-item.active { background-color: #4f46e5; }
+        .code-container { background: #1e1e1e; border-radius: 8px; overflow: hidden; }
+        .monaco-editor { height: 300px !important; border-radius: 8px; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden bg-gray-900 text-gray-100">
+
+    <div id="left-pane" class="w-1/3 min-w-[300px] p-4 overflow-y-auto bg-gray-800 border-r border-gray-700 flex flex-col">
+        <div class="p-4 border-b border-gray-700">
+            <h1 class="text-xl font-bold text-blue-400">Playwright Slides</h1>
+            <p class="text-sm text-gray-400">Salesforce Automation Guide</p>
+        </div>
+        <div id="slides-list" class="flex-1 mt-4 space-y-1"></div>
+    </div>
+
+    <div id="splitter" class="splitter"></div>
+
+    <div id="right-pane" class="flex-1 flex flex-col overflow-hidden bg-gray-900">
+        <!-- Slide Header -->
+        <div class="p-6 border-b border-gray-700 bg-gray-800">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h2 id="slide-title" class="text-2xl font-bold text-white mb-1"></h2>
+                    <p id="slide-brief" class="text-gray-400"></p>
+                </div>
+                <div class="flex space-x-2">
+                    <button id="prev-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium">← Prev</button>
+                    <button id="next-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium">Next →</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Slide Content -->
+        <div id="slide-content" class="p-6 overflow-y-auto flex-1">
+            <div class="max-w-4xl mx-auto"></div>
+        </div>
+    </div>
+
+    <script>
+        // Load slides from external JSON
+        async function loadSlides() {
+            try {
+                const response = new URLSearchParams(window.location.search).get('d') === 'slides.json' ?
+                    await fetch('slides.json') : 
+                    await fetch('data:application/json;base64,' + btoa(JSON.stringify(getDefaultSlides())));
+                return await response.json();
+            } catch (error) {
+                console.error('Failed to load slides, using default:', error);
+                return getDefaultSlides();
+            }
+        }
+
+        function getDefaultSlides() {
+            return [
+                {
+                    "title": "Introduction to Playwright",
+                    "brief": "Modern browser automation framework",
+                    "content": {
+                        "type": "intro",
+                        "header": "What is Playwright?",
+                        "paragraphs": [
+                            "Playwright is an open-source automation library developed by Microsoft for end-to-end testing and browser automation.",
+                            "Supports multiple browsers (Chromium, Firefox, WebKit) and languages (JavaScript, Python, .NET, Java)."
+                        ],
+                        "features": [
+                            "Reliable and fast automation",
+                            "Cross-browser support", 
+                            "Auto-wait for elements",
+                            "Mobile viewport emulation",
+                            "Network interception"
+                        ],
+                        "url": "https://playwright.dev/"
+                    }
+                },
+                {
+                    "title": "Key Features Overview",
+                    "brief": "Core capabilities that make Playwright powerful",
+                    "content": {
+                        "type": "features",
+                        "header": "Powerful Features",
+                        "features": [
+                            {
+                                "title": "Cross-Browser Testing",
+                                "description": "Test on Chromium, Firefox, and WebKit with a single API"
+                            },
+                            {
+                                "title": "Auto-Waiting",
+                                "description": "Smart waiting eliminates the need for sleep() calls"
+                            },
+                            {
+                                "title": "Network Control",
+                                "description": "Mock and intercept network requests seamlessly"
+                            },
+                            {
+                                "title": "Device Emulation",
+                                "description": "Test on mobile viewports and geolocations"
+                            },
+                            {
+                                "title": "Parallel Execution",
+                                "description": "Run tests concurrently across browsers"
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Installation & Setup",
+                    "brief": "Getting started with Playwright",
+                    "content": {
+                        "type": "setup",
+                        "header": "Quick Start Guide",
+                        "steps": [
+                            "Install Playwright: <code>npm i -D @playwright/test</code>",
+                            "Install browsers: <code>npx playwright install</code>",
+                            "Create config: <code>npx playwright init</code>"
+                        ],
+                        "code": `const { test, expect } = require('@playwright/test');
+
+test('basic test', async ({ page }) => {
+  await page.goto('https://playwright.dev/');
+  const title = await page.title();
+  expect(title).toContain('Playwright');
+});`
+                    }
+                },
+                {
+                    "title": "Browser Contexts & Pages",
+                    "brief": "Understanding core Playwright concepts",
+                    "content": {
+                        "type": "concepts",
+                        "header": "Browser Architecture",
+                        "paragraphs": [
+                            "A <strong>Browser Context</strong> is an isolated environment (like incognito mode)",
+                            "<strong>Pages</strong> represent individual tabs/windows within a context",
+                            "Contexts provide isolation for cookies, localStorage, and permissions"
+                        ],
+                        "code": `const { chromium } = require('playwright');
+
+(async () => {
+  // Launch browser
+  const browser = await chromium.launch();
+  
+  // Create isolated context
+  const context1 = await browser.newContext({
+    viewport: { width: 1280, height: 720 }
+  });
+  
+  // Create pages
+  const page1 = await context1.newPage();
+  const page2 = await context1.newPage();
+  
+  await page1.goto('https://example.com');
+  await page2.goto('https://example.org');
+  
+  await browser.close();
+})();`
+                    }
+                },
+                {
+                    "title": "Locators & Selectors",
+                    "brief": "Finding elements reliably",
+                    "content": {
+                        "type": "locators",
+                        "header": "Smart Locators",
+                        "paragraphs": [
+                            "Playwright locators are <strong>auto-waiting</strong> and <strong>chainable</strong>",
+                            "Supports CSS, XPath, text content, ARIA roles, and more",
+                            "Locators create a lazy query that waits for elements to be actionable"
+                        ],
+                        "examples": [
+                            {
+                                "title": "Common Locator Patterns",
+                                "code": `// By text content
+await page.locator('text=Submit').click();
+
+// By CSS selector
+await page.locator('button.submit-btn').click();
+
+// By ARIA role
+await page.locator('[role="button"]:has-text("Save")').click();
+
+// By test ID (recommended)
+await page.getByTestId('save-button').click();
+
+// Chaining locators
+await page.locator('form').locator('input[name="email"]').fill('user@example.com');`
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "User Interactions",
+                    "brief": "Simulating real user actions",
+                    "content": {
+                        "type": "interactions",
+                        "header": "Realistic Interactions",
+                        "features": [
+                            "Click, double-click, right-click",
+                            "Keyboard typing, shortcuts, and focus",
+                            "Mouse hover, drag-and-drop",
+                            "Touch gestures and scrolling",
+                            "File upload and download handling"
+                        ],
+                        "code": `await page.locator('button#submit').click();
+await page.locator('input#username').type('john.doe@example.com');
+await page.locator('input#password').fill('secure-password-123');
+
+// Keyboard interactions
+await page.keyboard.press('Enter');
+await page.keyboard.type('Hello World!');
+
+// Mouse interactions
+await page.locator('div#draggable').dragAndDrop('div#dropzone');
+
+// File upload
+await page.locator('input[type="file"]').setInputFiles('path/to/file.pdf');`
+                    }
+                },
+                {
+                    "title": "Assertions & Waiting",
+                    "brief": "Verifying application state",
+                    "content": {
+                        "type": "assertions",
+                        "header": "Reliable Verifications",
+                        "paragraphs": [
+                            "<strong>Auto-waiting</strong> built into all actions and assertions",
+                            "Rich set of matchers for text, attributes, visibility, and more",
+                            "Expect library provides fluent API for complex assertions"
+                        ],
+                        "code": `const { expect } = require('@playwright/test');
+
+// Basic assertions
+await expect(page.locator('h1')).toHaveText('Welcome');
+await expect(page.locator('button')).toBeVisible();
+await expect(page.locator('input')).toHaveValue('John Doe');
+
+// Complex assertions
+await expect(page.locator('.error-message')).toHaveCount(0);
+await expect(page.locator('table tr')).toHaveCount(5);
+
+// Network assertions
+const response = await page.waitForResponse('**/api/users');
+await expect(response.status()).toBe(200);`
+                    }
+                },
+                {
+                    "title": "Network Interception",
+                    "brief": "Controlling network requests",
+                    "content": {
+                        "type": "network",
+                        "header": "Network Layer Control",
+                        "paragraphs": [
+                            "Intercept and modify network requests and responses",
+                            "Mock API responses for faster testing",
+                            "Test error scenarios and network conditions",
+                            "Monitor and validate network activity"
+                        ],
+                        "code": `// Mock API response
+await page.route('**/api/users', route => {
+  route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify([
+      { id: 1, name: 'John Doe', email: 'john@example.com' }
+    ])
+  });
+});
+
+// Block specific requests
+await page.route('**/*.{png,jpg,jpeg}', route => route.abort());
+
+// Monitor requests
+page.on('request', request => {
+  console.log('Request:', request.url());
+});
+
+page.on('response', response => {
+  console.log('Response:', response.url(), response.status());
+});
+
+// Wait for specific requests
+const response = await page.waitForResponse('**/api/login');
+expect(response.status()).toBe(200);`
+                    }
+                },
+                {
+                    "title": "Debugging & Tracing",
+                    "brief": "Troubleshooting automation scripts",
+                    "content": {
+                        "type": "debugging",
+                        "header": "Comprehensive Debugging",
+                        "features": [
+                            {
+                                "title": "Playwright Inspector",
+                                "description": "Interactive debugging with live element selection"
+                            },
+                            {
+                                "title": "Trace Viewer",
+                                "description": "Record and analyze test execution with screenshots"
+                            },
+                            {
+                                "title": "Screenshots & Videos",
+                                "description": "Automatic capture on failures and test completion"
+                            },
+                            {
+                                "title": "Console Logging",
+                                "description": "Capture browser console messages and errors"
+                            }
+                        ],
+                        "code": `// Enable tracing
+const { chromium } = require('playwright');
+const browser = await chromium.launch();
+const context = await browser.newContext();
+
+// Start tracing with screenshots
+await context.tracing.start({ 
+  screenshots: true, 
+  snapshots: true 
+});
+
+// Run your test
+const page = await context.newPage();
+await page.goto('https://example.com');
+// ... test steps
+
+// Stop tracing
+await context.tracing.stop({ path: 'trace.zip' });
+
+// View trace
+// npx playwright show-trace trace.zip`
+                    }
+                },
+                {
+                    "title": "CI/CD Integration",
+                    "brief": "Running tests in continuous integration",
+                    "content": {
+                        "type": "ci",
+                        "header": "Pipeline Integration",
+                        "paragraphs": [
+                            "Native support for GitHub Actions, GitLab CI, Jenkins, Azure DevOps",
+                            "Docker images available for easy containerization",
+                            "Parallel execution across multiple machines",
+                            "Detailed reporting with HTML viewer and JUnit XML"
+                        ],
+                        "example": {
+                            "title": "GitHub Actions Workflow",
+                            "code": `name: Playwright Tests
+on: [push, pull_request]
+jobs:
+  test:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps
+      
+    - name: Run Playwright tests
+      run: npx playwright test
+      
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: playwright-report
+        path: playwright-report/
+        retention-days: 30
+
+    - name: Upload test results
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results
+        path: test-results/`
+                        }
+                    }
+                },
+                {
+                    "title": "Salesforce Automation Introduction",
+                    "brief": "Using Playwright for Salesforce tasks",
+                    "content": {
+                        "type": "salesforce-intro",
+                        "header": "Automating Salesforce with Playwright",
+                        "paragraphs": [
+                            "Automate repetitive manual tasks in Salesforce Lightning",
+                            "Handle complex UI components and dynamic content",
+                            "Integrate with Salesforce APIs for hybrid automation",
+                            "Run automated testing against Salesforce sandboxes"
+                        ],
+                        "use-cases": [
+                            "Bulk data entry and updates",
+                            "Report generation and export",
+                            "Workflow and approval automation", 
+                            "User acceptance testing (UAT)",
+                            "Regression testing of customizations"
+                        ],
+                        "url": "https://help.salesforce.com/s/articleView?id=sf.testing_playwright.htm&type=5"
+                    }
+                },
+                {
+                    "title": "Salesforce Authentication",
+                    "brief": "Secure login automation",
+                    "content": {
+                        "type": "salesforce-login",
+                        "header": "Salesforce Login Automation",
+                        "paragraphs": [
+                            "Handle username/password authentication",
+                            "Manage multi-factor authentication (MFA)",
+                            "Store credentials securely using environment variables",
+                            "Handle session management and cookies"
+                        ],
+                        "code": `const { chromium } = require('playwright');
+
+async function loginToSalesforce(page, username, password) {
+  // Navigate to login page
+  await page.goto('https://login.salesforce.com');
+  
+  // Fill credentials
+  await page.fill('#username', username);
+  await page.fill('#password', password);
+  
+  // Handle potential MFA
+  const hasMFA = await page.locator('#oauth2').isVisible({ timeout: 3000 }).catch(() => false);
+  
+  if (hasMFA) {
+    console.log('MFA detected - manual intervention required');
+    await page.waitForURL('**/home', { timeout: 300000 }); // 5 min for manual MFA
+  } else {
+    await page.click('#Login');
+    await page.waitForURL('**/home', { timeout: 10000 });
+  }
+  
+  // Verify successful login
+  await expect(page.locator('[data-aura-class="forceHeader"]')).toBeVisible();
+  
+  return page;
+}
+
+// Usage
+(async () => {
+  const browser = await chromium.launch({ headless: false });
+  const page = await browser.newPage();
+  
+  await loginToSalesforce(
+    page, 
+    process.env.SF_USERNAME, 
+    process.env.SF_PASSWORD
+  );
+  
+  await browser.close();
+})();`
+                    }
+                },
+                {
+                    "title": "Navigating Salesforce UI",
+                    "brief": "Working with Lightning components",
+                    "content": {
+                        "type": "salesforce-navigation",
+                        "header": "Salesforce Navigation Patterns",
+                        "paragraphs": [
+                            "Navigate through App Launcher, tabs, and object lists",
+                            "Handle Lightning Experience components and modals",
+                            "Work with dynamic IDs and shadow DOM elements",
+                            "Implement robust waiting strategies for AJAX content"
+                        ],
+                        "code": `async function navigateToObject(page, objectName) {
+  // Open App Launcher
+  await page.click('[aria-label="App Launcher"]');
+  await page.waitForSelector('.slds-app-launcher__tile[title*="Sales"]');
+  await page.click('.slds-app-launcher__tile[title*="Sales"]');
+  
+  // Navigate to specific object
+  await page.click(`a[title="${objectName}"]`);
+  await page.waitForSelector(`[data-aura-class="forceListViewHeader"]`);
+  
+  return page;
+}
+
+async function searchRecords(page, searchTerm) {
+  // Use global search
+  await page.fill('[placeholder="Search..."]', searchTerm);
+  await page.press('[placeholder="Search..."]', 'Enter');
+  
+  // Wait for search results
+  await page.waitForSelector('.forceSearchAndCreateCard', { timeout: 5000 });
+  
+  // Verify results loaded
+  const resultCount = await page.locator('.forceSearchAndCreateCard').count();
+  console.log(`Found ${resultCount} search results`);
+  
+  return resultCount;
+}
+
+// Usage example
+(async () => {
+  const page = await loginToSalesforce(/* ... */);
+  await navigateToObject(page, 'Accounts');
+  await searchRecords(page, 'Acme Corporation');
+})();`
+                    }
+                },
+                {
+                    "title": "Creating Salesforce Records",
+                    "brief": "Automating data entry",
+                    "content": {
+                        "type": "salesforce-create",
+                        "header": "Automated Record Creation",
+                        "paragraphs": [
+                            "Create new records in Accounts, Contacts, Opportunities, and custom objects",
+                            "Handle required fields, picklists, lookup fields, and rich text areas",
+                            "Implement data validation and error handling",
+                            "Support bulk creation with CSV data sources"
+                        ],
+                        "code": `async function createAccount(page, accountData) {
+  // Click New button
+  await page.click('button[name="New"]');
+  await page.waitForSelector('lightning-record-edit-form');
+  
+  // Fill basic fields
+  await page.fill('input[data-field-name="Name"]', accountData.name);
+  await page.fill('input[data-field-name="Phone"]', accountData.phone || '');
+  await page.fill('textarea[data-field-name="Description"]', accountData.description || '');
+  
+  // Handle picklist fields
+  if (accountData.type) {
+    await page.selectOption('select[data-field-name="Type"]', accountData.type);
+  }
+  
+  // Handle lookup fields
+  if (accountData.parentId) {
+    await page.click('input[data-field-name="ParentId"]');
+    await page.fill('.lookup-input', accountData.parentName);
+    await page.press('.lookup-input', 'Enter');
+  }
+  
+  // Handle date fields
+  if (accountData.billingDate) {
+    await page.fill('input[data-field-name="Billing_Date__c"]', accountData.billingDate);
+  }
+  
+  // Save record
+  await page.click('button[name="SaveEdit"]');
+  
+  // Wait for success message
+  await expect(page.locator('.toast-messages')).toContainText('Saved');
+  
+  // Get record ID from URL
+  const url = page.url();
+  const recordId = url.match(/\/([a-zA-Z0-9]{15,18})$/)[1];
+  
+  console.log(`Created Account with ID: ${recordId}`);
+  return recordId;
+}
+
+// Usage with sample data
+const sampleAccount = {
+  name: 'Acme Corporation',
+  phone: '+1-555-0123',
+  type: 'Customer - Direct',
+  description: 'Automated test account',
+  parentName: 'Parent Company Inc.',
+  billingDate: '2025-11-10'
+};
+
+(async () => {
+  const page = await navigateToObject(/* page, 'Accounts' */);
+  const accountId = await createAccount(page, sampleAccount);
+  console.log(`New Account ID: ${accountId}`);
+})();`
+                    }
+                },
+                {
+                    "title": "Updating Salesforce Records",
+                    "brief": "Modifying existing data",
+                    "content": {
+                        "type": "salesforce-update",
+                        "header": "Record Updates & Bulk Operations",
+                        "paragraphs": [
+                            "Edit existing records with precise field targeting",
+                            "Handle inline editing and mass update functionality",
+                            "Implement change detection and audit logging",
+                            "Support complex field updates (formulas, rollups)"
+                        ],
+                        "code": `async function updateAccount(page, recordId, updateData) {
+  // Navigate to specific record
+  await page.goto(`/lightning/r/Account/${recordId}/view`);
+  await page.waitForSelector('[data-aura-class="forceRecordView"]');
+  
+  // Method 1: Edit individual fields (inline editing)
+  if (updateData.name) {
+    await page.click(`[data-field-name="Name"]`);
+    await page.fill(`[data-field-name="Name"]`, updateData.name);
+    await page.press(`[data-field-name="Name"]`, 'Enter');
+  }
+  
+  // Method 2: Full edit mode
+  await page.click('button[name="Edit"]');
+  await page.waitForSelector('lightning-record-edit-form');
+  
+  // Update multiple fields
+  const fieldMappings = {
+    'Phone': 'input[data-field-name="Phone"]',
+    'Website': 'input[data-field-name="Website"]',
+    'AnnualRevenue': 'input[data-field-name="AnnualRevenue"]',
+    'Industry': 'select[data-field-name="Industry"]'
+  };
+  
+  for (const [fieldName, selector] of Object.entries(fieldMappings)) {
+    if (updateData[fieldName]) {
+      if (fieldName === 'Industry') {
+        await page.selectOption(selector, updateData[fieldName]);
+      } else {
+        await page.fill(selector, updateData[fieldName]);
+      }
+    }
+  }
+  
+  // Save changes
+  await page.click('button[name="SaveEdit"]');
+  
+  // Verify update success
+  await expect(page.locator('.toast-messages')).toContainText('Saved');
+  
+  // Verify field values updated
+  if (updateData.name) {
+    await expect(page.locator('[data-field-name="Name"]').first()).toHaveText(updateData.name);
+  }
+  
+  console.log(`Updated Account ${recordId} successfully`);
+  return true;
+}
+
+// Bulk update function
+async function bulkUpdateAccounts(page, accountsData) {
+  const results = [];
+  
+  for (const account of accountsData) {
+    try {
+      const success = await updateAccount(page, account.id, account.data);
+      results.push({ id: account.id, success, error: null });
+      await page.waitForTimeout(1000); // Rate limiting
+    } catch (error) {
+      results.push({ id: account.id, success: false, error: error.message });
+    }
+  }
+  
+  const successCount = results.filter(r => r.success).length;
+  console.log(`Bulk update completed: ${successCount}/${accountsData.length} successful`);
+  
+  return results;
+}
+
+// Usage example
+const updateData = {
+  name: 'Acme Corporation (Updated)',
+  phone: '+1-555-0123',
+  annualRevenue: '50000000',
+  industry: 'Technology'
+};
+
+(async () => {
+  await updateAccount(page, '001xxxxxxxxxxxx', updateData);
+  
+  // Bulk update example
+  const bulkData = [
+    { id: '001yyxxxxxxxxx', data: { status: 'Active' } },
+    { id: '001zzxxxxxxxxx', data: { status: 'Prospect' } }
+  ];
+  
+  const results = await bulkUpdateAccounts(page, bulkData);
+})();`
+                    }
+                },
+                {
+                    "title": "Salesforce Reports Automation",
+                    "brief": "Automated reporting and analytics",
+                    "content": {
+                        "type": "salesforce-reports",
+                        "header": "Report Generation & Export",
+                        "paragraphs": [
+                            "Navigate report folders and run standard/custom reports",
+                            "Apply dynamic filters and parameters",
+                            "Export data to CSV, Excel, and PDF formats",
+                            "Schedule and automate report distribution"
+                        ],
+                        "code": `async function runSalesReport(page, reportName, filters = {}) {
+  // Navigate to Reports tab
+  await page.click('[title="Reports"]');
+  await page.waitForSelector('.forceTabBarItem');
+  
+  // Search for specific report
+  await page.fill('input[placeholder*="Search reports"]', reportName);
+  await page.press('input[placeholder*="Search reports"]', 'Enter');
+  
+  // Click on report
+  await page.click(`a[title="${reportName}"]`);
+  await page.waitForSelector('.reportChartContainer');
+  
+  // Apply filters if provided
+  if (Object.keys(filters).length > 0) {
+    await page.click('[aria-label="Filters"]');
+    
+    for (const [field, value] of Object.entries(filters)) {
+      // Add filter row
+      await page.click('[aria-label="Add filter"]');
+      
+      // Select field
+      await page.selectOption(`select[data-filter-field="${field}"]`, field);
+      
+      // Set operator and value
+      await page.selectOption(`select[data-filter-operator]`, 'equals');
+      await page.fill(`input[data-filter-value]`, value);
+    }
+    
+    // Apply filters
+    await page.click('[aria-label="Apply"]');
+    await page.waitForSelector('.reportRefreshSpinner', { state: 'hidden' });
+  }
+  
+  // Wait for report to render
+  await page.waitForSelector('.reportDataTable', { timeout: 10000 });
+  
+  // Get report metrics
+  const rowCount = await page.locator('.reportDataTable tbody tr').count();
+  console.log(`Report "${reportName}" returned ${rowCount} rows`);
+  
+  return { rowCount, reportName };
+}
+
+async function exportReport(page, format = 'csv') {
+  // Click export button
+  await page.click('[title="Export"]');
+  
+  // Select format
+  const formatMap = {
+    csv: 'Comma Delimited .csv',
+    excel: 'Row-Level Formula .xlsx',
+    pdf: 'PDF'
+  };
+  
+  await page.click(`[role="menuitem"]:has-text("${formatMap[format]}")`);
+  
+  // Wait for download
+  const downloadPromise = page.waitForEvent('download');
+  const download = await downloadPromise;
+  
+  const fileName = download.suggestedFilename();
+  const filePath = await download.path();
+  
+  console.log(`Report exported as ${fileName} to ${filePath}`);
+  
+  return { fileName, filePath };
+}
+
+// Usage example
+(async () => {
+  const page = await loginToSalesforce(/* ... */);
+  
+  // Run quarterly sales report with filters
+  const report = await runSalesReport(page, 'Q4 Sales Performance', {
+    'Close Date': 'THIS_QUARTER',
+    'Stage': 'Closed Won'
+  });
+  
+  // Export results
+  if (report.rowCount > 0) {
+    await exportReport(page, 'csv');
+  }
+  
+  // Advanced: Schedule report automation
+  const scheduleData = {
+    frequency: 'weekly',
+    time: '09:00 AM',
+    recipients: ['reports@company.com'],
+    format: 'pdf'
+  };
+  
+  // Navigate to schedule setup (requires additional locators)
+  // await scheduleReport(page, report.reportName, scheduleData);
+  
+})();
+
+// Report validation helper
+async function validateReportData(page, expectedMetrics) {
+  const actualMetrics = {
+    totalRecords: await page.locator('.reportDataTable tbody tr').count(),
+    totalRevenue: await page.locator('[data-metric="totalRevenue"]').textContent(),
+    avgDealSize: await page.locator('[data-metric="avgDealSize"]').textContent()
+  };
+  
+  // Assert key metrics
+  expect(actualMetrics.totalRecords).toBeGreaterThan(expectedMetrics.minRecords);
+  expect(parseFloat(actualMetrics.totalRevenue.replace(/[^0-9.]/g, '')))
+    .toBeCloseTo(expectedMetrics.targetRevenue, 2);
+  
+  console.log('Report validation passed:', actualMetrics);
+  return actualMetrics;
+}`
+                    }
+                },
+                {
+                    "title": "Handling Salesforce Modals",
+                    "brief": "Working with popups and dialogs",
+                    "content": {
+                        "type": "salesforce-modals",
+                        "header": "Modal & Dialog Automation",
+                        "paragraphs": [
+                            "Handle Lightning modals, confirmation dialogs, and quick actions",
+                            "Manage shadow DOM elements and complex component structures",
+                            "Implement robust waiting strategies for asynchronous content",
+                            "Handle file uploaders, lookup dialogs, and related list actions"
+                        ],
+                        "code": `async function handleConfirmationModal(page, action = 'confirm') {
+  // Wait for modal to appear
+  await page.waitForSelector('.slds-modal__container', { state: 'visible' });
+  
+  // Get modal title for context
+  const modalTitle = await page.locator('.slds-modal__title').textContent();
+  console.log(`Handling modal: ${modalTitle}`);
+  
+  // Handle different modal types
+  const confirmButton = page.locator('button:has-text("Confirm")');
+  const cancelButton = page.locator('button:has-text("Cancel")');
+  const okButton = page.locator('button:has-text("OK")');
+  
+  if (action === 'confirm' && await confirmButton.isVisible()) {
+    await confirmButton.click();
+  } else if (action === 'cancel' && await cancelButton.isVisible()) {
+    await cancelButton.click();
+  } else if (await okButton.isVisible()) {
+    await okButton.click();
+  }
+  
+  // Wait for modal to close
+  await page.waitForSelector('.slds-modal__container', { state: 'hidden' });
+  
+  // Check for success/error toast
+  const toast = page.locator('.toast-messages');
+  if (await toast.isVisible()) {
+    const message = await toast.textContent();
+    console.log(`Modal result: ${message}`);
+    return message.includes('success') || message.includes('saved');
+  }
+  
+  return true;
+}
+
+async function handleLookupDialog(page, searchTerm, objectType = 'Account') {
+  // Wait for lookup modal
+  await page.waitForSelector('.lookup', { state: 'visible' });
+  
+  // Search in lookup
+  const searchInput = page.locator('.lookup-input');
+  await searchInput.fill(searchTerm);
+  await searchInput.press('Enter');
+  
+  // Wait for search results
+  await page.waitForSelector('.lookup-results', { timeout: 5000 });
+  
+  // Select first matching result
+  const firstResult = page.locator('.lookup-result').first();
+  const resultText = await firstResult.textContent();
+  
+  if (resultText && resultText.toLowerCase().includes(searchTerm.toLowerCase())) {
+    await firstResult.click();
+    console.log(`Selected lookup: ${resultText}`);
+  } else {
+    throw new Error(`No matching ${objectType} found for: ${searchTerm}`);
+  }
+  
+  // Wait for modal to close and value to be set
+  await page.waitForSelector('.lookup', { state: 'hidden' });
+  await page.waitForSelector('[data-field-name="lookupField"]', { state: 'attached' });
+  
+  return resultText;
+}
+
+async function handleFileUploadModal(page, filePath) {
+  // Wait for file upload modal
+  await page.waitForSelector('.file-upload-modal', { state: 'visible' });
+  
+  // Select file
+  const fileInput = page.locator('input[type="file"]');
+  await fileInput.setInputFiles(filePath);
+  
+  // Upload file
+  await page.click('button:has-text("Upload")');
+  
+  // Monitor upload progress
+  await page.waitForFunction(() => {
+    const progress = document.querySelector('.upload-progress');
+    return !progress || progress.style.display === 'none';
+  }, { timeout: 30000 });
+  
+  // Verify upload success
+  const successToast = page.locator('.toast-messages:has-text("Uploaded")');
+  await expect(successToast).toBeVisible({ timeout: 5000 });
+  
+  const fileName = path.basename(filePath);
+  console.log(`File uploaded successfully: ${fileName}`);
+  
+  return fileName;
+}
+
+// Usage examples
+(async () => {
+  const page = await loginToSalesforce(/* ... */);
+  
+  // Example 1: Handle delete confirmation
+  await page.click('button[name="Delete"]');
+  await handleConfirmationModal(page, 'confirm');
+  
+  // Example 2: Handle lookup selection
+  await page.click('input[data-field-name="AccountId"]');
+  await handleLookupDialog(page, 'Acme Corporation', 'Account');
+  
+  // Example 3: Handle file upload
+  await page.click('button:has-text("Attach File")');
+  await handleFileUploadModal(page, '/path/to/quote.pdf');
+  
+  // Example 4: Handle complex modal with validation
+  async function safeModalInteraction(page, action, expectedResult) {
+    try {
+      await page.click(action.selector);
+      const success = await handleConfirmationModal(page, action.confirm ? 'confirm' : 'cancel');
+      
+      if (expectedResult) {
+        await expect(page.locator(expectedResult.selector)).toHaveText(expectedResult.text);
+      }
+      
+      return { success, action: action.name };
+    } catch (error) {
+      console.error(`Modal interaction failed: ${action.name}`, error);
+      return { success: false, error: error.message, action: action.name };
+    }
+  }
+  
+  // Test multiple modal interactions
+  const modalTests = [
+    { name: 'Delete Record', selector: 'button[name="Delete"]', confirm: true },
+    { name: 'Cancel Edit', selector: 'button[name="CancelEdit"]', confirm: false },
+    { name: 'Save Changes', selector: 'button[name="SaveEdit"]', confirm: true }
+  ];
+  
+  const results = [];
+  for (const test of modalTests) {
+    results.push(await safeModalInteraction(page, test, test.expectedResult));
+  }
+  
+  console.log('Modal test results:', results);
+  
+})();`
+                    }
+                },
+                {
+                    "title": "Salesforce CI/CD Integration",
+                    "brief": "Automated testing in pipelines",
+                    "content": {
+                        "type": "salesforce-ci",
+                        "header": "Continuous Testing for Salesforce",
+                        "paragraphs": [
+                            "Run Playwright tests against Salesforce sandboxes in CI/CD",
+                            "Integrate with Salesforce DX and deployment pipelines",
+                            "Implement test data management and cleanup",
+                            "Generate compliance reports and test coverage metrics"
+                        ],
+                        "example": {
+                            "title": "GitHub Actions for Salesforce Testing",
+                            "code": `name: Salesforce Playwright Tests
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  SF_USERNAME: ${{ secrets.SF_USERNAME }}
+  SF_PASSWORD: ${{ secrets.SF_PASSWORD }}
+  SF_LOGIN_URL: 'https://test.salesforce.com'
+  PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright
+
+jobs:
+  test:
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        browser: [chromium, firefox, webkit]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    
+    - name: Install dependencies
+      run: npm ci
+    
+    - name: Install Playwright browsers
+      run: npx playwright install --with-deps ${{ matrix.browser }}
+    
+    - name: Setup Salesforce CLI
+      uses: sfdx-actions/setup-sfdx@v1
+      with:
+        version: 'latest'
+    
+    - name: Authenticate with Salesforce
+      run: |
+        echo "${{ secrets.SF_PASSWORD }}" | sfdx auth:sfdxurl:store \\
+          -u "${{ env.SF_USERNAME }}" \\
+          -r "${{ env.SF_LOGIN_URL }}" \\
+          -f sfdx-config.json \\
+          -a test-sandbox \\
+          -s
+    
+    - name: Deploy metadata to sandbox
+      run: |
+        sfdx force:source:deploy \\
+          -p force-app \\
+          -u test-sandbox \\
+          -c \\
+          -w 5m
+    
+    - name: Create test data
+      run: |
+        npx playwright test setup-data.spec.js
+    
+    - name: Run Playwright tests
+      run: |
+        npx playwright test \\
+          --project=${{ matrix.browser }} \\
+          --reporter=html,junit \\
+          --headed=false
+    
+    - name: Generate test report
+      if: always()
+      run: |
+        npx playwright show-report
+    
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-report-${{ matrix.browser }}
+        path: playwright-report/
+        retention-days: 30
+    
+    - name: Cleanup test data
+      if: always()
+      run: |
+        npx playwright test cleanup-data.spec.js || true
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Salesforce CLI
+      uses: sfdx-actions/setup-sfdx@v1
+    
+    - name: Authenticate with production
+      run: |
+        echo "${{ secrets.PROD_PASSWORD }}" | sfdx auth:sfdxurl:store \\
+          -u "${{ secrets.PROD_USERNAME }}" \\
+          -r "https://login.salesforce.com" \\
+          -f sfdx-config.json \\
+          -a production \\
+          -s
+    
+    - name: Deploy to production
+      run: |
+        sfdx force:source:deploy \\
+          -p force-app \\
+          -u production \\
+          -c \\
+          -w 10m`
+                        }
+                    }
+                },
+                {
+                    "title": "Salesforce Best Practices",
+                    "brief": "Reliable automation strategies",
+                    "content": {
+                        "type": "best-practices",
+                        "header": "Production-Ready Automation",
+                        "guidelines": [
+                            {
+                                "title": "Stable Selectors",
+                                "description": "Use data attributes and ARIA labels over dynamic IDs",
+                                "code": `// Good - stable selectors
+await page.getByRole('button', { name: 'Save' });
+await page.locator('[data-element-id="save-button"]').click();
+
+// Avoid - brittle selectors
+await page.locator('#j_id0:j_id2:j_id5').click(); // Lightning component IDs
+await page.locator('div:nth-child(3) > a').click(); // Structure-based`
+                            },
+                            {
+                                "title": "Environment Management",
+                                "description": "Separate test data for different environments",
+                                "code": `// config.js
+const config = {
+  environments: {
+    sandbox: {
+      baseUrl: 'https://test.salesforce.com',
+      username: process.env.SF_SANDBOX_USER,
+      timeout: 30000
+    },
+    staging: {
+      baseUrl: 'https://staging.salesforce.com', 
+      username: process.env.SF_STAGING_USER,
+      timeout: 45000
+    }
+  }
+};
+
+module.exports = config[process.env.ENVIRONMENT || 'sandbox'];`
+                            },
+                            {
+                                "title": "Error Recovery",
+                                "description": "Implement retry logic and graceful degradation",
+                                "code": `async function retryOperation(page, operation, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await operation();
+    } catch (error) {
+      console.warn(`Attempt ${attempt} failed: ${error.message}`);
+      
+      if (attempt === maxRetries) {
+        throw new Error(`Operation failed after ${maxRetries} attempts: ${error.message}`);
+      }
+      
+      // Wait before retry
+      await page.waitForTimeout(2000 * attempt);
+      
+      // Optional: refresh page or reset state
+      if (attempt === 2) {
+        await page.reload({ waitUntil: 'networkidle' });
+      }
+    }
+  }
+}
+
+// Usage
+await retryOperation(page, async () => {
+  await page.click('button[name="Save"]');
+  await expect(page.locator('.toast-success')).toBeVisible();
+});`
+                            },
+                            {
+                                "title": "Data Management",
+                                "description": "Clean test data creation and cleanup",
+                                "code": `// test-data-factory.js
+class SalesforceDataFactory {
+  constructor(page) {
+    this.page = page;
+    this.createdRecords = new Map();
+  }
+  
+  async createTestAccount(options = {}) {
+    const defaultData = {
+      name: `Test Account ${Date.now()}`,
+      type: 'Customer - Direct',
+      phone: `555-${Math.floor(Math.random() * 1000)}-${Math.floor(Math.random() * 1000)}`
+    };
+    
+    const accountData = { ...defaultData, ...options };
+    const recordId = await createAccount(this.page, accountData);
+    
+    // Track for cleanup
+    this.createdRecords.set('accounts', [...(this.createdRecords.get('accounts') || []), recordId]);
+    
+    return { id: recordId, ...accountData };
+  }
+  
+  async createTestContact(accountId, options = {}) {
+    const defaultData = {
+      firstName: 'Test',
+      lastName: `Contact ${Date.now()}`,
+      email: `test${Date.now()}@example.com`
+    };
+    
+    const contactData = { ...defaultData, ...options, accountId };
+    const recordId = await createContact(this.page, contactData);
+    
+    this.createdRecords.set('contacts', [...(this.createdRecords.get('contacts') || []), recordId]);
+    
+    return { id: recordId, ...contactData };
+  }
+  
+  async cleanup() {
+    console.log('Cleaning up test data...');
+    
+    // Delete contacts first (child records)
+    if (this.createdRecords.has('contacts')) {
+      for (const contactId of this.createdRecords.get('contacts')) {
+        try {
+          await deleteRecord(this.page, 'Contact', contactId);
+        } catch (error) {
+          console.warn(`Failed to delete contact ${contactId}: ${error.message}`);
+        }
+      }
+    }
+    
+    // Delete accounts (parent records)
+    if (this.createdRecords.has('accounts')) {
+      for (const accountId of this.createdRecords.get('accounts')) {
+        try {
+          await deleteRecord(this.page, 'Account', accountId);
+        } catch (error) {
+          console.warn(`Failed to delete account ${accountId}: ${error.message}`);
+        }
+      }
+    }
+    
+    console.log('Test data cleanup completed');
+  }
+}
+
+// Usage in tests
+test.describe('Account Management', () => {
+  let dataFactory;
+  
+  test.beforeEach(async ({ page }) => {
+    dataFactory = new SalesforceDataFactory(page);
+    await loginToSalesforce(page);
+  });
+  
+  test.afterEach(async () => {
+    await dataFactory.cleanup();
+  });
+  
+  test('should create and update account', async ({ page }) => {
+    const account = await dataFactory.createTestAccount({
+      description: 'Automated test account'
+    });
+    
+    // Test account operations
+    expect(account.name).toContain('Test Account');
+    
+    // Cleanup handled automatically in afterEach
+  });
+});`
+                            }
+                        ]
+                    }
+                },
+                {
+                    "title": "Advanced Salesforce Automation",
+                    "brief": "API integration and complex workflows",
+                    "content": {
+                        "type": "advanced",
+                        "header": "Enterprise Automation Patterns",
+                        "paragraphs": [
+                            "Hybrid automation combining UI and REST/SOAP API calls",
+                            "Complex workflow automation across multiple objects",
+                            "Integration with external systems and middleware",
+                            "Performance testing and load simulation"
+                        ],
+                        "code": `// hybrid-automation.js
+const { chromium, expect } = require('@playwright/test');
+const jsforce = require('jsforce');
+
+class SalesforceHybridClient {
+  constructor(playwrightPage, sfConnection) {
+    this.page = playwrightPage;
+    this.conn = sfConnection;
+  }
+  
+  // UI + API hybrid pattern
+  async createAccountWithContacts(accountData, contactsData) {
+    console.log('Step 1: Create account via REST API (fast)');
+    
+    // Create account via API
+    const accountResult = await this.conn.sobject('Account').create(accountData);
+    expect(accountResult.success).toBe(true);
+    console.log(`Created account: ${accountResult.id}`);
+    
+    // Create contacts via UI (for validation)
+    console.log('Step 2: Create contacts via UI (validation)');
+    await this.navigateToAccount(accountResult.id);
+    
+    for (const contact of contactsData) {
+      contact.AccountId = accountResult.id;
+      await this.createContactViaUI(contact);
+    }
+    
+    // Verify via API
+    console.log('Step 3: Verify relationships via API');
+    const accountWithContacts = await this.conn.query(`
+      SELECT Id, Name, 
+             (SELECT Id, FirstName, LastName FROM Contacts)
+      FROM Account 
+      WHERE Id = '${accountResult.id}'
+    `);
+    
+    expect(accountWithContacts.records[0].Contacts.records).toHaveLength(contactsData.length);
+    
+    return {
+      accountId: accountResult.id,
+      contacts: accountWithContacts.records[0].Contacts.records
+    };
+  }
+  
+  // Complex workflow automation
+  async processLeadConversion(leadEmail) {
+    console.log(`Processing lead conversion for: ${leadEmail}`);
+    
+    // Step 1: Find lead via API
+    const leadQuery = await this.conn.query(`
+      SELECT Id, Email, FirstName, LastName, Company, Status
+      FROM Lead 
+      WHERE Email = '${leadEmail}'
+      AND Status = 'Qualified'
+      LIMIT 1
+    `);
+    
+    if (!leadQuery.totalSize) {
+      throw new Error(`No qualified lead found for ${leadEmail}`);
+    }
+    
+    const lead = leadQuery.records[0];
+    console.log(`Found qualified lead: ${lead.Id}`);
+    
+    // Step 2: Convert lead via UI (requires specific permissions)
+    await this.page.goto(`/lightning/r/Lead/${lead.Id}/view`);
+    await this.page.click('button[name="Convert"]');
+    
+    // Fill conversion details
+    await this.page.fill('input[data-field-name="AccountName"]', lead.Company || 'Default Account');
+    await this.page.fill('input[data-field-name="ContactFirstName"]', lead.FirstName);
+    await this.page.fill('input[data-field-name="ContactLastName"]', lead.LastName);
+    
+    // Convert
+    await this.page.click('button[name="Convert"]');
+    await this.handleConfirmationModal('confirm');
+    
+    // Step 3: Verify conversion via API
+    const convertedAccount = await this.conn.query(`
+      SELECT Id, Name FROM Account 
+      WHERE Name LIKE '%${lead.Company || 'Default'}%'
+      ORDER BY CreatedDate DESC LIMIT 1
+    `);
+    
+    const convertedContact = await this.conn.query(`
+      SELECT Id, FirstName, LastName, AccountId FROM Contact
+      WHERE Email = '${leadEmail}'
+      ORDER BY CreatedDate DESC LIMIT 1
+    `);
+    
+    expect(convertedContact.totalSize).toBe(1);
+    expect(convertedContact.records[0].AccountId).toBe(convertedAccount.records[0].Id);
+    
+    // Step 4: Update opportunity stage via API
+    const opportunityQuery = await this.conn.query(`
+      SELECT Id FROM Opportunity 
+      WHERE Lead_ConvertedContactId = '${convertedContact.records[0].Id}'
+    `);
+    
+    if (opportunityQuery.totalSize) {
+      await this.conn.sobject('Opportunity').update({
+        Id: opportunityQuery.records[0].Id,
+        StageName: 'Needs Review',
+        Probability: 70
+      });
+    }
+    
+    console.log('Lead conversion workflow completed successfully');
+    
+    return {
+      account: convertedAccount.records[0],
+      contact: convertedContact.records[0],
+      opportunity: opportunityQuery.totalSize ? opportunityQuery.records[0] : null
+    };
+  }
+  
+  // Performance testing
+  async loadTestDashboard(numUsers = 10, durationSeconds = 60) {
+    console.log(`Starting load test: ${numUsers} users for ${durationSeconds}s`);
+    
+    const promises = [];
+    const startTime = Date.now();
+    
+    for (let i = 0; i < numUsers; i++) {
+      promises.push(this.simulateUserSession(i));
+    }
+    
+    const results = await Promise.allSettled(promises);
+    const endTime = Date.now();
+    
+    const successful = results.filter(r => r.status === 'fulfilled').length;
+    const failed = results.filter(r => r.status === 'rejected').length;
+    const duration = (endTime - startTime) / 1000;
+    
+    console.log(`Load test completed: ${successful}/${numUsers} successful, ${duration}s duration`);
+    
+    return {
+      successRate: (successful / numUsers) * 100,
+      avgResponseTime: results
+        .filter(r => r.status === 'fulfilled' && r.value.responseTimes)
+        .reduce((sum, r) => sum + r.value.responseTimes.reduce((a, b) => a + b, 0), 0) / 
+        (successful * 5), // 5 actions per user
+      peakConcurrent: numUsers,
+      duration
+    };
+  }
+  
+  async simulateUserSession(userId) {
+    const browser = await chromium.launch();
+    const context = await browser.newContext({
+      userAgent: `TestUser/${userId}`,
+      viewport: { width: 1280, height: 720 }
+    });
+    
+    const page = await context.newPage();
+    const responseTimes = [];
+    
+    try {
+      // Login
+      const loginStart = Date.now();
+      await loginToSalesforce(page, process.env[`SF_USER_${userId}`]);
+      responseTimes.push(Date.now() - loginStart);
+      
+      // Navigate to dashboard
+      const dashStart = Date.now();
+      await page.goto('/lightning/o/Account/home');
+      responseTimes.push(Date.now() - dashStart);
+      
+      // Create record
+      const createStart = Date.now();
+      await page.click('button[name="New"]');
+      await page.fill('input[data-field-name="Name"]', `Load Test Account ${userId}`);
+      await page.click('button[name="SaveEdit"]');
+      responseTimes.push(Date.now() - createStart);
+      
+      // Search records
+      const searchStart = Date.now();
+      await page.fill('input[placeholder="Search..."]', 'Test');
+      await page.press('input[placeholder="Search..."]', 'Enter');
+      responseTimes.push(Date.now() - searchStart);
+      
+      // Run report
+      const reportStart = Date.now();
+      await page.click('[title="Reports"]');
+      await page.click('a[title="Account Summary"]');
+      responseTimes.push(Date.now() - reportStart);
+      
+      // Logout
+      const logoutStart = Date.now();
+      await page.click('[aria-label="User Menu"]');
+      await page.click('a[title="Log Out"]');
+      responseTimes.push(Date.now() - logoutStart);
+      
+      console.log(`User ${userId} session completed successfully`);
+      
+    } catch (error) {
+      console.error(`User ${userId} session failed:`, error.message);
+      throw error;
+    } finally {
+      await browser.close();
+    }
+    
+    return { userId, responseTimes, success: true };
+  }
+}
+
+// Integration example
+(async () => {
+  // Setup hybrid client
+  const browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage();
+  
+  const conn = new jsforce.Connection({
+    loginUrl: process.env.SF_LOGIN_URL || 'https://login.salesforce.com'
+  });
+  
+  await conn.login(process.env.SF_USERNAME, process.env.SF_PASSWORD);
+  
+  const sfClient = new SalesforceHybridClient(page, conn);
+  
+  // Example 1: Create account with related contacts
+  const accountData = {
+    Name: 'API Created Account',
+    Type: 'Customer - Channel',
+    Phone: '+1-555-0199'
+  };
+  
+  const contactsData = [
+    { FirstName: 'Jane', LastName: 'Smith', Email: 'jane@acme.com' },
+    { FirstName: 'John', LastName: 'Doe', Email: 'john@acme.com' }
+  ];
+  
+  const result = await sfClient.createAccountWithContacts(accountData, contactsData);
+  console.log('Account creation result:', result);
+  
+  // Example 2: Process lead conversion workflow
+  try {
+    const conversionResult = await sfClient.processLeadConversion('lead@example.com');
+    console.log('Lead conversion result:', conversionResult);
+  } catch (error) {
+    console.error('Lead conversion failed:', error.message);
+  }
+  
+  // Example 3: Performance testing
+  const loadTestResults = await sfClient.loadTestDashboard(5, 30);
+  console.log('Load test results:', loadTestResults);
+  
+  await browser.close();
+  await conn.logout();
+  
+  // Generate performance report
+  if (loadTestResults.successRate < 95) {
+    console.warn('Load test failed quality gate: success rate below 95%');
+  }
+  
+})();
+
+// Advanced: Workflow orchestration
+class SalesforceWorkflowOrchestrator {
+  constructor(sfClient) {
+    this.sfClient = sfClient;
+    this.workflows = new Map();
+  }
+  
+  async executeWorkflow(workflowName, parameters = {}) {
+    const workflow = this.workflows.get(workflowName);
+    if (!workflow) {
+      throw new Error(`Workflow ${workflowName} not found`);
+    }
+    
+    console.log(`Executing workflow: ${workflowName}`);
+    console.log('Parameters:', parameters);
+    
+    const startTime = Date.now();
+    const results = [];
+    
+    try {
+      for (const [stepIndex, step] of workflow.steps.entries()) {
+        console.log(`Step ${stepIndex + 1}/${workflow.steps.length}: ${step.name}`);
+        
+        const stepStart = Date.now();
+        const stepResult = await this.executeStep(step, { ...parameters, previousResults: results });
+        const stepDuration = Date.now() - stepStart;
+        
+        results.push({
+          step: step.name,
+          success: stepResult.success,
+          duration: stepDuration,
+          data: stepResult.data,
+          errors: stepResult.errors
+        });
+        
+        if (!stepResult.success && step.haltOnError) {
+          throw new Error(`Workflow halted at step ${stepIndex + 1}: ${stepResult.error}`);
+        }
+      }
+      
+      const totalDuration = Date.now() - startTime;
+      console.log(`Workflow completed in ${totalDuration}ms`);
+      
+      return {
+        workflow: workflowName,
+        success: results.every(r => r.success),
+        duration: totalDuration,
+        steps: results,
+        parameters
+      };
+      
+    } catch (error) {
+      console.error(`Workflow failed: ${error.message}`);
+      return {
+        workflow: workflowName,
+        success: false,
+        duration: Date.now() - startTime,
+        steps: results,
+        error: error.message,
+        parameters
+      };
+    }
+  }
+  
+  async executeStep(step, context) {
+    try {
+      // Dynamic step execution based on type
+      switch (step.type) {
+        case 'api_create':
+          return await this.sfClient.conn.sobject(step.object).create(step.data);
+          
+        case 'ui_action':
+          return await this.executeUIAction(step.action, context);
+          
+        case 'validation':
+          return await this.executeValidation(step.criteria, context);
+          
+        case 'decision':
+          return await this.executeDecision(step.conditions, context);
+          
+        default:
+          throw new Error(`Unknown step type: ${step.type}`);
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error.message,
+        data: null
+      };
+    }
+  }
+  
+  async executeUIAction(action, context) {
+    // Execute UI automation step
+    await this.sfClient.page.goto(action.url || '/lightning/o/Home/home');
+    
+    for (const interaction of action.interactions) {
+      await this.sfClient.page.locator(interaction.selector).click();
+      
+      if (interaction.fill) {
+        await this.sfClient.page.fill(interaction.selector, interaction.value);
+      }
+      
+      if (interaction.waitFor) {
+        await this.sfClient.page.waitForSelector(interaction.waitFor);
+      }
+    }
+    
+    return {
+      success: true,
+      data: { action: action.name, completed: true }
+    };
+  }
+  
+  async executeValidation(criteria, context) {
+    // Implement validation logic
+    const actualValue = await this.getFieldValue(criteria.object, criteria.field, context);
+    const expectedValue = criteria.expected;
+    
+    const passed = actualValue === expectedValue;
+    
+    if (!passed) {
+      console.warn(`Validation failed: ${criteria.field} = ${actualValue}, expected ${expectedValue}`);
+    }
+    
+    return {
+      success: passed,
+      data: { actual: actualValue, expected: expectedValue }
+    };
+  }
+  
+  // Workflow definitions
+  defineWorkflows() {
+    this.workflows.set('onboarding', {
+      name: 'New Customer Onboarding',
+      steps: [
+        {
+          name: 'Create Account',
+          type: 'api_create',
+          object: 'Account',
+          data: (context) => ({
+            Name: `Customer ${context.parameters.customerName || 'New'}`,
+            Type: 'Customer - Direct',
+            Industry: context.parameters.industry || 'Technology'
+          })
+        },
+        {
+          name: 'Create Primary Contact',
+          type: 'ui_action',
+          action: {
+            url: '/lightning/o/Account/home',
+            interactions: [
+              { selector: 'button[name="New"]', waitFor: 'lightning-record-edit-form' },
+              { selector: 'input[data-field-name="AccountId"]', fill: true, value: 'previousResults[0].data.id' },
+              { selector: 'input[data-field-name="FirstName"]', fill: true, value: context => context.parameters.contactName },
+              { selector: 'button[name="SaveEdit"]' }
+            ]
+          }
+        },
+        {
+          name: 'Assign Sales Rep',
+          type: 'api_update',
+          object: 'Account',
+          filter: 'Id = previousResults[0].data.id',
+          data: { OwnerId: context.parameters.salesRepId }
+        },
+        {
+          name: 'Verify Setup',
+          type: 'validation',
+          object: 'Account',
+          field: 'OwnerId',
+          expected: context.parameters.salesRepId,
+          haltOnError: true
+        }
+      ]
+    });
+    
+    this.workflows.set('quarterly-review', {
+      name: 'Quarterly Business Review',
+      steps: [
+        // More complex workflow steps...
+      ]
+    });
+  }
+  
+  async getFieldValue(object, field, context) {
+    // Implementation for getting field values
+    const recordId = context.previousResults[0]?.data?.id;
+    if (!recordId) return null;
+    
+    const result = await this.sfClient.conn.query(
+      `SELECT ${field} FROM ${object} WHERE Id = '${recordId}'`
+    );
+    
+    return result.records[0]?.[field];
+  }
+  
+  async executeDecision(conditions, context) {
+    // Decision logic implementation
+    for (const condition of conditions) {
+      const conditionResult = await this.evaluateCondition(condition, context);
+      
+      if (conditionResult) {
+        return {
+          success: true,
+          data: { decision: condition.action, conditionMet: true }
+        };
+      }
+    }
+    
+    return {
+      success: true,
+      data: { decision: 'default', conditionMet: false }
+    };
+  }
+  
+  async evaluateCondition(condition, context) {
+    // Evaluate complex conditions
+    switch (condition.type) {
+      case 'field_value':
+        const actual = await this.getFieldValue(condition.object, condition.field, context);
+        return actual === condition.value;
+      
+      case 'record_count':
+        const query = await this.sfClient.conn.query(condition.query);
+        return query.totalSize >= condition.threshold;
+      
+      case 'time_based':
+        return new Date() > new Date(condition.timestamp);
+      
+      default:
+        return false;
+    }
+  }
+}
+
+// Usage example
+(async () => {
+  const orchestrator = new SalesforceWorkflowOrchestrator(sfClient);
+  orchestrator.defineWorkflows();
+  
+  const workflowResult = await orchestrator.executeWorkflow('onboarding', {
+    customerName: 'TechCorp Inc.',
+    industry: 'Technology',
+    contactName: 'Sarah Johnson',
+    salesRepId: '005xxxxxxxxxxxx'
+  });
+  
+  console.log('Workflow execution result:', workflowResult);
+  
+  // Generate audit trail
+  if (workflowResult.success) {
+    await this.auditWorkflowCompletion(workflowResult);
+  }
+  
+  // Trigger notifications
+  if (!workflowResult.success) {
+    await this.notifyWorkflowFailure(workflowResult);
+  }
+  
+})();`
+                    }
+                },
+                {
+                    "title": "Monitoring & Maintenance",
+                    "brief": "Keeping automation reliable long-term",
+                    "content": {
+                        "type": "monitoring",
+                        "header": "Production Monitoring & Maintenance",
+                        "paragraphs": [
+                            "Implement health checks and monitoring for automation scripts",
+                            "Visual regression testing for UI changes",
+                            "Automated script maintenance and self-healing",
+                            "Performance monitoring and optimization"
+                        ],
+                        "code": `// monitoring.js
+const { test, expect } = require('@playwright/test');
+const { performance } = require('perf_hooks');
+
+class AutomationHealthMonitor {
+  constructor() {
+    this.metrics = {
+      scriptHealth: [],
+      performance: [],
+      uiStability: [],
+      dataIntegrity: []
+    };
+  }
+  
+  async healthCheck(sfClient, testData) {
+    console.log('Starting automation health check...');
+    const startTime = performance.now();
+    
+    const checkResults = {
+      timestamp: new Date().toISOString(),
+      overallStatus: 'PASS',
+      checks: [],
+      duration: 0
+    };
+    
+    try {
+      // Check 1: Login functionality
+      const loginResult = await this.checkLogin(sfClient.page);
+      checkResults.checks.push(loginResult);
+      
+      if (!loginResult.passed) {
+        checkResults.overallStatus = 'FAIL';
+      }
+      
+      // Check 2: Core navigation
+      const navigationResult = await this.checkNavigation(sfClient.page);
+      checkResults.checks.push(navigationResult);
+      
+      if (checkResults.overallStatus === 'PASS' && !navigationResult.passed) {
+        checkResults.overallStatus = 'WARN';
+      }
+      
+      // Check 3: Data operations
+      const dataResult = await this.checkDataOperations(sfClient.page, testData);
+      checkResults.checks.push(dataResult);
+      
+      if (checkResults.overallStatus === 'PASS' && !dataResult.passed) {
+        checkResults.overallStatus = 'WARN';
+      }
+      
+      // Check 4: UI stability (visual regression)
+      const uiResult = await this.checkUIStability(sfClient.page);
+      checkResults.checks.push(uiResult);
+      
+      // Performance metrics
+      checkResults.duration = performance.now() - startTime;
+      
+      // Store metrics
+      this.storeHealthMetrics(checkResults);
+      
+      // Generate alert if needed
+      await this.generateHealthAlert(checkResults);
+      
+      console.log(`Health check completed: ${checkResults.overallStatus} (${checkResults.duration}ms)`);
+      return checkResults;
+      
+    } catch (error) {
+      console.error('Health check failed:', error);
+      checkResults.overallStatus = 'CRITICAL';
+      checkResults.error = error.message;
+      return checkResults;
+    }
+  }
+  
+  async checkLogin(page) {
+    const startTime = performance.now();
+    
+    try {
+      await page.goto('https://login.salesforce.com');
+      await page.fill('#username', process.env.SF_USERNAME);
+      await page.fill('#password', process.env.SF_PASSWORD);
+      await page.click('#Login');
+      
+      // Wait for successful login
+      await expect(page.locator('[data-aura-class="forceHeader"]')).toBeVisible({ timeout: 10000 });
+      
+      const duration = performance.now() - startTime;
+      
+      return {
+        name: 'Login Functionality',
+        passed: true,
+        duration,
+        message: `Login successful in ${duration}ms`,
+        critical: false
+      };
+      
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      
+      return {
+        name: 'Login Functionality',
+        passed: false,
+        duration,
+        message: `Login failed: ${error.message}`,
+        critical: true,
+        error: error.message
+      };
+    }
+  }
+  
+  async checkNavigation(page) {
+    const startTime = performance.now();
+    const navigationChecks = [];
+    
+    try {
+      // Check App Launcher
+      const appLauncherStart = performance.now();
+      await page.click('[aria-label="App Launcher"]');
+      await expect(page.locator('.slds-app-launcher')).toBeVisible();
+      navigationChecks.push({
+        name: 'App Launcher',
+        passed: true,
+        duration: performance.now() - appLauncherStart
+      });
+      
+      // Check Accounts navigation
+      const accountsStart = performance.now();
+      await page.click('a[title="Accounts"]');
+      await expect(page.locator('[data-aura-class="forceListViewHeader"]')).toBeVisible();
+      navigationChecks.push({
+        name: 'Accounts Navigation',
+        passed: true,
+        duration: performance.now() - accountsStart
+      });
+      
+      // Check search functionality
+      const searchStart = performance.now();
+      await page.fill('input[placeholder="Search..."]', 'Test');
+      await page.press('input[placeholder="Search..."]', 'Enter');
+      await expect(page.locator('.forceSearchAndCreateCard')).toBeVisible();
+      navigationChecks.push({
+        name: 'Global Search',
+        passed: true,
+        duration: performance.now() - searchStart
+      });
+      
+      const totalDuration = performance.now() - startTime;
+      
+      return {
+        name: 'Navigation Checks',
+        passed: navigationChecks.every(check => check.passed),
+        duration: totalDuration,
+        details: navigationChecks,
+        message: `${navigationChecks.length} navigation checks passed`,
+        critical: false
+      };
+      
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      
+      return {
+        name: 'Navigation Checks',
+        passed: false,
+        duration,
+        message: `Navigation failed: ${error.message}`,
+        critical: true,
+        error: error.message
+      };
+    }
+  }
+  
+  async checkDataOperations(page, testData) {
+    const startTime = performance.now();
+    let passed = true;
+    const operations = [];
+    
+    try {
+      // Test record creation
+      const createStart = performance.now();
+      const accountId = await createAccount(page, {
+        name: `Health Check ${Date.now()}`
+      });
+      operations.push({
+        name: 'Record Creation',
+        passed: !!accountId,
+        duration: performance.now() - createStart,
+        result: accountId
+      });
+      
+      if (!accountId) passed = false;
+      
+      // Test record update
+      const updateStart = performance.now();
+      const updateResult = await updateAccount(page, accountId, {
+        description: 'Health check update'
+      });
+      operations.push({
+        name: 'Record Update',
+        passed: updateResult,
+        duration: performance.now() - updateStart,
+        result: updateResult
+      });
+      
+      if (!updateResult) passed = false;
+      
+      // Test record query
+      const queryStart = performance.now();
+      await page.goto(`/lightning/r/Account/${accountId}/view`);
+      const recordName = await page.locator('[data-field-name="Name"]').textContent();
+      operations.push({
+        name: 'Record Query',
+        passed: recordName.includes('Health Check'),
+        duration: performance.now() - queryStart,
+        result: recordName
+      });
+      
+      if (!recordName.includes('Health Check')) passed = false;
+      
+      // Cleanup test data
+      await deleteRecord(page, 'Account', accountId);
+      
+      const totalDuration = performance.now() - startTime;
+      
+      return {
+        name: 'Data Operations',
+        passed,
+        duration: totalDuration,
+        details: operations,
+        message: `${operations.length} data operations ${passed ? 'passed' : 'failed'}`,
+        critical: !passed
+      };
+      
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      
+      return {
+        name: 'Data Operations',
+        passed: false,
+        duration,
+        message: `Data operations failed: ${error.message}`,
+        critical: true,
+        error: error.message
+      };
+    }
+  }
+  
+  async checkUIStability(page) {
+    const startTime = performance.now();
+    
+    try {
+      // Take baseline screenshot
+      await page.goto('/lightning/o/Account/home');
+      await expect(page.locator('[data-aura-class="forceListViewHeader"]')).toBeVisible();
+      
+      const baselineScreenshot = await page.screenshot({
+        fullPage: true,
+        path: `screenshots/baseline-account-list.png`
+      });
+      
+      // Perform some actions that shouldn't change layout
+      await page.click('button[name="List View Controls"]');
+      await page.click('button[title="Display as Table"]');
+      
+      // Take comparison screenshot
+      const currentScreenshot = await page.screenshot({
+        fullPage: true,
+        path: `screenshots/current-account-list.png`
+      });
+      
+      // Basic visual diff (simplified - use pixelmatch or similar for production)
+      const imagesMatch = await this.compareScreenshots(baselineScreenshot, currentScreenshot);
+      
+      const duration = performance.now() - startTime;
+      
+      return {
+        name: 'UI Stability',
+        passed: imagesMatch,
+        duration,
+        message: imagesMatch ? 'UI layout stable' : 'UI layout changed detected',
+        critical: !imagesMatch,
+        details: { baseline: baselineScreenshot, current: currentScreenshot }
+      };
+      
+    } catch (error) {
+      const duration = performance.now() - startTime;
+      
+      return {
+        name: 'UI Stability',
+        passed: false,
+        duration,
+        message: `UI stability check failed: ${error.message}`,
+        critical: true,
+        error: error.message
+      };
+    }
+  }
+  
+  async compareScreenshots(baselinePath, currentPath) {
+    // Simplified comparison - use a proper image diff library in production
+    // like pixelmatch with pngjs
+    const fs = require('fs');
+    const baselineBuffer = fs.readFileSync(baselinePath);
+    const currentBuffer = fs.readFileSync(currentPath);
+    
+    // Basic size comparison
+    if (baselineBuffer.length !== currentBuffer.length) {
+      return false;
+    }
+    
+    // For production, implement pixel-by-pixel comparison
+    // with configurable tolerance
+    return true; // Placeholder
+  }
+  
+  storeHealthMetrics(checkResult) {
+    this.metrics.scriptHealth.push({
+      timestamp: checkResult.timestamp,
+      status: checkResult.overallStatus,
+      duration: checkResult.duration,
+      checks: checkResult.checks.length,
+      criticalIssues: checkResult.checks.filter(c => c.critical).length
+    });
+    
+    // Keep last 100 results
+    if (this.metrics.scriptHealth.length > 100) {
+      this.metrics.scriptHealth.shift();
+    }
+  }
+  
+  async generateHealthAlert(checkResult) {
+    const criticalIssues = checkResult.checks.filter(c => c.critical);
+    
+    if (criticalIssues.length > 0 || checkResult.overallStatus === 'CRITICAL') {
+      // Send alert to monitoring system (Slack, email, etc.)
+      await this.sendAlert({
+        level: checkResult.overallStatus === 'CRITICAL' ? 'critical' : 'warning',
+        message: `Salesforce Automation Health: ${checkResult.overallStatus}`,
+        details: criticalIssues.map(issue => `${issue.name}: ${issue.message}`).join('\n'),
+        timestamp: checkResult.timestamp,
+        duration: checkResult.duration
+      });
+    }
+  }
+  
+  async sendAlert(alertData) {
+    // Implementation for sending alerts
+    console.log(`🚨 ALERT [${alertData.level.toUpperCase()}]: ${alertData.message}`);
+    console.log('Details:', alertData.details);
+    
+    // Example: Send to Slack
+    // await fetch(process.env.SLACK_WEBHOOK_URL, {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     text: alertData.message,
+    //     attachments: [{
+    //       color: alertData.level === 'critical' ? 'danger' : 'warning',
+    //       fields: [
+    //         { title: 'Timestamp', value: alertData.timestamp, short: true },
+    //         { title: 'Duration', value: `${alertData.duration}ms`, short: true }
+    //       ]
+    //     }]
+    //   })
+    // });
+  }
+  
+  getHealthDashboard() {
+    const recentChecks = this.metrics.scriptHealth.slice(-24); // Last 24 hours
+    const successRate = recentChecks.filter(c => c.status === 'PASS').length / recentChecks.length * 100;
+    
+    const avgDuration = recentChecks.reduce((sum, check) => sum + check.duration, 0) / recentChecks.length;
+    
+    const trend = this.calculateHealthTrend(recentChecks);
+    
+    return {
+      overallSuccessRate: Math.round(successRate * 10) / 10,
+      averageDuration: Math.round(avgDuration),
+      recentChecks: recentChecks.length,
+      healthTrend: trend,
+      criticalIssues: recentChecks.filter(c => c.criticalIssues > 0).length,
+      lastCheck: recentChecks[recentChecks.length - 1]
+    };
+  }
+  
+  calculateHealthTrend(checks) {
+    if (checks.length < 2) return 'stable';
+    
+    const recent = checks.slice(-6); // Last 6 checks
+    const earlier = checks.slice(-12, -6);
+    
+    const recentSuccess = recent.filter(c => c.status === 'PASS').length / recent.length;
+    const earlierSuccess = earlier.filter(c => c.status === 'PASS').length / earlier.length;
+    
+    if (recentSuccess > earlierSuccess + 0.1) return 'improving';
+    if (recentSuccess < earlierSuccess - 0.1) return 'declining';
+    
+    return 'stable';
+  }
+}
+
+// Usage in scheduled maintenance
+(async () => {
+  const monitor = new AutomationHealthMonitor();
+  const sfClient = new SalesforceHybridClient(/* ... */);
+  
+  // Run daily health check
+  const testData = {
+    username: process.env.SF_TEST_USER,
+    sampleAccount: { name: 'Health Check Account' }
+  };
+  
+  const healthResult = await monitor.healthCheck(sfClient, testData);
+  
+  // Generate maintenance report
+  const dashboard = monitor.getHealthDashboard();
+  console.log('Health Dashboard:', dashboard);
+  
+  // Schedule visual regression testing
+  if (process.env.RUN_VISUAL_TESTS === 'true') {
+    await monitor.runVisualRegressionTests(sfClient.page);
+  }
+  
+  // Self-healing: Update selectors if UI changed
+  if (healthResult.checks.some(check => !check.passed && check.name.includes('UI'))) {
+    await monitor.attemptSelectorHealing();
+  }
+  
+})();
+
+// Visual regression testing
+class VisualRegressionTester {
+  constructor(page, baselineDir = 'screenshots/baseline', currentDir = 'screenshots/current') {
+    this.page = page;
+    this.baselineDir = baselineDir;
+    this.currentDir = currentDir;
+    this.fs = require('fs');
+    this.path = require('path');
+  }
+  
+  async runVisualRegressionTests() {
+    console.log('Running visual regression tests...');
+    const testResults = [];
+    
+    const testCases = [
+      { name: 'Account List View', url: '/lightning/o/Account/home', selectors: ['.forceListViewHeader'] },
+      { name: 'Contact Detail', url: '/lightning/o/Contact/home', selectors: ['.forceRecordView'] },
+      { name: 'Opportunity Pipeline', url: '/lightning/o/Opportunity/home', selectors: ['.forecastsTable'] },
+      { name: 'Dashboard Home', url: '/lightning/o/Dashboard/home', selectors: ['.dashboardHeader'] }
+    ];
+    
+    for (const testCase of testCases) {
+      const result = await this.testPageVisualStability(testCase);
+      testResults.push(result);
+      
+      if (!result.passed) {
+        console.warn(`Visual regression failed: ${testCase.name}`);
+      }
+    }
+    
+    const passRate = testResults.filter(r => r.passed).length / testResults.length * 100;
+    console.log(`Visual regression complete: ${Math.round(passRate)}% passed`);
+    
+    return {
+      totalTests: testResults.length,
+      passed: testResults.filter(r => r.passed).length,
+      failed: testResults.filter(r => !r.passed).length,
+      passRate: Math.round(passRate),
+      details: testResults
+    };
+  }
+  
+  async testPageVisualStability(testCase) {
+    try {
+      await this.page.goto(testCase.url);
+      
+      // Wait for key elements
+      for (const selector of testCase.selectors) {
+        await this.page.waitForSelector(selector, { timeout: 10000 });
+      }
+      
+      // Take baseline screenshot if doesn't exist
+      const baselinePath = this.path.join(this.baselineDir, `${testCase.name.replace(/\s+/g, '_')}.png`);
+      const currentPath = this.path.join(this.currentDir, `${testCase.name.replace(/\s+/g, '_')}.png`);
+      
+      if (!this.fs.existsSync(baselinePath)) {
+        console.log(`Creating baseline for ${testCase.name}`);
+        await this.page.screenshot({ path: baselinePath, fullPage: true });
+        return {
+          name: testCase.name,
+          passed: true,
+          baselineCreated: true,
+          message: 'Baseline screenshot created'
+        };
+      }
+      
+      // Take current screenshot
+      await this.page.screenshot({ path: currentPath, fullPage: true });
+      
+      // Compare images
+      const diffResult = await this.compareImages(baselinePath, currentPath);
+      
+      return {
+        name: testCase.name,
+        passed: diffResult.similarity > 0.95, // 95% similarity threshold
+        similarity: diffResult.similarity,
+        diffPixels: diffResult.diffPixels,
+        totalPixels: diffResult.totalPixels,
+        message: `Similarity: ${(diffResult.similarity * 100).toFixed(1)}%`
+      };
+      
+    } catch (error) {
+      return {
+        name: testCase.name,
+        passed: false,
+        error: error.message,
+        message: `Test failed: ${error.message}`
+      };
+    }
+  }
+  
+  async compareImages(baselinePath, currentPath) {
+    // Use pixelmatch for actual implementation
+    const { createCanvas, loadImage } = require('canvas');
+    const pixelmatch = require('pixelmatch');
+    
+    try {
+      const img1 = await loadImage(baselinePath);
+      const img2 = await loadImage(currentPath);
+      
+      const canvas = createCanvas(img1.width, img1.height);
+      const ctx = canvas.getContext('2d');
+      
+      ctx.drawImage(img1, 0, 0);
+      const img1Data = ctx.getImageData(0, 0, img1.width, img1.height);
+      
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img2, 0, 0);
+      const img2Data = ctx.getImageData(0, 0, img2.width, img2.height);
+      
+      const diffData = ctx.createImageData(img1.width, img1.height);
+      const numDiffPixels = pixelmatch(
+        img1Data.data, 
+        img2Data.data, 
+        diffData.data,
+        img1.width, 
+        img1.height,
+        { threshold: 0.1 }
+      );
+      
+      const totalPixels = img1.width * img1.height;
+      const similarity = 1 - (numDiffPixels / totalPixels);
+      
+      return {
+        similarity,
+        diffPixels: numDiffPixels,
+        totalPixels,
+        diffImage: diffData
+      };
+      
+    } catch (error) {
+      console.error('Image comparison failed:', error);
+      return { similarity: 0, diffPixels: 0, totalPixels: 0 };
+    }
+  }
+}
+
+// Self-healing selectors
+class SelectorHealer {
+  constructor() {
+    this.selectorStrategies = [
+      'getByRole',
+      'getByTestId', 
+      'getByLabel',
+      'getByPlaceholder',
+      'getByAltText',
+      'locator'
+    ];
+    this.fallbackSelectors = new Map();
+  }
+  
+  async attemptHealing(page, failedSelector, elementDescription) {
+    console.log(`Attempting to heal selector: ${failedSelector}`);
+    
+    for (const strategy of this.selectorStrategies) {
+      try {
+        const healedSelector = await this.generateAlternativeSelector(page, elementDescription, strategy);
+        if (healedSelector && await this.validateSelector(page, healedSelector)) {
+          console.log(`✓ Healed selector: ${failedSelector} → ${healedSelector}`);
+          this.updateSelectorMapping(failedSelector, healedSelector);
+          return healedSelector;
+        }
+      } catch (error) {
+        console.debug(`Strategy ${strategy} failed: ${error.message}`);
+      }
+    }
+    
+    console.warn(`Could not heal selector: ${failedSelector}`);
+    return null;
+  }
+  
+  async generateAlternativeSelector(page, description, strategy) {
+    switch (strategy) {
+      case 'getByRole':
+        return page.getByRole('button', { name: description.name || description.textContent });
+      
+      case 'getByTestId':
+        // Try to find elements with data-testid attributes
+        const testIdElements = await page.locator('[data-testid]').all();
+        for (const element of testIdElements) {
+          const testId = await element.getAttribute('data-testid');
+          if (testId && testId.includes(description.purpose)) {
+            return `[data-testid="${testId}"]`;
+          }
+        }
+        return null;
+      
+      case 'getByLabel':
+        return page.getByLabel(description.accessibleName || description.label);
+      
+      case 'locator':
+        // Generate CSS selector based on element attributes
+        const element = await this.findElementByDescription(page, description);
+        if (element) {
+          return this.generateCSSSelector(element);
+        }
+        return null;
+        
+      default:
+        return null;
+    }
+  }
+  
+  async findElementByDescription(page, description) {
+    // Implement element discovery based on description
+    // This is complex - would use Playwright's inspector or DOM analysis
+    const possibleSelectors = [
+      `[aria-label*="${description.purpose}"]`,
+      `button:has-text("${description.textContent}")`,
+      `input[placeholder*="${description.placeholder}"]`,
+      `[title*="${description.title}"]`
+    ];
+    
+    for (const selector of possibleSelectors) {
+      try {
+        await page.waitForSelector(selector, { timeout: 1000 });
+        return selector;
+      } catch (e) {
+        continue;
+      }
+    }
+    
+    return null;
+  }
+  
+  generateCSSSelector(element) {
+    // Generate stable CSS selector
+    // Implementation would analyze DOM structure and attributes
+    // This is a simplified version
+    return `[data-element-id="${element.getAttribute('data-element-id') || 'auto-generated'}"]`;
+  }
+  
+  async validateSelector(page, selector) {
+    try {
+      await page.waitForSelector(selector, { timeout: 2000 });
+      const element = page.locator(selector);
+      return await element.isVisible();
+    } catch (error) {
+      return false;
+    }
+  }
+  
+  updateSelectorMapping(oldSelector, newSelector) {
+    // Update test files with new selectors
+    // This would involve file parsing and AST manipulation
+    console.log(`Would update mapping: ${oldSelector} → ${newSelector}`);
+  }
+}
+
+// Integrate all monitoring components
+(async () => {
+  const monitor = new AutomationHealthMonitor();
+  const visualTester = new VisualRegressionTester(page);
+  const healer = new SelectorHealer();
+  
+  // Run comprehensive monitoring suite
+  const healthResult = await monitor.healthCheck(sfClient, testData);
+  const visualResult = await visualTester.runVisualRegressionTests();
+  
+  // Process failures and attempt healing
+  const failedSelectors = healthResult.checks
+    .filter(check => !check.passed && check.details)
+    .flatMap(check => check.details || [])
+    .filter(detail => detail.error?.includes('selector'));
+  
+  for (const failure of failedSelectors) {
+    await healer.attemptHealing(
+      page, 
+      failure.selector, 
+      { purpose: 'user action', textContent: failure.action }
+    );
+  }
+  
+  // Generate executive summary
+  const summary = {
+    health: healthResult.overallStatus,
+    visualStability: `${visualResult.passRate}%`,
+    failedSelectors: failedSelectors.length,
+    recommendations: this.generateRecommendations(healthResult, visualResult)
+  };
+  
+  console.log('📊 Automation Health Summary:', summary);
+  
+  // Schedule next maintenance window
+  setTimeout(() => {
+    console.log('Next maintenance check in 24 hours');
+  }, 24 * 60 * 60 * 1000);
+  
+})();`
+                    }
+                }
+            ];
+        }
+
+        let slides = [];
+        let currentSlide = 0;
+        let editors = new Map();
+
+        // Load slides
+        async function initializeApp() {
+            slides = await loadSlides();
+            renderSlidesList();
+            await updateSlideContent();
+        }
+
+        function renderSlidesList() {
+            const slidesList = document.getElementById('slides-list');
+            slidesList.innerHTML = slides.map((slide, index) => `
+                <div class="slide-item p-3 rounded-lg cursor-pointer transition-colors slide-item-${index}"
+                     data-slide="${index}">
+                    <div class="font-medium text-gray-200">${slide.title}</div>
+                    <div class="text-sm text-gray-400 mt-1">${slide.brief}</div>
+                </div>
+            `).join('');
+
+            // Add click handlers
+            document.querySelectorAll('.slide-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    const slideIndex = parseInt(e.currentTarget.dataset.slide);
+                    currentSlide = slideIndex;
+                    updateSlideContent();
+                    updateActiveSlide();
+                });
+            });
+
+            updateActiveSlide();
+        }
+
+        function updateActiveSlide() {
+            document.querySelectorAll('.slide-item').forEach((item, index) => {
+                item.classList.toggle('active', index === currentSlide);
+            });
+        }
+
+        async function updateSlideContent() {
+            const slide = slides[currentSlide];
+            document.getElementById('slide-title').textContent = slide.title;
+            document.getElementById('slide-brief').textContent = slide.brief;
+
+            const contentDiv = document.querySelector('#slide-content .max-w-4xl');
+            contentDiv.innerHTML = await renderSlideContent(slide);
+
+            // Initialize Monaco editors for code blocks
+            initializeCodeEditors();
+
+            // Update navigation buttons
+            document.getElementById('prev-btn').disabled = currentSlide === 0;
+            document.getElementById('next-btn').disabled = currentSlide === slides.length - 1;
+
+            updateActiveSlide();
+        }
+
+        async function renderSlideContent(slide) {
+            const content = slide.content;
+            
+            switch (content.type) {
+                case 'intro':
+                    return `
+                        <div class="space-y-6">
+                            <h3 class="text-3xl font-bold text-white mb-6">${content.header}</h3>
+                            ${content.paragraphs.map(p => `<p class="text-lg text-gray-300 leading-relaxed">${p}</p>`).join('')}
+                            
+                            ${content.features ? `
+                                <div class="mt-8">
+                                    <h4 class="text-xl font-semibold text-blue-400 mb-4">Key Features</h4>
+                                    <ul class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        ${content.features.map(feature => `
+                                            <li class="flex items-start space-x-3">
+                                                <div class="w-2 h-2 bg-blue-400 rounded-full mt-2 flex-shrink-0"></div>
+                                                <span class="text-gray-300">${feature}</span>
+                                            </li>
+                                        `).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                            
+                            ${content.url ? `
+                                <div class="mt-8 p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                                    <h4 class="font-medium text-blue-300 mb-2">Learn More</h4>
+                                    <a href="${content.url}" target="_blank" 
+                                       class="text-blue-400 hover:text-blue-300 underline">
+                                        ${content.url.replace('https://', '')}
+                                    </a>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                
+                case 'features':
+                    return `
+                        <div class="space-y-6">
+                            <h3 class="text-3xl font-bold text-white mb-6">${content.header}</h3>
+                            <div class="grid md:grid-cols-2 gap-6">
+                                ${content.features.map(feature => `
+                                    <div class="p-6 bg-gray-800/50 border border-gray-700 rounded-lg">
+                                        <h4 class="text-xl font-semibold text-blue-400 mb-3">${feature.title}</h4>
+                                        <p class="text-gray-300">${feature.description}</p>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                
+                case 'setup':
+                    return `
+                        <div class="space-y-6">
+                            <h3 class="text-3xl font-bold text-white mb-6">${content.header}</h3>
+                            <div class="bg-gray-800/50 border border-gray-700 rounded-lg p-6">
+                                <h4 class="text-lg font-semibold text-blue-400 mb-4">Installation Steps</h4>
+                                <ol class="space-y-2 text-gray-300">
+                                    ${content.steps.map((step, index) => `
+                                        <li class="flex items-start space-x-3">
+                                            <span class="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">${index + 1}</span>
+                                            <span class="flex-1">${step}</span>
+                                        </li>
+                                    `).join('')}
+                                </ol>
+                            </div>
+                            <div class="code-container">
+                                <div class="px-4 py-2 bg-gray-700 text-white text-sm font-medium">test.spec.js</div>
+                                <div id="code-editor-setup" class="monaco-editor"></div>
+                            </div>
+                        </div>
+                    `;
+                
+                case 'concepts':
+                case 'locators':
+                case 'interactions':
+                case 'assertions':
+                case 'network':
+                case 'debugging':
+                case 'ci':
+                    return `
+                        <div class="space-y-6">
+                            <h3 class="text-3xl font-bold text-white mb-6">${content.header}</h3>
+                            ${content.paragraphs ? content.paragraphs.map(p => `<p class="text-lg text-gray-300 leading-relaxed mb-4">${p}</p>`).join('') : ''}
+                            ${content.examples ? content.examples.map(example => `
+                                <div class="code-container">
+                                    <div class="px-4 py-2 bg-gray-700 text-white text-sm font-medium">${example.title}</div>
+                                    <div id="code-editor-${currentSlide}-${Math.random()}" class="monaco-editor">${example.code}</div>
+                                </div>
+                            `).join('') : ''}
+                            ${content.code ? `
+                                <div class="code-container">
+                                    <div class="px-4 py-2 bg-gray-700 text-white text-sm font-medium">example.js</div>
+                                    <div id="code-editor-${currentSlide}" class="monaco-editor">${content.code}</div>
+                                </div>
+                            ` : ''}
+                            ${content.features ? `
+                                <div class="mt-8">
+                                    <h4 class="text-xl font-semibold text-blue-400 mb-4">Capabilities</h4>
+                                    <ul class="space-y-2">
+                                        ${content.features.map(f => `<li class="flex items-center space-x-2 text-gray-300"><span class="w-2 h-2 bg-green-400 rounded-full"></span><span>${f}</span></li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                
+                case 'salesforce-intro':
+                    return `
+                        <div class="space-y-6">
+                            <h3 class="text-3xl font-bold text-white mb-6">${content.header}</h3>
+                            ${content.paragraphs.map(p => `<p class="text-lg text-gray-300 leading-relaxed mb-4">${p}</p>`).join('')}
+                            <div class="grid md:grid-cols-2 gap-6 mt-8">
+                                ${content['use-cases'].map(useCase => `
+                                    <div class="p-4 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                                        <h4 class="font-medium text-blue-300 mb-2">${useCase}</h4>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            ${content.url ? `
+                                <div class="mt-8 p-4 bg-green-900/20 border border-green-500/30 rounded-lg">
+                                    <h4 class="font-medium text-green-300 mb-2">Salesforce Documentation</h4>
+                                    <a href="${content.url}" target="_blank" class="text-green-400 hover:text-green-300">
+                                        Official Playwright + Salesforce Guide
+                                    </a>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                
+                case 'salesforce-login':
+                case 'salesforce-navigation':
+                case 'salesforce-create':
+                case 'salesforce-update':
+                case 'salesforce-reports':
+                case 'salesforce-modals':
+                case 'salesforce-ci':
+                    return `
+                        <div class="space-y-6">
+                            <h3 class="text-3xl font-bold text-white mb-6">${content.header}</h3>
+                            ${content.paragraphs ? content.paragraphs.map(p => `<p class="text-lg text-gray-300 leading-relaxed mb-4">${p}</p>`).join('') : ''}
+                            ${content.code ? `
+                                <div class="code-container">
+                                    <div class="px-4 py-2 bg-gray-700 text-white text-sm font-medium">salesforce-automation.js</div>
+                                    <div id="code-editor-${currentSlide}" class="monaco-editor">${content.code}</div>
+                                </div>
+                            ` : ''}
+                            ${content.example && content.example.code ? `
+                                <div class="code-container">
+                                    <div class="px-4 py-2 bg-gray-700 text-white text-sm font-medium">${content.example.title}</div>
+                                    <div id="code-editor-${currentSlide}-example" class="monaco-editor">${content.example.code}</div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                
+                case 'best-practices':
+                    return `
+                        <div class="space-y-6">
+                            <h3 class="text-3xl font-bold text-white mb-6">${content.header}</h3>
+                            <div class="grid md:grid-cols-2 gap-6">
+                                ${content.guidelines.map(guideline => `
+                                    <div class="p-6 bg-gray-800/50 border border-gray-700 rounded-lg space-y-4">
+                                        <h4 class="text-xl font-semibold text-blue-400">${guideline.title}</h4>
+                                        <p class="text-gray-300">${guideline.description}</p>
+                                        ${guideline.code ? `
+                                            <div class="code-container">
+                                                <div class="px-3 py-1 bg-gray-700 text-white text-xs font-medium rounded-t">Example</div>
+                                                <div id="code-editor-${currentSlide}-${guideline.title.replace(/\s+/g, '-')}" class="monaco-editor" style="height: 200px;">${guideline.code}</div>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                
+                case 'advanced':
+                    return `
+                        <div class="space-y-6">
+                            <h3 class="text-3xl font-bold text-white mb-6">${content.header}</h3>
+                            ${content.paragraphs.map(p => `<p class="text-lg text-gray-300 leading-relaxed mb-4">${p}</p>`).join('')}
+                            ${content.code ? `
+                                <div class="code-container">
+                                    <div class="px-4 py-2 bg-gray-700 text-white text-sm font-medium">advanced-automation.js</div>
+                                    <div id="code-editor-${currentSlide}" class="monaco-editor">${content.code}</div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                
+                case 'monitoring':
+                    return `
+                        <div class="space-y-6">
+                            <h3 class="text-3xl font-bold text-white mb-6">${content.header}</h3>
+                            ${content.paragraphs.map(p => `<p class="text-lg text-gray-300 leading-relaxed mb-4">${p}</p>`).join('')}
+                            ${content.code ? `
+                                <div class="code-container">
+                                    <div class="px-4 py-2 bg-gray-700 text-white text-sm font-medium">monitoring.js</div>
+                                    <div id="code-editor-${currentSlide}" class="monaco-editor">${content.code}</div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    `;
+                
+                default:
+                    return `<div class="text-center py-12"><p class="text-gray-400">Content not yet implemented</p></div>`;
+            }
+        }
+
+        function initializeCodeEditors() {
+            // Dispose existing editors
+            editors.forEach(editor => editor.dispose());
+            editors.clear();
+
+            // Find all code editors
+            const codeContainers = document.querySelectorAll('.monaco-editor');
+            codeContainers.forEach(container => {
+                if (container.id && container.textContent.trim()) {
+                    const editor = monaco.editor.create(container, {
+                        value: container.textContent,
+                        language: 'javascript',
+                        theme: 'vs-dark',
+                        readOnly: true,
+                        fontSize: 14,
+                        lineNumbers: 'on',
+                        minimap: { enabled: false },
+                        scrollBeyondLastLine: false,
+                        automaticLayout: true
+                    });
+                    
+                    editors.set(container.id, editor);
+                    container.innerHTML = ''; // Clear text content
+                }
+            });
+        }
+
+        // Navigation
+        document.getElementById('prev-btn').addEventListener('click', () => {
+            if (currentSlide > 0) {
+                currentSlide--;
+                updateSlideContent();
+            }
+        });
+
+        document.getElementById('next-btn').addEventListener('click', () => {
+            if (currentSlide < slides.length - 1) {
+                currentSlide++;
+                updateSlideContent();
+            }
+        });
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' && currentSlide > 0) {
+                currentSlide--;
+                updateSlideContent();
+            } else if (e.key === 'ArrowRight' && currentSlide < slides.length - 1) {
+                currentSlide++;
+                updateSlideContent();
+            }
+        });
+
+        // Splitter functionality
+        const splitter = document.getElementById('splitter');
+        const leftPane = document.getElementById('left-pane');
+        let isDragging = false;
+        let startX = 0;
+        let startWidth = 0;
+
+        splitter.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startWidth = leftPane.offsetWidth;
+            document.body.style.userSelect = 'none';
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const newWidth = startWidth + (e.clientX - startX);
+                if (newWidth >= 250 && newWidth <= window.innerWidth * 0.6) {
+                    leftPane.style.width = `${newWidth}px`;
+                }
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            document.body.style.userSelect = '';
+        });
+
+        // Initialize Monaco
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
+        monaco.editor.defineTheme('vs-dark', {
+            base: 'vs-dark',
+            inherit: true,
+            rules: [{ token: '', foreground: 'f9fafb', background: '1e1e1e' }],
+            colors: {
+                'editor.background': '#1e1e1e',
+                'editor.foreground': '#f9fafb',
+                'editor.lineHighlightBackground': '#2d3748',
+                'editorCursor.foreground': '#4f46e5'
+            }
+        });
+
+        // Initialize app
+        initializeApp();
+    </script>
+</body>
+</html>
