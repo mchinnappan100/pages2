@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Food Benefits Viewer</title>
+ <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            panel: "#1e1e1e",
+            panelLight: "#2a2a2a"
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Split.js -->
+  <script src="https://unpkg.com/split.js/dist/split.min.js"></script>
+
+</head>
+
+<body class="bg-gray-900 text-gray-200 h-screen w-screen">
+
+  <div id="container" class="flex h-full w-full">
+
+    <!-- LEFT PANE -->
+    <div id="leftPane" class="bg-panel p-4 overflow-auto">
+      <h2 class="text-xl font-bold mb-4">Foods</h2>
+      <ul id="foodList" class="space-y-2"></ul>
+    </div>
+
+    <!-- RIGHT PANE -->
+    <div id="rightPane" class="bg-panelLight p-6 overflow-auto">
+      <h1 id="itemTitle" class="text-2xl font-bold mb-4">Select an item</h1>
+      <div id="itemBenefits" class="text-lg leading-relaxed text-gray-300">
+        Click a food from the left list to view benefits.
+      </div>
+    </div>
+
+  </div>
+
+  <style>
+    .btn {
+      width: 100%;
+      text-align: left;
+      padding: 8px 12px;
+      background: #2d2d2d;
+      border-radius: 4px;
+      transition: 0.2s;
+    }
+    .btn:hover {
+      background: #3a3a3a;
+    }
+  </style>
+
+  <script>
+    // ---------------------------------------------
+    // Initialize Split.js (draggable vertical split)
+    // ---------------------------------------------
+    Split(["#leftPane", "#rightPane"], {
+      sizes: [25, 75],
+      minSize: 150,
+      gutterSize: 6,
+      cursor: "col-resize",
+    });
+
+    // ---------------------------------------------
+    // Get CSV URL from URL parameter ?d=...
+    // ---------------------------------------------
+    const params = new URLSearchParams(window.location.search);
+    const csvUrl = params.get("d");
+
+    if (!csvUrl) {
+      document.getElementById("itemTitle").innerText = "No CSV Loaded";
+      document.getElementById("itemBenefits").innerText =
+        "Pass a CSV URL using: ?d=yourfile.csv";
+    }
+
+    // ---------------------------------------------
+    // Parse CSV into structured data
+    // ---------------------------------------------
+    function parseCSV(text) {
+      const lines = text.trim().split("\n");
+      const headers = lines[0].split(",");
+
+      const data = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(/,(.+)/); // split only first comma
+        data.push({
+          food: cols[0].trim(),
+          benefits: cols[1].replace(/^"|"$/g, "").trim(),
+        });
+      }
+      return data;
+    }
+
+    // ---------------------------------------------
+    // Load CSV and populate UI
+    // ---------------------------------------------
+    async function loadCSV() {
+      if (!csvUrl) return;
+
+      try {
+        const response = await fetch(csvUrl);
+        const text = await response.text();
+        const items = parseCSV(text);
+
+        const list = document.getElementById("foodList");
+
+        // Populate left pane buttons
+        items.forEach((item) => {
+          const li = document.createElement("li");
+          li.innerHTML = `
+            <button class="btn" onclick="showBenefits(\`${item.food}\`)">
+              ${item.food}
+            </button>
+          `;
+          list.appendChild(li);
+        });
+
+        // Store globally
+        window.foodData = items;
+
+      } catch (err) {
+        document.getElementById("itemTitle").innerText = "Error Loading CSV";
+        document.getElementById("itemBenefits").innerText = err;
+      }
+    }
+
+    loadCSV();
+
+    // ---------------------------------------------
+    // Display benefits when an item is clicked
+    // ---------------------------------------------
+    function showBenefits(foodName) {
+      const item = window.foodData.find((x) => x.food === foodName);
+
+      if (!item) return;
+
+      document.getElementById("itemTitle").innerText = item.food;
+      document.getElementById("itemBenefits").innerHTML =
+        item.benefits.replace(/;/g, "<br>");
+    }
+  </script>
+
+</body>
+</html>
