@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <title>Sandbox Apex Class Editor</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            panel: "#1e1e1e",
+            codebg: "#1f1f1f"
+          }
+        }
+      }
+    };
+  </script>
+
+  <!-- Split.js for resizable panels -->
+  <script src="https://unpkg.com/split.js/dist/split.min.js"></script>
+   <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+
+  <!-- Monaco Loader -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+
+</head>
+<body class="h-screen w-screen dark bg-gray-900 text-gray-300">
+
+  <!-- Layout Container -->
+  <div id="layout" class="h-full w-full flex">
+
+    <!-- LEFT PANE (Class List) -->
+    <div id="leftPane" class="p-4 bg-panel overflow-auto">
+      <h2 class="text-xl font-bold mb-4">Apex Classes</h2>
+
+      <ul id="classList" class="space-y-2">
+        <li>
+          <button class="w-full text-left px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded"
+                  onclick="loadClass('PrepareMySandbox')">
+            PrepareMySandbox
+          </button>
+        </li>
+
+        <!-- Add more later -->
+        <li>
+          <button class="w-full text-left px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded"
+                  onclick="loadClass('AnotherClass')">
+            AnotherClass
+          </button>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Right Pane -->
+    <div id="rightPane" class="relative bg-codebg">
+
+      <!-- Save Button -->
+      <button id="saveBtn"
+              onclick="saveFile()"
+              class="absolute top-2 right-2 bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded text-sm">
+        Save
+      </button>
+
+      <!-- Monaco Editor Div -->
+      <div id="editor" class="h-full w-full"></div>
+    </div>
+  </div>
+
+  <script>
+    // Split.js to enable draggable resizable panes
+    Split(["#leftPane", "#rightPane"], {
+      sizes: [25, 75],
+      minSize: [150, 300],
+      gutterSize: 6,
+      cursor: "col-resize"
+    });
+
+    //---------------------------------------
+    // Monaco Editor Initialization
+    //---------------------------------------
+    let editor;
+
+    require.config({
+      paths: {
+        vs: "https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs"
+      }
+    });
+
+    require(["vs/editor/editor.main"], function () {
+      editor = monaco.editor.create(document.getElementById("editor"), {
+        value: "",
+        language: "apex",
+        theme: "vs-dark",
+        automaticLayout: true,
+        fontSize: 14,
+        minimap: { enabled: true }
+      });
+    });
+
+    //---------------------------------------
+    // Apex Class Store (this could come from API)
+    //---------------------------------------
+    const apexClasses = {
+      "PrepareMySandbox": 
+`
+global class PrepareMySandbox implements SandboxPostCopy {
+
+    // Required no-arg constructor
+    global PrepareMySandbox() {
+        // If you need initialization logic, call another constructor or method
+    }
+
+    // Called automatically after sandbox refresh
+    global void runApexClass(SandboxContext context) {
+        System.debug('=== Sandbox Post-Copy Started ===');
+        System.debug('Org ID: '      + context.organizationId());
+        System.debug('Sandbox ID: '  + context.sandboxId());
+        System.debug('Sandbox Name: '+ context.sandboxName());
+
+        // --------------------------------------------------------
+        // REMOVE / REWRITE PRODUCTION ENDPOINTS
+        // --------------------------------------------------------
+
+        removeProdUrlsFromCustomSettings();
+        updateNamedCredentials();
+        sanitizeCustomMetadata();
+
+        System.debug('=== Sandbox Post-Copy Completed ===');
+    }
+
+    // ------------------------------------------------------------
+    // Example 1: Clean up Custom Settings containing production URLs
+    // ------------------------------------------------------------
+    private void removeProdUrlsFromCustomSettings() {
+
+        // Replace this with your custom setting name
+        My_Endpoints__c cs = My_Endpoints__c.getOrgDefaults();
+
+        if (cs != null) {
+            Boolean changed = false;
+
+            if (cs.Rest_Endpoint__c != null && cs.Rest_Endpoint__c.contains('myprod.com')) {
+                cs.Rest_Endpoint__c = 'https://sandbox.api.mydomain.com';
+                changed = true;
+            }
+
+            if (cs.Auth_Endpoint__c != null && cs.Auth_Endpoint__c.contains('login.salesforce.com')) {
+                cs.Auth_Endpoint__c = 'https://test.salesforce.com';
+                changed = true;
+            }
+
+            if (changed) {
+                update cs;
+                System.debug('Updated Custom Setting with sandbox-safe endpoints.');
+            }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Example 2: Update Named Credentials after sandbox refresh
+    // ------------------------------------------------------------
+    private void updateNamedCredentials() {
+        List<NamedCredential> creds = [
+            SELECT Id, MasterLabel, CalloutOptions, ExternalCredentialId, Endpoint
+            FROM NamedCredential
+            WHERE Endpoint LIKE '%myprod.com%'
+        ];
+
+        for (NamedCredential nc : creds) {
+            nc.Endpoint = nc.Endpoint.replace('myprod.com', 'sandbox.mydomain.com');
+        }
+
+        if (!creds.isEmpty()) {
+            update creds;
+            System.debug('Updated Named Credentials: ' + creds.size());
+        }
+    }
+
+    // ------------------------------------------------------------
+    // Example 3: Update Custom Metadata Records containing prod domains
+    // ------------------------------------------------------------
+    private void sanitizeCustomMetadata() {
+
+        List<My_Endpoint_Config__mdt> mdts = [
+            SELECT Id, Endpoint__c
+            FROM My_Endpoint_Config__mdt
+            WHERE Endpoint__c LIKE '%myprod.com%'
+        ];
+
+        List<My_Endpoint_Config__mdt> updates = new List<My_Endpoint_Config__mdt>();
+
+        for (My_Endpoint_Config__mdt mdt : mdts) {
+            My_Endpoint_Config__mdt cloneRecord = mdt.clone();
+            cloneRecord.Endpoint__c = mdt.Endpoint__c.replace('myprod.com', 'sandbox.mydomain.com');
+            updates.add(cloneRecord);
+        }
+
+        if (!updates.isEmpty()) {
+            // Custom Metadata requires Metadata API deployment, but this shows intent
+            System.debug('Custom Metadata needs update: ' + updates.size());
+        }
+    }
+}
+
+`,
+
+      "AnotherClass":`
+      global class PrepareMySandbox implements SandboxPostCopy {
+ 
+    global PrepareMySandbox() {
+        //Implementations of SandboxPostCopy must have a no-arg constructor.
+        //This constructor is used during the sandbox copy process.
+        //You can also implement constructors with arguments, but be aware that
+        //they won’t be used by the sandbox copy process (unless as part of the
+        //no-arg constructor).
+        this(some_args);
+    }
+ 
+    global PrepareMySandbox(String some_args) {
+        //Logic for constructor.
+    }
+    
+    global void runApexClass(SandboxContext context) {
+        System.debug('Org ID: ' + context.organizationId());
+        System.debug('Sandbox ID: ' + context.sandboxId());
+        System.debug('Sandbox Name: ' + context.sandboxName());
+ 
+        // Insert logic here to prepare the sandbox for use.
+    }
+}`
+    };
+
+    //---------------------------------------
+    // Load class into editor
+    //---------------------------------------
+    function loadClass(className) {
+      editor.setValue(apexClasses[className] || "// Class not found");
+      editor._className = className; // store reference
+    }
+
+    //---------------------------------------
+    // Save class back into memory
+    //---------------------------------------
+    function saveFile() {
+      const text = editor.getValue();
+      const className = editor._className;
+
+      if (!className) {
+        alert("No class selected!");
+        return;
+      }
+
+      apexClasses[className] = text;
+      alert("Saved: " + className);
+    }
+
+    // Load default view
+    setTimeout(() => loadClass("PrepareMySandbox"), 400);
+  </script>
+
+</body>
+</html>
