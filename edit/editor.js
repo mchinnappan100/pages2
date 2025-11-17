@@ -4,6 +4,8 @@ let currentLanguage = "markdown";
 let openFiles = {};
 let vimMode = null;
 let isVimEnabled = false;
+let vimLoaded = false;
+let pendingVimClicks = 0;
 let autoSaveInterval = null;
 
 const themes = ["vs-dark", "vs", "hc-black"];
@@ -18,8 +20,34 @@ require(["vs/editor/editor.main"], function () {
   // Load Vim mode extension
   const script = document.createElement("script");
   script.src = "https://unpkg.com/monaco-vim@0.4.0/dist/monaco-vim.js";
+  // Disable the settings checkbox until the extension is ready
+  document.getElementById("vimModeToggle")?.setAttribute("disabled", "true");
+  const vimToggleEl = document.getElementById("vimToggle");
+  if (vimToggleEl) {
+    vimToggleEl.textContent = 'Vim: Loading...';
+    vimToggleEl.style.opacity = '0.7';
+    vimToggleEl.style.cursor = 'default';
+  }
+
   script.onload = () => {
     console.log("Monaco Vim loaded");
+    vimLoaded = true;
+    // Re-enable the checkbox and update UI
+    const cb = document.getElementById("vimModeToggle");
+    if (cb) cb.removeAttribute("disabled");
+    if (vimToggleEl) {
+      vimToggleEl.textContent = 'Vim: OFF';
+      vimToggleEl.style.opacity = '';
+      vimToggleEl.style.cursor = 'pointer';
+    }
+    // If user clicked the toggle while loading, apply queued toggles
+    if (pendingVimClicks > 0) {
+      if (pendingVimClicks % 2 === 1) {
+        // perform a single toggle to match odd number of clicks
+        toggleVimMode();
+      }
+      pendingVimClicks = 0;
+    }
   };
   document.head.appendChild(script);
 
@@ -316,8 +344,10 @@ function downloadFile() {
 
 // Vim Mode
 function toggleVimMode() {
-  if (typeof MonacoVim === "undefined") {
-    alert("Vim extension is still loading. Please try again in a moment.");
+  if (!vimLoaded) {
+    // Queue the user's click while the extension downloads and inform them
+    pendingVimClicks++;
+    showNotification('Vim extension is still loading. Your request will be applied when ready.');
     return;
   }
 
