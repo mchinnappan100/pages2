@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtual Guitar Player</title>
+   <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      min-height: 100vh;
+    }
+    
+    .guitar-neck {
+      background: linear-gradient(to bottom, #8b4513 0%, #654321 100%);
+      border-radius: 8px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+    
+    .fret {
+      border-right: 3px solid #c0c0c0;
+      position: relative;
+    }
+    
+    .fret:last-child {
+      border-right: none;
+    }
+    
+    .string-line {
+      height: 2px;
+      background: linear-gradient(to right, #888 0%, #ddd 50%, #888 100%);
+      position: absolute;
+      left: 0;
+      right: 0;
+      pointer-events: none;
+    }
+    
+    .note-button {
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.1s;
+    }
+    
+    .note-button:hover::before {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 20px;
+      background: rgba(59, 130, 246, 0.3);
+      border-radius: 50%;
+      border: 2px solid rgba(59, 130, 246, 0.6);
+    }
+    
+    .note-button.active::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 16px;
+      height: 16px;
+      background: #3b82f6;
+      border-radius: 50%;
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
+      animation: pulse 0.3s ease-out;
+    }
+    
+    @keyframes pulse {
+      0% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(1.5); opacity: 0; }
+    }
+    
+    .chord-button {
+      transition: all 0.2s;
+    }
+    
+    .chord-button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    }
+    
+    .chord-button.active {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.6);
+    }
+    
+    .fret-marker {
+      position: absolute;
+      bottom: -30px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 12px;
+      height: 12px;
+      background: #6b7280;
+      border-radius: 50%;
+    }
+    
+    .string-label {
+      font-size: 14px;
+      font-weight: 600;
+      color: #94a3b8;
+      margin-right: 8px;
+    }
+  </style>
+</head>
+<body class="p-4 md:p-8">
+  <div class="max-w-7xl mx-auto">
+    <!-- Header -->
+    <div class="text-center mb-8">
+      <h1 class="text-4xl md:text-5xl font-bold text-white mb-2">🎸 Virtual Guitar</h1>
+      <p class="text-gray-400">Click on the frets to play notes or select a chord below</p>
+    </div>
+
+    <!-- Controls -->
+    <div class="bg-slate-800 rounded-xl p-6 mb-6 shadow-xl">
+      <div class="flex flex-wrap gap-4 items-center justify-between">
+        <div class="flex items-center gap-4">
+          <label class="text-white font-semibold">Volume:</label>
+          <input type="range" id="volumeControl" min="0" max="100" value="50" class="w-32">
+          <span id="volumeValue" class="text-gray-400 w-12">50%</span>
+        </div>
+        
+        <div class="flex gap-2">
+          <button id="sustainBtn" class="px-4 py-2 bg-slate-700 text-white rounded-lg hover:bg-slate-600 transition">
+            Sustain: OFF
+          </button>
+          <button id="clearBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">
+            Clear All
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Guitar Neck -->
+    <div class="guitar-neck p-6 mb-6 overflow-x-auto">
+      <div class="min-w-[800px]">
+        <div id="guitarNeck" class="space-y-3">
+          <!-- Strings will be generated here -->
+        </div>
+        <div class="relative h-8 mt-2">
+          <!-- Fret markers -->
+          <div class="absolute" style="left: 8.33%; bottom: 0;">
+            <div class="fret-marker"></div>
+          </div>
+          <div class="absolute" style="left: 25%; bottom: 0;">
+            <div class="fret-marker"></div>
+          </div>
+          <div class="absolute" style="left: 41.66%; bottom: 0;">
+            <div class="fret-marker"></div>
+          </div>
+          <div class="absolute" style="left: 58.33%; bottom: 0;">
+            <div class="fret-marker"></div>
+          </div>
+          <div class="absolute" style="left: 75%; bottom: 0;">
+            <div class="fret-marker"></div>
+            <div class="fret-marker" style="bottom: 15px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Music Score Sheet -->
+    <div class="bg-slate-800 rounded-xl p-6 shadow-xl mb-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-bold text-white">Music Score</h2>
+        <div class="flex gap-2">
+          <button id="recordBtn" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
+            ▶ Record
+          </button>
+          <button id="playbackBtn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition" disabled>
+            ▶ Playback
+          </button>
+          <button id="downloadMidiBtn" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition" disabled>
+            💾 Download MIDI
+          </button>
+          <button id="clearScoreBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">
+            🗑️ Clear
+          </button>
+        </div>
+      </div>
+      
+      <div class="bg-slate-900 rounded-lg p-4 overflow-x-auto">
+        <svg id="musicScore" width="100%" height="200" class="min-w-[600px]">
+          <!-- Staff lines -->
+          <g id="staffLines">
+            <line x1="40" y1="40" x2="95%" y2="40" stroke="#94a3b8" stroke-width="1"/>
+            <line x1="40" y1="60" x2="95%" y2="60" stroke="#94a3b8" stroke-width="1"/>
+            <line x1="40" y1="80" x2="95%" y2="80" stroke="#94a3b8" stroke-width="1"/>
+            <line x1="40" y1="100" x2="95%" y2="100" stroke="#94a3b8" stroke-width="1"/>
+            <line x1="40" y1="120" x2="95%" y2="120" stroke="#94a3b8" stroke-width="1"/>
+            
+            <!-- Treble clef symbol -->
+            <text x="10" y="100" font-size="60" fill="#94a3b8" font-family="serif">𝄞</text>
+          </g>
+          
+          <g id="notes">
+            <!-- Notes will be added here -->
+          </g>
+        </svg>
+        
+        <div class="mt-3 text-sm text-gray-400" id="scoreInfo">
+          Click "Record" to start capturing notes. Play notes or chords and they'll appear on the staff.
+        </div>
+      </div>
+    </div>
+
+    <!-- Chord Selection -->
+    <div class="bg-slate-800 rounded-xl p-6 shadow-xl">
+      <h2 class="text-2xl font-bold text-white mb-4">Common Chords</h2>
+      <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3" id="chordButtons">
+        <!-- Chord buttons will be generated here -->
+      </div>
+    </div>
+
+    <!-- Instructions -->
+    <div class="mt-6 bg-slate-800 rounded-xl p-6 shadow-xl">
+      <h3 class="text-xl font-bold text-white mb-3">🎵 How to Play</h3>
+      <ul class="text-gray-300 space-y-2">
+        <li>• <strong>Click any fret</strong> on the guitar neck to play individual notes</li>
+        <li>• <strong>Select a chord</strong> from the buttons below to play multiple notes</li>
+        <li>• <strong>Adjust volume</strong> with the slider</li>
+        <li>• <strong>Enable sustain</strong> to let notes ring longer</li>
+        <li>• <strong>Click "Clear All"</strong> to stop all playing notes</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    // Guitar configuration
+    const strings = [
+      { name: 'E', baseFreq: 329.63, color: '#ef4444' },  // High E
+      { name: 'B', baseFreq: 246.94, color: '#f97316' },  // B
+      { name: 'G', baseFreq: 196.00, color: '#eab308' },  // G
+      { name: 'D', baseFreq: 146.83, color: '#22c55e' },  // D
+      { name: 'A', baseFreq: 110.00, color: '#3b82f6' },  // A
+      { name: 'E', baseFreq: 82.41, color: '#8b5cf6' }    // Low E
+    ];
+
+    const frets = 12;
+    
+    // Common chords (fret positions for each string, -1 means don't play)
+    const chords = {
+      'C': [0, 1, 0, 2, 3, -1],
+      'D': [2, 3, 2, 0, -1, -1],
+      'E': [0, 0, 1, 2, 2, 0],
+      'G': [3, 0, 0, 0, 2, 3],
+      'A': [0, 2, 2, 2, 0, -1],
+      'Am': [0, 1, 2, 2, 0, -1],
+      'Em': [0, 0, 0, 2, 2, 0],
+      'Dm': [1, 3, 2, 0, -1, -1],
+      'F': [1, 1, 2, 3, 3, 1],
+      'B7': [2, 0, 2, 1, 2, -1],
+      'C7': [0, 1, 3, 2, 3, -1],
+      'G7': [1, 0, 0, 0, 2, 3]
+    };
+
+    // Audio context
+    let audioContext;
+    let volume = 0.5;
+    let sustainMode = false;
+    let activeNotes = new Map();
+    let isRecording = false;
+    let recordedNotes = [];
+    let recordStartTime = 0;
+    let noteXPosition = 60;
+
+    // Note names and their positions on the staff
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    
+    function getNoteName(frequency) {
+      const A4 = 440;
+      const C0 = A4 * Math.pow(2, -4.75);
+      const halfSteps = Math.round(12 * Math.log2(frequency / C0));
+      const octave = Math.floor(halfSteps / 12);
+      const note = noteNames[halfSteps % 12];
+      const midiNote = halfSteps + 12; // MIDI note number
+      return { note, octave, midiNote };
+    }
+
+    function getNoteYPosition(noteName, octave) {
+      // Map notes to staff positions (middle C = C4)
+      const notePositions = {
+        'C': { 4: 130, 5: 90, 6: 50 },
+        'D': { 4: 125, 5: 85, 6: 45 },
+        'E': { 4: 120, 5: 80, 6: 40 },
+        'F': { 4: 115, 5: 75, 6: 35 },
+        'G': { 4: 110, 5: 70, 6: 30 },
+        'A': { 4: 105, 5: 65, 6: 25 },
+        'B': { 4: 100, 5: 60, 6: 20 }
+      };
+      
+      // Handle sharps (place between notes)
+      const baseNote = noteName.replace('#', '');
+      if (notePositions[baseNote] && notePositions[baseNote][octave]) {
+        let y = notePositions[baseNote][octave];
+        if (noteName.includes('#')) {
+          y -= 2.5; // Slightly higher for sharps
+        }
+        return y;
+      }
+      
+      // Default position
+      return 100;
+    }
+
+    // Initialize audio context on first user interaction
+    function initAudio() {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    // Calculate frequency for a fret
+    function getFretFrequency(baseFreq, fret) {
+      return baseFreq * Math.pow(2, fret / 12);
+    }
+
+    // Play a note
+    function playNote(stringIndex, fret, duration = sustainMode ? 3 : 1, skipRecording = false) {
+      initAudio();
+      
+      const freq = getFretFrequency(strings[stringIndex].baseFreq, fret);
+      const noteKey = `${stringIndex}-${fret}`;
+      
+      // Stop existing note if playing
+      if (activeNotes.has(noteKey)) {
+        stopNote(stringIndex, fret);
+      }
+      
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.type = 'triangle';
+      oscillator.frequency.setValueAtTime(freq, audioContext.currentTime);
+      
+      // ADSR envelope
+      gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+      gainNode.gain.linearRampToValueAtTime(volume, audioContext.currentTime + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(volume * 0.7, audioContext.currentTime + 0.1);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.start(audioContext.currentTime);
+      oscillator.stop(audioContext.currentTime + duration);
+      
+      activeNotes.set(noteKey, { oscillator, gainNode });
+      
+      // Visual feedback
+      const button = document.querySelector(`[data-string="${stringIndex}"][data-fret="${fret}"]`);
+      if (button) {
+        button.classList.add('active');
+        setTimeout(() => button.classList.remove('active'), 300);
+      }
+      
+      // Record note if recording
+      if (isRecording && !skipRecording) {
+        const timestamp = Date.now() - recordStartTime;
+        const noteInfo = getNoteName(freq);
+        recordedNotes.push({ 
+          stringIndex, 
+          fret, 
+          frequency: freq,
+          timestamp,
+          noteName: noteInfo.note,
+          octave: noteInfo.octave,
+          midiNote: noteInfo.midiNote,
+          duration: duration
+        });
+        addNoteToScore(noteInfo.note, noteInfo.octave, freq);
+      }
+      
+      // Clean up
+      setTimeout(() => {
+        activeNotes.delete(noteKey);
+      }, duration * 1000);
+    }
+
+    // Stop a note
+    function stopNote(stringIndex, fret) {
+      const noteKey = `${stringIndex}-${fret}`;
+      const note = activeNotes.get(noteKey);
+      
+      if (note) {
+        note.gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.05);
+        note.oscillator.stop(audioContext.currentTime + 0.05);
+        activeNotes.delete(noteKey);
+      }
+    }
+
+    // Play a chord
+    function playChord(chordName) {
+      const positions = chords[chordName];
+      positions.forEach((fret, stringIndex) => {
+        if (fret >= 0) {
+          setTimeout(() => {
+            playNote(stringIndex, fret);
+          }, stringIndex * 30); // Slight strum effect
+        }
+      });
+      
+      // Visual feedback
+      document.querySelectorAll('.chord-button').forEach(btn => btn.classList.remove('active'));
+      document.querySelector(`[data-chord="${chordName}"]`)?.classList.add('active');
+      setTimeout(() => {
+        document.querySelector(`[data-chord="${chordName}"]`)?.classList.remove('active');
+      }, 500);
+    }
+
+    // Build guitar neck
+    function buildGuitar() {
+      const neckContainer = document.getElementById('guitarNeck');
+      
+      strings.forEach((string, stringIndex) => {
+        const stringRow = document.createElement('div');
+        stringRow.className = 'flex items-center relative';
+        
+        const label = document.createElement('div');
+        label.className = 'string-label';
+        label.textContent = string.name;
+        stringRow.appendChild(label);
+        
+        const fretContainer = document.createElement('div');
+        fretContainer.className = 'flex flex-1 relative';
+        
+        // String line
+        const stringLine = document.createElement('div');
+        stringLine.className = 'string-line';
+        stringLine.style.top = '50%';
+        stringLine.style.transform = 'translateY(-50%)';
+        fretContainer.appendChild(stringLine);
+        
+        for (let fret = 0; fret <= frets; fret++) {
+          const fretDiv = document.createElement('div');
+          fretDiv.className = 'fret flex-1';
+          fretDiv.style.minHeight = '40px';
+          
+          const button = document.createElement('button');
+          button.className = 'note-button';
+          button.dataset.string = stringIndex;
+          button.dataset.fret = fret;
+          button.onclick = () => playNote(stringIndex, fret);
+          
+          fretDiv.appendChild(button);
+          fretContainer.appendChild(fretDiv);
+        }
+        
+        stringRow.appendChild(fretContainer);
+        neckContainer.appendChild(stringRow);
+      });
+    }
+
+    // Build chord buttons
+    function buildChordButtons() {
+      const container = document.getElementById('chordButtons');
+      
+      Object.keys(chords).forEach(chordName => {
+        const button = document.createElement('button');
+        button.className = 'chord-button px-4 py-3 bg-slate-700 text-white rounded-lg font-semibold hover:bg-slate-600';
+        button.textContent = chordName;
+        button.dataset.chord = chordName;
+        button.onclick = () => playChord(chordName);
+        container.appendChild(button);
+      });
+    }
+
+    // Controls
+    document.getElementById('volumeControl').addEventListener('input', (e) => {
+      volume = e.target.value / 100;
+      document.getElementById('volumeValue').textContent = e.target.value + '%';
+    });
+
+    document.getElementById('sustainBtn').addEventListener('click', (e) => {
+      sustainMode = !sustainMode;
+      e.target.textContent = sustainMode ? 'Sustain: ON' : 'Sustain: OFF';
+      e.target.style.background = sustainMode ? '#3b82f6' : '#475569';
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      activeNotes.forEach((note, key) => {
+        note.gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.05);
+        note.oscillator.stop(audioContext.currentTime + 0.05);
+      });
+      activeNotes.clear();
+      document.querySelectorAll('.chord-button').forEach(btn => btn.classList.remove('active'));
+    });
+
+    // Initialize
+    buildGuitar();
+    buildChordButtons();
+    
+    // Add keyboard support
+    document.addEventListener('keydown', (e) => {
+      const key = e.key.toUpperCase();
+      if (chords[key]) {
+        playChord(key);
+      }
+    });
+
+    // Music Score Functions
+    function addNoteToScore(noteName, octave, frequency) {
+      const notesGroup = document.getElementById('notes');
+      const x = noteXPosition;
+      const y = getNoteYPosition(noteName, octave);
+      
+      // Create note head (filled circle)
+      const noteHead = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+      noteHead.setAttribute('cx', x);
+      noteHead.setAttribute('cy', y);
+      noteHead.setAttribute('rx', 6);
+      noteHead.setAttribute('ry', 5);
+      noteHead.setAttribute('fill', '#3b82f6');
+      noteHead.setAttribute('stroke', '#1e40af');
+      noteHead.setAttribute('stroke-width', '1');
+      
+      // Create note stem
+      const stem = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      stem.setAttribute('x1', x + 6);
+      stem.setAttribute('y1', y);
+      stem.setAttribute('x2', x + 6);
+      stem.setAttribute('y2', y - 30);
+      stem.setAttribute('stroke', '#3b82f6');
+      stem.setAttribute('stroke-width', '2');
+      
+      // Add sharp symbol if needed
+      if (noteName.includes('#')) {
+        const sharp = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        sharp.setAttribute('x', x - 12);
+        sharp.setAttribute('y', y + 3);
+        sharp.setAttribute('fill', '#3b82f6');
+        sharp.setAttribute('font-size', '14');
+        sharp.setAttribute('font-weight', 'bold');
+        sharp.textContent = '♯';
+        notesGroup.appendChild(sharp);
+      }
+      
+      notesGroup.appendChild(noteHead);
+      notesGroup.appendChild(stem);
+      
+      // Add ledger lines if needed (for notes outside the staff)
+      if (y > 120 || y < 40) {
+        const ledger = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        ledger.setAttribute('x1', x - 8);
+        ledger.setAttribute('y1', y);
+        ledger.setAttribute('x2', x + 14);
+        ledger.setAttribute('y2', y);
+        ledger.setAttribute('stroke', '#94a3b8');
+        ledger.setAttribute('stroke-width', '1');
+        notesGroup.appendChild(ledger);
+      }
+      
+      noteXPosition += 30;
+      
+      // Auto-scroll if needed
+      if (noteXPosition > 800) {
+        const svg = document.getElementById('musicScore');
+        svg.setAttribute('width', noteXPosition + 100);
+      }
+    }
+
+    function clearScore() {
+      const notesGroup = document.getElementById('notes');
+      notesGroup.innerHTML = '';
+      noteXPosition = 60;
+      recordedNotes = [];
+      const svg = document.getElementById('musicScore');
+      svg.setAttribute('width', '100%');
+    }
+
+    // Recording controls
+    document.getElementById('recordBtn').addEventListener('click', (e) => {
+      isRecording = !isRecording;
+      if (isRecording) {
+        recordStartTime = Date.now();
+        e.target.textContent = '⏹ Stop';
+        e.target.style.background = '#dc2626';
+        document.getElementById('scoreInfo').textContent = 'Recording... Play notes and they will appear on the staff.';
+        document.getElementById('playbackBtn').disabled = true;
+        document.getElementById('downloadMidiBtn').disabled = true;
+      } else {
+        e.target.textContent = '▶ Record';
+        e.target.style.background = '#16a34a';
+        document.getElementById('scoreInfo').textContent = `Recorded ${recordedNotes.length} notes. Click "Playback" to replay or "Download MIDI" to save.`;
+        document.getElementById('playbackBtn').disabled = recordedNotes.length === 0;
+        document.getElementById('downloadMidiBtn').disabled = recordedNotes.length === 0;
+      }
+    });
+
+    document.getElementById('playbackBtn').addEventListener('click', () => {
+      if (recordedNotes.length === 0) return;
+      
+      document.getElementById('playbackBtn').disabled = true;
+      document.getElementById('scoreInfo').textContent = 'Playing back recorded notes...';
+      
+      recordedNotes.forEach((note, index) => {
+        setTimeout(() => {
+          playNote(note.stringIndex, note.fret, sustainMode ? 3 : 1, true);
+          
+          if (index === recordedNotes.length - 1) {
+            setTimeout(() => {
+              document.getElementById('playbackBtn').disabled = false;
+              document.getElementById('scoreInfo').textContent = `Playback complete. ${recordedNotes.length} notes played.`;
+            }, 500);
+          }
+        }, note.timestamp);
+      });
+    });
+
+    document.getElementById('clearScoreBtn').addEventListener('click', () => {
+      clearScore();
+      document.getElementById('scoreInfo').textContent = 'Score cleared. Click "Record" to start capturing notes.';
+      document.getElementById('playbackBtn').disabled = true;
+      document.getElementById('downloadMidiBtn').disabled = true;
+    });
+
+    // MIDI Generation Functions
+    function createMidiFile() {
+      // MIDI file format constants
+      const HEADER_CHUNK_TYPE = [0x4d, 0x54, 0x68, 0x64]; // "MThd"
+      const HEADER_CHUNK_LENGTH = [0x00, 0x00, 0x00, 0x06];
+      const HEADER_CHUNK_FORMAT = [0x00, 0x00]; // Single track
+      const HEADER_CHUNK_TRACKS = [0x00, 0x01]; // 1 track
+      const HEADER_CHUNK_DIVISION = [0x01, 0xe0]; // 480 ticks per quarter note
+      
+      const TRACK_CHUNK_TYPE = [0x4d, 0x54, 0x72, 0x6b]; // "MTrk"
+      
+      // Build track events
+      const trackEvents = [];
+      
+      // Tempo event (500000 microseconds per quarter note = 120 BPM)
+      trackEvents.push(...[0x00, 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20]);
+      
+      let lastTime = 0;
+      
+      recordedNotes.forEach((note, index) => {
+        const deltaTime = note.timestamp - lastTime;
+        const deltaTimeTicks = Math.round(deltaTime * 0.48); // Convert ms to ticks
+        
+        // Note On event
+        trackEvents.push(...encodeVariableLength(deltaTimeTicks));
+        trackEvents.push(0x90); // Note On, channel 0
+        trackEvents.push(note.midiNote);
+        trackEvents.push(80); // Velocity
+        
+        // Note Off event
+        const noteDuration = Math.round(note.duration * 1000 * 0.48); // Convert to ticks
+        trackEvents.push(...encodeVariableLength(noteDuration));
+        trackEvents.push(0x80); // Note Off, channel 0
+        trackEvents.push(note.midiNote);
+        trackEvents.push(0); // Velocity
+        
+        lastTime = note.timestamp + (note.duration * 1000);
+      });
+      
+      // End of track
+      trackEvents.push(0x00, 0xFF, 0x2F, 0x00);
+      
+      // Track chunk length
+      const trackLength = trackEvents.length;
+      const trackLengthBytes = [
+        (trackLength >> 24) & 0xFF,
+        (trackLength >> 16) & 0xFF,
+        (trackLength >> 8) & 0xFF,
+        trackLength & 0xFF
+      ];
+      
+      // Combine all chunks
+      const midiData = [
+        ...HEADER_CHUNK_TYPE,
+        ...HEADER_CHUNK_LENGTH,
+        ...HEADER_CHUNK_FORMAT,
+        ...HEADER_CHUNK_TRACKS,
+        ...HEADER_CHUNK_DIVISION,
+        ...TRACK_CHUNK_TYPE,
+        ...trackLengthBytes,
+        ...trackEvents
+      ];
+      
+      return new Uint8Array(midiData);
+    }
+    
+    function encodeVariableLength(value) {
+      const bytes = [];
+      bytes.push(value & 0x7F);
+      value >>= 7;
+      
+      while (value > 0) {
+        bytes.unshift((value & 0x7F) | 0x80);
+        value >>= 7;
+      }
+      
+      return bytes;
+    }
+    
+    function downloadMidi() {
+      if (recordedNotes.length === 0) return;
+      
+      const midiData = createMidiFile();
+      const blob = new Blob([midiData], { type: 'audio/midi' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+      link.download = `guitar-composition-${timestamp}.mid`;
+      link.href = url;
+      link.click();
+      
+      URL.revokeObjectURL(url);
+      
+      document.getElementById('scoreInfo').textContent = `MIDI file downloaded with ${recordedNotes.length} notes!`;
+    }
+    
+    document.getElementById('downloadMidiBtn').addEventListener('click', downloadMidi);
+  </script>
+</body>
+</html>
