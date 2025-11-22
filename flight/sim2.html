@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flight Simulator Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { 
+            background: linear-gradient(to bottom, #0a0e27 0%, #1a1f3a 50%, #2a2f4a 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .stars {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        .star {
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle 3s infinite;
+        }
+        
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+        
+        .plane-canvas {
+            background: radial-gradient(ellipse at center, #1e3a5f 0%, #0a0e27 100%);
+            border: 2px solid #2563eb;
+            box-shadow: 0 0 30px rgba(37, 99, 235, 0.3);
+        }
+        
+        .gauge {
+            position: relative;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: #1e293b;
+            border: 3px solid #334155;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+        }
+        
+        .gauge-needle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 3px;
+            height: 45px;
+            background: #ef4444;
+            transform-origin: bottom center;
+            transition: transform 0.5s ease;
+            border-radius: 2px;
+        }
+        
+        .gauge-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 12px;
+            height: 12px;
+            background: #dc2626;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            border: 2px solid #991b1b;
+        }
+        
+        .flight-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .flight-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+        }
+        
+        .flight-card.selected {
+            border-color: #3b82f6;
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+        }
+
+        .cloud {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 100px;
+            animation: float 20s infinite linear;
+        }
+        
+        @keyframes float {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100vw); }
+        }
+        
+        .control-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: #1e293b;
+            outline: none;
+        }
+        
+        .control-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen text-gray-100 overflow-hidden">
+    <!-- Stars Background -->
+    <div class="stars" id="stars"></div>
+
+    <!-- Clouds -->
+    <div id="clouds-container"></div>
+
+    <div class="relative z-10 container mx-auto px-4 py-6 max-h-screen overflow-y-auto">
+        <!-- Header -->
+        <div class="text-center mb-6">
+            <h1 class="text-5xl font-bold text-blue-400 mb-2">✈️ Flight Simulator Pro</h1>
+            <p class="text-gray-400">Choose your aircraft and take to the skies</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Flight Selection Panel -->
+            <div class="lg:col-span-1">
+                <div class="bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-4 shadow-xl">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-blue-400">Available Aircraft</h2>
+                        <button onclick="loadCustomFlight()" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm transition">
+                            📁 Load Custom
+                        </button>
+                    </div>
+                    
+                    <div id="flight-list" class="space-y-3 max-h-96 overflow-y-auto pr-2">
+                        <!-- Flight cards will be inserted here -->
+                    </div>
+                </div>
+
+                <!-- Load Custom Flight Panel -->
+                <div id="custom-flight-panel" class="hidden bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-4 shadow-xl mt-4">
+                    <h3 class="text-lg font-bold text-blue-400 mb-3">Load Custom Flight</h3>
+                    <textarea id="custom-json" rows="10" placeholder='Paste flight JSON here...' class="w-full bg-slate-900 border border-slate-600 rounded p-3 text-sm font-mono text-gray-300"></textarea>
+                    <div class="flex gap-2 mt-3">
+                        <button onclick="importCustomFlight()" class="flex-1 bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition">Import</button>
+                        <button onclick="document.getElementById('custom-flight-panel').classList.add('hidden')" class="flex-1 bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded transition">Cancel</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Simulator Canvas -->
+            <div class="lg:col-span-2">
+                <div class="bg-slate-800/90 backdrop-blur-sm rounded-lg border border-slate-700 p-4 shadow-xl">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-blue-400">Cockpit View</h2>
+                        <div class="flex gap-2">
+                            <button id="start-btn" onclick="startFlight()" class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded font-semibold transition">
+                                🛫 Start Flight
+                            </button>
+                            <button id="stop-btn" onclick="stopFlight()" class="hidden bg-red-600 hover:bg-red-700 px-6 py-2 rounded font-semibold transition">
+                                🛬 Land
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Canvas -->
+                    <canvas id="flight-canvas" class="plane-canvas w-full rounded-lg mb-4" width="800" height="400"></canvas>
+
+                    <!-- Flight Info -->
+                    <div id="flight-info" class="bg-slate-900/80 rounded-lg p-4 mb-4">
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                            <div>
+                                <div class="text-gray-400 text-sm">Aircraft</div>
+                                <div id="info-aircraft" class="text-xl font-bold text-blue-400">-</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400 text-sm">Route</div>
+                                <div id="info-route" class="text-lg font-semibold text-green-400">-</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400 text-sm">Distance</div>
+                                <div id="info-distance" class="text-lg font-semibold text-yellow-400">-</div>
+                            </div>
+                            <div>
+                                <div class="text-gray-400 text-sm">Flight Time</div>
+                                <div id="info-time" class="text-lg font-semibold text-purple-400">-</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Instruments Panel -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <!-- Altitude Gauge -->
+                        <div class="text-center">
+                            <div class="text-sm text-gray-400 mb-2">Altitude</div>
+                            <div class="gauge mx-auto">
+                                <div class="gauge-needle" id="altitude-needle" style="transform: translate(-50%, -100%) rotate(0deg);"></div>
+                                <div class="gauge-center"></div>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span id="altitude-value" class="text-2xl font-bold text-blue-400">0</span>
+                                </div>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">feet</div>
+                        </div>
+
+                        <!-- Speed Gauge -->
+                        <div class="text-center">
+                            <div class="text-sm text-gray-400 mb-2">Airspeed</div>
+                            <div class="gauge mx-auto">
+                                <div class="gauge-needle" id="speed-needle" style="transform: translate(-50%, -100%) rotate(0deg);"></div>
+                                <div class="gauge-center"></div>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span id="speed-value" class="text-2xl font-bold text-green-400">0</span>
+                                </div>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">knots</div>
+                        </div>
+
+                        <!-- Heading Gauge -->
+                        <div class="text-center">
+                            <div class="text-sm text-gray-400 mb-2">Heading</div>
+                            <div class="gauge mx-auto">
+                                <div class="gauge-needle" id="heading-needle" style="transform: translate(-50%, -100%) rotate(0deg);"></div>
+                                <div class="gauge-center"></div>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span id="heading-value" class="text-2xl font-bold text-yellow-400">0</span>
+                                </div>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">degrees</div>
+                        </div>
+
+                        <!-- Fuel Gauge -->
+                        <div class="text-center">
+                            <div class="text-sm text-gray-400 mb-2">Fuel</div>
+                            <div class="gauge mx-auto">
+                                <div class="gauge-needle" id="fuel-needle" style="transform: translate(-50%, -100%) rotate(-90deg);"></div>
+                                <div class="gauge-center"></div>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span id="fuel-value" class="text-2xl font-bold text-orange-400">100</span>
+                                </div>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">%</div>
+                        </div>
+                    </div>
+
+                    <!-- Flight Controls -->
+                    <div class="bg-slate-900/80 rounded-lg p-4">
+                        <h3 class="text-lg font-bold text-blue-400 mb-3">Flight Controls</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-sm text-gray-400 block mb-2">Throttle</label>
+                                <input type="range" id="throttle" min="0" max="100" value="0" class="control-slider" oninput="updateThrottle(this.value)">
+                                <div class="text-xs text-gray-500 mt-1">Power: <span id="throttle-display">0</span>%</div>
+                            </div>
+                            <div>
+                                <label class="text-sm text-gray-400 block mb-2">Pitch</label>
+                                <input type="range" id="pitch" min="-30" max="30" value="0" class="control-slider" oninput="updatePitch(this.value)">
+                                <div class="text-xs text-gray-500 mt-1">Angle: <span id="pitch-display">0</span>°</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Export Template Button -->
+        <div class="mt-6 text-center">
+            <button onclick="exportTemplate()" class="bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg font-semibold transition">
+                📥 Download Flight Template (JSON)
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Flight database
+        const flights = [
+            {
+                id: 1,
+                name: "Boeing 737-800",
+                type: "Commercial",
+                from: "JFK",
+                to: "LAX",
+                distance: "2475 nm",
+                duration: "5h 30m",
+                cruiseSpeed: 450,
+                maxAltitude: 41000,
+                color: "#3b82f6",
+                icon: "✈️"
+            },
+            {
+                id: 2,
+                name: "Airbus A320neo",
+                type: "Commercial",
+                from: "LHR",
+                to: "CDG",
+                distance: "215 nm",
+                duration: "1h 15m",
+                cruiseSpeed: 450,
+                maxAltitude: 39800,
+                color: "#10b981",
+                icon: "✈️"
+            },
+            {
+                id: 3,
+                name: "Cessna 172",
+                type: "General Aviation",
+                from: "KSFO",
+                to: "KLAX",
+                distance: "337 nm",
+                duration: "2h 45m",
+                cruiseSpeed: 122,
+                maxAltitude: 14000,
+                color: "#f59e0b",
+                icon: "🛩️"
+            },
+            {
+                id: 4,
+                name: "Boeing 777-300ER",
+                type: "Wide Body",
+                from: "DXB",
+                to: "SYD",
+                distance: "7482 nm",
+                duration: "14h 30m",
+                cruiseSpeed: 490,
+                maxAltitude: 43100,
+                color: "#8b5cf6",
+                icon: "✈️"
+            },
+            {
+                id: 5,
+                name: "F-16 Fighting Falcon",
+                type: "Military",
+                from: "Nellis AFB",
+                to: "Edwards AFB",
+                distance: "220 nm",
+                duration: "30m",
+                cruiseSpeed: 850,
+                maxAltitude: 50000,
+                color: "#ef4444",
+                icon: "🚀"
+            },
+            {
+                id: 6,
+                name: "Gulfstream G650",
+                type: "Business Jet",
+                from: "TEB",
+                to: "VNY",
+                distance: "2420 nm",
+                duration: "5h 15m",
+                cruiseSpeed: 516,
+                maxAltitude: 51000,
+                color: "#06b6d4",
+                icon: "🛩️"
+            }
+        ];
+
+        let selectedFlight = null;
+        let isFlying = false;
+        let animationFrame = null;
+        let flightStartTime = 0;
+
+        // Simulator state
+        const state = {
+            altitude: 0,
+            speed: 0,
+            heading: 90,
+            fuel: 100,
+            throttle: 0,
+            pitch: 0,
+            x: 50,
+            y: 300
+        };
+
+        // Initialize
+        function init() {
+            createStars();
+            createClouds();
+            renderFlightList();
+            drawPlane();
+        }
+
+        function createStars() {
+            const starsContainer = document.getElementById('stars');
+            for (let i = 0; i < 100; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.style.left = Math.random() * 100 + '%';
+                star.style.top = Math.random() * 100 + '%';
+                star.style.animationDelay = Math.random() * 3 + 's';
+                starsContainer.appendChild(star);
+            }
+        }
+
+        function createClouds() {
+            const container = document.getElementById('clouds-container');
+            for (let i = 0; i < 5; i++) {
+                const cloud = document.createElement('div');
+                cloud.className = 'cloud';
+                cloud.style.width = (100 + Math.random() * 100) + 'px';
+                cloud.style.height = (40 + Math.random() * 40) + 'px';
+                cloud.style.top = (Math.random() * 60) + '%';
+                cloud.style.left = (Math.random() * 100) + '%';
+                cloud.style.animationDuration = (15 + Math.random() * 10) + 's';
+                cloud.style.animationDelay = (Math.random() * 10) + 's';
+                container.appendChild(cloud);
+            }
+        }
+
+        function renderFlightList() {
+            const list = document.getElementById('flight-list');
+            list.innerHTML = flights.map(flight => `
+                <div class="flight-card bg-slate-900/80 rounded-lg p-4 border border-slate-700 ${selectedFlight?.id === flight.id ? 'selected' : ''}" 
+                     onclick="selectFlight(${flight.id})">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="text-3xl">${flight.icon}</span>
+                        <span class="text-xs px-2 py-1 bg-blue-900/50 rounded text-blue-400">${flight.type}</span>
+                    </div>
+                    <h3 class="text-lg font-bold text-white mb-1">${flight.name}</h3>
+                    <div class="text-sm text-gray-400 space-y-1">
+                        <div>🛫 ${flight.from} → 🛬 ${flight.to}</div>
+                        <div class="flex justify-between">
+                            <span>📏 ${flight.distance}</span>
+                            <span>⏱️ ${flight.duration}</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function selectFlight(id) {
+            selectedFlight = flights.find(f => f.id === id);
+            renderFlightList();
+            updateFlightInfo();
+            resetSimulator();
+        }
+
+        function updateFlightInfo() {
+            if (!selectedFlight) {
+                document.getElementById('info-aircraft').textContent = '-';
+                document.getElementById('info-route').textContent = '-';
+                document.getElementById('info-distance').textContent = '-';
+                document.getElementById('info-time').textContent = '-';
+                return;
+            }
+
+            document.getElementById('info-aircraft').textContent = selectedFlight.name;
+            document.getElementById('info-route').textContent = `${selectedFlight.from} → ${selectedFlight.to}`;
+            document.getElementById('info-distance').textContent = selectedFlight.distance;
+            document.getElementById('info-time').textContent = selectedFlight.duration;
+        }
+
+        function startFlight() {
+            if (!selectedFlight) {
+                alert('Please select an aircraft first!');
+                return;
+            }
+
+            isFlying = true;
+            flightStartTime = Date.now();
+            document.getElementById('start-btn').classList.add('hidden');
+            document.getElementById('stop-btn').classList.remove('hidden');
+            
+            // Set initial throttle
+            document.getElementById('throttle').value = 75;
+            updateThrottle(75);
+            
+            animate();
+        }
+
+        function stopFlight() {
+            isFlying = false;
+            if (animationFrame) {
+                cancelAnimationFrame(animationFrame);
+            }
+            document.getElementById('start-btn').classList.remove('hidden');
+            document.getElementById('stop-btn').classList.add('hidden');
+            
+            // Reset throttle
+            document.getElementById('throttle').value = 0;
+            updateThrottle(0);
+            
+            resetSimulator();
+        }
+
+        function resetSimulator() {
+            state.altitude = 0;
+            state.speed = 0;
+            state.heading = 90;
+            state.fuel = 100;
+            state.throttle = 0;
+            state.pitch = 0;
+            state.x = 50;
+            state.y = 300;
+            
+            updateGauges();
+        }
+
+        function updateThrottle(value) {
+            state.throttle = parseInt(value);
+            document.getElementById('throttle-display').textContent = value;
+        }
+
+        function updatePitch(value) {
+            state.pitch = parseInt(value);
+            document.getElementById('pitch-display').textContent = value;
+        }
+
+        function animate() {
+            if (!isFlying) return;
+
+            // Update physics
+            const maxSpeed = selectedFlight.cruiseSpeed;
+            const targetSpeed = (state.throttle / 100) * maxSpeed;
+            state.speed += (targetSpeed - state.speed) * 0.05;
+
+            // Update altitude based on pitch and speed
+            const climbRate = state.pitch * (state.speed / 100);
+            state.altitude += climbRate * 0.5;
+            state.altitude = Math.max(0, Math.min(state.altitude, selectedFlight.maxAltitude));
+
+            // Update heading (slowly drift)
+            state.heading += 0.1;
+            if (state.heading >= 360) state.heading = 0;
+
+            // Consume fuel
+            if (state.throttle > 0) {
+                state.fuel -= 0.001 * (state.throttle / 100);
+                state.fuel = Math.max(0, state.fuel);
+            }
+
+            // Update position
+            state.x += state.speed * 0.05;
+            if (state.x > 850) state.x = -50;
+
+            state.y = 300 - (state.altitude / selectedFlight.maxAltitude) * 250;
+
+            updateGauges();
+            drawPlane();
+
+            animationFrame = requestAnimationFrame(animate);
+        }
+
+        function updateGauges() {
+            // Altitude
+            const altAngle = (state.altitude / selectedFlight.maxAltitude) * 180 - 90;
+            document.getElementById('altitude-needle').style.transform = 
+                `translate(-50%, -100%) rotate(${altAngle}deg)`;
+            document.getElementById('altitude-value').textContent = Math.round(state.altitude);
+
+            // Speed
+            const speedAngle = (state.speed / selectedFlight.cruiseSpeed) * 180 - 90;
+            document.getElementById('speed-needle').style.transform = 
+                `translate(-50%, -100%) rotate(${speedAngle}deg)`;
+            document.getElementById('speed-value').textContent = Math.round(state.speed);
+
+            // Heading
+            const headingAngle = state.heading - 90;
+            document.getElementById('heading-needle').style.transform = 
+                `translate(-50%, -100%) rotate(${headingAngle}deg)`;
+            document.getElementById('heading-value').textContent = Math.round(state.heading);
+
+            // Fuel
+            const fuelAngle = (state.fuel / 100) * 180 - 90;
+            document.getElementById('fuel-needle').style.transform = 
+                `translate(-50%, -100%) rotate(${fuelAngle}deg)`;
+            document.getElementById('fuel-value').textContent = Math.round(state.fuel);
+        }
+
+        function drawPlane() {
+            const canvas = document.getElementById('flight-canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw horizon
+            const horizonY = 200 + (state.pitch * 2);
+            ctx.fillStyle = '#1e40af';
+            ctx.fillRect(0, 0, canvas.width, horizonY);
+            ctx.fillStyle = '#065f46';
+            ctx.fillRect(0, horizonY, canvas.width, canvas.height - horizonY);
+
+            // Draw horizon line
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, horizonY);
+            ctx.lineTo(canvas.width, horizonY);
+            ctx.stroke();
+
+            if (selectedFlight) {
+                // Draw plane
+                ctx.save();
+                ctx.translate(state.x, state.y);
+                ctx.rotate((state.pitch * Math.PI) / 180);
+
+                // Plane body
+                ctx.fillStyle = selectedFlight.color;
+                ctx.fillRect(-25, -5, 50, 10);
+
+                // Wings
+                ctx.fillRect(-20, -20, 40, 5);
+                ctx.fillRect(-20, 15, 40, 5);
+
+                // Tail
+                ctx.fillRect(-30, -3, 10, 6);
+
+                // Cockpit
+                ctx.fillStyle = '#1e293b';
+                ctx.beginPath();
+                ctx.arc(20, 0, 8, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+
+            // Draw altitude markers
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '12px monospace';
+            for (let i = 0; i <= 5; i++) {
+                const y = i * 80;
+                const alt = Math.round(((400 - y) / 400) * (selectedFlight?.maxAltitude || 40000));
+                ctx.fillText(alt + ' ft', 10, y + 15);
+            }
+        }
+
+        function loadCustomFlight() {
+            document.getElementById('custom-flight-panel').classList.remove('hidden');
+        }
+
+        function importCustomFlight() {
+            const json = document.getElementById('custom-json').value;
+            try {
+                const flight = JSON.parse(json);
+                
+                // Validate required fields
+                const required = ['name', 'type', 'from', 'to', 'distance', 'duration', 'cruiseSpeed', 'maxAltitude'];
+                for (const field of required) {
+                    if (!flight[field]) {
+                        throw new Error(`Missing required field: ${field}`);
+                    }
+                }
+
+                // Add default values
+                flight.id = flights.length + 1;
+                flight.color = flight.color || '#3b82f6';
+                flight.icon = flight.icon || '✈️';
+
+                flights.push(flight);
+                renderFlightList();
+                selectFlight(flight.id);
+
+                document.getElementById('custom-flight-panel').classList.add('hidden');
+                document.getElementById('custom-json').value = '';
+                
+                alert('✅ Flight imported successfully!');
+            } catch (error) {
+                alert('❌ Invalid JSON: ' + error.message);
+            }
+        }
+
+        function exportTemplate() {
+            const template = {
+                name: "Custom Aircraft Name",
+                type: "Commercial|General Aviation|Business Jet|Military|Wide Body",
+                from: "Origin Airport Code (e.g., JFK)",
+                to: "Destination Airport Code (e.g., LAX)",
+                distance: "Distance with unit (e.g., 2475 nm)",
+                duration: "Flight duration (e.g., 5h 30m)",
+                cruiseSpeed: 450,
+                maxAltitude: 41000,
+                color: "#3b82f6",
+                icon: "✈️"
+            };
+
+            const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'flight-template.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>

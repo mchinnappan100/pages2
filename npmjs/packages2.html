@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPM Packages Viewer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            background: linear-gradient(to bottom right, #0f172a, #1e293b);
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+        }
+
+        .splitter {
+            cursor: col-resize;
+            background: #334155;
+            transition: background 0.2s;
+        }
+
+        .splitter:hover {
+            background: #475569;
+        }
+
+        .splitter:active {
+            background: #3b82f6;
+        }
+
+        .package-item {
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .package-item:hover {
+            background: #1e40af;
+            transform: translateX(4px);
+        }
+
+        .package-item.selected {
+            background: linear-gradient(90deg, #1e40af 0%, #3b82f6 100%);
+            border-left: 4px solid #60a5fa;
+        }
+
+        .content-iframe {
+            border: none;
+            width: 100%;
+            height: 100%;
+            background: white;
+        }
+
+        .search-box {
+            transition: all 0.3s ease;
+        }
+
+        .search-box:focus-within {
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.375rem;
+            font-weight: 600;
+        }
+
+        .loader {
+            border: 3px solid #334155;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .stats-card {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            transition: transform 0.2s ease;
+        }
+
+        .stats-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .error-message {
+            background: linear-gradient(135deg, #991b1b 0%, #dc2626 100%);
+        }
+    </style>
+</head>
+<body class="h-screen overflow-hidden text-gray-100">
+    <div class="h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-slate-900/95 backdrop-blur-sm border-b border-slate-700 shadow-xl">
+            <div class="px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-3xl font-bold text-blue-400 flex items-center gap-3">
+                            📦 NPM Packages
+                        </h1>
+                        <p class="text-gray-400 text-sm mt-1">by <span id="publisher-name" class="text-blue-400 font-semibold">...</span></p>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="stats-card rounded-lg px-4 py-2">
+                            <div class="text-sm text-blue-200">Total Packages</div>
+                            <div id="total-count" class="text-2xl font-bold text-white">0</div>
+                        </div>
+                        <a id="npm-profile-link" href="#" target="_blank" 
+                           class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold transition flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M0 7.334v8h6.666v1.332H12v-1.332h12v-8H0zm6.666 6.664H5.334v-4H3.999v4H1.335V8.667h5.331v5.331zm4 0v1.336H8.001V8.667h5.334v5.332h-2.669v-.001zm12.001 0h-1.33v-4h-1.336v4h-1.335v-4h-1.33v4h-2.671V8.667h8.002v5.331zM10.665 10H12v2.667h-1.335V10z"/>
+                            </svg>
+                            View on NPM
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex overflow-hidden">
+            <!-- Left Pane - Package List -->
+            <div id="left-pane" class="bg-slate-800/90 backdrop-blur-sm border-r border-slate-700 overflow-hidden flex flex-col" style="width: 400px;">
+                <!-- Search Box -->
+                <div class="p-4 border-b border-slate-700">
+                    <div class="search-box bg-slate-900/80 rounded-lg border border-slate-600">
+                        <input 
+                            type="text" 
+                            id="search-input" 
+                            placeholder="🔍 Search packages..." 
+                            class="w-full px-4 py-3 bg-transparent text-gray-100 placeholder-gray-500 focus:outline-none"
+                            oninput="filterPackages(this.value)"
+                        />
+                    </div>
+                </div>
+
+                <!-- Package List -->
+                <div id="package-list" class="flex-1 overflow-y-auto p-4 space-y-2">
+                    <div class="flex items-center justify-center h-full">
+                        <div class="text-center">
+                            <div class="loader mx-auto mb-4"></div>
+                            <p class="text-gray-400">Loading packages...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Splitter -->
+            <div id="splitter" class="splitter w-1 hover:w-2 active:w-2"></div>
+
+            <!-- Right Pane - Package Details -->
+            <div id="right-pane" class="flex-1 bg-slate-900/90 backdrop-blur-sm overflow-hidden flex flex-col">
+                <div id="package-content" class="flex-1 flex items-center justify-center text-gray-500">
+                    <div class="text-center">
+                        <svg class="w-24 h-24 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/>
+                        </svg>
+                        <p class="text-xl font-semibold">Select a package to view details</p>
+                        <p class="text-sm mt-2">Choose from the list on the left</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allPackages = [];
+        let filteredPackages = [];
+        let selectedPackage = null;
+        let isDragging = false;
+        let publisher = 'mohanchinnappan'; // Default
+
+        // Get publisher from URL parameter
+        function getPublisherFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('u') || 'mohanchinnappan';
+        }
+
+        // Fetch packages from NPM Registry
+        async function fetchPackages() {
+            publisher = getPublisherFromURL();
+            document.getElementById('publisher-name').textContent = publisher;
+            document.getElementById('npm-profile-link').href = `https://www.npmjs.com/~${publisher}`;
+
+            try {
+                const url = `https://registry.npmjs.org/-/v1/search?text=maintainer:${encodeURIComponent(publisher)}&size=250`;
+                console.log('Fetching from:', url);
+                
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('Fetched data:', data);
+                
+                allPackages = data.objects.map(obj => ({
+                    name: obj.package.name,
+                    version: obj.package.version,
+                    description: obj.package.description || 'No description available',
+                    url: obj.package.links.npm,
+                    author: obj.package.author?.name || obj.package.publisher?.username || publisher,
+                    date: new Date(obj.package.date).toLocaleDateString(),
+                    keywords: obj.package.keywords || [],
+                    scope: obj.package.scope || 'unscoped'
+                }));
+
+                // Sort by name
+                allPackages.sort((a, b) => a.name.localeCompare(b.name));
+                
+                filteredPackages = [...allPackages];
+                renderPackageList();
+                updateStats();
+
+                // Auto-select first package
+                if (allPackages.length > 0) {
+                    selectPackage(allPackages[0]);
+                }
+
+            } catch (error) {
+                console.error('Error fetching packages:', error);
+                showError(error.message);
+            }
+        }
+
+        function showError(message) {
+            const list = document.getElementById('package-list');
+            list.innerHTML = `
+                <div class="error-message text-center p-6 rounded-lg text-white">
+                    <svg class="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <p class="text-lg font-semibold mb-2">Failed to load packages</p>
+                    <p class="text-sm opacity-90">${message}</p>
+                    <button onclick="fetchPackages()" class="mt-4 bg-white text-red-600 px-4 py-2 rounded font-semibold hover:bg-gray-100 transition">
+                        Retry
+                    </button>
+                </div>
+            `;
+        }
+
+        function updateStats() {
+            document.getElementById('total-count').textContent = allPackages.length;
+        }
+
+        function renderPackageList(packages = filteredPackages) {
+            const list = document.getElementById('package-list');
+            
+            if (packages.length === 0) {
+                list.innerHTML = `
+                    <div class="text-center py-12 text-gray-500">
+                        <svg class="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        <p class="text-lg font-semibold">No packages found</p>
+                        <p class="text-sm mt-2">Try a different search term</p>
+                    </div>
+                `;
+                return;
+            }
+
+            list.innerHTML = packages.map((pkg, index) => `
+                <div class="package-item ${selectedPackage?.name === pkg.name ? 'selected' : ''} 
+                            bg-slate-900/80 rounded-lg p-4 border border-slate-700 fade-in"
+                     style="animation-delay: ${index * 0.02}s"
+                     onclick='selectPackage(${JSON.stringify(pkg).replace(/'/g, "&#39;")})'>
+                    <div class="flex items-start justify-between mb-2">
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-lg font-bold text-white truncate">${pkg.name}</h3>
+                            <div class="flex items-center gap-2 mt-1 flex-wrap">
+                                <span class="badge bg-blue-900/50 text-blue-400">v${pkg.version}</span>
+                                ${pkg.scope !== 'unscoped' ? `<span class="badge bg-purple-900/50 text-purple-400">@${pkg.scope}</span>` : ''}
+                                <span class="text-xs text-gray-500">📅 ${pkg.date}</span>
+                            </div>
+                        </div>
+                        <svg class="w-5 h-5 text-gray-500 flex-shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                        </svg>
+                    </div>
+                    <p class="text-sm text-gray-400 line-clamp-2">${pkg.description}</p>
+                    ${pkg.keywords.length > 0 ? `
+                        <div class="flex flex-wrap gap-1 mt-3">
+                            ${pkg.keywords.slice(0, 3).map(kw => 
+                                `<span class="text-xs px-2 py-1 bg-slate-800 text-gray-400 rounded">${kw}</span>`
+                            ).join('')}
+                            ${pkg.keywords.length > 3 ? `<span class="text-xs px-2 py-1 text-gray-500">+${pkg.keywords.length - 3}</span>` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('');
+        }
+
+        function selectPackage(pkg) {
+            selectedPackage = typeof pkg === 'string' ? JSON.parse(pkg) : pkg;
+            renderPackageList(filteredPackages);
+            loadPackageContent(selectedPackage);
+        }
+
+        function loadPackageContent(pkg) {
+            const content = document.getElementById('package-content');
+            
+            // Fetch additional package details from NPM registry
+            fetch(`https://registry.npmjs.org/${pkg.name}`)
+                .then(res => res.json())
+                .then(data => {
+                    const latestVersion = data['dist-tags']?.latest || pkg.version;
+                    const versionData = data.versions?.[latestVersion] || {};
+                    const readme = data.readme || 'No README available';
+                    const repository = versionData.repository?.url || data.repository?.url || '';
+                    const homepage = versionData.homepage || data.homepage || '';
+                    const license = versionData.license || data.license || 'Unknown';
+                    const dependencies = versionData.dependencies || {};
+                    const devDependencies = versionData.devDependencies || {};
+                    
+                    content.innerHTML = `
+                        <div class="w-full h-full flex flex-col overflow-hidden">
+                            <!-- Package Header -->
+                            <div class="bg-gradient-to-r from-blue-900 to-blue-800 border-b border-blue-700 p-6">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1">
+                                        <h2 class="text-3xl font-bold text-white mb-2">${pkg.name}</h2>
+                                        <p class="text-blue-200 text-lg mb-4">${pkg.description}</p>
+                                        ${pkg.keywords.length > 0 ? `
+                                            <div class="flex flex-wrap gap-2">
+                                                ${pkg.keywords.slice(0, 8).map(kw => 
+                                                    `<span class="badge bg-blue-950/50 text-blue-300 border border-blue-700">${kw}</span>`
+                                                ).join('')}
+                                                ${pkg.keywords.length > 8 ? `<span class="text-blue-300 text-sm">+${pkg.keywords.length - 8} more</span>` : ''}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                    <div class="text-right ml-4">
+                                        <div class="badge bg-blue-950 text-blue-300 text-lg mb-2">v${pkg.version}</div>
+                                        <div class="text-blue-300 text-sm">📅 ${pkg.date}</div>
+                                        <div class="badge bg-green-900 text-green-300 mt-2">${license}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Stats Bar -->
+                            <div class="bg-slate-800 border-b border-slate-700 px-6 py-4">
+                                <div class="grid grid-cols-4 gap-4 text-center">
+                                    <div>
+                                        <div class="text-2xl font-bold text-green-400">📦</div>
+                                        <div class="text-xs text-gray-400">${pkg.scope !== 'unscoped' ? '@' + pkg.scope : 'Public'}</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-2xl font-bold text-blue-400">${Object.keys(dependencies).length}</div>
+                                        <div class="text-xs text-gray-400">Dependencies</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-2xl font-bold text-purple-400">${pkg.keywords.length}</div>
+                                        <div class="text-xs text-gray-400">Keywords</div>
+                                    </div>
+                                    <div>
+                                        <div class="text-2xl font-bold text-yellow-400">👤</div>
+                                        <div class="text-xs text-gray-400">${pkg.author}</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Action Buttons -->
+                            <div class="bg-slate-800 border-b border-slate-700 px-6 py-4">
+                                <div class="flex gap-3 flex-wrap">
+                                    <a href="${pkg.url}" target="_blank" 
+                                       class="flex-1 bg-red-600 hover:bg-red-700 px-4 py-3 rounded-lg font-semibold transition text-center flex items-center justify-center gap-2">
+                                        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                            <path d="M0 7.334v8h6.666v1.332H12v-1.332h12v-8H0zm6.666 6.664H5.334v-4H3.999v4H1.335V8.667h5.331v5.331zm4 0v1.336H8.001V8.667h5.334v5.332h-2.669v-.001zm12.001 0h-1.33v-4h-1.336v4h-1.335v-4h-1.33v4h-2.671V8.667h8.002v5.331zM10.665 10H12v2.667h-1.335V10z"/>
+                                        </svg>
+                                        View on NPM
+                                    </a>
+                                    <button onclick="copyInstallCommand('${pkg.name}')" 
+                                            class="flex-1 bg-blue-600 hover:bg-blue-700 px-4 py-3 rounded-lg font-semibold transition flex items-center justify-center gap-2">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                        </svg>
+                                        Copy Install
+                                    </button>
+                                    ${repository ? `
+                                        <a href="${repository.replace('git+', '').replace('.git', '')}" target="_blank" 
+                                           class="flex-1 bg-gray-700 hover:bg-gray-600 px-4 py-3 rounded-lg font-semibold transition text-center flex items-center justify-center gap-2">
+                                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                                <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+                                            </svg>
+                                            Repository
+                                        </a>
+                                    ` : ''}
+                                    ${homepage ? `
+                                        <a href="${homepage}" target="_blank" 
+                                           class="flex-1 bg-purple-700 hover:bg-purple-600 px-4 py-3 rounded-lg font-semibold transition text-center flex items-center justify-center gap-2">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                                            </svg>
+                                            Homepage
+                                        </a>
+                                    ` : ''}
+                                </div>
+                            </div>
+
+                            <!-- Package Details Tabs -->
+                            <div class="flex-1 overflow-hidden flex flex-col">
+                                <div class="bg-slate-800 border-b border-slate-700 px-6">
+                                    <div class="flex gap-4">
+                                        <button onclick="showTab('readme')" id="tab-readme" class="px-4 py-3 font-semibold border-b-2 border-blue-500 text-blue-400">
+                                            README
+                                        </button>
+                                        <button onclick="showTab('dependencies')" id="tab-dependencies" class="px-4 py-3 font-semibold border-b-2 border-transparent text-gray-400 hover:text-gray-300">
+                                            Dependencies (${Object.keys(dependencies).length})
+                                        </button>
+                                        ${Object.keys(devDependencies).length > 0 ? `
+                                            <button onclick="showTab('devDependencies')" id="tab-devDependencies" class="px-4 py-3 font-semibold border-b-2 border-transparent text-gray-400 hover:text-gray-300">
+                                                Dev Dependencies (${Object.keys(devDependencies).length})
+                                            </button>
+                                        ` : ''}
+                                    </div>
+                                </div>
+
+                                <!-- Tab Content -->
+                                <div class="flex-1 overflow-y-auto bg-slate-900 p-6">
+                                    <!-- README Tab -->
+                                    <div id="content-readme" class="tab-content">
+                                        <div class="bg-white rounded-lg p-6 prose prose-slate max-w-none">
+                                            <div class="markdown-body">${formatMarkdown(readme)}</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Dependencies Tab -->
+                                    <div id="content-dependencies" class="tab-content hidden">
+                                        ${Object.keys(dependencies).length > 0 ? `
+                                            <div class="space-y-2">
+                                                ${Object.entries(dependencies).map(([name, version]) => `
+                                                    <div class="bg-slate-800 rounded-lg p-4 flex items-center justify-between hover:bg-slate-700 transition">
+                                                        <div>
+                                                            <a href="https://www.npmjs.com/package/${name}" target="_blank" class="text-blue-400 hover:text-blue-300 font-semibold">${name}</a>
+                                                        </div>
+                                                        <div class="badge bg-blue-900 text-blue-300">${version}</div>
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        ` : '<div class="text-center text-gray-500 py-12">No dependencies</div>'}
+                                    </div>
+
+                                    <!-- Dev Dependencies Tab -->
+                                    <div id="content-devDependencies" class="tab-content hidden">
+                                        ${Object.keys(devDependencies).length > 0 ? `
+                                            <div class="space-y-2">
+                                                ${Object.entries(devDependencies).map(([name, version]) => `
+                                                    <div class="bg-slate-800 rounded-lg p-4 flex items-center justify-between hover:bg-slate-700 transition">
+                                                        <div>
+                                                            <a href="https://www.npmjs.com/package/${name}" target="_blank" class="text-purple-400 hover:text-purple-300 font-semibold">${name}</a>
+                                                        </div>
+                                                        <div class="badge bg-purple-900 text-purple-300">${version}</div>
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        ` : '<div class="text-center text-gray-500 py-12">No dev dependencies</div>'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                })
+                .catch(err => {
+                    console.error('Error loading package details:', err);
+                    content.innerHTML = `
+                        <div class="flex items-center justify-center h-full">
+                            <div class="text-center">
+                                <svg class="w-16 h-16 mx-auto mb-4 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                <p class="text-xl font-semibold text-gray-400">Failed to load package details</p>
+                                <a href="${pkg.url}" target="_blank" class="mt-4 inline-block bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-semibold transition">
+                                    View on NPM
+                                </a>
+                            </div>
+                        </div>
+                    `;
+                });
+        }
+
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.add('hidden'));
+            document.querySelectorAll('[id^="tab-"]').forEach(btn => {
+                btn.classList.remove('border-blue-500', 'text-blue-400');
+                btn.classList.add('border-transparent', 'text-gray-400');
+            });
+            
+            // Show selected tab
+            document.getElementById(`content-${tabName}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabName}`).classList.remove('border-transparent', 'text-gray-400');
+            document.getElementById(`tab-${tabName}`).classList.add('border-blue-500', 'text-blue-400');
+        }
+
+        function formatMarkdown(markdown) {
+            // Basic markdown to HTML conversion
+            let html = markdown
+                // Headers
+                .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+                .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+                .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+                // Bold
+                .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                // Italic
+                .replace(/\*(.+?)\*/g, '<em>$1</em>')
+                // Code blocks
+                .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>')
+                // Inline code
+                .replace(/`([^`]+)`/g, '<code>$1</code>')
+                // Links
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" class="text-blue-600 hover:text-blue-800">$1</a>')
+                // Line breaks
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br>');
+            
+            return '<p>' + html + '</p>';
+        }
+
+        function copyInstallCommand(packageName) {
+            const command = `npm install ${packageName}`;
+            navigator.clipboard.writeText(command).then(() => {
+                // Show toast notification
+                const toast = document.createElement('div');
+                toast.className = 'fixed bottom-4 right-4 bg-green-600 text-white px-6 py-3 rounded-lg shadow-xl z-50 fade-in';
+                toast.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                        <span>Copied: <code class="font-mono">${command}</code></span>
+                    </div>
+                `;
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
+            });
+        }
+
+        function matchesSearch(pkg, searchTerm) {
+            const term = searchTerm.toLowerCase();
+            return pkg.name.toLowerCase().includes(term) ||
+                   pkg.description.toLowerCase().includes(term) ||
+                   pkg.author.toLowerCase().includes(term) ||
+                   pkg.keywords.some(kw => kw.toLowerCase().includes(term));
+        }
+
+        function filterPackages(searchTerm) {
+            filteredPackages = searchTerm === '' 
+                ? allPackages 
+                : allPackages.filter(pkg => matchesSearch(pkg, searchTerm));
+            renderPackageList(filteredPackages);
+        }
+
+        function setupSplitter() {
+            const splitter = document.getElementById('splitter');
+            const leftPane = document.getElementById('left-pane');
+
+            splitter.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                document.body.style.cursor = 'col-resize';
+                document.body.style.userSelect = 'none';
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+
+                const containerWidth = leftPane.parentElement.offsetWidth;
+                const newLeftWidth = e.clientX;
+
+                if (newLeftWidth > 250 && newLeftWidth < containerWidth - 250) {
+                    leftPane.style.width = newLeftWidth + 'px';
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+                document.body.style.cursor = '';
+                document.body.style.userSelect = '';
+            });
+        }
+
+        // Initialize on load
+        setupSplitter();
+        fetchPackages();
+    </script>
+</body>
+</html>
