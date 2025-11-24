@@ -1,0 +1,22 @@
+
+*   **"The moon looks adorable"**
+*   "Let me look into your eyes."
+*   "Let me live a million times in one breath."
+*   "I don't know when and how I fell in love."
+*   "The moon."
+*   "My Lord has granted my wish."
+*   "I have found my eternal partner."
+*   "You are my queen, I'll take care of you."
+*   "My sweet musk."
+*   "Even the darkness is upset of this luminous night."
+*   "The innocent devotees called out in prayer, arranging the sacred seats at the door."
+*   "Garland of flowers, the holy vermillion."
+*   "Let's go to the house of the Lord."
+*   "With gold and silver, the idol was adorned, The procession lit up, all around."
+*   "I came to your place with 'langar'."
+*   "The anklets around my feet tinkle"
+*   "My heart races when I see my beloved."
+*   "Waiting, though barriers have been set in my way"
+*   "Longing, as measures have been crossed at the doorway"
+*   "This starry night, I see this starry night in you."
+
