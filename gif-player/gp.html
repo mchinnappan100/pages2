@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIF Player Web Component</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Host styles for the component container */
+        .gif-player-container {
+            max-width: 600px;
+            margin: 20px auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-8 min-h-screen flex flex-col items-center">
+
+    <h1 class="text-3xl font-bold text-gray-800 mb-8">GIF Player Demo</h1>
+
+    <div class="gif-player-container">
+        <!-- Usage of the custom element -->
+        <gif-player src="https://placehold.co/400x200/4F46E5/FFFFFF?text=Frame%201%0A(Simulated)" duration="5000"></gif-player>
+    </div>
+
+    <p class="mt-8 text-sm text-gray-600">
+        This component demonstrates the architecture of a custom GIF player. 
+        It uses a Canvas element to manually render frames and JavaScript to simulate the control logic 
+        (Play, Pause, Seeking) that is missing from the native HTML `<img>` tag for GIFs.
+    </p>
+
+    <script>
+        /**
+         * The core logic for the GIF player, encapsulated within a Web Component.
+         * NOTE: In a real-world scenario, this component would integrate a library 
+         * (like libgif.js) to parse the actual GIF frames from the 'src' attribute.
+         */
+        class GIFPlayer extends HTMLElement {
+            constructor() {
+                super();
+                this.attachShadow({ mode: 'open' });
+
+                // State
+                this.isPlaying = false;
+                this.currentFrame = 0;
+                this.frameCount = 5; // Simulated total frames
+                this.frameDelayMs = 500; // Simulated delay per frame (500ms)
+                this.animationTimeout = null;
+
+                // Simulated Frames (Image sources for demonstration)
+                this.frameSources = [
+                    'https://placehold.co/400x200/4F46E5/FFFFFF?text=Frame%201',
+                    'https://placehold.co/400x200/10B981/FFFFFF?text=Frame%202',
+                    'https://placehold.co/400x200/F59E0B/FFFFFF?text=Frame%203',
+                    'https://placehold.co/400x200/EF4444/FFFFFF?text=Frame%204',
+                    'https://placehold.co/400x200/3B82F6/FFFFFF?text=Frame%205',
+                ];
+
+                // Initial Render (Template)
+                this.shadowRoot.innerHTML = `
+                    <style>
+                        /* Encapsulated Component Styles */
+                        .controls {
+                            display: flex;
+                            align-items: center;
+                            gap: 1rem;
+                            padding: 0.75rem;
+                            background-color: #1f2937; /* Dark Gray */
+                            border-radius: 0 0 0.75rem 0.75rem;
+                            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                        }
+                        .screen {
+                            background-color: #000;
+                            border-radius: 0.75rem 0.75rem 0 0;
+                        }
+                        canvas {
+                            display: block;
+                            width: 100%;
+                            height: auto;
+                            border-radius: 0.75rem 0.75rem 0 0;
+                        }
+                        .time-text {
+                            font-family: monospace;
+                            color: #9ca3af;
+                            width: 5rem;
+                            text-align: center;
+                        }
+                    </style>
+                    <div class="gif-player-root">
+                        <div class="screen">
+                            <canvas id="gifCanvas" width="400" height="200"></canvas>
+                        </div>
+                        <div class="controls">
+                            <button id="playPauseBtn" class="bg-indigo-600 text-white p-2 rounded-full hover:bg-indigo-700 transition-colors">▶</button>
+                            <input type="range" id="seekSlider" min="0" max="${this.frameCount - 1}" value="0" class="flex-grow h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                            <span id="timeDisplay" class="time-text">0.0 / 2.5s</span>
+                            <span id="status" class="text-sm text-gray-400">Paused</span>
+                        </div>
+                    </div>
+                `;
+
+                // Get internal DOM references
+                this.canvas = this.shadowRoot.getElementById('gifCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.playPauseBtn = this.shadowRoot.getElementById('playPauseBtn');
+                this.seekSlider = this.shadowRoot.getElementById('seekSlider');
+                this.timeDisplay = this.shadowRoot.getElementById('timeDisplay');
+                this.statusEl = this.shadowRoot.getElementById('status');
+
+                // Load initial frame and attach listeners
+                this.loadFrame(0);
+                this.setupListeners();
+            }
+
+            /**
+             * Sets up event listeners for the control panel.
+             */
+            setupListeners() {
+                this.playPauseBtn.addEventListener('click', () => this.togglePlayPause());
+                
+                this.seekSlider.addEventListener('input', (e) => {
+                    this.pause(); // Pause while seeking
+                    const frame = parseInt(e.target.value);
+                    this.loadFrame(frame);
+                });
+                
+                // Clicking the screen toggles playback (common video player UX)
+                this.canvas.addEventListener('click', () => this.togglePlayPause());
+            }
+
+            /**
+             * Handles changes to attributes defined in static get observedAttributes().
+             */
+            static get observedAttributes() {
+                return ['src', 'duration'];
+            }
+
+            attributeChangedCallback(name, oldValue, newValue) {
+                // Future use: If a real GIF player was built, changing 'src' would trigger 
+                // re-parsing and re-loading the GIF frames here.
+            }
+
+            /**
+             * Toggles between play and pause states.
+             */
+            togglePlayPause() {
+                if (this.isPlaying) {
+                    this.pause();
+                } else {
+                    this.play();
+                }
+            }
+            
+            /**
+             * Starts or resumes animation loop.
+             */
+            play() {
+                if (this.isPlaying) return;
+                this.isPlaying = true;
+                this.playPauseBtn.textContent = '⏸';
+                this.statusEl.textContent = 'Playing';
+                this.animateFrame();
+            }
+
+            /**
+             * Pauses animation loop.
+             */
+            pause() {
+                this.isPlaying = false;
+                if (this.animationTimeout) {
+                    clearTimeout(this.animationTimeout);
+                }
+                this.playPauseBtn.textContent = '▶';
+                this.statusEl.textContent = 'Paused';
+            }
+
+            /**
+             * Main animation loop using setTimeout for controlled frame rate.
+             */
+            animateFrame() {
+                if (!this.isPlaying) return;
+
+                // 1. Advance frame index
+                this.currentFrame = (this.currentFrame + 1) % this.frameCount;
+
+                // 2. Render the new frame
+                this.loadFrame(this.currentFrame);
+                
+                // 3. Update seek slider and time display
+                this.seekSlider.value = this.currentFrame;
+                this.updateTimeDisplay();
+
+                // 4. Set timeout for the next frame render
+                this.animationTimeout = setTimeout(() => {
+                    this.animateFrame();
+                }, this.frameDelayMs);
+            }
+
+            /**
+             * Loads and renders a specific frame image onto the canvas.
+             * @param {number} frameIndex 
+             */
+            loadFrame(frameIndex) {
+                const img = new Image();
+                img.onload = () => {
+                    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                    // Draw the image centered and scaled to fill the canvas
+                    this.ctx.drawImage(img, 0, 0, this.canvas.width, this.canvas.height);
+                };
+                // Set the current frame source
+                img.src = this.frameSources[frameIndex];
+                this.currentFrame = frameIndex;
+                this.updateTimeDisplay();
+            }
+
+            /**
+             * Updates the time display text based on the current frame index.
+             */
+            updateTimeDisplay() {
+                const totalDuration = this.frameCount * this.frameDelayMs / 1000;
+                const currentTime = this.currentFrame * this.frameDelayMs / 1000;
+                this.timeDisplay.textContent = `${currentTime.toFixed(1)} / ${totalDuration.toFixed(1)}s`;
+            }
+        }
+
+        // Define the custom element
+        customElements.define('gif-player', GIFPlayer);
+    </script>
+</body>
+</html>
