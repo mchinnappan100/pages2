@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CSV Field Mapper</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class'
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    
+    .field-box {
+      transition: all 0.2s ease;
+      cursor: pointer;
+    }
+    .field-box:hover {
+      transform: translateX(4px);
+    }
+    .field-box.source:hover {
+      transform: translateX(-4px);
+    }
+    .field-box.connected {
+      background: rgba(34, 197, 94, 0.15);
+      border-color: rgba(34, 197, 94, 0.4);
+    }
+    .field-box.selected {
+      background: rgba(59, 130, 246, 0.2);
+      border-color: rgba(59, 130, 246, 0.6);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+    }
+    
+    #canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      z-index: 10;
+      width: 100vw;
+      height: 100vh;
+    }
+    
+    .connector-line {
+      stroke: rgb(34, 197, 94);
+      stroke-width: 2;
+      fill: none;
+      opacity: 0.7;
+      transition: all 0.2s;
+    }
+    .connector-line:hover {
+      stroke-width: 3;
+      opacity: 1;
+    }
+    
+    .btn {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(147, 51, 234, 0.15) 100%);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      backdrop-filter: blur(10px);
+    }
+    .btn:hover {
+      background: linear-gradient(135deg, rgba(59, 130, 246, 0.25) 0%, rgba(147, 51, 234, 0.25) 100%);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+    }
+    .btn:active {
+      transform: translateY(0);
+    }
+    .btn.danger:hover {
+      background: linear-gradient(135deg, rgba(239, 68, 68, 0.25) 0%, rgba(220, 38, 38, 0.25) 100%);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    }
+    
+    .stat-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 0.75rem;
+      padding: 1rem;
+    }
+    
+    .drop-zone {
+      border: 2px dashed rgba(255, 255, 255, 0.3);
+      transition: all 0.3s;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: rgba(59, 130, 246, 0.6);
+      background: rgba(59, 130, 246, 0.1);
+    }
+    
+    #uploadSection {
+      transition: opacity 0.3s, transform 0.3s;
+    }
+    #mappingSection {
+      display: none;
+    }
+    
+    /* Light mode overrides */
+    .light .stat-card {
+      background: rgba(0, 0, 0, 0.05);
+      border-color: rgba(0, 0, 0, 0.1);
+    }
+    .light .drop-zone {
+      border-color: rgba(0, 0, 0, 0.3);
+    }
+    .light .drop-zone:hover, .light .drop-zone.drag-over {
+      border-color: rgba(59, 130, 246, 0.6);
+      background: rgba(59, 130, 246, 0.1);
+    }
+  </style>
+</head>
+<body class="bg-neutral-900 dark:bg-neutral-900 bg-gray-50 text-gray-900 dark:text-gray-100 min-h-screen transition-colors duration-200">
+  
+  <!-- Header -->
+  <header class="bg-neutral-800 dark:bg-neutral-800 bg-white border-b border-neutral-700 dark:border-neutral-700 border-gray-200 sticky top-0 z-50 backdrop-blur-xl bg-opacity-95">
+    <div class="max-w-7xl mx-auto px-6 py-4">
+      <div class="flex justify-between items-center">
+        <div>
+          <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            CSV Field Mapper
+          </h1>
+          <p class="text-sm text-neutral-400 dark:text-neutral-400 text-gray-600 mt-1">Upload CSVs and map fields visually</p>
+        </div>
+        <div class="flex gap-3 items-center">
+          <!-- Theme Toggle -->
+          <button onclick="toggleTheme()" class="btn" id="themeBtn">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+            </svg>
+            <span id="themeText">Light</span>
+          </button>
+          <button onclick="clearAllMappings()" class="btn danger" id="clearBtn" style="display:none">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+            </svg>
+            Clear All
+          </button>
+          <button onclick="downloadMapping()" class="btn" id="downloadBtn" style="display:none">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+            </svg>
+            Download JSON
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Upload Section -->
+  <section id="uploadSection" class="max-w-4xl mx-auto px-6 py-12">
+    <div class="text-center mb-8">
+      <h2 class="text-3xl font-bold mb-2">Upload Your CSV Files</h2>
+      <p class="text-neutral-400 dark:text-neutral-400 text-gray-600">Drag and drop or click to upload</p>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <!-- Source CSV Upload -->
+      <div class="drop-zone bg-neutral-800 dark:bg-neutral-800 bg-white rounded-2xl p-8 text-center cursor-pointer"
+           onclick="document.getElementById('sourceFile').click()"
+           ondrop="handleDrop(event, 'source')"
+           ondragover="handleDragOver(event)"
+           ondragleave="handleDragLeave(event)">
+        <div class="mb-4">
+          <svg class="w-16 h-16 mx-auto text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+        </div>
+        <h3 class="text-xl font-bold text-blue-400 mb-2">Source CSV</h3>
+        <p class="text-sm text-neutral-400 dark:text-neutral-400 text-gray-600 mb-4" id="sourceFileName">Click or drop file here</p>
+        <input type="file" id="sourceFile" accept=".csv" class="hidden" onchange="handleFileSelect(event, 'source')">
+      </div>
+
+      <!-- Target CSV Upload -->
+      <div class="drop-zone bg-neutral-800 dark:bg-neutral-800 bg-white rounded-2xl p-8 text-center cursor-pointer"
+           onclick="document.getElementById('targetFile').click()"
+           ondrop="handleDrop(event, 'target')"
+           ondragover="handleDragOver(event)"
+           ondragleave="handleDragLeave(event)">
+        <div class="mb-4">
+          <svg class="w-16 h-16 mx-auto text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+        </div>
+        <h3 class="text-xl font-bold text-purple-400 mb-2">Target CSV</h3>
+        <p class="text-sm text-neutral-400 dark:text-neutral-400 text-gray-600 mb-4" id="targetFileName">Click or drop file here</p>
+        <input type="file" id="targetFile" accept=".csv" class="hidden" onchange="handleFileSelect(event, 'target')">
+      </div>
+    </div>
+
+    <div class="mt-8 text-center">
+      <button onclick="startMapping()" class="btn text-lg px-8 py-4" id="startBtn" disabled>
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        Start Mapping
+      </button>
+    </div>
+  </section>
+
+  <!-- Mapping Section -->
+  <section id="mappingSection">
+    <!-- Stats Bar -->
+    <div class="bg-neutral-800/50 dark:bg-neutral-800/50 bg-gray-100 border-b border-neutral-700 dark:border-neutral-700 border-gray-200 py-3">
+      <div class="max-w-7xl mx-auto px-6">
+        <div class="grid grid-cols-3 gap-4">
+          <div class="stat-card">
+            <div class="text-xs text-neutral-400 dark:text-neutral-400 text-gray-600 mb-1">Source Fields</div>
+            <div class="text-2xl font-bold text-blue-400" id="sourceCount">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-xs text-neutral-400 dark:text-neutral-400 text-gray-600 mb-1">Mapped Fields</div>
+            <div class="text-2xl font-bold text-green-400" id="mappedCount">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="text-xs text-neutral-400 dark:text-neutral-400 text-gray-600 mb-1">Target Fields</div>
+            <div class="text-2xl font-bold text-purple-400" id="targetCount">0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-6 py-8 relative">
+      <svg id="canvas" width="100%" height="100%"></svg>
+      
+      <div class="grid grid-cols-2 gap-8 relative z-20">
+        <!-- Source Fields -->
+        <div>
+          <div class="mb-4">
+            <h2 class="text-xl font-bold text-blue-400 mb-1" id="sourceTitle">Source CSV</h2>
+            <p class="text-sm text-neutral-400 dark:text-neutral-400 text-gray-600">Click on a field to start mapping</p>
+          </div>
+          <div class="space-y-2" id="sourceFields"></div>
+        </div>
+
+        <!-- Target Fields -->
+        <div>
+          <div class="mb-4">
+            <h2 class="text-xl font-bold text-purple-400 mb-1" id="targetTitle">Target CSV</h2>
+            <p class="text-sm text-neutral-400 dark:text-neutral-400 text-gray-600">Click on target field to complete mapping</p>
+          </div>
+          <div class="space-y-2" id="targetFields"></div>
+        </div>
+      </div>
+    </main>
+  </section>
+
+  <!-- Footer -->
+  <footer class="bg-neutral-800 dark:bg-neutral-800 bg-white border-t border-neutral-700 dark:border-neutral-700 border-gray-200 mt-12">
+    <div class="max-w-7xl mx-auto px-6 py-4 text-center text-sm text-neutral-400 dark:text-neutral-400 text-gray-600">
+      <p id="footerText">💡 Upload two CSV files to get started • Supports URL parameters: ?s=source.csv&t=target.csv</p>
+    </div>
+  </footer>
+
+  <script>
+    let sourceHeaders = [];
+    let targetHeaders = [];
+    let sourceFileName = '';
+    let targetFileName = '';
+    const mappings = new Map();
+    let selectedSource = null;
+    const canvas = document.getElementById('canvas');
+
+    // Theme toggle
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.classList.contains('dark');
+      html.classList.toggle('dark');
+      document.getElementById('themeText').textContent = isDark ? 'Dark' : 'Light';
+      localStorage.setItem('theme', isDark ? 'light' : 'dark');
+      updateCanvas();
+    }
+
+    // Load theme preference
+    if (localStorage.getItem('theme') === 'light') {
+      document.documentElement.classList.remove('dark');
+      document.getElementById('themeText').textContent = 'Dark';
+    }
+
+    // Drag and drop handlers
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.currentTarget.classList.add('drag-over');
+    }
+
+    function handleDragLeave(e) {
+      e.currentTarget.classList.remove('drag-over');
+    }
+
+    function handleDrop(e, type) {
+      e.preventDefault();
+      e.currentTarget.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file && file.name.endsWith('.csv')) {
+        processFile(file, type);
+      }
+    }
+
+    function handleFileSelect(e, type) {
+      const file = e.target.files[0];
+      if (file) {
+        processFile(file, type);
+      }
+    }
+
+    function processFile(file, type) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target.result;
+        const headers = parseCSVHeaders(content);
+        
+        if (type === 'source') {
+          sourceHeaders = headers;
+          sourceFileName = file.name;
+          document.getElementById('sourceFileName').textContent = file.name;
+        } else {
+          targetHeaders = headers;
+          targetFileName = file.name;
+          document.getElementById('targetFileName').textContent = file.name;
+        }
+        
+        checkReadyToMap();
+      };
+      reader.readAsText(file);
+    }
+
+    function parseCSVHeaders(content) {
+      const firstLine = content.split('\n')[0];
+      return firstLine.split(',').map(h => h.trim().replace(/^["']|["']$/g, ''));
+    }
+
+    function checkReadyToMap() {
+      const startBtn = document.getElementById('startBtn');
+      if (sourceHeaders.length > 0 && targetHeaders.length > 0) {
+        startBtn.disabled = false;
+        startBtn.classList.add('opacity-100');
+      }
+    }
+
+    async function loadCSVFromURL(url) {
+      try {
+        const response = await fetch(url);
+        const text = await response.text();
+        return parseCSVHeaders(text);
+      } catch (error) {
+        console.error('Error loading CSV from URL:', error);
+        return null;
+      }
+    }
+
+    // Check URL parameters
+    async function checkURLParams() {
+      const params = new URLSearchParams(window.location.search);
+      const sourceURL = params.get('s');
+      const targetURL = params.get('t');
+
+      if (sourceURL && targetURL) {
+        document.getElementById('uploadSection').style.opacity = '0.5';
+        
+        const [sourceData, targetData] = await Promise.all([
+          loadCSVFromURL(sourceURL),
+          loadCSVFromURL(targetURL)
+        ]);
+
+        if (sourceData && targetData) {
+          sourceHeaders = sourceData;
+          targetHeaders = targetData;
+          sourceFileName = sourceURL.split('/').pop() || 'source.csv';
+          targetFileName = targetURL.split('/').pop() || 'target.csv';
+          
+          document.getElementById('sourceFileName').textContent = sourceFileName;
+          document.getElementById('targetFileName').textContent = targetFileName;
+          
+          setTimeout(() => startMapping(), 500);
+        }
+      }
+    }
+
+    function startMapping() {
+      document.getElementById('uploadSection').style.display = 'none';
+      document.getElementById('mappingSection').style.display = 'block';
+      document.getElementById('clearBtn').style.display = 'inline-flex';
+      document.getElementById('downloadBtn').style.display = 'inline-flex';
+      document.getElementById('footerText').innerHTML = '💡 Click a source field, then click a target field to create a mapping • Click a mapped field to remove mapping';
+      
+      renderFields();
+    }
+
+    function renderFields() {
+      document.getElementById('sourceTitle').textContent = `Source: ${sourceFileName}`;
+      document.getElementById('targetTitle').textContent = `Target: ${targetFileName}`;
+      document.getElementById('sourceCount').textContent = sourceHeaders.length;
+      document.getElementById('targetCount').textContent = targetHeaders.length;
+
+      const sourceContainer = document.getElementById('sourceFields');
+      const targetContainer = document.getElementById('targetFields');
+
+      sourceContainer.innerHTML = sourceHeaders.map((header, idx) => `
+        <div class="field-box source bg-neutral-800 dark:bg-neutral-800 bg-white border border-neutral-600 dark:border-neutral-600 border-gray-300 rounded-lg p-4 hover:border-blue-500"
+             data-side="source"
+             data-index="${idx}"
+             data-field="${escapeHtml(header)}">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-3 h-3 rounded-full bg-blue-500"></div>
+              <span class="font-medium">${escapeHtml(header)}</span>
+            </div>
+            <span class="text-xs text-neutral-500 dark:text-neutral-500 text-gray-500">#${idx + 1}</span>
+          </div>
+        </div>
+      `).join('');
+
+      targetContainer.innerHTML = targetHeaders.map((header, idx) => `
+        <div class="field-box target bg-neutral-800 dark:bg-neutral-800 bg-white border border-neutral-600 dark:border-neutral-600 border-gray-300 rounded-lg p-4 hover:border-purple-500"
+             data-side="target"
+             data-index="${idx}"
+             data-field="${escapeHtml(header)}">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-neutral-500 dark:text-neutral-500 text-gray-500">#${idx + 1}</span>
+            <div class="flex items-center gap-3">
+              <span class="font-medium">${escapeHtml(header)}</span>
+              <div class="w-3 h-3 rounded-full bg-purple-500"></div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      attachFieldListeners();
+      updateCanvas();
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function attachFieldListeners() {
+      document.querySelectorAll('.field-box').forEach(box => {
+        box.addEventListener('click', () => {
+          const side = box.dataset.side;
+          const index = parseInt(box.dataset.index);
+
+          if (side === 'source') {
+            if (mappings.has(index)) {
+              removeMapping(index);
+            } else {
+              selectedSource = selectedSource === index ? null : index;
+              updateUI();
+            }
+          } else if (side === 'target') {
+            if (selectedSource !== null) {
+              const existingSource = Array.from(mappings.entries())
+                .find(([, t]) => t === index)?.[0];
+              if (existingSource !== undefined) {
+                mappings.delete(existingSource);
+              }
+              
+              mappings.set(selectedSource, index);
+              selectedSource = null;
+              updateCanvas();
+            } else {
+              const sourceForTarget = Array.from(mappings.entries())
+                .find(([, t]) => t === index)?.[0];
+              if (sourceForTarget !== undefined) {
+                removeMapping(sourceForTarget);
+              }
+            }
+          }
+        });
+      });
+    }
+
+    function updateCanvas() {
+      canvas.innerHTML = '';
+      canvas.setAttribute('width', window.innerWidth);
+      canvas.setAttribute('height', window.innerHeight);
+
+      mappings.forEach((target, source) => {
+        const sourceEl = document.querySelector(`.field-box.source[data-index="${source}"]`);
+        const targetEl = document.querySelector(`.field-box.target[data-index="${target}"]`);
+        
+        if (sourceEl && targetEl) {
+          const sourceRect = sourceEl.getBoundingClientRect();
+          const targetRect = targetEl.getBoundingClientRect();
+          
+          const x1 = sourceRect.right - 10;
+          const y1 = sourceRect.top + sourceRect.height / 2;
+          const x2 = targetRect.left + 10;
+          const y2 = targetRect.top + targetRect.height / 2;
+          
+          const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+          const curve = `M ${x1} ${y1} C ${x1 + 100} ${y1}, ${x2 - 100} ${y2}, ${x2} ${y2}`;
+          path.setAttribute('d', curve);
+          path.setAttribute('class', 'connector-line');
+          path.style.pointerEvents = 'auto';
+          path.style.cursor = 'pointer';
+          path.onclick = () => removeMapping(source);
+          canvas.appendChild(path);
+        }
+      });
+
+      updateUI();
+    }
+
+    function updateUI() {
+      document.querySelectorAll('.field-box').forEach(el => {
+        el.classList.remove('connected', 'selected');
+      });
+
+      mappings.forEach((target, source) => {
+        const sourceEl = document.querySelector(`.field-box.source[data-index="${source}"]`);
+        const targetEl = document.querySelector(`.field-box.target[data-index="${target}"]`);
+        if (sourceEl) sourceEl.classList.add('connected');
+        if (targetEl) targetEl.classList.add('connected');
+      });
+
+      if (selectedSource !== null) {
+        const sourceEl = document.querySelector(`.field-box.source[data-index="${selectedSource}"]`);
+        if (sourceEl) sourceEl.classList.add('selected');
+      }
+
+      document.getElementById('mappedCount').textContent = mappings.size;
+    }
+
+    function removeMapping(sourceIndex) {
+      mappings.delete(sourceIndex);
+      updateCanvas();
+    }
+
+    function clearAllMappings() {
+      if (mappings.size > 0 && !confirm('Clear all mappings?')) return;
+      mappings.clear();
+      selectedSource = null;
+      updateCanvas();
+    }
+
+    function downloadMapping() {
+      const data = {
+        source: sourceFileName,
+        target: targetFileName,
+        timestamp: new Date().toISOString(),
+        mappings: Array.from(mappings.entries()).map(([sourceIdx, targetIdx]) => ({
+          source: {
+            index: sourceIdx,
+            field: sourceHeaders[sourceIdx]
+          },
+          target: {
+            index: targetIdx,
+            field: targetHeaders[targetIdx]
+          }
+        }))
+      };
+
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'field-mapping.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    // Event listeners
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(updateCanvas, 100);
+    });
+
+    let scrollTimeout;
+    window.addEventListener('scroll', () => {
+      clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(updateCanvas, 50);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        selectedSource = null;
+        updateUI();
+      }
+      if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        if (mappings.size > 0) downloadMapping();
+      }
+    });
+
+    // Initialize
+    checkURLParams();
+  </script>
+</body>
+</html>
