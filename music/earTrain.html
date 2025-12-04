@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EarMaster - Musical Ear Training</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            piano: {
+              white: '#f8f9fa',
+              black: '#212529',
+              hover: '#e9ecef'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .piano-key {
+      transition: all 0.1s ease;
+    }
+    .piano-key:active {
+      transform: translateY(2px);
+    }
+    .piano-key.playing {
+      background: linear-gradient(to bottom, #60a5fa, #3b82f6);
+    }
+    .black-key.playing {
+      background: linear-gradient(to bottom, #1e3a8a, #1e40af);
+    }
+    
+    @keyframes pulse-ring {
+      0% { transform: scale(1); opacity: 1; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+    
+    .correct-answer {
+      animation: pulse-ring 0.6s ease-out;
+      background: #10b981;
+    }
+    
+    .wrong-answer {
+      animation: pulse-ring 0.6s ease-out;
+      background: #ef4444;
+    }
+
+    .staff-line {
+      stroke: currentColor;
+      stroke-width: 2;
+    }
+
+    .note-head {
+      transition: all 0.2s;
+    }
+
+    .score-animation {
+      animation: scoreUp 0.5s ease-out;
+    }
+
+    @keyframes scoreUp {
+      0% { transform: translateY(20px); opacity: 0; }
+      100% { transform: translateY(0); opacity: 1; }
+    }
+
+    .progress-bar {
+      transition: width 0.3s ease;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen">
+  
+  <!-- Header -->
+  <header class="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-6 py-4">
+      <div class="flex justify-between items-center">
+        <div class="flex items-center gap-4">
+          <div class="text-3xl">🎵</div>
+          <div>
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              EarMaster Pro
+            </h1>
+            <p class="text-sm text-gray-400">Musical Ear Training</p>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+          <!-- Score -->
+          <div class="text-right">
+            <div class="text-sm text-gray-400">Score</div>
+            <div class="text-2xl font-bold text-green-400" id="score">0</div>
+          </div>
+          
+          <!-- Streak -->
+          <div class="text-right">
+            <div class="text-sm text-gray-400">Streak</div>
+            <div class="text-2xl font-bold text-yellow-400" id="streak">0</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-6 py-8">
+    
+    <!-- Exercise Selection -->
+    <section class="mb-8">
+      <div class="bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-700">
+        <h2 class="text-xl font-bold mb-4 text-gray-100">Select Exercise Type</h2>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Interval Recognition -->
+          <button onclick="setExercise('interval')" 
+                  class="exercise-btn p-6 bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 rounded-xl text-left transition-all transform hover:scale-105 shadow-lg">
+            <div class="text-3xl mb-2">🎼</div>
+            <div class="font-bold text-lg">Interval Recognition</div>
+            <div class="text-sm text-blue-100 mt-1">Identify intervals between two notes</div>
+          </button>
+
+          <!-- Chord Recognition -->
+          <button onclick="setExercise('chord')" 
+                  class="exercise-btn p-6 bg-gradient-to-br from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 rounded-xl text-left transition-all transform hover:scale-105 shadow-lg">
+            <div class="text-3xl mb-2">🎹</div>
+            <div class="font-bold text-lg">Chord Recognition</div>
+            <div class="text-sm text-purple-100 mt-1">Identify major, minor, and diminished chords</div>
+          </button>
+
+          <!-- Melody Playback -->
+          <button onclick="setExercise('melody')" 
+                  class="exercise-btn p-6 bg-gradient-to-br from-green-500 to-green-700 hover:from-green-600 hover:to-green-800 rounded-xl text-left transition-all transform hover:scale-105 shadow-lg">
+            <div class="text-3xl mb-2">🎶</div>
+            <div class="font-bold text-lg">Melody Playback</div>
+            <div class="text-sm text-green-100 mt-1">Play back the melody you hear</div>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Exercise Area -->
+    <section class="mb-8">
+      <div class="bg-gray-800 rounded-2xl p-8 shadow-xl border border-gray-700">
+        
+        <!-- Current Exercise Display -->
+        <div class="text-center mb-8">
+          <h3 class="text-2xl font-bold mb-2" id="exerciseTitle">Select an exercise to begin</h3>
+          <p class="text-gray-400" id="exerciseDesc">Choose from interval, chord, or melody training</p>
+        </div>
+
+        <!-- Progress Bar -->
+        <div class="mb-6">
+          <div class="flex justify-between text-sm text-gray-400 mb-2">
+            <span>Progress</span>
+            <span id="progressText">0 / 10</span>
+          </div>
+          <div class="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
+            <div id="progressBar" class="progress-bar h-full bg-gradient-to-r from-blue-500 to-purple-500" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <!-- Staff Notation -->
+        <div class="bg-gray-900 rounded-xl p-8 mb-6 min-h-48 flex items-center justify-center" id="staffArea">
+          <svg viewBox="0 0 400 150" class="w-full max-w-md text-gray-300">
+            <!-- Treble Clef Staff -->
+            <line x1="50" y1="30" x2="350" y2="30" class="staff-line"/>
+            <line x1="50" y1="45" x2="350" y2="45" class="staff-line"/>
+            <line x1="50" y1="60" x2="350" y2="60" class="staff-line"/>
+            <line x1="50" y1="75" x2="350" y2="75" class="staff-line"/>
+            <line x1="50" y1="90" x2="350" y2="90" class="staff-line"/>
+            
+            <!-- Clef -->
+            <text x="60" y="85" font-size="48" fill="currentColor">𝄞</text>
+            
+            <!-- Notes will be added here dynamically -->
+            <g id="noteDisplay"></g>
+          </svg>
+        </div>
+
+        <!-- Control Buttons -->
+        <div class="flex justify-center gap-4 mb-8">
+          <button onclick="playQuestion()" 
+                  class="px-8 py-4 bg-blue-600 hover:bg-blue-700 rounded-xl font-semibold transition-all transform hover:scale-105 shadow-lg flex items-center gap-2"
+                  id="playBtn">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z"/>
+            </svg>
+            Play Question
+          </button>
+
+          <button onclick="newQuestion()" 
+                  class="px-8 py-4 bg-purple-600 hover:bg-purple-700 rounded-xl font-semibold transition-all transform hover:scale-105 shadow-lg flex items-center gap-2">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            New Question
+          </button>
+        </div>
+
+        <!-- Answer Buttons (for interval/chord recognition) -->
+        <div id="answerButtons" class="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <!-- Populated dynamically -->
+        </div>
+
+        <!-- Piano Keyboard (for melody playback) -->
+        <div id="pianoKeyboard" style="display: none;">
+          <div class="text-center mb-4">
+            <p class="text-gray-400">Play the melody you heard on the keyboard</p>
+          </div>
+          <div class="flex justify-center">
+            <div class="relative inline-block bg-gray-700 p-4 rounded-xl">
+              <!-- White Keys -->
+              <div class="flex gap-1" id="whiteKeys"></div>
+              <!-- Black Keys -->
+              <div class="absolute top-4 left-4 flex" id="blackKeys" style="pointer-events: none;"></div>
+            </div>
+          </div>
+          <div class="text-center mt-4">
+            <button onclick="checkMelody()" 
+                    class="px-8 py-3 bg-green-600 hover:bg-green-700 rounded-xl font-semibold transition-all">
+              Check Answer
+            </button>
+            <button onclick="clearMelody()" 
+                    class="px-8 py-3 bg-gray-600 hover:bg-gray-700 rounded-xl font-semibold transition-all ml-2">
+              Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Feedback -->
+        <div id="feedback" class="mt-6 text-center text-lg font-semibold hidden"></div>
+      </div>
+    </section>
+
+    <!-- Statistics -->
+    <section>
+      <div class="bg-gray-800 rounded-2xl p-6 shadow-xl border border-gray-700">
+        <h2 class="text-xl font-bold mb-4">Session Statistics</h2>
+        
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="bg-gray-900 rounded-lg p-4 text-center">
+            <div class="text-3xl font-bold text-blue-400" id="statTotal">0</div>
+            <div class="text-sm text-gray-400 mt-1">Total Attempts</div>
+          </div>
+          
+          <div class="bg-gray-900 rounded-lg p-4 text-center">
+            <div class="text-3xl font-bold text-green-400" id="statCorrect">0</div>
+            <div class="text-sm text-gray-400 mt-1">Correct</div>
+          </div>
+          
+          <div class="bg-gray-900 rounded-lg p-4 text-center">
+            <div class="text-3xl font-bold text-red-400" id="statWrong">0</div>
+            <div class="text-sm text-gray-400 mt-1">Wrong</div>
+          </div>
+          
+          <div class="bg-gray-900 rounded-lg p-4 text-center">
+            <div class="text-3xl font-bold text-purple-400" id="statAccuracy">0%</div>
+            <div class="text-sm text-gray-400 mt-1">Accuracy</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Audio Context (Web Audio API) -->
+  <script>
+    // Audio Context Setup
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    // Game State
+    let currentExercise = null;
+    let currentQuestion = null;
+    let currentAnswer = null;
+    let userMelody = [];
+    let score = 0;
+    let streak = 0;
+    let stats = { total: 0, correct: 0, wrong: 0 };
+    let questionCount = 0;
+    const maxQuestions = 10;
+
+    // Note frequencies (A4 = 440Hz)
+    const notes = {
+      'C4': 261.63, 'C#4': 277.18, 'D4': 293.66, 'D#4': 311.13,
+      'E4': 329.63, 'F4': 349.23, 'F#4': 369.99, 'G4': 392.00,
+      'G#4': 415.30, 'A4': 440.00, 'A#4': 466.16, 'B4': 493.88,
+      'C5': 523.25, 'C#5': 554.37, 'D5': 587.33, 'D#5': 622.25,
+      'E5': 659.25, 'F5': 698.46, 'F#5': 739.99, 'G5': 783.99
+    };
+
+    // Intervals
+    const intervals = {
+      'Unison': 0, 'Minor 2nd': 1, 'Major 2nd': 2, 'Minor 3rd': 3,
+      'Major 3rd': 4, 'Perfect 4th': 5, 'Tritone': 6, 'Perfect 5th': 7,
+      'Minor 6th': 8, 'Major 6th': 9, 'Minor 7th': 10, 'Major 7th': 11, 'Octave': 12
+    };
+
+    // Chords
+    const chords = {
+      'Major': [0, 4, 7],
+      'Minor': [0, 3, 7],
+      'Diminished': [0, 3, 6],
+      'Augmented': [0, 4, 8]
+    };
+
+    // Play a single note
+    function playNote(frequency, duration = 0.5, startTime = 0) {
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      
+      oscillator.frequency.value = frequency;
+      oscillator.type = 'sine';
+      
+      const now = audioContext.currentTime + startTime;
+      gainNode.gain.setValueAtTime(0.3, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, now + duration);
+      
+      oscillator.start(now);
+      oscillator.stop(now + duration);
+    }
+
+    // Set Exercise Type
+    function setExercise(type) {
+      currentExercise = type;
+      questionCount = 0;
+      updateProgress();
+      
+      if (type === 'interval') {
+        document.getElementById('exerciseTitle').textContent = 'Interval Recognition';
+        document.getElementById('exerciseDesc').textContent = 'Listen to two notes and identify the interval';
+        setupIntervalButtons();
+        document.getElementById('answerButtons').style.display = 'grid';
+        document.getElementById('pianoKeyboard').style.display = 'none';
+      } else if (type === 'chord') {
+        document.getElementById('exerciseTitle').textContent = 'Chord Recognition';
+        document.getElementById('exerciseDesc').textContent = 'Listen to the chord and identify its type';
+        setupChordButtons();
+        document.getElementById('answerButtons').style.display = 'grid';
+        document.getElementById('pianoKeyboard').style.display = 'none';
+      } else if (type === 'melody') {
+        document.getElementById('exerciseTitle').textContent = 'Melody Playback';
+        document.getElementById('exerciseDesc').textContent = 'Play back the melody you hear';
+        document.getElementById('answerButtons').style.display = 'none';
+        document.getElementById('pianoKeyboard').style.display = 'block';
+        setupPianoKeyboard();
+      }
+      
+      newQuestion();
+    }
+
+    // Setup Answer Buttons for Intervals
+    function setupIntervalButtons() {
+      const container = document.getElementById('answerButtons');
+      container.innerHTML = '';
+      
+      Object.keys(intervals).forEach(interval => {
+        const btn = document.createElement('button');
+        btn.className = 'px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold transition-all';
+        btn.textContent = interval;
+        btn.onclick = () => checkAnswer(interval);
+        container.appendChild(btn);
+      });
+    }
+
+    // Setup Answer Buttons for Chords
+    function setupChordButtons() {
+      const container = document.getElementById('answerButtons');
+      container.innerHTML = '';
+      
+      Object.keys(chords).forEach(chord => {
+        const btn = document.createElement('button');
+        btn.className = 'px-6 py-4 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold transition-all text-lg';
+        btn.textContent = chord;
+        btn.onclick = () => checkAnswer(chord);
+        container.appendChild(btn);
+      });
+    }
+
+    // Setup Piano Keyboard
+    function setupPianoKeyboard() {
+      const whiteKeys = document.getElementById('whiteKeys');
+      const blackKeys = document.getElementById('blackKeys');
+      whiteKeys.innerHTML = '';
+      blackKeys.innerHTML = '';
+      
+      const whiteNotes = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'];
+      const blackNotes = [
+        { note: 'C#4', offset: 44 },
+        { note: 'D#4', offset: 96 },
+        { note: 'F#4', offset: 200 },
+        { note: 'G#4', offset: 252 },
+        { note: 'A#4', offset: 304 }
+      ];
+      
+      whiteNotes.forEach(note => {
+        const key = document.createElement('button');
+        key.className = 'piano-key w-12 h-32 bg-white hover:bg-gray-200 border-2 border-gray-800 rounded-b-lg';
+        key.onclick = () => {
+          playNote(notes[note], 0.3);
+          userMelody.push(note);
+          key.classList.add('playing');
+          setTimeout(() => key.classList.remove('playing'), 200);
+        };
+        whiteKeys.appendChild(key);
+      });
+      
+      blackNotes.forEach(({ note, offset }) => {
+        const key = document.createElement('button');
+        key.className = 'piano-key black-key absolute w-8 h-20 bg-gray-900 hover:bg-gray-700 border-2 border-black rounded-b-lg';
+        key.style.left = offset + 'px';
+        key.style.pointerEvents = 'auto';
+        key.onclick = () => {
+          playNote(notes[note], 0.3);
+          userMelody.push(note);
+          key.classList.add('playing');
+          setTimeout(() => key.classList.remove('playing'), 200);
+        };
+        blackKeys.appendChild(key);
+      });
+    }
+
+    // Generate New Question
+    function newQuestion() {
+      if (!currentExercise) return;
+      
+      hideFeedback();
+      questionCount++;
+      updateProgress();
+      
+      if (currentExercise === 'interval') {
+        const intervalNames = Object.keys(intervals);
+        currentAnswer = intervalNames[Math.floor(Math.random() * intervalNames.length)];
+        const baseNote = Object.keys(notes)[Math.floor(Math.random() * 8)];
+        const baseFreq = notes[baseNote];
+        const semitones = intervals[currentAnswer];
+        const targetFreq = baseFreq * Math.pow(2, semitones / 12);
+        currentQuestion = { base: baseFreq, target: targetFreq };
+        
+      } else if (currentExercise === 'chord') {
+        const chordNames = Object.keys(chords);
+        currentAnswer = chordNames[Math.floor(Math.random() * chordNames.length)];
+        const baseNote = 'C4';
+        const baseFreq = notes[baseNote];
+        const chordIntervals = chords[currentAnswer];
+        currentQuestion = chordIntervals.map(interval => 
+          baseFreq * Math.pow(2, interval / 12)
+        );
+        
+      } else if (currentExercise === 'melody') {
+        const melodyNotes = ['C4', 'D4', 'E4', 'F4', 'G4', 'A4'];
+        const length = 3 + Math.floor(Math.random() * 2); // 3-4 notes
+        currentAnswer = [];
+        for (let i = 0; i < length; i++) {
+          currentAnswer.push(melodyNotes[Math.floor(Math.random() * melodyNotes.length)]);
+        }
+        userMelody = [];
+      }
+      
+      playQuestion();
+    }
+
+    // Play Current Question
+    function playQuestion() {
+      if (!currentQuestion && !currentAnswer) return;
+      
+      if (currentExercise === 'interval') {
+        playNote(currentQuestion.base, 0.5, 0);
+        playNote(currentQuestion.target, 0.5, 0.7);
+      } else if (currentExercise === 'chord') {
+        currentQuestion.forEach(freq => playNote(freq, 1, 0));
+      } else if (currentExercise === 'melody') {
+        currentAnswer.forEach((note, i) => {
+          playNote(notes[note], 0.4, i * 0.5);
+        });
+      }
+    }
+
+    // Check Answer
+    function checkAnswer(answer) {
+      stats.total++;
+      
+      if (answer === currentAnswer) {
+        stats.correct++;
+        score += 10;
+        streak++;
+        showFeedback('✅ Correct! ' + answer, true);
+        
+        if (questionCount >= maxQuestions) {
+          setTimeout(() => {
+            alert(`Exercise Complete!\nScore: ${score}\nAccuracy: ${Math.round((stats.correct / stats.total) * 100)}%`);
+            resetExercise();
+          }, 1500);
+        } else {
+          setTimeout(newQuestion, 1500);
+        }
+      } else {
+        stats.wrong++;
+        streak = 0;
+        showFeedback('❌ Wrong! Correct answer: ' + currentAnswer, false);
+      }
+      
+      updateScore();
+      updateStats();
+    }
+
+    // Check Melody
+    function checkMelody() {
+      if (userMelody.length === 0) return;
+      
+      stats.total++;
+      const correct = JSON.stringify(userMelody) === JSON.stringify(currentAnswer);
+      
+      if (correct) {
+        stats.correct++;
+        score += 15;
+        streak++;
+        showFeedback('🎉 Perfect melody!', true);
+        
+        if (questionCount >= maxQuestions) {
+          setTimeout(() => {
+            alert(`Exercise Complete!\nScore: ${score}\nAccuracy: ${Math.round((stats.correct / stats.total) * 100)}%`);
+            resetExercise();
+          }, 1500);
+        } else {
+          setTimeout(newQuestion, 1500);
+        }
+      } else {
+        stats.wrong++;
+        streak = 0;
+        showFeedback('❌ Not quite right. Try again!', false);
+      }
+      
+      updateScore();
+      updateStats();
+    }
+
+    // Clear Melody
+    function clearMelody() {
+      userMelody = [];
+    }
+
+    // Show Feedback
+    function showFeedback(message, isCorrect) {
+      const feedback = document.getElementById('feedback');
+      feedback.textContent = message;
+      feedback.className = `mt-6 text-center text-lg font-semibold p-4 rounded-lg ${isCorrect ? 'bg-green-900 text-green-100' : 'bg-red-900 text-red-100'}`;
+      feedback.classList.remove('hidden');
+    }
+
+    // Hide Feedback
+    function hideFeedback() {
+      document.getElementById('feedback').classList.add('hidden');
+    }
+
+    // Update Score Display
+    function updateScore() {
+      document.getElementById('score').textContent = score;
+      document.getElementById('score').classList.add('score-animation');
+      setTimeout(() => {
+        document.getElementById('score').classList.remove('score-animation');
+      }, 500);
+      
+      document.getElementById('streak').textContent = streak;
+    }
+
+    // Update Statistics
+    function updateStats() {
+      document.getElementById('statTotal').textContent = stats.total;
+      document.getElementById('statCorrect').textContent = stats.correct;
+      document.getElementById('statWrong').textContent = stats.wrong;
+      
+      const accuracy = stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0;
+      document.getElementById('statAccuracy').textContent = accuracy + '%';
+    }
+
+    // Update Progress Bar
+    function updateProgress() {
+      const progress = (questionCount / maxQuestions) * 100;
+      document.getElementById('progressBar').style.width = progress + '%';
+      document.getElementById('progressText').textContent = `${questionCount} / ${maxQuestions}`;
+    }
+
+    // Reset Exercise
+    function resetExercise() {
+      questionCount = 0;
+      updateProgress();
+      hideFeedback();
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      updateStats();
+    });
+  </script>
+</body>
+</html>
