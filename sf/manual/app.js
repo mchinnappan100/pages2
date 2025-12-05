@@ -1,311 +1,327 @@
 let steps = [];
 let currentStepIndex = -1;
+let monacoEditor = null;
+
+// === Splitter Resizer ===
 let isResizing = false;
-let leftPane = document.getElementById("leftPane");
-let rightPane = document.getElementById("rightPane");
-
-// Load saved splitter position from memory (not localStorage)
-let splitterPosition = 30; // Default 30%
-
-// Apply saved splitter position on load
-function applySplitterPosition() {
-  leftPane.style.flex = `0 0 ${splitterPosition}%`;
-  rightPane.style.flex = "1";
-}
-
-applySplitterPosition();
-
-// Resizer functionality
+const leftPane = document.getElementById("leftPane");
 const resizer = document.getElementById("resizer");
-resizer.addEventListener("mousedown", (e) => {
+
+resizer.addEventListener("mousedown", () => {
   isResizing = true;
   document.body.style.cursor = "col-resize";
 });
-
 document.addEventListener("mousemove", (e) => {
   if (!isResizing) return;
   const container = document.querySelector(".split-container");
-  const containerRect = container.getBoundingClientRect();
-  const newLeftWidth = e.clientX - containerRect.left;
-  const newLeftPercent = (newLeftWidth / containerRect.width) * 100;
-  const minPercent = 20;
-  const maxPercent = 70;
-
-  if (newLeftPercent >= minPercent && newLeftPercent <= maxPercent) {
-    splitterPosition = newLeftPercent;
-    leftPane.style.flex = `0 0 ${newLeftPercent}%`;
-    rightPane.style.flex = "1";
+  const rect = container.getBoundingClientRect();
+  const percent = ((e.clientX - rect.left) / rect.width) * 100;
+  if (percent >= 20 && percent <= 70) {
+    leftPane.style.flex = `0 0 ${percent}%`;
   }
 });
-
 document.addEventListener("mouseup", () => {
   isResizing = false;
   document.body.style.cursor = "default";
 });
 
-// Rich text editor - handle paste with images
-const descriptionEditor = document.getElementById("descriptionEditor");
-descriptionEditor.addEventListener("paste", (e) => {
-  const items = e.clipboardData.items;
-  for (let i = 0; i < items.length; i++) {
-    if (items[i].type.indexOf("image") !== -1) {
-      e.preventDefault();
-      const blob = items[i].getAsFile();
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const img = document.createElement("img");
-        img.src = event.target.result;
-        img.style.maxWidth = "100%";
-        document.execCommand("insertHTML", false, img.outerHTML);
-      };
-      reader.readAsDataURL(blob);
-    }
-  }
-});
+// === Initialize Monaco Editor ===
+require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.51.0/min/vs' }});
+require(['vs/editor/editor.main'], function () {
+  monacoEditor = monaco.editor.create(document.getElementById('monacoContainer'), {
+    value: '',
+    language: 'markdown',
+    theme: 'vs-dark',
+    automaticLayout: true,
+    fontSize: 15,
+    wordWrap: 'on',
+    minimap: { enabled: false },
+    scrollBeyondLastLine: false,
+    lineNumbers: 'off',
+    padding: { top: 20, bottom: 20 },
+    renderWhitespace: 'boundary',
+    fontFamily: 'SF Mono, Menlo, Monaco, Consolas, "Courier New", monospace',
+  });
 
-// CSV Upload
-document.getElementById("csvUpload").addEventListener("change", (e) => {
-  const file = e.target.files[0];
-  if (file) {
+monacoEditor.getDomNode().addEventListener('paste', async (e) => {
+  if (!e.clipboardData || !e.clipboardData.items) return;
+
+  const items = Array.from(e.clipboardData.items);
+  const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
+  if (!imageItems.length) return;
+
+  e.preventDefault();
+  e.stopPropagation();
+
+  const model = monacoEditor.getModel();
+  const position = monacoEditor.getPosition();
+
+  for (const item of imageItems) {
+    const blob = item.getAsFile();
+    if (!blob) continue;
+
+    // Optional resize
+    const finalBlob = blob.size > 5_000_000 ? await resizeImageBlob(blob, 1400, 0.9) : blob;
+
     const reader = new FileReader();
-    reader.onload = (event) => {
-      parseCSV(event.target.result);
+    reader.onload = () => {
+      const markdown = `![Screenshot](${reader.result})\n`;
+      model.applyEdits([{
+        range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+        text: markdown,
+        forceMoveMarkers: true
+      }]);
+
+      // Move cursor after inserted image
+      monacoEditor.setPosition({
+        lineNumber: position.lineNumber + markdown.split('\n').length - 1,
+        column: 1
+      });
+      monacoEditor.revealPositionInCenter(monacoEditor.getPosition());
     };
-    reader.readAsText(file);
+    reader.readAsDataURL(finalBlob);
   }
 });
 
-function parseCSV(csv) {
-  const lines = csv.split("\n");
-  const headers = lines[0].split(",").map((h) => h.trim().replace(/"/g, ""));
-  steps = [];
+// Resize helper (optional but recommended)
+function resizeImageBlob(blob, maxWidth = 1400, quality = 0.9) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
 
-  for (let i = 1; i < lines.length; i++) {
-    if (lines[i].trim()) {
-      const values = parseCSVLine(lines[i]);
-      const step = {};
-      headers.forEach((header, index) => {
-        step[header] = values[index] || "";
-      });
-      steps.push(step);
+    img.onload = () => {
+      if (img.width <= maxWidth) {
+        resolve(blob);
+        return;
+      }
+      const ratio = maxWidth / img.width;
+      canvas.width = maxWidth;
+      canvas.height = img.height * ratio;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(resolve, blob.type || 'image/jpeg', quality);
+    };
+    img.onerror = () => resolve(blob);
+    img.src = URL.createObjectURL(blob);
+  });
+};
+
+  // Auto-save on change
+  monacoEditor.onDidChangeModelContent(() => {
+    if (currentStepIndex >= 0) {
+      steps[currentStepIndex].Description = monacoEditor.getValue();
     }
-  }
-  renderSteps();
-}
+  });
 
-function parseCSVLine(line) {
-  const result = [];
-  let current = "";
-  let inQuotes = false;
+  // Auto-format Step X and ====== on input
+  monacoEditor.onDidChangeModelContent(() => {
+    const value = monacoEditor.getValue();
+    let newValue = value
+      .replace(/^(Step\s*\d+[:.\-\–\—]?\s*.+)$/gm, match => `**${match.trim()}**`)
+      .replace(/^[=]{6,}$/gm, '---');
 
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
-    if (char === '"') {
-      inQuotes = !inQuotes;
-    } else if (char === "," && !inQuotes) {
-      result.push(current.trim());
-      current = "";
-    } else {
-      current += char;
+    if (newValue !== value) {
+      const fullRange = monacoEditor.getModel().getFullModelRange();
+      monacoEditor.executeEdits('auto-format', [{
+        range: fullRange,
+        text: newValue,
+        forceMoveMarkers: true
+      }]);
     }
-  }
-  result.push(current.trim());
-  return result;
-}
+  });
+});
 
-function renderSteps() {
-  const stepsList = document.getElementById("stepsList");
-  stepsList.innerHTML = "";
+// Helper: Resize large images to prevent lag
+function resizeImageBlob(blob, maxWidth = 1200, quality = 0.92) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
 
-  steps.forEach((step, index) => {
-    const stepDiv = document.createElement("div");
-    stepDiv.className = "step-item p-3 mb-2 bg-gray-700 rounded-lg";
-    stepDiv.innerHTML = `
-                    <div class="font-semibold">Step ${
-                      step.Step || index + 1
-                    }</div>
-                    <div class="text-sm text-gray-400">${truncateText(
-                      stripHTML(step.Description),
-                      50
-                    )}</div>
-                `;
-    stepDiv.addEventListener("click", () => selectStep(index));
-    stepsList.appendChild(stepDiv);
+    img.onload = () => {
+      if (img.width <= maxWidth) {
+        resolve(blob);
+        return;
+      }
+      const ratio = maxWidth / img.width;
+      canvas.width = maxWidth;
+      canvas.height = img.height * ratio;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(resolve, blob.type, quality);
+    };
+    img.onerror = () => resolve(blob);
+    img.src = URL.createObjectURL(blob);
   });
 }
 
+// === CSV Import ===
+document.getElementById("csvUpload").addEventListener("change", (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  Papa.parse(file, {
+    complete: (result) => {
+      const headers = result.data[0] || [];
+      steps = [];
+      for (let i = 1; i < result.data.length; i++) {
+        const row = result.data[i];
+        if (!row || row.length < 2) continue;
+        const step = {};
+        headers.forEach((h, idx) => {
+          step[h.trim()] = (row[idx] || '').toString();
+        });
+        steps.push(step);
+      }
+      renderSteps();
+      alert(`Imported ${steps.length} steps successfully!`);
+    },
+    skipEmptyLines: true,
+    error: (err) => alert("CSV parse error: " + err)
+  });
+});
+
+// === Render Steps List ===
+function renderSteps() {
+  const list = document.getElementById("stepsList");
+  list.innerHTML = "";
+  steps.forEach((step, i) => {
+    const div = document.createElement("div");
+    div.className = `step-item p-4 mb-3 bg-gray-700 rounded-lg cursor-pointer transition hover:bg-gray-600 ${currentStepIndex === i ? 'active ring-2 ring-blue-500' : ''}`;
+    
+    const preview = (step.Description || "")
+      .replace(/\*\*(Step\s*\d+[:.\-\–\—]?.*?)\*\*/g, '$1')
+      .replace(/---/g, '======')
+      .split('\n')
+      .slice(0, 4)
+      .join(' ')
+      .substring(0, 180) + (step.Description?.length > 180 ? '...' : '');
+
+    div.innerHTML = `
+      <div class="font-bold text-blue-400">Step ${step.Step || i + 1}</div>
+      <div class="text-sm text-gray-300 mt-2 leading-relaxed">${preview || '<em class="text-gray-500">No description</em>'}</div>
+    `;
+    div.onclick = () => selectStep(i);
+    list.appendChild(div);
+  });
+}
+
+// === Select Step ===
 function selectStep(index) {
   currentStepIndex = index;
   const step = steps[index];
 
-  // Update active state
-  document.querySelectorAll(".step-item").forEach((item, i) => {
-    item.classList.toggle("active", i === index);
+  document.querySelectorAll(".step-item").forEach((el, i) => {
+    el.classList.toggle("active", i === index);
   });
 
-  // Show editor
   document.getElementById("editorContainer").classList.remove("hidden");
   document.getElementById("emptyState").classList.add("hidden");
 
-  // Populate fields
   document.getElementById("stepNumber").value = step.Step || "";
-  descriptionEditor.innerHTML = step.Description || "";
   document.getElementById("objectField").value = step.Object || "";
   document.getElementById("actionField").value = step.Action || "";
   document.getElementById("automatedField").value = step.Automated || "N/A";
-  document.getElementById("reasonField").value = step.Reason || "";
   document.getElementById("metadataType").value = step.MetadataType || "";
   document.getElementById("apiAction").value = step.APIAction || "";
   document.getElementById("promptField").value = step.Prompt || "";
+
+  if (monacoEditor) {
+    monacoEditor.setValue(step.Description || "");
+  }
 }
 
+// === Save Current Step ===
 function saveCurrentStep() {
   if (currentStepIndex === -1) return;
 
   steps[currentStepIndex] = {
-    Step: document.getElementById("stepNumber").value,
-    Description: descriptionEditor.innerHTML,
-    Object: document.getElementById("objectField").value,
+    Step: document.getElementById("stepNumber").value.trim(),
+    Description: monacoEditor ? monacoEditor.getValue() : "",
+    Object: document.getElementById("objectField").value.trim(),
     Action: document.getElementById("actionField").value,
     Automated: document.getElementById("automatedField").value,
-    Reason: document.getElementById("reasonField").value,
-    MetadataType: document.getElementById("metadataType").value,
+    Reason: "", // Add input if needed
+    MetadataType: document.getElementById("metadataType").value.trim(),
     APIAction: document.getElementById("apiAction").value,
     Prompt: document.getElementById("promptField").value,
   };
 
   renderSteps();
-  selectStep(currentStepIndex);
 }
 
-document.getElementById("saveStep").addEventListener("click", saveCurrentStep);
+// === Buttons ===
+document.getElementById("saveStep").onclick = saveCurrentStep;
 
-document.getElementById("deleteStep").addEventListener("click", () => {
-  if (currentStepIndex === -1) return;
-  if (confirm("Are you sure you want to delete this step?")) {
-    steps.splice(currentStepIndex, 1);
-    currentStepIndex = -1;
-    document.getElementById("editorContainer").classList.add("hidden");
-    document.getElementById("emptyState").classList.remove("hidden");
-    renderSteps();
-  }
-});
-
-document.getElementById("addStep").addEventListener("click", () => {
+document.getElementById("addStep").onclick = () => {
   const newStep = {
     Step: (steps.length + 1).toString(),
-    Description: "",
+    Description: `**Step ${steps.length + 1}:** \n\n`,
     Object: "",
     Action: "",
     Automated: "N/A",
-    Reason: "",
     MetadataType: "",
     APIAction: "",
-    Prompt: "",
+    Prompt: ""
   };
   steps.push(newStep);
   renderSteps();
   selectStep(steps.length - 1);
-});
+};
 
-// Generate Prompt
-document.getElementById("generatePrompt").addEventListener("click", () => {
-  const description = stripHTML(descriptionEditor.innerHTML);
-  const object = document.getElementById("objectField").value;
+document.getElementById("deleteStep").onclick = () => {
+  if (currentStepIndex === -1 || !confirm("Delete this step permanently?")) return;
+  steps.splice(currentStepIndex, 1);
+  currentStepIndex = -1;
+  document.getElementById("editorContainer").classList.add("hidden");
+  document.getElementById("emptyState").classList.remove("hidden");
+  renderSteps();
+};
+
+// === Generate Prompt ===
+document.getElementById("generatePrompt").onclick = () => {
+  const desc = monacoEditor?.getValue() || "";
+  const obj = document.getElementById("objectField").value;
   const action = document.getElementById("actionField").value;
 
   const prompt = `You are a Salesforce Metadata API expert.
-Task: Analyze this manual org setup step:
-"${action}: ${description}"
-${object ? `Object: ${object}` : ""}
+Task: Analyze this manual step:
+"${action} ${obj ? obj + " - " : ""}${desc.split('\n')[0]}"
 
-Determine:
-1. Can it be automated using Salesforce Metadata API?
-2. If yes: metadata type (e.g. CustomField, PageLayout) and action (create/update/delete).
-3. Provide a clear, concise reason for your decision.
+Determine if it can be automated and suggest metadata type + API action.
 
-Respond **only** with valid JSON in this exact format:
-{
-  "automated": true|false,
-  "reason": "short explanation (max 200 chars)",
-  "metadata_type": "CustomObject|CustomField|ValidationRule|Flow|etc",
-  "api_action": "create|update|delete|deploy"
-}
-If not automatable, set metadata_type and api_action to null.`;
-
+Respond in JSON only.`;
+  
   document.getElementById("promptField").value = prompt;
-});
+};
 
-// View Prompt Modal
-document.getElementById("viewPromptModal").addEventListener("click", () => {
-  const prompt = document.getElementById("promptField").value;
-  document.getElementById("promptContent").textContent = prompt;
-  document.getElementById("promptModal").classList.remove("hidden");
-});
+// === Download CSV ===
+document.getElementById("downloadCsv").onclick = () => {
+  if (steps.length === 0) return alert("No steps to export!");
 
-document.getElementById("closeModal").addEventListener("click", () => {
-  document.getElementById("promptModal").classList.add("hidden");
-});
+  const headers = ["Step","Description","Object","Action","Automated","Reason","MetadataType","APIAction","Prompt"];
+  const rows = steps.map(s => headers.map(h => s[h] || ""));
+  const csv = Papa.unparse([headers, ...rows]);
 
-document.getElementById("copyPrompt").addEventListener("click", () => {
-  const prompt = document.getElementById("promptContent").textContent;
-  navigator.clipboard.writeText(prompt).then(() => {
-    const btn = document.getElementById("copyPrompt");
-    btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-    setTimeout(() => {
-      btn.innerHTML = '<i class="fas fa-copy"></i> Copy to Clipboard';
-    }, 2000);
-  });
-});
-
-// Download CSV
-document.getElementById("downloadCsv").addEventListener("click", () => {
-  if (steps.length === 0) {
-    alert("No steps to download!");
-    return;
-  }
-
-  const headers = [
-    "Step",
-    "Description",
-    "Object",
-    "Action",
-    "Automated",
-    "Reason",
-    "MetadataType",
-    "APIAction",
-  ];
-  let csv = headers.join(",") + "\n";
-
-  steps.forEach((step) => {
-    const row = headers.map((header) => {
-      let value = step[header] || "";
-      // Keep HTML intact for Description field to preserve images
-      if (header === "Description") {
-        // Keep the full HTML with images
-        value = value;
-      }
-      value = value.replace(/"/g, '""');
-      return `"${value}"`;
-    });
-    csv += row.join(",") + "\n";
-  });
-
-  const blob = new Blob([csv], { type: "text/csv" });
+  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `salesforce-steps-${Date.now()}.csv`;
+  a.download = `salesforce-manual-steps-${new Date().toISOString().slice(0,10)}.csv`;
   a.click();
   URL.revokeObjectURL(url);
-});
+};
 
-function stripHTML(html) {
-  const tmp = document.createElement("div");
-  tmp.innerHTML = html;
-  return tmp.textContent || tmp.innerText || "";
-}
-
-function truncateText(text, length) {
-  return text.length > length ? text.substring(0, length) + "..." : text;
-}
+// === Prompt Modal ===
+document.getElementById("viewPromptModal").onclick = () => {
+  document.getElementById("promptContent").textContent = document.getElementById("promptField").value;
+  document.getElementById("promptModal").classList.remove("hidden");
+};
+document.getElementById("closeModal").onclick = () => {
+  document.getElementById("promptModal").classList.add("hidden");
+};
+document.getElementById("copyPrompt").onclick = () => {
+  navigator.clipboard.writeText(document.getElementById("promptContent").textContent);
+  const btn = document.getElementById("copyPrompt");
+  btn.innerHTML = "Copied!";
+  setTimeout(() => btn.innerHTML = '<i class="fas fa-copy"></i> Copy to Clipboard', 2000);
+};
