@@ -1,6 +1,7 @@
 let steps = [];
 let currentStepIndex = -1;
 let monacoEditor = null;
+let searchTerm = '';
 
 // === Splitter Resizer ===
 let isResizing = false;
@@ -43,47 +44,164 @@ require(['vs/editor/editor.main'], function () {
     fontFamily: 'SF Mono, Menlo, Monaco, Consolas, "Courier New", monospace',
   });
 
-monacoEditor.getDomNode().addEventListener('paste', async (e) => {
-  if (!e.clipboardData || !e.clipboardData.items) return;
+  // Image Paste Handler - Alternative approach using textarea proxy
+  const editorDomNode = monacoEditor.getDomNode();
+  const textareaElements = editorDomNode.querySelectorAll('textarea');
+  
+  // Add paste listener to all textareas in Monaco
+  textareaElements.forEach(textarea => {
+    textarea.addEventListener('paste', handleImagePaste, true);
+  });
+  
+  // Also add to the main container as fallback
+  editorDomNode.addEventListener('paste', handleImagePaste, true);
 
-  const items = Array.from(e.clipboardData.items);
-  const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
-  if (!imageItems.length) return;
+  async function handleImagePaste(e) {
+    const clipboardData = e.clipboardData || window.clipboardData;
+    if (!clipboardData) return;
 
-  e.preventDefault();
-  e.stopPropagation();
+    const items = Array.from(clipboardData.items || []);
+    const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
+    
+    if (imageItems.length === 0) return;
 
-  const model = monacoEditor.getModel();
-  const position = monacoEditor.getPosition();
+    // Prevent default paste
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
 
-  for (const item of imageItems) {
-    const blob = item.getAsFile();
-    if (!blob) continue;
+    for (const item of imageItems) {
+      const file = item.getAsFile();
+      if (!file) continue;
 
-    // Optional resize
-    const finalBlob = blob.size > 5_000_000 ? await resizeImageBlob(blob, 1400, 0.9) : blob;
+      // Resize if needed
+      const finalBlob = file.size > 5_000_000 ? await resizeImageBlob(file, 1400, 0.9) : file;
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const markdown = `![Screenshot](${reader.result})\n`;
-      model.applyEdits([{
-        range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+      // Convert to base64
+      const base64 = await blobToBase64(finalBlob);
+      
+      // Insert into Monaco
+      insertImageIntoMonaco(base64);
+    }
+
+    return false;
+  }
+
+  function insertImageIntoMonaco(base64Data) {
+    const model = monacoEditor.getModel();
+    if (!model) return;
+
+    const position = monacoEditor.getPosition() || { lineNumber: 1, column: 1 };
+    const markdown = `\n![Pasted Image](${base64Data})\n\n`;
+    
+    const range = new monaco.Range(
+      position.lineNumber,
+      position.column,
+      position.lineNumber,
+      position.column
+    );
+
+    model.pushEditOperations(
+      [],
+      [{
+        range: range,
         text: markdown,
         forceMoveMarkers: true
-      }]);
+      }],
+      () => null
+    );
 
-      // Move cursor after inserted image
-      monacoEditor.setPosition({
-        lineNumber: position.lineNumber + markdown.split('\n').length - 1,
-        column: 1
-      });
-      monacoEditor.revealPositionInCenter(monacoEditor.getPosition());
-    };
-    reader.readAsDataURL(finalBlob);
+    // Move cursor after image
+    const lines = markdown.split('\n').length;
+    monacoEditor.setPosition({
+      lineNumber: position.lineNumber + lines - 1,
+      column: 1
+    });
+    
+    monacoEditor.revealPositionInCenter(monacoEditor.getPosition());
+    monacoEditor.focus();
+
+    // Trigger save
+    if (currentStepIndex >= 0) {
+      steps[currentStepIndex].Description = monacoEditor.getValue();
+    }
   }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // Auto-save on change
+  let saveTimeout = null;
+  monacoEditor.onDidChangeModelContent(() => {
+    if (currentStepIndex >= 0) {
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+        steps[currentStepIndex].Description = monacoEditor.getValue();
+      }, 300);
+    }
+  });
+
+  // Auto-format Step X and ====== on input (debounced)
+  let isFormatting = false;
+  let formatTimeout = null;
+  monacoEditor.onDidChangeModelContent(() => {
+    if (isFormatting) return;
+    
+    clearTimeout(formatTimeout);
+    formatTimeout = setTimeout(() => {
+      try {
+        const model = monacoEditor.getModel();
+        if (!model) return;
+        
+        const value = model.getValue();
+        if (!value) return;
+        
+        let newValue = value
+          .replace(/^(Step\s*\d+[:.\-\–\—]?\s*.+)$/gm, match => {
+            const trimmed = match.trim();
+            // Don't re-bold if already bolded
+            if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+              return match;
+            }
+            return `**${trimmed}**`;
+          })
+          .replace(/^[=]{6,}$/gm, '---');
+
+        if (newValue !== value) {
+          isFormatting = true;
+          const position = monacoEditor.getPosition();
+          const selections = monacoEditor.getSelections();
+          
+          model.pushEditOperations(
+            selections,
+            [{
+              range: model.getFullModelRange(),
+              text: newValue
+            }],
+            () => selections
+          );
+          
+          if (position) {
+            monacoEditor.setPosition(position);
+          }
+          
+          isFormatting = false;
+        }
+      } catch (err) {
+        console.error('Auto-format error:', err);
+        isFormatting = false;
+      }
+    }, 500);
+  });
 });
 
-// Resize helper (optional but recommended)
+// Helper: Resize large images to prevent lag
 function resizeImageBlob(blob, maxWidth = 1400, quality = 0.9) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -99,60 +217,71 @@ function resizeImageBlob(blob, maxWidth = 1400, quality = 0.9) {
       canvas.width = maxWidth;
       canvas.height = img.height * ratio;
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(resolve, blob.type || 'image/jpeg', quality);
-    };
-    img.onerror = () => resolve(blob);
-    img.src = URL.createObjectURL(blob);
-  });
-};
-
-  // Auto-save on change
-  monacoEditor.onDidChangeModelContent(() => {
-    if (currentStepIndex >= 0) {
-      steps[currentStepIndex].Description = monacoEditor.getValue();
-    }
-  });
-
-  // Auto-format Step X and ====== on input
-  monacoEditor.onDidChangeModelContent(() => {
-    const value = monacoEditor.getValue();
-    let newValue = value
-      .replace(/^(Step\s*\d+[:.\-\–\—]?\s*.+)$/gm, match => `**${match.trim()}**`)
-      .replace(/^[=]{6,}$/gm, '---');
-
-    if (newValue !== value) {
-      const fullRange = monacoEditor.getModel().getFullModelRange();
-      monacoEditor.executeEdits('auto-format', [{
-        range: fullRange,
-        text: newValue,
-        forceMoveMarkers: true
-      }]);
-    }
-  });
-});
-
-// Helper: Resize large images to prevent lag
-function resizeImageBlob(blob, maxWidth = 1200, quality = 0.92) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-
-    img.onload = () => {
-      if (img.width <= maxWidth) {
-        resolve(blob);
-        return;
-      }
-      const ratio = maxWidth / img.width;
-      canvas.width = maxWidth;
-      canvas.height = img.height * ratio;
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob(resolve, blob.type, quality);
+      canvas.toBlob((resizedBlob) => {
+        resolve(resizedBlob || blob);
+      }, blob.type || 'image/jpeg', quality);
     };
     img.onerror = () => resolve(blob);
     img.src = URL.createObjectURL(blob);
   });
 }
+
+// === Image Upload Button (Fallback) ===
+/*
+document.getElementById("insertImageBtn").addEventListener("change", async (e) => {
+  const files = Array.from(e.target.files || []);
+  if (files.length === 0 || !monacoEditor) return;
+
+  for (const file of files) {
+    if (!file.type.startsWith('image/')) continue;
+
+    const finalBlob = file.size > 5_000_000 ? await resizeImageBlob(file, 1400, 0.9) : file;
+    const reader = new FileReader();
+    
+    reader.onload = () => {
+      const base64Data = reader.result;
+      const model = monacoEditor.getModel();
+      if (!model) return;
+
+      const position = monacoEditor.getPosition() || { lineNumber: 1, column: 1 };
+      const markdown = `\n![${file.name}](${base64Data})\n\n`;
+      
+      model.pushEditOperations(
+        [],
+        [{
+          range: new monaco.Range(position.lineNumber, position.column, position.lineNumber, position.column),
+          text: markdown,
+          forceMoveMarkers: true
+        }],
+        () => null
+      );
+
+      const lines = markdown.split('\n').length;
+      monacoEditor.setPosition({
+        lineNumber: position.lineNumber + lines - 1,
+        column: 1
+      });
+      
+      monacoEditor.focus();
+      
+      if (currentStepIndex >= 0) {
+        steps[currentStepIndex].Description = monacoEditor.getValue();
+      }
+    };
+    
+    reader.readAsDataURL(finalBlob);
+  }
+
+  e.target.value = ''; // Reset input
+});
+*/
+
+
+// === Search Steps ===
+document.getElementById("searchSteps").addEventListener("input", (e) => {
+  searchTerm = e.target.value.toLowerCase().trim();
+  renderSteps();
+});
 
 // === CSV Import ===
 document.getElementById("csvUpload").addEventListener("change", (e) => {
@@ -184,23 +313,57 @@ document.getElementById("csvUpload").addEventListener("change", (e) => {
 function renderSteps() {
   const list = document.getElementById("stepsList");
   list.innerHTML = "";
-  steps.forEach((step, i) => {
+  
+  const filteredSteps = steps.map((step, index) => ({ step, index }))
+    .filter(({ step }) => {
+      if (!searchTerm) return true;
+      
+      const searchableText = [
+        step.Step || '',
+        step.Description || '',
+        step.Object || '',
+        step.Action || '',
+        step.MetadataType || ''
+      ].join(' ').toLowerCase();
+      
+      return searchableText.includes(searchTerm);
+    });
+
+  if (filteredSteps.length === 0) {
+    list.innerHTML = '<div class="text-gray-500 text-center p-4">No steps found</div>';
+    return;
+  }
+
+  filteredSteps.forEach(({ step, index }) => {
     const div = document.createElement("div");
-    div.className = `step-item p-4 mb-3 bg-gray-700 rounded-lg cursor-pointer transition hover:bg-gray-600 ${currentStepIndex === i ? 'active ring-2 ring-blue-500' : ''}`;
+    div.className = `step-item p-4 mb-3 bg-gray-700 rounded-lg cursor-pointer transition hover:bg-gray-600 ${currentStepIndex === index ? 'active ring-2 ring-blue-500' : ''}`;
     
-    const preview = (step.Description || "")
+    // Clean preview text
+    let preview = (step.Description || "")
       .replace(/\*\*(Step\s*\d+[:.\-\–\—]?.*?)\*\*/g, '$1')
       .replace(/---/g, '======')
+      .replace(/!\[.*?\]\(data:image\/.*?\)/g, '[Image]') // Replace base64 images with [Image]
       .split('\n')
+      .filter(line => line.trim()) // Remove empty lines
       .slice(0, 4)
       .join(' ')
-      .substring(0, 180) + (step.Description?.length > 180 ? '...' : '');
+      .substring(0, 180);
+    
+    if (step.Description && step.Description.length > 180) {
+      preview += '...';
+    }
+
+    // Highlight search term
+    if (searchTerm) {
+      const regex = new RegExp(`(${searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+      preview = preview.replace(regex, '<mark class="bg-yellow-500 text-black">$1</mark>');
+    }
 
     div.innerHTML = `
-      <div class="font-bold text-blue-400">Step ${step.Step || i + 1}</div>
+      <div class="font-bold text-blue-400">Step ${step.Step || index + 1}</div>
       <div class="text-sm text-gray-300 mt-2 leading-relaxed">${preview || '<em class="text-gray-500">No description</em>'}</div>
     `;
-    div.onclick = () => selectStep(i);
+    div.onclick = () => selectStep(index);
     list.appendChild(div);
   });
 }
