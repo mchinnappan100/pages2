@@ -1,0 +1,247 @@
+{
+  "User Management": [
+    {
+      "name": "Get All Active Users",
+      "description": "Retrieve all active users with their profiles",
+      "query": "SELECT Id, Name, Email, Profile.Name, IsActive, LastLoginDate\nFROM User\nWHERE IsActive = true\nORDER BY Name"
+    },
+    {
+      "name": "Users by Profile",
+      "description": "Get users grouped by profile",
+      "query": "SELECT Profile.Name, COUNT(Id) userCount\nFROM User\nWHERE IsActive = true\nGROUP BY Profile.Name\nORDER BY COUNT(Id) DESC"
+    },
+    {
+      "name": "Recently Modified Users",
+      "description": "Find users modified in last 7 days",
+      "query": "SELECT Id, Name, Email, LastModifiedDate, LastModifiedBy.Name\nFROM User\nWHERE LastModifiedDate = LAST_N_DAYS:7\nORDER BY LastModifiedDate DESC"
+    },
+    {
+      "name": "Inactive Users",
+      "description": "List all inactive users",
+      "query": "SELECT Id, Name, Email, IsActive, LastLoginDate\nFROM User\nWHERE IsActive = false\nORDER BY LastLoginDate DESC NULLS LAST"
+    }
+  ],
+  "Account & Contacts": [
+    {
+      "name": "Accounts with Contacts",
+      "description": "Get accounts and their related contacts",
+      "query": "SELECT Id, Name, Industry, \n  (SELECT Id, FirstName, LastName, Email FROM Contacts)\nFROM Account\nWHERE Id IN (SELECT AccountId FROM Contact)\nORDER BY Name"
+    },
+    {
+      "name": "Hot Accounts",
+      "description": "Find all hot rated accounts",
+      "query": "SELECT Id, Name, Rating, Industry, AnnualRevenue, Owner.Name\nFROM Account\nWHERE Rating = 'Hot'\nORDER BY AnnualRevenue DESC NULLS LAST"
+    },
+    {
+      "name": "Accounts Without Contacts",
+      "description": "Find accounts that have no contacts",
+      "query": "SELECT Id, Name, Industry, Owner.Name\nFROM Account\nWHERE Id NOT IN (SELECT AccountId FROM Contact WHERE AccountId != null)\nORDER BY CreatedDate DESC"
+    },
+    {
+      "name": "Large Accounts",
+      "description": "Accounts with revenue over 1M",
+      "query": "SELECT Id, Name, Industry, AnnualRevenue, Owner.Name\nFROM Account\nWHERE AnnualRevenue > 1000000\nORDER BY AnnualRevenue DESC"
+    },
+    {
+      "name": "Contacts with Multiple Accounts",
+      "description": "Find contacts associated with multiple accounts",
+      "query": "SELECT Id, Name, Email, AccountId, Account.Name\nFROM Contact\nWHERE AccountId != null\nORDER BY LastName, FirstName"
+    },
+    {
+      "name": "Recently Created Accounts",
+      "description": "Accounts created in the last 30 days",
+      "query": "SELECT Id, Name, Industry, CreatedDate, Owner.Name\nFROM Account\nWHERE CreatedDate = LAST_N_DAYS:30\nORDER BY CreatedDate DESC"
+    }
+  ],
+  "Opportunities": [
+    {
+      "name": "Open Opportunities",
+      "description": "All open opportunities with amounts",
+      "query": "SELECT Id, Name, StageName, Amount, CloseDate, Account.Name, Owner.Name\nFROM Opportunity\nWHERE IsClosed = false\nORDER BY CloseDate"
+    },
+    {
+      "name": "Closed Won This Quarter",
+      "description": "Opportunities closed won in current quarter",
+      "query": "SELECT Id, Name, Amount, CloseDate, Account.Name, Owner.Name\nFROM Opportunity\nWHERE IsWon = true AND CloseDate = THIS_QUARTER\nORDER BY Amount DESC"
+    },
+    {
+      "name": "Opportunities by Stage",
+      "description": "Count and sum of opportunities by stage",
+      "query": "SELECT StageName, COUNT(Id) oppCount, SUM(Amount) totalAmount\nFROM Opportunity\nGROUP BY StageName\nORDER BY SUM(Amount) DESC"
+    },
+    {
+      "name": "Large Deals",
+      "description": "Opportunities over $100K",
+      "query": "SELECT Id, Name, Amount, StageName, CloseDate, Account.Name\nFROM Opportunity\nWHERE Amount > 100000\nORDER BY Amount DESC"
+    },
+    {
+      "name": "Stale Opportunities",
+      "description": "Opportunities not modified in 30 days",
+      "query": "SELECT Id, Name, StageName, Amount, LastModifiedDate, Owner.Name\nFROM Opportunity\nWHERE IsClosed = false AND LastModifiedDate < LAST_N_DAYS:30\nORDER BY LastModifiedDate"
+    },
+    {
+      "name": "Closing This Month",
+      "description": "Opportunities closing in current month",
+      "query": "SELECT Id, Name, Amount, CloseDate, Probability, Account.Name\nFROM Opportunity\nWHERE CloseDate = THIS_MONTH\nORDER BY Amount DESC"
+    }
+  ],
+  "Cases & Support": [
+    {
+      "name": "Open Cases",
+      "description": "All open cases with priority",
+      "query": "SELECT Id, CaseNumber, Subject, Status, Priority, Account.Name, Owner.Name\nFROM Case\nWHERE IsClosed = false\nORDER BY Priority, CreatedDate"
+    },
+    {
+      "name": "High Priority Cases",
+      "description": "Critical and high priority cases",
+      "query": "SELECT Id, CaseNumber, Subject, Status, Priority, CreatedDate, Owner.Name\nFROM Case\nWHERE Priority IN ('Critical', 'High') AND IsClosed = false\nORDER BY CreatedDate"
+    },
+    {
+      "name": "Cases by Status",
+      "description": "Count of cases grouped by status",
+      "query": "SELECT Status, COUNT(Id) caseCount\nFROM Case\nGROUP BY Status\nORDER BY COUNT(Id) DESC"
+    },
+    {
+      "name": "Escalated Cases",
+      "description": "All escalated cases",
+      "query": "SELECT Id, CaseNumber, Subject, Status, Priority, IsEscalated, Account.Name\nFROM Case\nWHERE IsEscalated = true\nORDER BY CreatedDate DESC"
+    },
+    {
+      "name": "Cases Without Comments",
+      "description": "Cases that have no comments",
+      "query": "SELECT Id, CaseNumber, Subject, Status, CreatedDate\nFROM Case\nWHERE Id NOT IN (SELECT ParentId FROM CaseComment)\nORDER BY CreatedDate DESC"
+    }
+  ],
+  "Leads & Campaigns": [
+    {
+      "name": "Unqualified Leads",
+      "description": "All open leads not yet converted",
+      "query": "SELECT Id, Name, Company, Status, Rating, Email, Owner.Name\nFROM Lead\nWHERE IsConverted = false\nORDER BY CreatedDate DESC"
+    },
+    {
+      "name": "Hot Leads",
+      "description": "Hot rated leads for follow-up",
+      "query": "SELECT Id, Name, Company, Email, Phone, Rating, Owner.Name\nFROM Lead\nWHERE Rating = 'Hot' AND IsConverted = false\nORDER BY CreatedDate DESC"
+    },
+    {
+      "name": "Converted Leads",
+      "description": "Leads converted in last 90 days",
+      "query": "SELECT Id, Name, Company, ConvertedDate, ConvertedAccountId, ConvertedContactId\nFROM Lead\nWHERE IsConverted = true AND ConvertedDate = LAST_N_DAYS:90\nORDER BY ConvertedDate DESC"
+    },
+    {
+      "name": "Campaign Members",
+      "description": "Campaign members with responses",
+      "query": "SELECT Campaign.Name, Contact.Name, Contact.Email, Status, HasResponded\nFROM CampaignMember\nWHERE HasResponded = true\nORDER BY Campaign.Name, Contact.LastName"
+    },
+    {
+      "name": "Active Campaigns",
+      "description": "All active campaigns with member counts",
+      "query": "SELECT Id, Name, Type, Status, StartDate, EndDate, NumberOfContacts\nFROM Campaign\nWHERE IsActive = true\nORDER BY StartDate DESC"
+    }
+  ],
+  "Reports & Analytics": [
+    {
+      "name": "Record Counts by Object",
+      "description": "Get count of records for major objects",
+      "query": "-- Run these queries individually:\n-- SELECT COUNT() FROM Account\n-- SELECT COUNT() FROM Contact\n-- SELECT COUNT() FROM Opportunity\n-- SELECT COUNT() FROM Lead\n-- SELECT COUNT() FROM Case"
+    },
+    {
+      "name": "Data Quality - Accounts",
+      "description": "Accounts missing key fields",
+      "query": "SELECT Id, Name, Industry, Phone, Website, BillingCity\nFROM Account\nWHERE Phone = null OR Website = null OR BillingCity = null\nORDER BY Name"
+    },
+    {
+      "name": "Data Quality - Contacts",
+      "description": "Contacts missing email or phone",
+      "query": "SELECT Id, Name, Email, Phone, Account.Name\nFROM Contact\nWHERE (Email = null OR Phone = null) AND AccountId != null\nORDER BY LastName"
+    },
+    {
+      "name": "Recently Deleted Records",
+      "description": "Records deleted in last 7 days (from recycle bin)",
+      "query": "-- Query from Recycle Bin in UI or use:\nSELECT Id, Name FROM Account WHERE IsDeleted = true ALL ROWS"
+    }
+  ],
+  "Custom Objects": [
+    {
+      "name": "Related Records Pattern",
+      "description": "Template for querying related records",
+      "query": "SELECT Id, Name,\n  (SELECT Id, Name FROM RelatedObject__r)\nFROM CustomObject__c\nWHERE CreatedDate = LAST_N_DAYS:30"
+    },
+    {
+      "name": "Junction Object Query",
+      "description": "Query many-to-many relationships",
+      "query": "SELECT Id, Parent1__r.Name, Parent2__r.Name, Status__c\nFROM JunctionObject__c\nWHERE Parent1__c != null AND Parent2__c != null\nORDER BY CreatedDate DESC"
+    }
+  ],
+  "System & Metadata": [
+    {
+      "name": "Object Permissions",
+      "description": "Check object permissions for a profile",
+      "query": "SELECT Id, Parent.Profile.Name, SobjectType, \n  PermissionsCreate, PermissionsRead, PermissionsEdit, PermissionsDelete\nFROM ObjectPermissions\nWHERE Parent.ProfileId = '00e...' -- Replace with Profile ID"
+    },
+    {
+      "name": "Field Permissions",
+      "description": "Check field access for a profile",
+      "query": "SELECT Id, Parent.Profile.Name, SobjectType, Field,\n  PermissionsRead, PermissionsEdit\nFROM FieldPermissions\nWHERE Parent.ProfileId = '00e...' -- Replace with Profile ID"
+    },
+    {
+      "name": "Permission Set Assignments",
+      "description": "Users assigned to permission sets",
+      "query": "SELECT Assignee.Name, Assignee.Email, PermissionSet.Name, PermissionSet.Type\nFROM PermissionSetAssignment\nWHERE PermissionSet.IsOwnedByProfile = false\nORDER BY Assignee.Name"
+    },
+    {
+      "name": "Apex Classes",
+      "description": "List all Apex classes",
+      "query": "SELECT Id, Name, ApiVersion, Status, CreatedDate, LastModifiedDate\nFROM ApexClass\nORDER BY Name"
+    },
+    {
+      "name": "Triggers",
+      "description": "List all Apex triggers",
+      "query": "SELECT Id, Name, TableEnumOrId, UsageBeforeInsert, UsageAfterInsert, UsageBeforeUpdate, UsageAfterUpdate\nFROM ApexTrigger\nWHERE Status = 'Active'\nORDER BY Name"
+    },
+    {
+      "name": "Flows",
+      "description": "List active flows",
+      "query": "SELECT Id, MasterLabel, ProcessType, TriggerType, LastModifiedDate\nFROM FlowDefinitionView\nWHERE IsActive = true\nORDER BY MasterLabel"
+    },
+    {
+      "name": "Validation Rules",
+      "description": "Active validation rules",
+      "query": "SELECT Id, ValidationName, EntityDefinition.QualifiedApiName, Active, Description\nFROM ValidationRule\nWHERE Active = true\nORDER BY EntityDefinition.QualifiedApiName, ValidationName"
+    }
+  ],
+  "Activity & Tasks": [
+    {
+      "name": "Open Tasks",
+      "description": "All open tasks by due date",
+      "query": "SELECT Id, Subject, Status, Priority, ActivityDate, Owner.Name, Who.Name, What.Name\nFROM Task\nWHERE IsClosed = false\nORDER BY ActivityDate"
+    },
+    {
+      "name": "Overdue Tasks",
+      "description": "Tasks past their due date",
+      "query": "SELECT Id, Subject, ActivityDate, Priority, Owner.Name, Who.Name\nFROM Task\nWHERE IsClosed = false AND ActivityDate < TODAY\nORDER BY ActivityDate"
+    },
+    {
+      "name": "Upcoming Events",
+      "description": "Events in the next 7 days",
+      "query": "SELECT Id, Subject, StartDateTime, EndDateTime, Owner.Name, Who.Name, What.Name\nFROM Event\nWHERE StartDateTime = NEXT_N_DAYS:7\nORDER BY StartDateTime"
+    },
+    {
+      "name": "Activity History",
+      "description": "Completed activities in last 30 days",
+      "query": "SELECT Id, Subject, Status, ActivityDate, Owner.Name\nFROM Task\nWHERE IsClosed = true AND ActivityDate = LAST_N_DAYS:30\nORDER BY ActivityDate DESC"
+    }
+  ],
+  "Performance & Limits": [
+    {
+      "name": "Large Text Fields",
+      "description": "Find records with large text fields (affects performance)",
+      "query": "SELECT Id, Name, Description\nFROM Account\nWHERE LENGTH(Description) > 5000\nORDER BY LENGTH(Description) DESC"
+    },
+    {
+      "name": "Records with Many Children",
+      "description": "Parent records with many child records",
+      "query": "SELECT Account.Id, Account.Name, COUNT(Id) contactCount\nFROM Contact\nGROUP BY Account.Id, Account.Name\nHAVING COUNT(Id) > 100\nORDER BY COUNT(Id) DESC"
+    }
+  ]
+}
