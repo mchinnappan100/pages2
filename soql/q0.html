@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOQL Query Library</title>
+   <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+  <style>
+    .split-container { display: flex; height: calc(100vh - 80px); }
+    .resizer {
+      width: 4px;
+      cursor: col-resize;
+      background: #374151;
+      transition: background 0.2s;
+    }
+    .resizer:hover { background: #6366f1; }
+    .category-item {
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .category-item:hover {
+      background: rgba(99, 102, 241, 0.1);
+    }
+    .category-item.active {
+      background: rgba(99, 102, 241, 0.2);
+      border-left: 3px solid #6366f1;
+    }
+    .query-item {
+      cursor: pointer;
+      transition: all 0.2s;
+      border-left: 3px solid transparent;
+    }
+    .query-item:hover {
+      background: rgba(99, 102, 241, 0.1);
+    }
+    .query-item.active {
+      background: rgba(99, 102, 241, 0.2);
+      border-left-color: #6366f1;
+    }
+    #monacoEditor { height: calc(100vh - 200px); }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+  
+  <!-- Header -->
+  <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <i class="fas fa-database text-3xl text-indigo-500"></i>
+        <h1 class="text-2xl font-bold">SOQL Query Library</h1>
+      </div>
+      <div class="flex items-center gap-4">
+        <button id="themeToggle" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+          <i class="fas fa-moon text-xl"></i>
+        </button>
+        <button id="addCategoryBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+          <i class="fas fa-folder-plus"></i> Add Category
+        </button>
+        <button id="addQueryBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+          <i class="fas fa-plus"></i> Add Query
+        </button>
+        <button id="saveBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+          <i class="fas fa-save"></i> Save
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <div class="split-container">
+    <!-- Left Pane -->
+    <div id="leftPane" class="bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto" style="flex: 0 0 30%;">
+      <div class="p-4">
+        <input 
+          type="text" 
+          id="searchInput" 
+          placeholder="Search categories and queries..." 
+          class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none"
+        />
+      </div>
+      <div id="categoriesList" class="px-2"></div>
+    </div>
+
+    <div id="resizer" class="resizer"></div>
+
+    <!-- Right Pane -->
+    <div id="rightPane" class="flex-1 bg-white dark:bg-gray-800 overflow-hidden">
+      <div id="emptyState" class="flex items-center justify-center h-full text-gray-500 dark:text-gray-400">
+        <div class="text-center">
+          <i class="fas fa-arrow-left text-6xl mb-4"></i>
+          <p class="text-xl">Select a query to view</p>
+        </div>
+      </div>
+      <div id="queryView" class="hidden h-full flex flex-col">
+        <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+          <div class="flex items-start justify-between">
+            <div class="flex-1">
+              <h2 id="queryTitle" class="text-2xl font-bold mb-2"></h2>
+              <p id="queryDescription" class="text-gray-600 dark:text-gray-400"></p>
+            </div>
+            <div class="flex gap-2">
+              <button id="copyBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                <i class="fas fa-copy"></i> Copy
+              </button>
+              <button id="editQueryBtn" class="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                <i class="fas fa-edit"></i> Edit
+              </button>
+              <button id="deleteQueryBtn" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                <i class="fas fa-trash"></i> Delete
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="flex-1 p-6">
+          <div id="monacoEditor"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Category Modal -->
+  <div id="categoryModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-96 max-w-90vw">
+      <h3 class="text-xl font-bold mb-4">Add Category</h3>
+      <input type="text" id="categoryNameInput" placeholder="Category Name" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 mb-4 focus:ring-2 focus:ring-indigo-500 outline-none">
+      <div class="flex gap-2 justify-end">
+        <button id="cancelCategoryBtn" class="px-4 py-2 bg-gray-300 dark:bg-gray-600 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500">Cancel</button>
+        <button id="saveCategoryBtn" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Query Modal -->
+  <div id="queryModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-6 w-[800px] max-w-90vw m-4">
+      <h3 class="text-xl font-bold mb-4" id="queryModalTitle">Add Query</h3>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium mb-1">Category</label>
+          <select id="queryCategorySelect" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none">
+          </select>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Query Name</label>
+          <input type="text" id="queryNameInput" placeholder="e.g., Get All Accounts" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none">
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">Description</label>
+          <textarea id="queryDescInput" rows="2" placeholder="Brief description of what this query does" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+        </div>
+        <div>
+          <label class="block text-sm font-medium mb-1">SOQL Query</label>
+          <textarea id="queryCodeInput" rows="8" placeholder="SELECT Id, Name FROM Account" class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 font-mono text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></textarea>
+        </div>
+      </div>
+      <div class="flex gap-2 justify-end mt-6">
+        <button id="cancelQueryBtn" class="px-4 py-2 bg-gray-300 dark:bg-gray-600 rounded-lg hover:bg-gray-400 dark:hover:bg-gray-500">Cancel</button>
+        <button id="saveQueryBtn" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Default Data
+    let queriesData = {};
+    let monacoEditor;
+    let currentQuery = null;
+    let currentCategory = null;
+    let editingQueryIndex = -1;
+    let searchTerm = '';
+
+    // Theme Management
+    const themeToggle = document.getElementById('themeToggle');
+    const html = document.documentElement;
+    
+    themeToggle.addEventListener('click', () => {
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark');
+        themeToggle.innerHTML = '<i class="fas fa-sun text-xl"></i>';
+        if (monacoEditor) monaco.editor.setTheme('vs');
+      } else {
+        html.classList.add('dark');
+        themeToggle.innerHTML = '<i class="fas fa-moon text-xl"></i>';
+        if (monacoEditor) monaco.editor.setTheme('vs-dark');
+      }
+    });
+
+    // Initialize Monaco Editor
+    require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+    require(['vs/editor/editor.main'], function () {
+      monacoEditor = monaco.editor.create(document.getElementById('monacoEditor'), {
+        value: '',
+        language: 'sql',
+        theme: html.classList.contains('dark') ? 'vs-dark' : 'vs',
+        automaticLayout: true,
+        readOnly: true,
+        fontSize: 14,
+        minimap: { enabled: false },
+        lineNumbers: 'on',
+        scrollBeyondLastLine: false
+      });
+    });
+
+    // Resizer
+    let isResizing = false;
+    const leftPane = document.getElementById('leftPane');
+    const resizer = document.getElementById('resizer');
+
+    resizer.addEventListener('mousedown', () => {
+      isResizing = true;
+      document.body.style.cursor = 'col-resize';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!isResizing) return;
+      const container = document.querySelector('.split-container');
+      const rect = container.getBoundingClientRect();
+      const percent = ((e.clientX - rect.left) / rect.width) * 100;
+      if (percent >= 20 && percent <= 50) {
+        leftPane.style.flex = `0 0 ${percent}%`;
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      isResizing = false;
+      document.body.style.cursor = 'default';
+    });
+
+    // Render Categories
+    function renderCategories() {
+      const container = document.getElementById('categoriesList');
+      container.innerHTML = '';
+      
+      const categories = Object.keys(queriesData);
+      const filtered = categories.filter(cat => {
+        if (!searchTerm) return true;
+        const matchCat = cat.toLowerCase().includes(searchTerm);
+        const matchQuery = queriesData[cat].some(q => 
+          q.name.toLowerCase().includes(searchTerm) || 
+          q.description.toLowerCase().includes(searchTerm)
+        );
+        return matchCat || matchQuery;
+      });
+
+      filtered.forEach(category => {
+        const queries = queriesData[category].filter(q => 
+          !searchTerm || 
+          q.name.toLowerCase().includes(searchTerm) || 
+          q.description.toLowerCase().includes(searchTerm) ||
+          category.toLowerCase().includes(searchTerm)
+        );
+
+        if (queries.length === 0) return;
+
+        const catDiv = document.createElement('div');
+        catDiv.className = 'mb-2';
+        
+        const catHeader = document.createElement('div');
+        catHeader.className = `category-item px-4 py-3 font-semibold text-sm ${currentCategory === category ? 'active' : ''}`;
+        catHeader.innerHTML = `
+          <i class="fas fa-folder mr-2"></i>${category}
+          <span class="text-xs ml-2 text-gray-500">(${queries.length})</span>
+        `;
+        catHeader.onclick = () => toggleCategory(category);
+        
+        catDiv.appendChild(catHeader);
+
+        if (currentCategory === category) {
+          const queriesList = document.createElement('div');
+          queriesList.className = 'ml-4';
+          
+          queries.forEach((query, index) => {
+            const queryDiv = document.createElement('div');
+            queryDiv.className = `query-item px-4 py-2 text-sm ${currentQuery === query ? 'active' : ''}`;
+            queryDiv.innerHTML = `
+              <div class="font-medium">${query.name}</div>
+              <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">${query.description}</div>
+            `;
+            queryDiv.onclick = () => selectQuery(category, queriesData[category].indexOf(query));
+            queriesList.appendChild(queryDiv);
+          });
+          
+          catDiv.appendChild(queriesList);
+        }
+        
+        container.appendChild(catDiv);
+      });
+    }
+
+    function toggleCategory(category) {
+      currentCategory = currentCategory === category ? null : category;
+      renderCategories();
+    }
+
+    function selectQuery(category, index) {
+      const query = queriesData[category][index];
+      currentQuery = query;
+      currentCategory = category;
+      
+      document.getElementById('emptyState').classList.add('hidden');
+      document.getElementById('queryView').classList.remove('hidden');
+      
+      document.getElementById('queryTitle').textContent = query.name;
+      document.getElementById('queryDescription').textContent = query.description;
+      
+      if (monacoEditor) {
+        monacoEditor.setValue(query.query);
+      }
+      
+      renderCategories();
+    }
+
+    // Search
+    document.getElementById('searchInput').addEventListener('input', (e) => {
+      searchTerm = e.target.value.toLowerCase().trim();
+      renderCategories();
+    });
+
+    // Copy to Clipboard
+    document.getElementById('copyBtn').addEventListener('click', () => {
+      if (monacoEditor) {
+        const query = monacoEditor.getValue();
+        navigator.clipboard.writeText(query).then(() => {
+          const btn = document.getElementById('copyBtn');
+          const originalHTML = btn.innerHTML;
+          btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+          btn.classList.add('bg-green-600');
+          btn.classList.remove('bg-indigo-600');
+          setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('bg-green-600');
+            btn.classList.add('bg-indigo-600');
+          }, 2000);
+        });
+      }
+    });
+
+    // Add Category
+    document.getElementById('addCategoryBtn').addEventListener('click', () => {
+      document.getElementById('categoryModal').classList.remove('hidden');
+      document.getElementById('categoryNameInput').value = '';
+    });
+
+    document.getElementById('cancelCategoryBtn').addEventListener('click', () => {
+      document.getElementById('categoryModal').classList.add('hidden');
+    });
+
+    document.getElementById('saveCategoryBtn').addEventListener('click', () => {
+      const name = document.getElementById('categoryNameInput').value.trim();
+      if (name && !queriesData[name]) {
+        queriesData[name] = [];
+        currentCategory = name;
+        document.getElementById('categoryModal').classList.add('hidden');
+        renderCategories();
+      } else {
+        alert('Category already exists or invalid name');
+      }
+    });
+
+    // Add/Edit Query
+    document.getElementById('addQueryBtn').addEventListener('click', () => {
+      editingQueryIndex = -1;
+      document.getElementById('queryModalTitle').textContent = 'Add Query';
+      populateCategorySelect();
+      document.getElementById('queryCategorySelect').value = currentCategory || Object.keys(queriesData)[0];
+      document.getElementById('queryNameInput').value = '';
+      document.getElementById('queryDescInput').value = '';
+      document.getElementById('queryCodeInput').value = '';
+      document.getElementById('queryModal').classList.remove('hidden');
+    });
+
+    document.getElementById('editQueryBtn').addEventListener('click', () => {
+      if (!currentQuery || !currentCategory) return;
+      
+      editingQueryIndex = queriesData[currentCategory].indexOf(currentQuery);
+      document.getElementById('queryModalTitle').textContent = 'Edit Query';
+      populateCategorySelect();
+      document.getElementById('queryCategorySelect').value = currentCategory;
+      document.getElementById('queryNameInput').value = currentQuery.name;
+      document.getElementById('queryDescInput').value = currentQuery.description;
+      document.getElementById('queryCodeInput').value = currentQuery.query;
+      document.getElementById('queryModal').classList.remove('hidden');
+    });
+
+    document.getElementById('cancelQueryBtn').addEventListener('click', () => {
+      document.getElementById('queryModal').classList.add('hidden');
+    });
+
+    document.getElementById('saveQueryBtn').addEventListener('click', () => {
+      const category = document.getElementById('queryCategorySelect').value;
+      const name = document.getElementById('queryNameInput').value.trim();
+      const description = document.getElementById('queryDescInput').value.trim();
+      const query = document.getElementById('queryCodeInput').value.trim();
+
+      if (!name || !query) {
+        alert('Name and Query are required');
+        return;
+      }
+
+      const queryObj = { name, description, query };
+
+      if (editingQueryIndex >= 0) {
+        // Edit existing
+        const oldCategory = currentCategory;
+        if (oldCategory !== category) {
+          queriesData[oldCategory].splice(editingQueryIndex, 1);
+          if (!queriesData[category]) queriesData[category] = [];
+          queriesData[category].push(queryObj);
+        } else {
+          queriesData[category][editingQueryIndex] = queryObj;
+        }
+      } else {
+        // Add new
+        if (!queriesData[category]) queriesData[category] = [];
+        queriesData[category].push(queryObj);
+      }
+
+      currentCategory = category;
+      document.getElementById('queryModal').classList.add('hidden');
+      renderCategories();
+      
+      // Select the newly added/edited query
+      const index = queriesData[category].indexOf(queryObj);
+      selectQuery(category, index);
+    });
+
+    // Delete Query
+    document.getElementById('deleteQueryBtn').addEventListener('click', () => {
+      if (!currentQuery || !currentCategory) return;
+      
+      if (confirm(`Delete "${currentQuery.name}"?`)) {
+        const index = queriesData[currentCategory].indexOf(currentQuery);
+        queriesData[currentCategory].splice(index, 1);
+        
+        if (queriesData[currentCategory].length === 0) {
+          delete queriesData[currentCategory];
+          currentCategory = null;
+        }
+        
+        currentQuery = null;
+        document.getElementById('queryView').classList.add('hidden');
+        document.getElementById('emptyState').classList.remove('hidden');
+        renderCategories();
+      }
+    });
+
+    function populateCategorySelect() {
+      const select = document.getElementById('queryCategorySelect');
+      select.innerHTML = '';
+      Object.keys(queriesData).forEach(cat => {
+        const option = document.createElement('option');
+        option.value = cat;
+        option.textContent = cat;
+        select.appendChild(option);
+      });
+    }
+
+    // Save to JSON
+    document.getElementById('saveBtn').addEventListener('click', () => {
+      const dataStr = JSON.stringify(queriesData, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `soql-queries-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // Load from URL parameter ?d=queries.json
+    const urlParams = new URLSearchParams(window.location.search);
+    let dataUrl = urlParams.get('d');
+    if (dataUrl === null) {
+      dataUrl = 'q1.json';
+    } 
+
+    
+    if (dataUrl) {
+      fetch(dataUrl)
+        .then(res => res.json())
+        .then(data => {
+          queriesData = data;
+          renderCategories();
+        })
+        .catch(err => {
+          console.error('Error loading data:', err);
+          alert('Failed to load data from URL');
+          renderCategories();
+        });
+    } else {
+      renderCategories();
+    }
+  </script>
+</body>
+</html>
