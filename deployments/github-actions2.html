@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Salesforce CI/CD with GitHub Actions</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class'
+    }
+  </script>
+
+  <!-- Mermaid -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({ theme: 'dark' });
+  </script>
+</head>
+
+<body class="bg-gray-900 text-gray-200 transition-colors duration-300">
+
+<!-- Layout -->
+<div class="flex min-h-screen">
+
+  <!-- Sidebar -->
+  <aside class="w-64 bg-gray-800 border-r border-gray-700 p-5 hidden md:block">
+    <h2 class="text-lg font-bold text-cyan-400 mb-4">📘 Docs</h2>
+    <nav class="space-y-2 text-gray-300">
+      <a href="#overview" class="block hover:text-cyan-400">Overview</a>
+      <a href="#diagram" class="block hover:text-cyan-400">CI/CD Flow</a>
+      <a href="#workflow" class="block hover:text-cyan-400">Workflow YAML</a>
+      <a href="#branches" class="block hover:text-cyan-400">Branch Strategy</a>
+      <a href="#best-practices" class="block hover:text-cyan-400">Best Practices</a>
+    </nav>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 p-6 md:p-10 space-y-12">
+
+    <!-- Header -->
+    <header class="flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold text-cyan-400">
+          Salesforce CI/CD with GitHub Actions
+        </h1>
+        <p class="text-gray-400 mt-1">
+          Automated deployments using source-driven development
+        </p>
+      </div>
+
+      <!-- Theme Toggle -->
+      <button
+        onclick="toggleTheme()"
+        class="px-4 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-sm">
+        🌗 Toggle Theme
+      </button>
+    </header>
+
+    <!-- Overview -->
+    <section id="overview" class="bg-gray-800 rounded-xl p-6 shadow">
+      <h2 class="text-2xl font-semibold mb-3">Overview</h2>
+      <p class="text-gray-300">
+        GitHub Actions enables automated validation and deployment of Salesforce
+        metadata. GitHub acts as the <span class="text-cyan-400 font-medium">
+        single source of truth</span>.
+      </p>
+    </section>
+
+    <!-- Mermaid Diagram -->
+    <section id="diagram" class="bg-gray-800 rounded-xl p-6 shadow">
+      <h2 class="text-2xl font-semibold mb-4">CI/CD Flow</h2>
+
+      <div class="mermaid bg-gray-900 rounded-lg p-4 text-sm">
+        flowchart LR
+          Dev[Developer Commit]
+          PR[Pull Request]
+          GA[GitHub Actions]
+          SF[Salesforce Org]
+
+          Dev --> PR
+          PR -->|Validate| GA
+          GA -->|Deploy| SF
+      </div>
+    </section>
+
+    <!-- Workflow -->
+    <section id="workflow" class="bg-gray-800 rounded-xl p-6 shadow">
+      <h2 class="text-2xl font-semibold mb-4">GitHub Actions Workflow</h2>
+
+      <div class="relative">
+        <button
+          onclick="copyCode('yaml')"
+          class="absolute top-3 right-3 text-xs px-3 py-1 bg-gray-700 rounded hover:bg-gray-600">
+          📋 Copy
+        </button>
+
+        <pre id="yaml" class="bg-gray-900 rounded-lg p-4 text-sm overflow-x-auto">
+name: Salesforce CI/CD
+
+on:
+  pull_request:
+    branches: [ develop ]
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: salesforcecli/sf-action@v1
+
+      - name: Authenticate
+        run: |
+          echo "$SF_JWT_KEY" > server.key
+          sf org login jwt \
+            --client-id $SF_CLIENT_ID \
+            --jwt-key-file server.key \
+            --username $SF_USERNAME \
+            --instance-url $SF_INSTANCE_URL \
+            --alias sf-org
+
+      - name: Validate or Deploy
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            sf project deploy validate -o sf-org
+          else
+            sf project deploy start -o sf-org
+          fi
+        </pre>
+      </div>
+    </section>
+
+    <!-- Branch Strategy -->
+    <section id="branches" class="bg-gray-800 rounded-xl p-6 shadow">
+      <h2 class="text-2xl font-semibold mb-4">Branch Strategy</h2>
+
+      <table class="w-full text-left border border-gray-700 rounded-lg">
+        <thead class="bg-gray-900">
+          <tr>
+            <th class="px-4 py-2">Branch</th>
+            <th class="px-4 py-2">Purpose</th>
+          </tr>
+        </thead>
+        <tbody class="text-gray-400">
+          <tr>
+            <td class="px-4 py-2 border-t border-gray-700">feature/*</td>
+            <td class="px-4 py-2 border-t border-gray-700">Development</td>
+          </tr>
+          <tr>
+            <td class="px-4 py-2 border-t border-gray-700">develop</td>
+            <td class="px-4 py-2 border-t border-gray-700">Validation</td>
+          </tr>
+          <tr>
+            <td class="px-4 py-2 border-t border-gray-700">main</td>
+            <td class="px-4 py-2 border-t border-gray-700">Production Deploy</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Best Practices -->
+    <section id="best-practices" class="bg-gray-800 rounded-xl p-6 shadow">
+      <h2 class="text-2xl font-semibold mb-4">Best Practices</h2>
+      <ul class="list-disc list-inside space-y-2 text-gray-300">
+        <li>Use JWT authentication</li>
+        <li>Validate before deploy</li>
+        <li>Never commit secrets</li>
+        <li>Deploy only source-backed metadata</li>
+        <li>Small, focused pull requests</li>
+      </ul>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center text-sm text-gray-500 pt-10">
+      © 2025 • Salesforce CI/CD Documentation
+    </footer>
+
+  </main>
+</div>
+
+<!-- Scripts -->
+<script>
+  function copyCode(id) {
+    const el = document.getElementById(id);
+    navigator.clipboard.writeText(el.innerText);
+    alert("Copied to clipboard!");
+  }
+
+  function toggleTheme() {
+    document.documentElement.classList.toggle('dark');
+    mermaid.initialize({
+      theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default'
+    });
+  }
+</script>
+
+</body>
+</html>
