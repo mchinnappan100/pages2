@@ -1,0 +1,737 @@
+<script>
+    // Theme Toggle
+    function toggleTheme() {
+      const html = document.documentElement;
+      html.classList.toggle('dark');
+      localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+    }
+
+    // Load saved theme
+    if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+
+    // Note button interactions
+    document.querySelectorAll('.note-button').forEach(button => {
+      button.addEventListener('click', function() {
+        const parent = this.parentElement;
+        parent.querySelectorAll('.note-button').forEach(btn => {
+          if (btn !== this) btn.classList.remove('active');
+        });
+        this.classList.toggle('active');
+      });
+    });
+
+    // Playback state
+    let isPlaying = false;
+    let currentTime = 0;
+    let playbackInterval = null;
+
+    // Play button
+    const playBtn = document.querySelector('footer button[title="Play"]');
+    const stopBtn = document.querySelector('footer button[title="Stop"]');
+    const timeDisplay = document.querySelector('.font-mono');
+
+    playBtn.addEventListener('click', function() {
+      isPlaying = !isPlaying;
+      
+      if (isPlaying) {
+        this.innerHTML = `
+          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+          </svg>
+        `;
+        this.title = "Pause";
+        startPlayback();
+      } else {
+        this.innerHTML = `
+          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+        `;
+        this.title = "Play";
+        stopPlayback();
+      }
+    });
+
+    stopBtn.addEventListener('click', function() {
+      isPlaying = false;
+      currentTime = 0;
+      updateTimeDisplay();
+      stopPlayback();
+      playBtn.innerHTML = `
+        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      `;
+      playBtn.title = "Play";
+    });
+
+    function startPlayback() {
+      playbackInterval = setInterval(() => {
+        currentTime += 100;
+        updateTimeDisplay();
+      }, 100);
+    }
+
+    function stopPlayback() {
+      if (playbackInterval) {
+        clearInterval(playbackInterval);
+        playbackInterval = null;
+      }
+    }
+
+    function updateTimeDisplay() {
+      const totalMs = currentTime;
+      const minutes = Math.floor(totalMs / 60000);
+      const seconds = Math.floor((totalMs % 60000) / 1000);
+      const ms = Math.floor((totalMs % 1000) / 100);
+      timeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}:${ms.toString().padStart(2, '0')}.0`;
+    }
+
+    // Palette item clicks
+    document.querySelectorAll('details button').forEach(button => {
+      button.addEventListener('click', function() {
+        console.log('Selected:', this.textContent.trim());
+        // Visual feedback
+        this.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+          this.style.transform = 'scale(1)';
+        }, 100);
+      });
+    });
+
+    // Keyboard shortcuts
+    document.addEventListener('keydown', function(e) {
+      // Space bar for play/pause
+      if (e.code === 'Space' && e.target.tagName !== 'INPUT') {
+        e.preventDefault();
+        playBtn.click();
+      }
+      
+      // Numbers for note durations
+      if (e.key >= '1' && e.key <= '5') {
+        const noteButtons = document.querySelectorAll('.toolbar-section:nth-child(2) .note-button');
+        const index = parseInt(e.key) - 1;
+        if (noteButtons[index]) {
+          noteButtons[index].click();
+        }
+      }
+      
+      // Arrow keys for navigation
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        console.log('Navigate:', e.key);
+      }
+    });
+
+    // Score title editing
+    const scoreTitle = document.querySelector('main h1');
+    const scoreSubtitle = document.querySelector('main p');
+    
+    scoreTitle.addEventListener('dblclick', function() {
+      const currentText = this.textContent;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = currentText;
+      input.className = 'text-4xl font-bold text-gray-900 dark:text-gray-100 bg-transparent border-b-2 border-blue-500 outline-none text-center w-full';
+      
+      this.textContent = '';
+      this.appendChild(input);
+      input.focus();
+      input.select();
+      
+      input.addEventListener('blur', function() {
+        scoreTitle.textContent = this.value || 'Untitled Score';
+      });
+      
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          this.blur();
+        }
+      });
+    });
+
+    scoreSubtitle.addEventListener('dblclick', function() {
+      const currentText = this.textContent;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = currentText;
+      input.className = 'text-lg text-gray-600 dark:text-gray-400 bg-transparent border-b-2 border-blue-500 outline-none text-center w-full';
+      
+      this.textContent = '';
+      this.appendChild(input);
+      input.focus();
+      input.select();
+      
+      input.addEventListener('blur', function() {
+        scoreSubtitle.textContent = this.value || 'Subtitle';
+      });
+      
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          this.blur();
+        }
+      });
+    });
+
+    // Save functionality
+    document.querySelector('header button.bg-blue-600').addEventListener('click', function() {
+      const title = scoreTitle.textContent;
+      const subtitle = scoreSubtitle.textContent;
+      
+      const notification = document.createElement('div');
+      notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300';
+      notification.textContent = '✓ Score saved successfully!';
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        notification.style.opacity = '0';
+        setTimeout(() => notification.remove(), 300);
+      }, 2000);
+      
+      console.log('Saved:', { title, subtitle });
+    });
+
+    // Zoom functionality
+    let zoomLevel = 100;
+    const zoomDisplay = document.querySelector('footer .flex.items-center.gap-2:last-child span');
+    
+    document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.key === '+') {
+        e.preventDefault();
+        zoomLevel = Math.min(200, zoomLevel + 10);
+        updateZoom();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === '-') {
+        e.preventDefault();
+        zoomLevel = Math.max(50, zoomLevel - 10);
+        updateZoom();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        zoomLevel = 100;
+        updateZoom();
+      }
+    });
+
+    function updateZoom() {
+      const scoreCanvas = document.querySelector('main > div');
+      scoreCanvas.style.transform = `scale(${zoomLevel / 100})`;
+      scoreCanvas.style.transformOrigin = 'top center';
+      zoomDisplay.textContent = `Zoom: ${zoomLevel}%`;
+    }
+
+    // Interactive staff click
+    document.querySelectorAll('svg').forEach(svg => {
+      svg.addEventListener('click', function(e) {
+        const rect = this.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // Create a visual indicator
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("cx", x);
+        circle.setAttribute("cy", y);
+        circle.setAttribute("r", "6");
+        circle.setAttribute("class", "note-head");
+        circle.style.opacity = '0';
+        circle.style.transition = 'opacity 0.3s';
+        
+        this.appendChild(circle);
+        
+        setTimeout(() => {
+          circle.style.opacity = '1';
+        }, 10);
+        
+        console.log('Note added at:', { x, y });
+      });
+    });
+
+    // File menu simulation
+    const fileBtn = document.querySelector('nav button:first-child');
+    fileBtn.addEventListener('click', function() {
+      const menu = document.createElement('div');
+      menu.className = 'absolute top-full left-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl py-2 z-50 min-w-[200px]';
+      menu.innerHTML = `
+        <button class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">New</button>
+        <button class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Open...</button>
+        <button class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Save</button>
+        <button class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Save As...</button>
+        <hr class="my-2 border-gray-200 dark:border-gray-700">
+        <button class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Export PDF</button>
+        <button class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">Export MIDI</button>
+      `;
+      
+      this.parentElement.style.position = 'relative';
+      this.parentElement.appendChild(menu);
+      
+      setTimeout(() => {
+        document.addEventListener('click', function closeMenu(e) {
+          if (!menu.contains(e.target) && e.target !== fileBtn) {
+            menu.remove();
+            document.removeEventListener('click', closeMenu);
+          }
+        });
+      }, 0);
+    });
+
+    // Console welcome message
+    console.log('%c🎵 Music Composer App', 'color: #3b82f6; font-size: 20px; font-weight: bold;');
+    console.log('%cKeyboard Shortcuts:', 'color: #8b5cf6; font-size: 14px; font-weight: bold;');
+    console.log('Space: Play/Pause');
+    console.log('1-5: Select note duration');
+    console.log('Ctrl/Cmd + Plus: Zoom in');
+    console.log('Ctrl/Cmd + Minus: Zoom out');
+    console.log('Ctrl/Cmd + 0: Reset zoom');
+    console.log('%cDouble-click title to edit', 'color: #10b981; font-style: italic;');
+  </script>
+
+</body>
+</html></parameter>
+<parameter name="old_str">  <script>
+    // Theme Toggle
+    function toggleTheme() {
+      const html = document.documentElement;
+      html.classList.toggle('dark');
+      localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+    }
+
+    // Load saved theme
+    if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+
+    // Note button interactions
+    document.querySelectorAll('.note-button').forEach(button => {
+      button.addEventListener('click', function() {
+        const parent = this.parentElement;
+        parent.querySelectorAll('.note-button').forEach(btn => {
+          if (btn !== this) btn.classList.remove('active');
+        });
+        this.classList.toggle('active');
+      });
+    });
+  </script>
+
+</body>
+</html></parameter><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎼 Music Composer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: '#3b82f6',
+            dark: '#1e293b',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .note-button {
+      transition: all 0.2s ease;
+    }
+    .note-button:hover {
+      transform: translateY(-2px);
+    }
+    .note-button.active {
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      color: white;
+    }
+    .staff-line {
+      stroke: currentColor;
+      stroke-width: 1;
+    }
+    .note-head {
+      fill: currentColor;
+    }
+    .toolbar-section {
+      border-right: 1px solid;
+    }
+    .dark .toolbar-section {
+      border-color: #475569;
+    }
+    .toolbar-section {
+      border-color: #e2e8f0;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+
+  <!-- Top Menu Bar -->
+  <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <div class="px-4 py-2">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2">
+            <span class="text-2xl">🎼</span>
+            <h1 class="text-xl font-bold text-gray-800 dark:text-gray-100">Music Composer</h1>
+          </div>
+          <nav class="hidden md:flex items-center gap-1">
+            <button class="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">File</button>
+            <button class="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Edit</button>
+            <button class="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">View</button>
+            <button class="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Add</button>
+            <button class="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Format</button>
+            <button class="px-3 py-1.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Tools</button>
+          </nav>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="toggleTheme()" class="p-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+            <svg id="theme-icon-light" class="w-5 h-5 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+            </svg>
+            <svg id="theme-icon-dark" class="w-5 h-5 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+            </svg>
+          </button>
+          <button class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors">
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Secondary Navigation -->
+  <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+    <div class="px-4 py-2">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <button class="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400">Score</button>
+          <button class="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100">Publish</button>
+        </div>
+        <div class="flex items-center gap-2">
+          <button class="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" title="Parts">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+          </button>
+          <button class="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded" title="Mixer">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Toolbar -->
+  <div class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <div class="px-4 py-3">
+      <div class="flex items-center gap-1 flex-wrap">
+        <!-- Selection Tools -->
+        <div class="toolbar-section pr-3 flex items-center gap-1">
+          <button class="note-button p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Select">
+            <svg class="w-5 h-5 text-gray-700 dark:text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/>
+            </svg>
+          </button>
+          <button class="note-button active p-2 rounded" title="Note Input">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Note Duration -->
+        <div class="toolbar-section px-3 flex items-center gap-1">
+          <button class="note-button p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300" title="Whole Note">
+            <span class="text-xl font-bold">𝅝</span>
+          </button>
+          <button class="note-button p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300" title="Half Note">
+            <span class="text-xl font-bold">𝅗𝅥</span>
+          </button>
+          <button class="note-button active p-2 rounded text-white" title="Quarter Note">
+            <span class="text-xl font-bold">♩</span>
+          </button>
+          <button class="note-button p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300" title="Eighth Note">
+            <span class="text-xl font-bold">♪</span>
+          </button>
+          <button class="note-button p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300" title="Sixteenth Note">
+            <span class="text-xl font-bold">𝅘𝅥𝅯</span>
+          </button>
+        </div>
+
+        <!-- Accidentals -->
+        <div class="toolbar-section px-3 flex items-center gap-1">
+          <button class="note-button p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300" title="Sharp">
+            <span class="text-xl font-bold">#</span>
+          </button>
+          <button class="note-button p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300" title="Flat">
+            <span class="text-xl font-bold">♭</span>
+          </button>
+          <button class="note-button p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300" title="Natural">
+            <span class="text-xl font-bold">♮</span>
+          </button>
+        </div>
+
+        <!-- Articulations -->
+        <div class="toolbar-section px-3 flex items-center gap-1">
+          <button class="note-button p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300" title="Staccato">
+            <span class="text-lg">•</span>
+          </button>
+          <button class="note-button p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300" title="Accent">
+            <span class="text-lg">></span>
+          </button>
+          <button class="note-button p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300" title="Fermata">
+            <span class="text-xl">𝄐</span>
+          </button>
+        </div>
+
+        <!-- More Tools -->
+        <div class="flex items-center gap-1 pl-3">
+          <button class="note-button p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300" title="Text">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+            </svg>
+          </button>
+          <button class="note-button p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300" title="Dynamics">
+            <span class="text-sm font-bold italic">f</span>
+          </button>
+          <button class="note-button p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300" title="More">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content Area -->
+  <div class="flex h-[calc(100vh-220px)]">
+    
+    <!-- Left Sidebar - Palettes -->
+    <aside class="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
+      <div class="p-4">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-sm font-semibold text-gray-700 dark:text-gray-300">Palettes</h2>
+          <button class="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- Clefs -->
+        <details open class="mb-4">
+          <summary class="cursor-pointer py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
+            Clefs
+          </summary>
+          <div class="mt-2 grid grid-cols-3 gap-2">
+            <button class="p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-center transition-colors">
+              <span class="text-3xl">𝄞</span>
+            </button>
+            <button class="p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-center transition-colors">
+              <span class="text-3xl">𝄢</span>
+            </button>
+            <button class="p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-center transition-colors">
+              <span class="text-3xl">𝄡</span>
+            </button>
+          </div>
+        </details>
+
+        <!-- Key Signatures -->
+        <details open class="mb-4">
+          <summary class="cursor-pointer py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
+            Key Signatures
+          </summary>
+          <div class="mt-2 space-y-1">
+            <button class="w-full p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-left text-sm transition-colors">
+              C Major
+            </button>
+            <button class="w-full p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-left text-sm transition-colors">
+              G Major (1#)
+            </button>
+            <button class="w-full p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-left text-sm transition-colors">
+              D Major (2#)
+            </button>
+            <button class="w-full p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-left text-sm transition-colors">
+              A Minor
+            </button>
+          </div>
+        </details>
+
+        <!-- Time Signatures -->
+        <details open class="mb-4">
+          <summary class="cursor-pointer py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
+            Time Signatures
+          </summary>
+          <div class="mt-2 grid grid-cols-3 gap-2">
+            <button class="p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-center transition-colors">
+              <div class="text-lg font-bold text-gray-700 dark:text-gray-300">4/4</div>
+            </button>
+            <button class="p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-center transition-colors">
+              <div class="text-lg font-bold text-gray-700 dark:text-gray-300">3/4</div>
+            </button>
+            <button class="p-3 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-center transition-colors">
+              <div class="text-lg font-bold text-gray-700 dark:text-gray-300">6/8</div>
+            </button>
+          </div>
+        </details>
+
+        <!-- Dynamics -->
+        <details open class="mb-4">
+          <summary class="cursor-pointer py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
+            Dynamics
+          </summary>
+          <div class="mt-2 grid grid-cols-3 gap-2">
+            <button class="p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-center transition-colors">
+              <span class="text-lg font-bold italic text-gray-700 dark:text-gray-300">pp</span>
+            </button>
+            <button class="p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-center transition-colors">
+              <span class="text-lg font-bold italic text-gray-700 dark:text-gray-300">p</span>
+            </button>
+            <button class="p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-center transition-colors">
+              <span class="text-lg font-bold italic text-gray-700 dark:text-gray-300">mp</span>
+            </button>
+            <button class="p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-center transition-colors">
+              <span class="text-lg font-bold italic text-gray-700 dark:text-gray-300">mf</span>
+            </button>
+            <button class="p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-center transition-colors">
+              <span class="text-lg font-bold italic text-gray-700 dark:text-gray-300">f</span>
+            </button>
+            <button class="p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-center transition-colors">
+              <span class="text-lg font-bold italic text-gray-700 dark:text-gray-300">ff</span>
+            </button>
+          </div>
+        </details>
+
+        <!-- Tempo -->
+        <details class="mb-4">
+          <summary class="cursor-pointer py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
+            Tempo
+          </summary>
+          <div class="mt-2 space-y-1">
+            <button class="w-full p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-left text-sm transition-colors">
+              Allegro
+            </button>
+            <button class="w-full p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-left text-sm transition-colors">
+              Moderato
+            </button>
+            <button class="w-full p-2 bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 rounded text-left text-sm transition-colors">
+              Andante
+            </button>
+          </div>
+        </details>
+      </div>
+    </aside>
+
+    <!-- Score Canvas -->
+    <main class="flex-1 overflow-auto bg-gray-100 dark:bg-gray-900 p-8">
+      <div class="max-w-5xl mx-auto bg-white dark:bg-gray-800 shadow-2xl rounded-lg p-12 min-h-[1000px]">
+        
+        <!-- Title Section -->
+        <div class="text-center mb-12">
+          <h1 class="text-4xl font-bold text-gray-900 dark:text-gray-100 mb-2">Untitled Score</h1>
+          <p class="text-lg text-gray-600 dark:text-gray-400">Subtitle</p>
+          <p class="text-right text-sm text-gray-500 dark:text-gray-500 mt-4">Composer</p>
+        </div>
+
+        <!-- Staff -->
+        <div class="space-y-16">
+          <!-- System 1 -->
+          <div class="relative">
+            <svg width="100%" height="200" class="text-gray-800 dark:text-gray-300">
+              <!-- Treble Clef Staff Lines -->
+              <line x1="0" y1="40" x2="100%" y2="40" class="staff-line" />
+              <line x1="0" y1="60" x2="100%" y2="60" class="staff-line" />
+              <line x1="0" y1="80" x2="100%" y2="80" class="staff-line" />
+              <line x1="0" y1="100" x2="100%" y2="100" class="staff-line" />
+              <line x1="0" y1="120" x2="100%" y2="120" class="staff-line" />
+              
+              <!-- Treble Clef -->
+              <text x="10" y="105" font-size="80" class="fill-current">𝄞</text>
+              
+              <!-- Time Signature -->
+              <text x="85" y="90" font-size="32" font-weight="bold" class="fill-current">4</text>
+              <text x="85" y="115" font-size="32" font-weight="bold" class="fill-current">4</text>
+              
+              <!-- Sample Notes -->
+              <circle cx="130" cy="100" r="6" class="note-head" />
+              <circle cx="170" cy="90" r="6" class="note-head" />
+              <circle cx="210" cy="80" r="6" class="note-head" />
+              <circle cx="250" cy="70" r="6" class="note-head" />
+              
+              <!-- Bar Lines -->
+              <line x1="110" y1="40" x2="110" y2="120" stroke="currentColor" stroke-width="1.5" />
+              <line x1="300" y1="40" x2="300" y2="120" stroke="currentColor" stroke-width="1.5" />
+            </svg>
+          </div>
+
+          <!-- System 2 -->
+          <div class="relative">
+            <svg width="100%" height="200" class="text-gray-800 dark:text-gray-300">
+              <!-- Bass Clef Staff Lines -->
+              <line x1="0" y1="40" x2="100%" y2="40" class="staff-line" />
+              <line x1="0" y1="60" x2="100%" y2="60" class="staff-line" />
+              <line x1="0" y1="80" x2="100%" y2="80" class="staff-line" />
+              <line x1="0" y1="100" x2="100%" y2="100" class="staff-line" />
+              <line x1="0" y1="120" x2="100%" y2="120" class="staff-line" />
+              
+              <!-- Bass Clef -->
+              <text x="10" y="108" font-size="60" class="fill-current">𝄢</text>
+              
+              <!-- Bar Lines -->
+              <line x1="90" y1="40" x2="90" y2="120" stroke="currentColor" stroke-width="1.5" />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Playback Controls -->
+  <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 shadow-lg">
+    <div class="px-4 py-3">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <button class="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Play">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M8 5v14l11-7z"/>
+            </svg>
+          </button>
+          <button class="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors" title="Stop">
+            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M6 6h12v12H6z"/>
+            </svg>
+          </button>
+          <div class="text-sm text-gray-600 dark:text-gray-400 font-mono">0:00:00.0</div>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-600 dark:text-gray-400">♩ = 120</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-600 dark:text-gray-400">Zoom: 100%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Theme Toggle
+    function toggleTheme() {
+      const html = document.documentElement;
+      html.classList.toggle('dark');
+      localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+    }
+
+    // Load saved theme
+    if (localStorage.getItem('theme') === 'dark' || (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+
+    // Note button interactions
+    document.querySelectorAll('.note-button').forEach(button => {
+      button

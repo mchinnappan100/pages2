@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎹 MIDI Player</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/combine/npm/tone@14.7.58,npm/@magenta/music@1.23.1/es6/core.js,npm/focus-visible@5,npm/html-midi-player@1.5.0"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          animation: {
+            'fade-in': 'fadeIn 0.5s ease-out',
+            'slide-up': 'slideUp 0.5s ease-out',
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+          },
+          keyframes: {
+            fadeIn: {
+              '0%': { opacity: '0' },
+              '100%': { opacity: '1' },
+            },
+            slideUp: {
+              '0%': { transform: 'translateY(20px)', opacity: '0' },
+              '100%': { transform: 'translateY(0)', opacity: '1' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    .glass {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .dark .glass {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .gradient-bg {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    .dark .gradient-bg {
+      background: linear-gradient(135deg, #1e3a8a 0%, #312e81 100%);
+    }
+
+    .upload-zone {
+      border: 2px dashed #cbd5e0;
+      transition: all 0.3s;
+    }
+
+    .upload-zone.dragover {
+      border-color: #667eea;
+      background: rgba(102, 126, 234, 0.1);
+      transform: scale(1.02);
+    }
+
+    .dark .upload-zone {
+      border-color: #4b5563;
+    }
+
+    .dark .upload-zone.dragover {
+      border-color: #667eea;
+      background: rgba(102, 126, 234, 0.2);
+    }
+
+    midi-player {
+      animation: fadeIn 0.5s ease-out;
+    }
+
+    .feature-card {
+      transition: all 0.3s ease;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-5px);
+    }
+
+    /* MIDI Player Styling */
+    midi-player {
+      width: 100%;
+      display: block;
+      --player-bg-color: transparent;
+      --player-text-color: inherit;
+    }
+
+    .dark midi-player {
+      --player-bg-color: transparent;
+      --player-text-color: #f9fafb;
+    }
+
+    midi-visualizer {
+      width: 100%;
+      height: 200px;
+      display: block;
+      border-radius: 0.5rem;
+      background: #f3f4f6;
+      overflow: hidden;
+    }
+
+    .dark midi-visualizer {
+      background: #1f2937;
+    }
+  </style>
+</head>
+<body class="min-h-screen transition-colors duration-300 bg-gray-50 dark:bg-gray-900">
+  
+  <!-- Header -->
+  <header class="sticky top-0 z-50 glass shadow-lg">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="text-4xl">🎹</div>
+          <div>
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              MIDI Player
+            </h1>
+            <p class="text-xs text-gray-600 dark:text-gray-400">Professional Web Audio Player</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+          <!-- Theme Toggle -->
+          <button id="theme-toggle" class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+            <svg id="sun-icon" class="w-6 h-6 hidden dark:block text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+            </svg>
+            <svg id="moon-icon" class="w-6 h-6 block dark:hidden text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+            </svg>
+          </button>
+
+          <!-- GitHub Link -->
+          <a href="https://github.com" target="_blank" class="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors">
+            <svg class="w-6 h-6 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- Hero Section -->
+    <div class="gradient-bg rounded-3xl p-8 mb-8 text-white shadow-2xl animate-fade-in">
+      <div class="max-w-3xl mx-auto text-center">
+        <h2 class="text-4xl font-bold mb-4">Professional MIDI Playback</h2>
+        <p class="text-lg opacity-90 mb-6">
+          Experience high-quality MIDI playback right in your browser. Load files via URL or drag & drop.
+        </p>
+        <div class="flex flex-wrap gap-4 justify-center text-sm">
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <span>URL Parameters</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <span>Drag & Drop</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+            </svg>
+            <span>Dark/Light Theme</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Player Container -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
+      
+      <!-- Main Player -->
+      <div class="lg:col-span-2 space-y-6">
+        
+        <!-- Player Card -->
+        <div id="player-container" class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 animate-slide-up">
+          <!-- Use html-midi-player for reliable playback -->
+          <div class="mb-4">
+            <div class="flex items-center gap-3 mb-3">
+              <span class="text-2xl">🎹</span>
+              <h3 id="file-title" class="text-xl font-semibold text-gray-900 dark:text-white">MIDI Player</h3>
+            </div>
+            <midi-player id="midi-player" sound-font visualizer="#visualizer"></midi-player>
+            <midi-visualizer id="visualizer" type="piano-roll" class="mt-4"></midi-visualizer>
+          </div>
+        </div>
+
+        <!-- Upload Zone -->
+        <div id="upload-zone" class="upload-zone bg-white dark:bg-gray-800 rounded-2xl p-12 text-center cursor-pointer shadow-xl animate-slide-up">
+          <svg class="w-20 h-20 mx-auto mb-4 text-gray-400 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+          <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            Drop MIDI File Here
+          </h3>
+          <p class="text-gray-600 dark:text-gray-400 mb-4">
+            or click to browse your files
+          </p>
+          <input type="file" id="file-input" accept=".mid,.midi" class="hidden">
+          <button id="browse-btn" class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-lg">
+            Choose File
+          </button>
+        </div>
+
+        <!-- Instructions -->
+        <div class="bg-blue-50 dark:bg-blue-900/20 rounded-2xl p-6 animate-slide-up">
+          <h3 class="text-lg font-semibold text-blue-900 dark:text-blue-300 mb-3 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+            </svg>
+            How to Use
+          </h3>
+          <ul class="space-y-2 text-sm text-blue-800 dark:text-blue-200">
+            <li class="flex items-start gap-2">
+              <span class="font-bold">1.</span>
+              <span>Load a MIDI file using URL parameter: <code class="bg-blue-100 dark:bg-blue-900/40 px-2 py-1 rounded">?m=yourfile.midi</code></span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="font-bold">2.</span>
+              <span>Or drag and drop a MIDI file onto the upload zone</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="font-bold">3.</span>
+              <span>Control playback with the player controls</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="font-bold">4.</span>
+              <span>Toggle dark/light theme with the button in the header</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Sidebar -->
+      <div class="space-y-6">
+        
+        <!-- Quick Examples -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 animate-slide-up">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+            </svg>
+            Sample Files
+          </h3>
+          <div class="space-y-2">
+            <button onclick="loadExample('https://bitmidi.com/uploads/3641.mid')" class="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-left transition-colors group">
+              <div class="flex items-center justify-between">
+                <span class="font-medium text-gray-900 dark:text-white">Bach - Prelude</span>
+                <svg class="w-4 h-4 text-gray-400 group-hover:text-blue-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+              </div>
+              <span class="text-xs text-gray-500 dark:text-gray-400">Classical</span>
+            </button>
+            
+            <button onclick="loadExample('https://bitmidi.com/uploads/31168.mid')" class="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg text-left transition-colors group">
+              <div class="flex items-center justify-between">
+                <span class="font-medium text-gray-900 dark:text-white">Beethoven - Moonlight</span>
+                <svg class="w-4 h-4 text-gray-400 group-hover:text-blue-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+              </div>
+              <span class="text-xs text-gray-500 dark:text-gray-400">Sonata</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Features -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 animate-slide-up">
+          <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Features</h3>
+          <div class="space-y-3">
+            <div class="feature-card p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+              <div class="flex items-center gap-3">
+                <div class="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                  <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="font-medium text-gray-900 dark:text-white text-sm">Fast Loading</div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">Instant playback</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="feature-card p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+              <div class="flex items-center gap-3">
+                <div class="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                  <svg class="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="font-medium text-gray-900 dark:text-white text-sm">Full Control</div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">Play, pause, loop</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="feature-card p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+              <div class="flex items-center gap-3">
+                <div class="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+                  <svg class="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="font-medium text-gray-900 dark:text-white text-sm">Beautiful UI</div>
+                  <div class="text-xs text-gray-500 dark:text-gray-400">Modern design</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-xl p-6 text-white animate-slide-up">
+          <h3 class="text-lg font-semibold mb-4">Why Choose Us?</h3>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-sm opacity-90">No Installation</span>
+              <span class="font-bold text-xl">✓</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm opacity-90">Cross-Platform</span>
+              <span class="font-bold text-xl">✓</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm opacity-90">Open Source</span>
+              <span class="font-bold text-xl">✓</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-sm opacity-90">Free Forever</span>
+              <span class="font-bold text-xl">✓</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-16">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div class="text-center text-sm text-gray-600 dark:text-gray-400">
+        <p class="mb-2">Made with ❤️ using Web Components & Tailwind CSS</p>
+        <p>© 2024 MIDI Player. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Load Web Component (kept for future use) -->
+  <!-- <script src="midi-player-component.js"></script> -->
+
+  <!-- App Logic -->
+  <script>
+    const player = document.getElementById('midi-player');
+    const visualizer = document.getElementById('visualizer');
+    const uploadZone = document.getElementById('upload-zone');
+    const fileInput = document.getElementById('file-input');
+    const browseBtn = document.getElementById('browse-btn');
+    const themeToggle = document.getElementById('theme-toggle');
+    const fileTitle = document.getElementById('file-title');
+
+    // Theme Management
+    function initTheme() {
+      const savedTheme = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      
+      if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+
+    themeToggle.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      const isDark = document.documentElement.classList.contains('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    });
+
+    // Wait for player to be ready
+    customElements.whenDefined('midi-player').then(() => {
+      console.log('✅ MIDI Player ready');
+      
+      // Setup player
+      player.addVisualizer(visualizer);
+      
+      // Load from URL if provided
+      loadFromURL();
+    });
+
+    // URL Parameter Support
+    function loadFromURL() {
+      const params = new URLSearchParams(window.location.search);
+      const midiFile = params.get('m');
+      
+      if (midiFile) {
+        loadMIDI(midiFile, midiFile.split('/').pop());
+      }
+    }
+
+    // Load MIDI file
+    function loadMIDI(url, fileName) {
+      try {
+        player.src = url;
+        visualizer.src = url;
+        fileTitle.textContent = fileName || 'Playing...';
+        uploadZone.style.display = 'none';
+        showNotification(`Loading: ${fileName}`, 'info');
+        
+        // Auto-start after a brief delay
+        setTimeout(() => {
+          player.start();
+          showNotification('Playing!', 'success');
+        }, 500);
+      } catch (error) {
+        console.error('Load error:', error);
+        showNotification(`Error: ${error.message}`, 'error');
+      }
+    }
+
+    // File Upload
+    browseBtn.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const url = URL.createObjectURL(file);
+        loadMIDI(url, file.name);
+      }
+    });
+
+    // Drag and Drop
+    uploadZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadZone.classList.add('dragover');
+    });
+
+    uploadZone.addEventListener('dragleave', () => {
+      uploadZone.classList.remove('dragover');
+    });
+
+    uploadZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadZone.classList.remove('dragover');
+      
+      const file = e.dataTransfer.files[0];
+      if (file && (file.name.endsWith('.mid') || file.name.endsWith('.midi'))) {
+        const url = URL.createObjectURL(file);
+        loadMIDI(url, file.name);
+      } else {
+        showNotification('Please drop a valid MIDI file', 'error');
+      }
+    });
+
+    // Example Files
+    window.loadExample = function(url) {
+      const fileName = url.split('/').pop();
+      loadMIDI(url, fileName);
+    };
+
+    // Notifications
+    function showNotification(message, type = 'info') {
+      const colors = {
+        success: 'bg-green-500',
+        error: 'bg-red-500',
+        info: 'bg-blue-500'
+      };
+
+      const notification = document.createElement('div');
+      notification.className = `fixed bottom-4 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg z-50 animate-slide-up`;
+      notification.textContent = message;
+      document.body.appendChild(notification);
+
+      setTimeout(() => {
+        notification.style.opacity = '0';
+        notification.style.transform = 'translateY(20px)';
+        setTimeout(() => notification.remove(), 300);
+      }, 3000);
+    }
+
+    // Initialize
+    initTheme();
+
+    // Keyboard Shortcuts
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (player.playing) {
+          player.stop();
+        } else {
+          player.start();
+        }
+      }
+    });
+
+    console.log('%c🎹 MIDI Player Ready!', 'color: #667eea; font-size: 16px; font-weight: bold;');
+    console.log('%cTry: ?m=yourfile.midi', 'color: #764ba2; font-size: 14px;');
+  </script>
+</body>
+</html>

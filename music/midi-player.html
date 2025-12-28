@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MIDI Player App</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {}
+      }
+    }
+  </script>
+  <!-- Combined CDN for html-midi-player (includes Tone.js + Magenta.js) -->
+  <script src="https://cdn.jsdelivr.net/combine/npm/tone@14.7.58,npm/@magenta/music@1.23.1/es6/core.js,npm/focus-visible@5,npm/html-midi-player@latest"></script>
+  <style>
+    midi-player::part(control-panel) {
+      @apply bg-gray-100 dark:bg-gray-800 rounded-lg shadow-md p-4;
+    }
+    midi-player::part(play-button), midi-player::part(pause-button), midi-player::part(stop-button) {
+      @apply text-gray-700 dark:text-gray-200 hover:text-blue-600 dark:hover:text-blue-400;
+    }
+    .upload-area {
+      border: 2px dashed #94a3b8;
+      transition: border-color 0.3s;
+    }
+    .upload-area.dragover {
+      border-color: #3b82f6;
+      background-color: #eff6ff dark:bg-gray-700;
+    }
+  </style>
+</head>
+<body class="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+    <div class="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-3xl">🎹</span>
+        <h1 class="text-2xl font-bold">MIDI Player</h1>
+      </div>
+      <button id="theme-toggle" class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+        <svg class="w-6 h-6 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+        </svg>
+        <svg class="w-6 h-6 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 flex items-center justify-center p-6">
+    <div class="w-full max-w-4xl space-y-8">
+      
+      <!-- Upload Area -->
+      <div id="upload-area" class="upload-area rounded-xl p-12 text-center cursor-pointer bg-white dark:bg-gray-800 shadow-lg">
+        <svg class="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+        </svg>
+        <p class="text-xl font-medium mb-2">Drop your MIDI file here</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">or click to select</p>
+        <input type="file" id="midi-input" accept=".mid,.midi" class="hidden">
+        <button class="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors">
+          Choose File
+        </button>
+      </div>
+
+      <!-- Player Section (hidden until file loaded) -->
+      <div id="player-section" class="hidden space-y-6">
+        <div class="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
+          <h2 class="text-xl font-semibold mb-4" id="file-name">No file loaded</h2>
+          
+          <!-- MIDI Player Controls -->
+          <midi-player id="midi-player" sound-font></midi-player>
+
+          <!-- Optional Piano Roll Visualizer -->
+          <div class="mt-8">
+            <h3 class="text-lg font-medium mb-3">Piano Roll Visualization</h3>
+            <midi-visualizer id="visualizer" type="piano-roll"></midi-visualizer>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Theme toggle
+    const themeToggle = document.getElementById('theme-toggle');
+    themeToggle.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    });
+
+    // Load saved theme
+    if (localStorage.getItem('theme') === 'dark' || 
+        (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+    }
+
+    // Upload handling
+    const uploadArea = document.getElementById('upload-area');
+    const midiInput = document.getElementById('midi-input');
+    const playerSection = document.getElementById('player-section');
+    const midiPlayer = document.getElementById('midi-player');
+    const visualizer = document.getElementById('visualizer');
+    const fileNameDisplay = document.getElementById('file-name');
+
+    // Click to open file picker
+    uploadArea.addEventListener('click', () => midiInput.click());
+    document.querySelector('button').addEventListener('click', (e) => {
+      e.stopPropagation();
+      midiInput.click();
+    });
+
+    // Drag & drop
+    uploadArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadArea.classList.add('dragover');
+    });
+    uploadArea.addEventListener('dragleave', () => {
+      uploadArea.classList.remove('dragover');
+    });
+    uploadArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadArea.classList.remove('dragover');
+      if (e.dataTransfer.files.length) {
+        handleFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    // File input change
+    midiInput.addEventListener('change', () => {
+      if (midiInput.files.length) {
+        handleFile(midiInput.files[0]);
+      }
+    });
+
+    function handleFile(file) {
+      if (!file.name.toLowerCase().endsWith('.mid') && !file.name.toLowerCase().endsWith('.midi')) {
+        alert('Please select a valid MIDI file (.mid or .midi)');
+        return;
+      }
+
+      const url = URL.createObjectURL(file);
+      midiPlayer.src = url;
+      visualizer.src = url;
+      fileNameDisplay.textContent = file.name;
+      playerSection.classList.remove('hidden');
+      uploadArea.classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
