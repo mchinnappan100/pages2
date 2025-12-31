@@ -29,6 +29,7 @@ class MIDIPlayerElement extends HTMLElement {
     return ['src', 'autoplay', 'loop', 'volume'];
   }
 
+  // Lifecycle Methods
   connectedCallback() {
     this.render();
     this.setupEventListeners();
@@ -40,6 +41,7 @@ class MIDIPlayerElement extends HTMLElement {
     }
   }
 
+  // Cleanup
   disconnectedCallback() {
     this.stop();
     if (this.audioContext) {
@@ -47,6 +49,7 @@ class MIDIPlayerElement extends HTMLElement {
     }
   }
 
+  // Attribute change handler
   attributeChangedCallback(name, oldValue, newValue) {
     if (oldValue === newValue) return;
 
@@ -68,6 +71,7 @@ class MIDIPlayerElement extends HTMLElement {
     }
   }
 
+  // Render Method
   render() {
     const isDark = document.documentElement.classList.contains('dark');
     
@@ -417,6 +421,7 @@ class MIDIPlayerElement extends HTMLElement {
     `;
   }
 
+  // Event Listeners Setup
   setupEventListeners() {
     const playBtn = this.shadowRoot.getElementById('play-btn');
     const stopBtn = this.shadowRoot.getElementById('stop-btn');
@@ -453,6 +458,7 @@ class MIDIPlayerElement extends HTMLElement {
     });
   }
 
+  // Load and Parse MIDI File
   async load(src) {
     this.state.isLoading = true;
     this.state.error = null;
@@ -481,6 +487,7 @@ class MIDIPlayerElement extends HTMLElement {
     }
   }
 
+  // MIDI Parsing Logic
   async parseMIDI(arrayBuffer) {
     const view = new DataView(arrayBuffer);
     
@@ -542,6 +549,7 @@ class MIDIPlayerElement extends HTMLElement {
     }
   }
 
+  // Parse individual track data
   parseTrack(data, division) {
     const events = [];
     let time = 0;
@@ -639,6 +647,7 @@ class MIDIPlayerElement extends HTMLElement {
     return events;
   }
 
+  // Read variable length quantity
   readVariableLength(data, offset) {
     let value = 0;
     let bytes = 0;
@@ -654,6 +663,7 @@ class MIDIPlayerElement extends HTMLElement {
     return [value, bytes];
   }
 
+  // 
   async play() {
     if (!this.midiData) {
       this.state.error = 'No MIDI file loaded';
@@ -686,6 +696,8 @@ class MIDIPlayerElement extends HTMLElement {
     this.dispatchEvent(new CustomEvent('play'));
   }
 
+  // Schedule MIDI Events
+
   scheduleNextEvents() {
     if (!this.state.isPlaying) return;
 
@@ -714,6 +726,7 @@ class MIDIPlayerElement extends HTMLElement {
     }
   }
 
+  // 
   playNote(midiNote, velocity, time) {
     // Create oscillator for the note
     const frequency = 440 * Math.pow(2, (midiNote - 69) / 12);
@@ -738,6 +751,7 @@ class MIDIPlayerElement extends HTMLElement {
     this.currentNotes.set(midiNote, { oscillator, gainNode });
   }
 
+  //
   stopNote(midiNote, time) {
     const note = this.currentNotes.get(midiNote);
     if (note) {
@@ -752,6 +766,7 @@ class MIDIPlayerElement extends HTMLElement {
     }
   }
 
+  // Pause Playback
   pause() {
     this.state.isPlaying = false;
     this.pausedTime = this.audioContext.currentTime - this.startTime;
@@ -777,6 +792,8 @@ class MIDIPlayerElement extends HTMLElement {
 
     this.dispatchEvent(new CustomEvent('pause'));
   }
+
+  // 
 
   stop() {
     this.state.isPlaying = false;
