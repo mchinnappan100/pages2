@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LilyPond Score Player (ABC)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.4.2/dist/abcjs-basic-min.js"></script>
+    <style>
+        body { background-color: #111827; color: #f3f4f6; }
+        .abcjs-container svg { width: 100%; height: auto; }
+    </style>
+</head>
+<body class="min-h-screen bg-gray-900 text-gray-100 flex flex-col items-center justify-center p-6">
+    <div class="w-full max-w-5xl">
+        <h1 class="text-4xl font-bold text-center mb-8">ABC Score Player</h1>
+        <p class="text-center mb-4 text-gray-300">
+            Click anywhere on the page first to enable sound, then use the playback controls below the score.
+        </p>
+
+        <div id="paper" class="bg-gray-800 p-8 rounded-lg shadow-xl mb-6 overflow-x-auto border border-gray-700"></div>
+        <div id="midi" class="text-center py-6"></div>
+
+        <div id="warning" class="text-yellow-400 text-center mt-4 hidden">
+            <strong>Click the page to enable audio</strong> (required by browsers)
+        </div>
+        <div id="error" class="text-red-400 text-center mt-4 hidden"></div>
+    </div>
+
+    <script>
+        const defaultABC = `X:1
+T:Twinkle Twinkle Little Star
+C:Traditional
+M:4/4
+L:1/4
+Q:1/4=120
+K:C
+C C G G | A A G2 | F F E E | D D C2 |
+G G F F | E E D2 | G G F F | E E D2 |
+C C G G | A A G2 | F F E E | D D C2 |`;
+
+        let abcString = defaultABC;
+        let synthControl;
+
+        // Unlock audio on first user interaction
+        document.body.addEventListener('click', unlockAudio, { once: true });
+        document.body.addEventListener('touchstart', unlockAudio, { once: true });
+
+        function unlockAudio() {
+            if (ABCJS.synth && ABCJS.synth.audioContext && ABCJS.synth.audioContext.state === 'suspended') {
+                ABCJS.synth.audioContext.resume().then(() => {
+                    document.getElementById('warning').classList.add('hidden');
+                });
+            }
+        }
+
+        const params = new URLSearchParams(window.location.search);
+        const fileUrl = params.get('s');
+
+        if (fileUrl) {
+            document.getElementById('warning').classList.remove('hidden');
+            fetch(fileUrl)
+                .then(r => {
+                    if (!r.ok) throw new Error('File not found');
+                    return r.text();
+                })
+                .then(text => {
+                    abcString = text;
+                    renderScore();
+                })
+                .catch(err => {
+                    document.getElementById('error').textContent = 'Error: ' + err.message + '. Using demo score.';
+                    document.getElementById('error').classList.remove('hidden');
+                    renderScore();
+                });
+        } else {
+            renderScore();
+        }
+
+        function renderScore() {
+            // Clear previous
+            document.getElementById('paper').innerHTML = '';
+            document.getElementById('midi').innerHTML = '';
+
+            // Render visual score
+            ABCJS.renderAbc("paper", abcString, {
+                responsive: "resize",
+                add_classes: true
+            });
+
+            // Create synthesizer and MIDI controls
+            if (ABCJS.synth && ABCJS.synth.SynthController) {
+                synthControl = new ABCJS.synth.SynthController();
+                synthControl.load("#midi", {
+                    displayLoop: true,
+                    displayRestart: true,
+                    displayPlay: true,
+                    displayProgress: true,
+                    displayWarp: true
+                });
+
+                synthControl.setTune(ABCJS.renderAbc("*", abcString)[0], true, {
+                    soundFontUrl: "https://cdn.jsdelivr.net/npm/abcjs@6.4.2/soundfont/standard_soundfont/",
+                    onEnded: () => console.log("Playback ended")
+                }).then(() => {
+                    console.log("MIDI ready");
+                    document.getElementById('warning').classList.add('hidden');
+                }).catch(err => {
+                    console.error("Synth error:", err);
+                    document.getElementById('error').textContent = "Audio not available: " + err.message;
+                    document.getElementById('error').classList.remove('hidden');
+                });
+            } else {
+                document.getElementById('error').textContent = "MIDI playback not supported in this browser.";
+                document.getElementById('error').classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
