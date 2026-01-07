@@ -61,120 +61,132 @@
             </div>
         </main>
     </div>
+<script>
+    const treeView = document.getElementById('tree-view');
+    const readmeContent = document.getElementById('readme-content');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    
+    // === DYNAMIC MAINTAINER FROM URL ===
+    const urlParams = new URLSearchParams(window.location.search);
+    let maintainer = urlParams.get('m') || 'mohanchinnappan';
 
-    <script>
-        const treeView = document.getElementById('tree-view');
-        const readmeContent = document.getElementById('readme-content');
-        const loadingIndicator = document.getElementById('loading-indicator');
-        
-        const categories = {
-            "Salesforce Data & Bulk Tools": [/bulk/, /upsert/, /delete/, /sfbatch/, /data-util/, /mcp/, /utils-cli/, /commons-meta/],
-            "Salesforce Metadata & Config": [/meta/, /sharing/, /permset/, /profile/, /owd/, /flow/, /connected/, /dangling/, /settings/, /external-id/, /dependency/],
-            "Salesforce Development & Code": [/apex/, /lwc/, /code-scanner/, /doc-generator/, /kpi/],
-            "Presentation & Visualization": [/slides/, /slideshow/, /markdown/, /mermaid/, /graphviz/, /svg/, /pdf/, /video-maker/, /whisper/],
-            "Data & File Comparison": [/diff/, /compare/, /datatable/, /datagen/],
-            "AI-Powered Tools": [/analyze/, /rubric/, /generator-cli/],
-            "General & macOS Utilities": [/uuid/, /open-resource/, /api-cli/, /diskclean/, /mac-apps/, /icon-gen/],
-            "Database Tools": [/pg-/, /postgres/],
-            "Other Salesforce Tools": [/erd/, /pcm/, /template/, /org-inspector/],
-            "Legacy": [/generator-sfdx/]
-        };
+    // Update header with maintainer's name
+    document.title = `${maintainer}'s npm Packages`;
+    document.querySelector('header h1').textContent = `${maintainer}'s npm Packages`;
+    document.querySelector('header p').textContent = 
+        `Live collection of Node.js packages maintained by @${maintainer} on npm`;
 
-        async function loadPackages() {
-            try {
-                const response = await fetch('https://registry.npmjs.org/-/v1/search?text=maintainer:mohanchinnappan&size=250');
-                const data = await response.json();
-                
-                if (data.total === 0) {
-                    treeView.innerHTML = '<p class="text-red-400">No packages found.</p>';
-                    loadingIndicator.textContent = '';
-                    return;
-                }
+    const categories = {
+        "Salesforce Data & Bulk Tools": [/bulk/, /upsert/, /delete/, /sfbatch/, /data-util/, /mcp/, /utils-cli/, /commons-meta/],
+        "Salesforce Metadata & Config": [/meta/, /sharing/, /permset/, /profile/, /owd/, /flow/, /connected/, /dangling/, /settings/, /external-id/, /dependency/],
+        "Salesforce Development & Code": [/apex/, /lwc/, /code-scanner/, /doc-generator/, /kpi/],
+        "Presentation & Visualization": [/slides/, /slideshow/, /markdown/, /mermaid/, /graphviz/, /svg/, /pdf/, /video-maker/, /whisper/],
+        "Data & File Comparison": [/diff/, /compare/, /datatable/, /datagen/],
+        "AI-Powered Tools": [/analyze/, /rubric/, /generator-cli/],
+        "General & macOS Utilities": [/uuid/, /open-resource/, /api-cli/, /diskclean/, /mac-apps/, /icon-gen/],
+        "Database Tools": [/pg-/, /postgres/],
+        "Other Salesforce Tools": [/erd/, /pcm/, /template/, /org-inspector/],
+        "Legacy": [/generator-sfdx/]
+    };
 
-                const packages = data.objects.map(obj => obj.package);
-                
-                const grouped = {};
-                Object.keys(categories).forEach(cat => { grouped[cat] = []; });
-                grouped["Uncategorized"] = [];
-
-                packages.forEach(pkg => {
-                    let placed = false;
-                    for (const [cat, patterns] of Object.entries(categories)) {
-                        if (patterns.some(p => p.test(pkg.name))) {
-                            grouped[cat].push(pkg);
-                            placed = true;
-                            break;
-                        }
-                    }
-                    if (!placed) grouped["Uncategorized"].push(pkg);
-                });
-
-                Object.keys(grouped).forEach(cat => {
-                    grouped[cat].sort((a,b) => a.name.localeCompare(b.name));
-                });
-
-                let html = '<ul>';
-                Object.keys(grouped).forEach(cat => {
-                    if (grouped[cat].length === 0) return;
-                    html += `
-                        <li>
-                            <details open>
-                                <summary>${cat} (${grouped[cat].length})</summary>
-                                <ul>`;
-                    grouped[cat].forEach(pkg => {
-                        html += `<li class="package-item" data-name="${pkg.name}" data-version="${pkg.version || 'latest'}" data-desc="${pkg.description || ''}" data-link="${pkg.links?.npm || 'https://www.npmjs.com/package/' + pkg.name}">${pkg.name} <span class="text-xs text-slate-400">v${pkg.version || '?'}</span></li>`;
-                    });
-                    html += `</ul></details></li>`;
-                });
-                html += '</ul>';
-
-                treeView.innerHTML = html;
-                loadingIndicator.textContent = `(${data.total} packages)`;
-
-                document.querySelectorAll('.package-item').forEach(item => {
-                    item.addEventListener('click', async () => {
-                        document.querySelectorAll('.package-item').forEach(i => i.classList.remove('selected'));
-                        item.classList.add('selected');
-
-                        const name = item.dataset.name;
-                        const version = item.dataset.version;
-                        const desc = item.dataset.desc;
-                        const link = item.dataset.link;
-
-                        readmeContent.innerHTML = `
-                            <h1 class="text-4xl font-bold text-blue-400">${name}</h1>
-                            <p class="text-xl mt-6"><strong>Version:</strong> ${version}</p>
-                            <p class="text-lg mt-2"><strong>Description:</strong> ${desc || 'No description'}</p>
-                            <p class="mt-8"><a href="${link}" target="_blank" class="text-blue-400 underline text-lg hover:text-blue-300">View on npm →</a></p>
-                            <hr class="my-10 border-slate-600" />
-                            <h2 class="text-3xl font-semibold mb-6">README</h2>
-                            <p class="loading text-lg">Loading README from npm registry...</p>
-                        `;
-
-                        try {
-                            // FIXED LINE: Use string concatenation instead of template literal
-                            const pkgResponse = await fetch('https://registry.npmjs.org/' + name);
-                            const pkgData = await pkgResponse.json();
-                            const latest = pkgData['dist-tags']?.latest || version;
-                            const readme = pkgData.versions[latest]?.readme || pkgData.readme || 'No README available in registry.';
-                            
-                            const htmlReadme = marked.parse(readme);
-                            const clean = DOMPurify.sanitize(htmlReadme);
-                            
-                            readmeContent.querySelector('.loading').outerHTML = clean;
-                        } catch (e) {
-                            readmeContent.querySelector('.loading').outerHTML = '<p class="text-red-400">Failed to load README from registry.</p>';
-                        }
-                    });
-                });
-
-            } catch (err) {
-                treeView.innerHTML = '<p class="text-red-400">Error: ' + err.message + '</p>';
+    async function loadPackages() {
+        try {
+            const response = await fetch(
+                `https://registry.npmjs.org/-/v1/search?text=maintainer:${maintainer}&size=250`
+            );
+            const data = await response.json();
+            
+            if (data.total === 0) {
+                treeView.innerHTML = `<p class="text-red-400">No packages found for maintainer <strong>@${maintainer}</strong>.</p>`;
                 loadingIndicator.textContent = '';
+                return;
             }
-        }
 
-        loadPackages();
-    </script>
+            const packages = data.objects.map(obj => obj.package);
+            
+            const grouped = {};
+            Object.keys(categories).forEach(cat => { grouped[cat] = []; });
+            grouped["Uncategorized"] = [];
+
+            packages.forEach(pkg => {
+                let placed = false;
+                for (const [cat, patterns] of Object.entries(categories)) {
+                    if (patterns.some(p => p.test(pkg.name))) {
+                        grouped[cat].push(pkg);
+                        placed = true;
+                        break;
+                    }
+                }
+                if (!placed) grouped["Uncategorized"].push(pkg);
+            });
+
+            Object.keys(grouped).forEach(cat => {
+                grouped[cat].sort((a,b) => a.name.localeCompare(b.name));
+            });
+
+            let html = '<ul>';
+            Object.keys(grouped).forEach(cat => {
+                if (grouped[cat].length === 0) return;
+                html += `
+                    <li>
+                        <details ${cat.includes('Salesforce') ? 'open' : ''}>
+                            <summary>${cat} (${grouped[cat].length})</summary>
+                            <ul>`;
+                grouped[cat].forEach(pkg => {
+                    html += `<li class="package-item" data-name="${pkg.name}" data-version="${pkg.version || 'latest'}" data-desc="${pkg.description || ''}" data-link="${pkg.links?.npm || 'https://www.npmjs.com/package/' + pkg.name}">${pkg.name} <span class="text-xs text-slate-400">v${pkg.version || '?'}</span></li>`;
+                });
+                html += `</ul></details></li>`;
+            });
+            html += '</ul>';
+
+            treeView.innerHTML = html;
+            loadingIndicator.textContent = `(${data.total} packages)`;
+
+            // Click handlers remain the same
+            document.querySelectorAll('.package-item').forEach(item => {
+                item.addEventListener('click', async () => {
+                    document.querySelectorAll('.package-item').forEach(i => i.classList.remove('selected'));
+                    item.classList.add('selected');
+
+                    const name = item.dataset.name;
+                    const version = item.dataset.version;
+                    const desc = item.dataset.desc;
+                    const link = item.dataset.link;
+
+                    readmeContent.innerHTML = `
+                        <h1 class="text-4xl font-bold text-blue-400">${name}</h1>
+                        <p class="text-xl mt-6"><strong>Version:</strong> ${version}</p>
+                        <p class="text-lg mt-2"><strong>Description:</strong> ${desc || 'No description'}</p>
+                        <p class="mt-8"><a href="${link}" target="_blank" class="text-blue-400 underline text-lg hover:text-blue-300">View on npm →</a></p>
+                        <hr class="my-10 border-slate-600" />
+                        <h2 class="text-3xl font-semibold mb-6">README</h2>
+                        <p class="loading text-lg">Loading README from npm registry...</p>
+                    `;
+
+                    try {
+                        const pkgResponse = await fetch('https://registry.npmjs.org/' + name);
+                        const pkgData = await pkgResponse.json();
+                        const latest = pkgData['dist-tags']?.latest || version;
+                        const readme = pkgData.versions[latest]?.readme || pkgData.readme || 'No README available in registry.';
+                        
+                        const htmlReadme = marked.parse(readme);
+                        const clean = DOMPurify.sanitize(htmlReadme);
+                        
+                        readmeContent.querySelector('.loading').outerHTML = clean;
+                    } catch (e) {
+                        readmeContent.querySelector('.loading').outerHTML = '<p class="text-red-400">Failed to load README from registry.</p>';
+                    }
+                });
+            });
+
+        } catch (err) {
+            treeView.innerHTML = '<p class="text-red-400">Error loading packages: ' + err.message + '</p>';
+            loadingIndicator.textContent = '';
+        }
+    }
+
+    loadPackages();
+</script>
+
 </body>
 </html>
