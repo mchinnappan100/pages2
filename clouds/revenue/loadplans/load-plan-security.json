@@ -1,0 +1,212 @@
+[
+  {
+    "object": "EntityDefinition",
+    "compositeKeys": ["DurableId"],
+    "description": "Identifies sharing model settings for all customizable objects to detect overly permissive configurations",
+    "query": "SELECT DurableId, QualifiedApiName, InternalSharingModel, ExternalSharingModel FROM EntityDefinition WHERE IsCustomizable = true",
+    "fieldMappings": {
+      "DurableId": "DurableId",
+      "QualifiedApiName": "QualifiedApiName",
+      "InternalSharingModel": "InternalSharingModel",
+      "ExternalSharingModel": "ExternalSharingModel"
+    }
+  },
+  {
+    "object": "Group",
+    "compositeKeys": ["Id"],
+    "description": "Retrieves organization-wide default settings to review baseline sharing rules",
+    "query": "SELECT Id, Name, Type FROM Group WHERE Type = 'Organization' LIMIT 1",
+    "fieldMappings": {
+      "Id": "Id",
+      "Name": "Name",
+      "Type": "Type"
+    }
+  },
+  {
+    "object": "PermissionSet",
+    "compositeKeys": ["Id"],
+    "description": "Lists all custom permission sets including those with elevated system permissions like Modify All Data and View All Data",
+    "query": "SELECT Id, Name, Label, IsOwnedByProfile, PermissionsModifyAllData, PermissionsViewAllData, PermissionsManageUsers FROM PermissionSet WHERE IsOwnedByProfile = false",
+    "fieldMappings": {
+      "Id": "Id",
+      "Name": "Name",
+      "Label": "Label",
+      "IsOwnedByProfile": "IsOwnedByProfile",
+      "PermissionsModifyAllData": "PermissionsModifyAllData",
+      "PermissionsViewAllData": "PermissionsViewAllData",
+      "PermissionsManageUsers": "PermissionsManageUsers"
+    }
+  },
+  {
+    "object": "FieldPermissions",
+    "compositeKeys": ["ParentId", "Field"],
+    "description": "Identifies field-level edit permissions on sensitive security objects (User, Profile, PermissionSet) that could enable privilege escalation",
+    "query": "SELECT ParentId, Field, PermissionsEdit, PermissionsRead, SobjectType FROM FieldPermissions WHERE PermissionsEdit = true AND SobjectType IN ('User','Profile','PermissionSet')",
+    "fieldMappings": {
+      "ParentId": "ParentId",
+      "Field": "Field",
+      "PermissionsEdit": "PermissionsEdit",
+      "PermissionsRead": "PermissionsRead",
+      "SobjectType": "SobjectType"
+    }
+  },
+  {
+    "object": "Profile",
+    "compositeKeys": ["Id"],
+    "description": "Lists all standard user profiles with their system-level permissions to identify overly privileged profiles",
+    "query": "SELECT Id, Name, UserLicense.Name, PermissionsModifyAllData, PermissionsViewAllData, PermissionsManageUsers, PermissionsApiEnabled FROM Profile WHERE UserType = 'Standard'",
+    "fieldMappings": {
+      "Id": "Id",
+      "Name": "Name",
+      "UserLicenseName": "UserLicense.Name",
+      "PermissionsModifyAllData": "PermissionsModifyAllData",
+      "PermissionsViewAllData": "PermissionsViewAllData",
+      "PermissionsManageUsers": "PermissionsManageUsers",
+      "PermissionsApiEnabled": "PermissionsApiEnabled"
+    }
+  },
+  {
+    "object": "User",
+    "compositeKeys": ["Username"],
+    "description": "Identifies active users who haven't logged in for 90+ days, indicating potential stale accounts that should be deactivated",
+    "query": "SELECT Id, Username, Email, ProfileId, IsActive, LastLoginDate, CreatedDate FROM User WHERE IsActive = true AND LastLoginDate < LAST_N_DAYS:90",
+    "fieldMappings": {
+      "Id": "Id",
+      "Username": "Username",
+      "Email": "Email",
+      "ProfileId": "ProfileId",
+      "IsActive": "IsActive",
+      "LastLoginDate": "LastLoginDate",
+      "CreatedDate": "CreatedDate"
+    }
+  },
+  {
+    "object": "PermissionSetAssignment",
+    "compositeKeys": ["Id"],
+    "description": "Tracks users assigned permission sets with Modify All Data or View All Data permissions for privilege monitoring",
+    "query": "SELECT Id, PermissionSetId, AssigneeId, PermissionSet.Name, Assignee.Username FROM PermissionSetAssignment WHERE PermissionSet.PermissionsModifyAllData = true OR PermissionSet.PermissionsViewAllData = true",
+    "fieldMappings": {
+      "Id": "Id",
+      "PermissionSetId": "PermissionSetId",
+      "AssigneeId": "AssigneeId",
+      "PermissionSetName": "PermissionSet.Name",
+      "AssigneeUsername": "Assignee.Username"
+    }
+  },
+  {
+    "object": "LoginHistory",
+    "compositeKeys": ["Id"],
+    "description": "Captures all login attempts from the last 30 days to detect potential brute force attacks or unauthorized access attempts",
+    "query": "SELECT Id, UserId, LoginTime, Status, SourceIp, Application FROM LoginHistory WHERE LoginTime = LAST_N_DAYS:30  ORDER BY LoginTime DESC LIMIT 10000",
+    "fieldMappings": {
+      "Id": "Id",
+      "UserId": "UserId",
+      "LoginTime": "LoginTime",
+      "Status": "Status",
+      "SourceIp": "SourceIp",
+      "Application": "Application"
+    }
+  },
+  {
+    "object": "SetupAuditTrail",
+    "compositeKeys": ["Id"],
+    "description": "Monitors all configuration changes in the last 90 days to track security-related modifications and user management activities",
+    "query": "SELECT Id, Action, Section, CreatedById, CreatedBy.Username, CreatedDate FROM SetupAuditTrail WHERE CreatedDate = LAST_N_DAYS:90 ORDER BY CreatedDate DESC",
+    "fieldMappings": {
+      "Id": "Id",
+      "Action": "Action",
+      "Section": "Section",
+      "CreatedById": "CreatedById",
+      "CreatedByUsername": "CreatedBy.Username",
+      "CreatedDate": "CreatedDate"
+    }
+  },
+  {
+    "object": "ObjectPermissions",
+    "compositeKeys": ["ParentId", "SobjectType"],
+    "description": "Identifies profiles and permission sets with Modify All Records permission which bypasses sharing rules",
+    "query": "SELECT ParentId, SobjectType, PermissionsCreate, PermissionsRead, PermissionsEdit, PermissionsDelete, PermissionsViewAllRecords, PermissionsModifyAllRecords FROM ObjectPermissions WHERE PermissionsModifyAllRecords = true",
+    "fieldMappings": {
+      "ParentId": "ParentId",
+      "SobjectType": "SobjectType",
+      "PermissionsCreate": "PermissionsCreate",
+      "PermissionsRead": "PermissionsRead",
+      "PermissionsEdit": "PermissionsEdit",
+      "PermissionsDelete": "PermissionsDelete",
+      "PermissionsViewAllRecords": "PermissionsViewAllRecords",
+      "PermissionsModifyAllRecords": "PermissionsModifyAllRecords"
+    }
+  },
+  {
+    "object": "UserRole",
+    "compositeKeys": ["Id"],
+    "description": "Maps the role hierarchy to understand data visibility through role-based sharing",
+    "query": "SELECT Id, Name, ParentRoleId FROM UserRole",
+    "fieldMappings": {
+      "Id": "Id",
+      "Name": "Name",
+      "ParentRoleId": "ParentRoleId"
+    }
+  },
+  {
+    "object": "User",
+    "compositeKeys": ["Username"],
+    "description": "Lists all users with elevated system permissions (Modify All Data or View All Data) for privileged access review",
+    "query": "SELECT Id, Username, Email, ProfileId, Profile.Name, UserRoleId, IsActive FROM User WHERE Profile.PermissionsModifyAllData = true OR Profile.PermissionsViewAllData = true",
+    "fieldMappings": {
+      "Id": "Id",
+      "Username": "Username",
+      "Email": "Email",
+      "ProfileId": "ProfileId",
+      "ProfileName": "Profile.Name",
+      "UserRoleId": "UserRoleId",
+      "IsActive": "IsActive"
+    }
+  },
+  {
+    "object": "NetworkMemberGroup",
+    "compositeKeys": ["Id"],
+    "description": "Reviews Experience Cloud community member groups for proper external user access controls",
+    "query": "SELECT Id, NetworkId, ParentId FROM NetworkMemberGroup",
+    "fieldMappings": {
+      "Id": "Id",
+      "NetworkId": "NetworkId",
+      "ParentId": "ParentId"
+    }
+  },
+  {
+    "object": "AuthSession",
+    "compositeKeys": ["Id"],
+    "description": "Monitors active authentication sessions from the last 7 days to detect suspicious login patterns or session anomalies",
+    "query": "SELECT Id, UsersId, LoginType, SourceIp, LastModifiedDate FROM AuthSession WHERE LastModifiedDate = LAST_N_DAYS:7",
+    "fieldMappings": {
+      "Id": "Id",
+      "UsersId": "UsersId",
+      "LoginType": "LoginType",
+      "SourceIp": "SourceIp",
+      "LastModifiedDate": "LastModifiedDate"
+    }
+  },
+
+  {
+  "object": "User",
+  "compositeKeys": ["Id"],
+  "description": "Lists all active users assigned the System Administrator profile",
+  "query": "SELECT Id, Name, Username, Email, Profile.Name, IsActive FROM User WHERE IsActive = true AND Profile.Name = 'System Administrator'",
+  "fieldMappings": {
+    "Id": "Id",
+    "Name": "Name",
+    "Username": "Username",
+    "Email": "Email",
+    "IsActive": "IsActive",
+    "ProfileId": {
+      "lookup": {
+        "object": "Profile",
+        "key": "Name",
+        "field": "Profile.Name"
+      }
+    }
+  }
+}
+
+]
