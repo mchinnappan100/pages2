@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salesforce Disaster Recovery Documentation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        .mono { font-family: 'JetBrains Mono', monospace; }
+        .splitter {
+            cursor: col-resize;
+            background: linear-gradient(90deg, transparent 45%, currentColor 45%, currentColor 55%, transparent 55%);
+        }
+        .splitter:hover { opacity: 0.8; }
+        .dark { color-scheme: dark; }
+        .prose-custom h1 { font-weight: 800; letter-spacing: -0.025em; }
+        .prose-custom h2 { font-weight: 700; letter-spacing: -0.015em; margin-top: 2.5rem; margin-bottom: 1.25rem; }
+        .prose-custom h3 { font-weight: 600; margin-top: 2rem; margin-bottom: 0.75rem; }
+        .prose-custom p { margin-bottom: 1.25rem; line-height: 1.75; }
+        .code-block {
+            background: #0f172a;
+            color: #38bdf8;
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.875rem;
+            overflow-x: auto;
+            margin: 1.5rem 0;
+            border: 1px solid #1e293b;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .badge-success { background: #dcfce7; color: #166534; }
+        .dark .badge-success { background: #14532d; color: #86efac; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+        .dark .badge-warning { background: #78350f; color: #fde047; }
+        .badge-info { background: #dbeafe; color: #1e40af; }
+        .dark .badge-info { background: #1e3a8a; color: #93c5fd; }
+        
+        .nav-icon { width: 1.25rem; height: 1.25rem; margin-right: 0.75rem; opacity: 0.7; }
+        .active-nav { background-color: #eff6ff; color: #1d4ed8 !important; border-left: 4px solid #2563eb; }
+        .dark .active-nav { background-color: #1e3a8a50; color: #60a5fa !important; border-left: 4px solid #3b82f6; }
+    </style>
+</head>
+<body class="h-screen overflow-hidden bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
+    <div class="flex flex-col h-full">
+        <!-- Header -->
+        <header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 z-10">
+            <div class="flex items-center justify-between px-6 py-4">
+                <div class="flex items-center space-x-3">
+                    <svg class="w-8 h-8 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+                    </svg>
+                    <div>
+                        <h1 class="text-xl font-bold text-gray-900 dark:text-white">Salesforce Disaster Recovery</h1>
+                        <p class="text-xs text-gray-500 dark:text-gray-400">Complete Implementation Guide v2.0</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="hidden md:flex items-center text-xs font-medium text-gray-400 uppercase tracking-widest mr-4">
+                        Status: <span class="text-green-500 ml-2">All Systems Operational</span>
+                    </div>
+                    <button id="themeToggle" class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors shadow-sm">
+                        <svg id="sunIcon" class="w-5 h-5 text-gray-800 dark:text-gray-200 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707.707M12 8a4 4 0 100 8 4 4 0 000-8z"/></svg>
+                        <svg id="moonIcon" class="w-5 h-5 text-gray-800 dark:text-gray-200 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Main Content -->
+        <div class="flex flex-1 overflow-hidden">
+            <!-- Left Pane - Navigation -->
+            <nav id="leftPane" class="bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 overflow-y-auto flex-shrink-0" style="width: 300px;">
+                <div class="py-6 px-3">
+                    <h2 class="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest mb-4 px-4">Core Strategy</h2>
+                    <ul class="space-y-1" id="navContainer">
+                        <!-- Navigation populated by JS -->
+                    </ul>
+                </div>
+            </nav>
+            
+            <!-- Splitter -->
+            <div id="splitter" class="splitter w-1 bg-gray-200 dark:bg-gray-700 hover:bg-blue-400 dark:hover:bg-blue-500 transition-colors text-gray-400 dark:text-gray-500"></div>
+            
+            <!-- Right Pane - Content -->
+            <main id="rightPane" class="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 scroll-smooth">
+                <div class="max-w-4xl mx-auto p-8 py-12">
+                    <div id="content" class="prose-custom text-gray-800 dark:text-gray-200">
+                        <!-- Content will be loaded here -->
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const navItems = [
+            { id: 'overview', label: 'Strategy Overview', icon: '<path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>' },
+            { id: 'rpo-rto', label: 'RPO & RTO Planning', icon: '<path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>' },
+            { id: 'backup-options', label: 'Backup Methods', icon: '<path d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"/>' },
+            { id: 'native-tools', label: 'Native Salesforce Tools', icon: '<path d="M11 4a2 2 0 114 0v1a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-1a2 2 0 100 4h1a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-1a2 2 0 10-4 0v1a1 1 0 01-1 1H7a1 1 0 01-1-1v-3a1 1 0 011-1h1a2 2 0 100-4H7a1 1 0 01-1-1V7a1 1 0 011-1h3a1 1 0 001-1V4z"/>' },
+            { id: 'third-party', label: 'Third-Party Solutions', icon: '<path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>' },
+            { id: 'metadata', label: 'Metadata & Code', icon: '<path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>' },
+            { id: 'sandboxes', label: 'Sandbox Strategy', icon: '<path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.183.244l-2.864 1.635A2 2 0 001 18.827V20a2 2 0 002 2h18a2 2 0 002-2v-1.173a2 2 0 00-1.173-1.835l-2.399-1.564z"/>' },
+            { id: 'testing', label: 'Recovery Drills', icon: '<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/>' },
+            { id: 'automation', label: 'Automation & APIs', icon: '<path d="M13 10V3L4 14h7v7l9-11h-7z"/>' },
+            { id: 'compliance', label: 'Compliance & Security', icon: '<path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>' },
+            { id: 'incident-response', label: 'Incident Response', icon: '<path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>' },
+            { id: 'best-practices', label: 'Best Practices', icon: '<path d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-7.714 2.143L11 21l-2.143-7.714L1 12l6.857-2.143L11 3z"/>' }
+        ];
+
+        const contentData = {
+            overview: `
+                <h1 class="text-4xl font-bold mb-4">Disaster Recovery Strategy</h1>
+                <div class="badge badge-info mb-6">STRATEGY OVERVIEW</div>
+                
+                <p class="text-lg leading-relaxed mb-6">
+                    A Salesforce Disaster Recovery (DR) plan is a comprehensive set of documented procedures, tools, and technical resources designed to restore access to critical business data and application functionality following a catastrophic event.
+                </p>
+
+                <div class="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-600 p-6 mb-8 rounded-r-lg">
+                    <h3 class="font-bold text-blue-900 dark:text-blue-200 mt-0">The Shared Responsibility Model</h3>
+                    <p class="text-sm text-blue-800 dark:text-blue-300 mb-0">
+                        <strong>Salesforce</strong> is responsible for <em>infrastructure</em> availability, data centers, and the underlying platform. <br>
+                        <strong>You (The Customer)</strong> are responsible for <em>data integrity</em>, accidental deletion, configuration errors, and malicious activities.
+                    </p>
+                </div>
+
+                <h2>Key Drivers for a DR Plan</h2>
+                <div class="grid md:grid-cols-2 gap-6 mb-8">
+                    <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800">
+                        <h4 class="font-bold text-red-600 dark:text-red-400 mb-2">Internal Threats</h4>
+                        <ul class="text-sm space-y-2">
+                            <li>• Accidental Mass Deletions</li>
+                            <li>• Buggy Integration Updates</li>
+                            <li>• Failed Metadata Deployments</li>
+                            <li>• Malicious Insider Actions</li>
+                        </ul>
+                    </div>
+                    <div class="p-4 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800">
+                        <h4 class="font-bold text-blue-600 dark:text-blue-400 mb-2">External Threats</h4>
+                        <ul class="text-sm space-y-2">
+                            <li>• Ransomware & Malware</li>
+                            <li>• API Security Breaches</li>
+                            <li>• Regulatory Non-compliance</li>
+                            <li>• Major Regional Outages</li>
+                        </ul>
+                    </div>
+                </div>
+            `,
+            'rpo-rto': `
+                <h1 class="text-4xl font-bold mb-4">RPO & RTO Planning</h1>
+                <div class="badge badge-warning mb-6">CRITICAL PLANNING</div>
+                
+                <h2>Defining Metrics</h2>
+                <div class="space-y-6">
+                    <div class="p-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm">
+                        <h3 class="text-xl font-bold mb-2">1. Recovery Point Objective (RPO)</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">"How much data can we afford to lose?"</p>
+                        <p class="mt-4">RPO determines the frequency of your backups. If your RPO is 4 hours, you must perform a backup at least every 4 hours.</p>
+                    </div>
+
+                    <div class="p-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-sm">
+                        <h3 class="text-xl font-bold mb-2">2. Recovery Time Objective (RTO)</h3>
+                        <p class="text-sm text-gray-600 dark:text-gray-400">"How long can the system be down?"</p>
+                        <p class="mt-4">RTO determines the tools you use. If you need a 1-hour RTO, you cannot rely on manual CSV imports via Data Loader; you need a high-performance automated recovery solution.</p>
+                    </div>
+                </div>
+
+                <h2 class="mt-10">Calculating Business Impact</h2>
+                <p>Use the following formula to justify DR spend to stakeholders:</p>
+                <div class="code-block mono">
+                    Total Downtime Cost = (Lost Revenue per Hour + Employee Productivity Loss) * Total Hours Down
+                </div>
+            `,
+            'backup-options': `
+                <h1 class="text-4xl font-bold mb-4">Backup Methods</h1>
+                <p>There is no one-size-fits-all. A robust strategy often combines several methods.</p>
+
+                <h2 class="mt-8">1. Full Backups</h2>
+                <p>Weekly or monthly snapshots of every record. Good for archival but insufficient for modern RPO requirements.</p>
+
+                <h2>2. Incremental Backups</h2>
+                <p>Capturing only changes since the last backup. This is the gold standard for reducing storage overhead and maintaining high-frequency RPOs.</p>
+
+                <h2>3. Real-time Replication</h2>
+                <p>Using Change Data Capture (CDC) or Outbound Messaging to sync Salesforce data to an external SQL database in near real-time.</p>
+            `,
+            'native-tools': `
+                <h1 class="text-4xl font-bold mb-4">Native Salesforce Tools</h1>
+                <p>Salesforce provides several built-in tools for basic data management.</p>
+
+                <div class="overflow-x-auto my-8">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100 dark:bg-gray-800">
+                                <th class="p-3 border dark:border-gray-700">Tool</th>
+                                <th class="p-3 border dark:border-gray-700">Frequency</th>
+                                <th class="p-3 border dark:border-gray-700">Best For</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td class="p-3 border dark:border-gray-700">Data Export Service</td>
+                                <td class="p-3 border dark:border-gray-700">Weekly/Monthly</td>
+                                <td class="p-3 border dark:border-gray-700">Basic Manual Backup</td>
+                            </tr>
+                            <tr>
+                                <td class="p-3 border dark:border-gray-700">Salesforce Backup</td>
+                                <td class="p-3 border dark:border-gray-700">Daily</td>
+                                <td class="p-3 border dark:border-gray-700">Native Automated Backup (Paid)</td>
+                            </tr>
+                            <tr>
+                                <td class="p-3 border dark:border-gray-700">Data Loader</td>
+                                <td class="p-3 border dark:border-gray-700">Manual</td>
+                                <td class="p-3 border dark:border-gray-700">Mass Recovery/Import</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `,
+            'third-party': `
+                <h1 class="text-4xl font-bold mb-4">Third-Party Solutions</h1>
+                <p>For organizations with strict RPO/RTO needs, third-party tools are often required.</p>
+                
+                <h2 class="mt-8">Market Leaders</h2>
+                <ul class="space-y-4">
+                    <li><strong>Own (formerly OwnBackup):</strong> Industry standard for high-frequency backup and granular restoration.</li>
+                    <li><strong>Gearset:</strong> Excellent for integrated DevOps and Metadata/Data backup.</li>
+                    <li><strong>Copado:</strong> Focuses heavily on the CI/CD pipeline with strong backup capabilities.</li>
+                    <li><strong>AvePoint:</strong> Strong cross-cloud (O365 + SFDC) backup management.</li>
+                </ul>
+            `,
+            'metadata': `
+                <h1 class="text-4xl font-bold mb-4">Metadata & Code Backup</h1>
+                <p>Data is useless without the <em>Metadata</em> (Fields, Page Layouts, Apex Code, Flows) that explains how to display and process it.</p>
+                
+                <div class="code-block">
+                    # Example sf CLI command to retrieve all metadata
+                    sf project retrieve start --manifest manifest/package.xml
+                </div>
+
+                <h2>Why Git is Your DR Friend</h2>
+                <p>All Salesforce configuration should be stored in a Version Control System (VCS) like GitHub, GitLab, or Bitbucket. If an admin accidentally deletes a complex Flow, you can revert the commit and redeploy in seconds.</p>
+            `,
+            'sandboxes': `
+                <h1 class="text-4xl font-bold mb-4">Sandbox Strategy</h1>
+                <p>Sandboxes are your "Dry Run" environment for recovery.</p>
+                
+                <h2>Full Copy Sandboxes</h2>
+                <p>The ultimate DR testing ground. It includes all your data. Use this to perform quarterly "Fire Drills" to see how long it takes to restore 1 million records.</p>
+                
+                <h2>Partial Copy Sandboxes</h2>
+                <p>Good for testing specific object restoration logic without the cost of a Full Sandbox.</p>
+            `,
+            'testing': `
+                <h1 class="text-4xl font-bold mb-4">Recovery Drills</h1>
+                <p>A plan is just a theory until tested.</p>
+                
+                <h2 class="mt-8">Quarterly Drill Checklist</h2>
+                <ul class="list-disc pl-6 space-y-2">
+                    <li>Simulate an accidental deletion of 5,000 Accounts.</li>
+                    <li>Restore records including child objects (Contacts, Opps) maintaining Parent-Child relationships.</li>
+                    <li>Verify that automation (Triggers/Flows) didn't fire redundantly during restoration.</li>
+                    <li>Document total time taken (Verify vs RTO).</li>
+                </ul>
+            `,
+            'automation': `
+                <h1 class="text-4xl font-bold mb-4">Automation & APIs</h1>
+                <p>Leveraging Salesforce APIs for custom DR solutions.</p>
+                
+                <h2 class="mt-8">Bulk API 2.0</h2>
+                <p>Used for high-volume data movement. Essential for restoring millions of records quickly.</p>
+
+                <div class="code-block">
+                    # Using sf CLI for bulk data query
+                </div>
+            `,
+            'compliance': `
+                <h1 class="text-4xl font-bold mb-4">Compliance & Security</h1>
+                <p>Your backups must be as secure as your production environment.</p>
+                
+                <ul class="space-y-4">
+                    <li><strong>Encryption:</strong> Data must be encrypted at rest and in transit.</li>
+                    <li><strong>Anonymization:</strong> When restoring to sandboxes, ensure PII is masked.</li>
+                    <li><strong>Retention Policy:</strong> Align your backup deletion with GDPR "Right to be Forgotten" requests.</li>
+                </ul>
+            `,
+            'incident-response': `
+                <h1 class="text-4xl font-bold mb-4">Incident Response</h1>
+                <p>What to do when the data disappears.</p>
+
+                <ol class="space-y-6 mt-8">
+                    <li class="p-4 border border-red-200 bg-red-50 dark:bg-red-900/10 rounded-lg">
+                        <strong class="text-red-700 dark:text-red-400">1. Quarantine:</strong> Freeze integration users and deactivate suspected users to stop the corruption spread.
+                    </li>
+                    <li class="p-4 border border-gray-200 dark:border-gray-800 rounded-lg">
+                        <strong>2. Analyze:</strong> Use Event Monitoring logs to identify the "Blast Radius".
+                    </li>
+                    <li class="p-4 border border-gray-200 dark:border-gray-800 rounded-lg">
+                        <strong>3. Restore:</strong> Identify the last clean backup and begin the tiered restoration (Metadata first, then Parents, then Children).
+                    </li>
+                </ol>
+            `,
+            'best-practices': `
+                <h1 class="text-4xl font-bold mb-4">Best Practices</h1>
+                <div class="badge badge-success mb-6">GOLD STANDARD</div>
+
+                <div class="grid gap-6">
+                    <div class="p-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                        <h3 class="mt-0 font-bold">The 3-2-1 Rule</h3>
+                        <p class="text-sm mb-0">3 copies of data, 2 different formats, 1 copy off-site (outside of the Salesforce cloud).</p>
+                    </div>
+                    <div class="p-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-100 dark:border-gray-700">
+                        <h3 class="mt-0 font-bold">Disable Automation During Restore</h3>
+                        <p class="text-sm mb-0">Always deactivate Flows and Triggers before a mass data restore to prevent "Email Storms" or recursive logic errors.</p>
+                    </div>
+                </div>
+            `
+        };
+
+        // Initialize Navigation
+        const navContainer = document.getElementById('navContainer');
+        navItems.forEach(item => {
+            const li = document.createElement('li');
+            li.innerHTML = `
+                <button onclick="showContent('${item.id}')" 
+                        id="nav-${item.id}"
+                        class="doc-link w-full text-left px-4 py-2.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 transition-all text-sm font-medium flex items-center">
+                    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        ${item.icon}
+                    </svg>
+                    ${item.label}
+                </button>
+            `;
+            navContainer.appendChild(li);
+        });
+
+        // Theme Toggle
+        const themeToggle = document.getElementById('themeToggle');
+        const html = document.documentElement;
+        
+        const currentTheme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        if (currentTheme === 'dark') html.classList.add('dark');
+        
+        themeToggle.addEventListener('click', () => {
+            html.classList.toggle('dark');
+            const theme = html.classList.contains('dark') ? 'dark' : 'light';
+            localStorage.setItem('theme', theme);
+        });
+
+        // Splitter
+        const splitter = document.getElementById('splitter');
+        const leftPane = document.getElementById('leftPane');
+        let isResizing = false;
+        
+        splitter.addEventListener('mousedown', (e) => {
+            isResizing = true;
+            document.body.style.cursor = 'col-resize';
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isResizing) return;
+            const newWidth = e.clientX;
+            if (newWidth > 200 && newWidth < 600) {
+                leftPane.style.width = newWidth + 'px';
+            }
+        });
+        
+        document.addEventListener('mouseup', () => {
+            isResizing = false;
+            document.body.style.cursor = '';
+        });
+
+        // Content Switching
+        function showContent(section) {
+            const contentDiv = document.getElementById('content');
+            const rightPane = document.getElementById('rightPane');
+            
+            contentDiv.classList.add('opacity-0');
+            
+            setTimeout(() => {
+                contentDiv.innerHTML = contentData[section] || '<h1>Section not found</h1>';
+                
+                document.querySelectorAll('.doc-link').forEach(btn => btn.classList.remove('active-nav'));
+                const activeBtn = document.getElementById(`nav-${section}`);
+                if (activeBtn) activeBtn.classList.add('active-nav');
+                
+                contentDiv.classList.remove('opacity-0');
+                contentDiv.classList.add('transition-opacity', 'duration-300');
+                rightPane.scrollTop = 0;
+            }, 100);
+        }
+
+        // Default Section
+        showContent('overview');
+    </script>
+</body>
+</html>
