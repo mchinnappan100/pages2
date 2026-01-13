@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>30-Day Tai Chi Plan for Beginners</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+        }
+
+        .resizer {
+            cursor: col-resize;
+            background: linear-gradient(90deg, transparent, #f97316, transparent);
+            transition: all 0.3s;
+        }
+
+        .resizer:hover {
+            background: linear-gradient(90deg, transparent, #fb923c, transparent);
+            width: 6px !important;
+        }
+
+        .day-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .day-card:hover {
+            transform: translateX(8px);
+        }
+
+        .day-card.active {
+            background: linear-gradient(135deg, #f97316, #ea580c);
+            transform: translateX(8px);
+        }
+
+        .exercise-item {
+            animation: fadeIn 0.4s ease-out forwards;
+            opacity: 0;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+            }
+        }
+
+        .calendar-day {
+            transition: all 0.3s;
+        }
+
+        .calendar-day:hover {
+            transform: scale(1.05);
+        }
+
+        .calendar-day.completed {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .calendar-day.today {
+            border: 2px solid #f97316;
+        }
+
+        .scroll-shadow {
+            box-shadow: inset 0 10px 20px -10px rgba(0,0,0,0.5);
+        }
+
+        input[type="checkbox"]:checked {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+    </style>
+</head>
+<body class="text-gray-100">
+    <!-- Header -->
+    <header class="bg-gray-900/90 backdrop-blur-lg border-b border-gray-800 sticky top-0 z-50">
+        <div class="px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold bg-gradient-to-r from-orange-500 to-orange-300 bg-clip-text text-transparent">
+                        30-Day Tai Chi Plan
+                    </h1>
+                    <p class="text-gray-400 text-sm mt-1">For Beginners</p>
+                </div>
+                <div class="flex gap-4">
+                    <button onclick="resetProgress()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-all">
+                        Reset Progress
+                    </button>
+                    <button onclick="exportToCSV()" class="px-4 py-2 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 rounded-lg text-sm font-medium transition-all shadow-lg">
+                        📥 Export CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="flex h-[calc(100vh-88px)]">
+        <!-- Left Pane: Day List -->
+        <div id="leftPane" class="bg-gray-900/50 backdrop-blur-sm border-r border-gray-800 overflow-y-auto scroll-shadow" style="width: 280px;">
+            <div class="p-4">
+                <h2 class="text-lg font-semibold mb-4 text-orange-400">Training Days</h2>
+                <div id="dayList" class="space-y-2"></div>
+            </div>
+        </div>
+
+        <!-- Resizer 1 -->
+        <div class="resizer w-1 hover:w-2 bg-gray-800" onmousedown="initResize(event, 'left')"></div>
+
+        <!-- Center Pane: Day Details -->
+        <div id="centerPane" class="flex-1 overflow-y-auto scroll-shadow">
+            <div class="p-8">
+                <div id="dayDetails"></div>
+            </div>
+        </div>
+
+        <!-- Resizer 2 -->
+        <div class="resizer w-1 hover:w-2 bg-gray-800" onmousedown="initResize(event, 'right')"></div>
+
+        <!-- Right Pane: Calendar -->
+        <div id="rightPane" class="bg-gray-900/50 backdrop-blur-sm border-l border-gray-800 overflow-y-auto scroll-shadow" style="width: 320px;">
+            <div class="p-4">
+                <h2 class="text-lg font-semibold mb-4 text-orange-400">Progress Calendar</h2>
+                <div id="calendar" class="grid grid-cols-5 gap-2"></div>
+                <div class="mt-6 p-4 bg-gray-800/50 rounded-lg">
+                    <h3 class="font-semibold mb-3">Statistics</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Completed:</span>
+                            <span id="statsCompleted" class="font-medium text-green-400">0/30</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-400">Progress:</span>
+                            <span id="statsProgress" class="font-medium text-orange-400">0%</span>
+                        </div>
+                        <div class="mt-3 bg-gray-900 rounded-full h-2 overflow-hidden">
+                            <div id="progressBar" class="h-full bg-gradient-to-r from-orange-600 to-green-500 transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const taiChiPlan = {
+            1: {
+                title: "Warm-up & Basics",
+                exercises: [
+                    "10 Warm-up",
+                    "10 Crane-Dips Artt",
+                    "10 Overhead Swing",
+                    "10 Repulse Monkey",
+                    "5 Standing"
+                ],
+                image: "🧘"
+            },
+            2: {
+                title: "Push & Single",
+                exercises: [
+                    "2-25 Hand Push",
+                    "15 Push up",
+                    "15 Single Whip",
+                    "20 Crane Dips",
+                    "10 Leg Raises"
+                ],
+                image: "🦵"
+            },
+            3: {
+                title: "Kicks & Squats",
+                exercises: [
+                    "5-10 Stretch",
+                    "10 Flame Kick",
+                    "10 Lotus",
+                    "10 Air Squats",
+                    "5 Wrap Squats"
+                ],
+                image: "🥋"
+            },
+            4: {
+                title: "Advanced Basics",
+                exercises: [
+                    "10 Warm-up",
+                    "40 Crane-Dips Artt",
+                    "10 Overhead Swing",
+                    "10 Repulse Monkey",
+                    "10 Standing"
+                ],
+                image: "💪"
+            },
+            5: {
+                title: "Push & Stability",
+                exercises: [
+                    "2-10 Hand Push",
+                    "15 Crane-to-Curl",
+                    "20 Single Whip",
+                    "15 Russian Twist",
+                    "15 Crane Dips"
+                ],
+                image: "🔄"
+            },
+            6: {
+                title: "Table & Proms",
+                exercises: [
+                    "5-15 Stretch",
+                    "25 Donkey",
+                    "10 Dumbbell Table-",
+                    "10 Side Bends",
+                    "10 Leg Proms"
+                ],
+                image: "🏋️"
+            },
+            7: {
+                title: "Leg Focus",
+                exercises: [
+                    "30 Leg Raise",
+                    "10 Bicycle",
+                    "20 Bodyup",
+                    "20 Butterfly Kick",
+                    "30 Air Squats",
+                    "30 Leg Raise"
+                ],
+                image: "🦿"
+            },
+            8: {
+                title: "Squats & Stability",
+                exercises: [
+                    "2-25g Squat",
+                    "10 Wrap Squat",
+                    "25 High Squat",
+                    "20 Mountain Cl-",
+                    "15 Crane-to-Curl"
+                ],
+                image: "⚡"
+            },
+            9: {
+                title: "Curls & Swings",
+                exercises: [
+                    "15 Warm-up Lunge",
+                    "10 Crane Curl",
+                    "20 Crane-Up-Curl",
+                    "20 Overhead Swing",
+                    "10 Chest Comp",
+                    "10 Wrap Squats"
+                ],
+                image: "🌊"
+            },
+            10: {
+                title: "Push & Core",
+                exercises: [
+                    "25 Overhead Press",
+                    "30 Dumbbell Press",
+                    "30 Push Up-pa",
+                    "30 Bicep Curls",
+                    "20 Crane Dips"
+                ],
+                image: "💥"
+            },
+            11: {
+                title: "Balance & Kicks",
+                exercises: [
+                    "2-12 Stretch",
+                    "30 Flame Kick",
+                    "15 Flutter Kick",
+                    "25 Plank",
+                    "20 Sitting-twi",
+                    "20 Crane Dips"
+                ],
+                image: "⚖️"
+            },
+            12: {
+                title: "Defense Moves",
+                exercises: [
+                    "2-20 Defensive Ste",
+                    "15 Punch",
+                    "10x Side Plane",
+                    "10x Sitting Reach",
+                    "15 Push-up",
+                    "15 Chest-to-Grip"
+                ],
+                image: "🛡️"
+            },
+            13: {
+                title: "Flow Practice",
+                exercises: [
+                    "2-25 Flow",
+                    "15 Wrap Squat",
+                    "22 Step Up",
+                    "10 Lotus",
+                    "15 Leg Raise",
+                    "20 Overhead Press"
+                ],
+                image: "🌀"
+            },
+            14: {
+                title: "Barrel & Table",
+                exercises: [
+                    "15 Barrel Roll",
+                    "40 Crane Dips",
+                    "25 Deadlift",
+                    "10 Dumbbell Table-",
+                    "25 Bodyup",
+                    "10 Flutter Kick"
+                ],
+                image: "🎯"
+            },
+            15: {
+                title: "Leg Strength",
+                exercises: [
+                    "30 Leg Raise",
+                    "20 Bodyup",
+                    "Crunches",
+                    "20 Butterfly Kick",
+                    "35 Leg Raise"
+                ],
+                image: "🔥"
+            },
+            16: {
+                title: "Squats & Curls",
+                exercises: [
+                    "2-25g Squat",
+                    "10 Wrap Squat",
+                    "20 Reverse Curl",
+                    "10 Deadlift",
+                    "15 Flutter Kick"
+                ],
+                image: "💫"
+            },
+            17: {
+                title: "Warm-up & Singles",
+                exercises: [
+                    "15 Warm-up Lunge",
+                    "10 Crane Curl",
+                    "20 Dumbbell Squa",
+                    "20 Jump Squat",
+                    "15 Chest Comp"
+                ],
+                image: "🎪"
+            },
+            18: {
+                title: "Press & Plank",
+                exercises: [
+                    "25 Overhead Press",
+                    "25 Dumbbell Press",
+                    "20x Star Plank",
+                    "20 Leg Raise",
+                    "15 Bicep Curls"
+                ],
+                image: "⭐"
+            },
+            19: {
+                title: "Balance & Core",
+                exercises: [
+                    "2-12 Stretch",
+                    "35 Flame Kick",
+                    "35 Leg Raise",
+                    "30 Plank",
+                    "25 Sitting-twi"
+                ],
+                image: "🌟"
+            },
+            20: {
+                title: "Recovery Week",
+                exercises: [
+                    "Gentle stretching",
+                    "Light movement",
+                    "Meditation",
+                    "Breathing exercises"
+                ],
+                image: "🧘‍♀️"
+            },
+            21: {
+                title: "Resume Training",
+                exercises: [
+                    "10 Warm-up",
+                    "15 Crane Dips",
+                    "15 Push-ups",
+                    "20 Leg Raises"
+                ],
+                image: "🚀"
+            },
+            22: {
+                title: "Full Flow",
+                exercises: [
+                    "Complete form practice",
+                    "30 minutes continuous",
+                    "Focus on transitions"
+                ],
+                image: "🌊"
+            },
+            23: {
+                title: "Strength Focus",
+                exercises: [
+                    "25 Push-ups",
+                    "30 Squats",
+                    "20 Crane Dips",
+                    "15 Deadlifts"
+                ],
+                image: "💪"
+            },
+            24: {
+                title: "Flexibility",
+                exercises: [
+                    "Deep stretching",
+                    "Hip openers",
+                    "Shoulder mobility",
+                    "Balance poses"
+                ],
+                image: "🤸"
+            },
+            25: {
+                title: "Core Intensive",
+                exercises: [
+                    "50 Crunches",
+                    "30 Leg Raises",
+                    "45s Plank x3",
+                    "20 Russian Twists"
+                ],
+                image: "🔥"
+            },
+            26: {
+                title: "Kicks & Stances",
+                exercises: [
+                    "40 Flame Kicks",
+                    "30 Lotus Kicks",
+                    "Stance practice",
+                    "Balance drills"
+                ],
+                image: "🥋"
+            },
+            27: {
+                title: "Power Combinations",
+                exercises: [
+                    "Combo sequences",
+                    "Explosive movements",
+                    "Speed training",
+                    "Flow practice"
+                ],
+                image: "⚡"
+            },
+            28: {
+                title: "Endurance Test",
+                exercises: [
+                    "45 min continuous",
+                    "Full routine",
+                    "All techniques",
+                    "Minimal rest"
+                ],
+                image: "🏃"
+            },
+            29: {
+                title: "Refinement",
+                exercises: [
+                    "Form corrections",
+                    "Slow practice",
+                    "Breathing focus",
+                    "Meditation"
+                ],
+                image: "✨"
+            },
+            30: {
+                title: "Final Assessment",
+                exercises: [
+                    "Complete demonstration",
+                    "Self-evaluation",
+                    "Goal review",
+                    "Celebration!"
+                ],
+                image: "🎉"
+            }
+        };
+
+        let currentDay = 1;
+        let completedDays = JSON.parse(localStorage.getItem('taiChiProgress')) || {};
+
+        // Initialize the app
+        function init() {
+            renderDayList();
+            renderCalendar();
+            showDay(1);
+            updateStats();
+        }
+
+        // Render day list
+        function renderDayList() {
+            const dayList = document.getElementById('dayList');
+            dayList.innerHTML = '';
+            
+            for (let i = 1; i <= 30; i++) {
+                const day = taiChiPlan[i];
+                const isCompleted = completedDays[i];
+                const div = document.createElement('div');
+                div.className = `day-card p-3 rounded-lg cursor-pointer border border-gray-800 ${currentDay === i ? 'active' : 'bg-gray-800/30 hover:bg-gray-800/50'}`;
+                div.onclick = () => showDay(i);
+                
+                div.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl">${day.image}</span>
+                            <div>
+                                <div class="font-semibold text-sm">Day ${i}</div>
+                                <div class="text-xs text-gray-400">${day.title}</div>
+                            </div>
+                        </div>
+                        ${isCompleted ? '<span class="text-green-400">✓</span>' : ''}
+                    </div>
+                `;
+                
+                dayList.appendChild(div);
+            }
+        }
+
+        // Show day details
+        function showDay(dayNum) {
+            currentDay = dayNum;
+            const day = taiChiPlan[dayNum];
+            const isCompleted = completedDays[dayNum];
+            
+            document.getElementById('dayDetails').innerHTML = `
+                <div class="max-w-3xl">
+                    <div class="flex items-center gap-4 mb-6">
+                        <span class="text-6xl">${day.image}</span>
+                        <div>
+                            <h2 class="text-4xl font-bold bg-gradient-to-r from-orange-400 to-orange-200 bg-clip-text text-transparent">
+                                Day ${dayNum}
+                            </h2>
+                            <p class="text-xl text-gray-400 mt-1">${day.title}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-gray-800/30 backdrop-blur-sm rounded-xl p-6 border border-gray-700">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-orange-400">Today's Exercises</h3>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" 
+                                       ${isCompleted ? 'checked' : ''} 
+                                       onchange="toggleDay(${dayNum})"
+                                       class="w-5 h-5 rounded border-gray-600 text-green-500 focus:ring-orange-500 focus:ring-2">
+                                <span class="text-sm font-medium">Mark as Complete</span>
+                            </label>
+                        </div>
+                        
+                        <div class="space-y-3">
+                            ${day.exercises.map((exercise, idx) => `
+                                <div class="exercise-item flex items-center gap-3 p-3 bg-gray-900/50 rounded-lg" style="animation-delay: ${idx * 0.1}s">
+                                    <span class="flex-shrink-0 w-8 h-8 rounded-full bg-orange-600/20 border border-orange-600/50 flex items-center justify-center text-sm font-medium text-orange-400">
+                                        ${idx + 1}
+                                    </span>
+                                    <span class="text-gray-200">${exercise}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-4 mt-6">
+                        ${dayNum > 1 ? `
+                            <button onclick="showDay(${dayNum - 1})" 
+                                    class="px-6 py-3 bg-gray-800 hover:bg-gray-700 rounded-lg font-medium transition-all">
+                                ← Previous Day
+                            </button>
+                        ` : ''}
+                        ${dayNum < 30 ? `
+                            <button onclick="showDay(${dayNum + 1})" 
+                                    class="px-6 py-3 bg-gradient-to-r from-orange-600 to-orange-500 hover:from-orange-500 hover:to-orange-400 rounded-lg font-medium transition-all ml-auto">
+                                Next Day →
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+            
+            renderDayList();
+        }
+
+        // Toggle day completion
+        function toggleDay(dayNum) {
+            if (completedDays[dayNum]) {
+                delete completedDays[dayNum];
+            } else {
+                completedDays[dayNum] = true;
+            }
+            localStorage.setItem('taiChiProgress', JSON.stringify(completedDays));
+            renderCalendar();
+            renderDayList();
+            updateStats();
+        }
+
+        // Render calendar
+        function renderCalendar() {
+            const calendar = document.getElementById('calendar');
+            calendar.innerHTML = '';
+            
+            for (let i = 1; i <= 30; i++) {
+                const isCompleted = completedDays[i];
+                const isToday = i === currentDay;
+                const div = document.createElement('div');
+                div.className = `calendar-day p-3 rounded-lg text-center cursor-pointer ${
+                    isCompleted ? 'completed' : 'bg-gray-800/50 hover:bg-gray-800'
+                } ${isToday ? 'today' : ''}`;
+                div.onclick = () => showDay(i);
+                
+                div.innerHTML = `
+                    <div class="text-xs text-gray-400 mb-1">Day</div>
+                    <div class="text-lg font-bold">${i}</div>
+                    ${isCompleted ? '<div class="text-xs text-green-300 mt-1">✓</div>' : ''}
+                `;
+                
+                calendar.appendChild(div);
+            }
+        }
+
+        // Update statistics
+        function updateStats() {
+            const completed = Object.keys(completedDays).length;
+            const progress = Math.round((completed / 30) * 100);
+            
+            document.getElementById('statsCompleted').textContent = `${completed}/30`;
+            document.getElementById('statsProgress').textContent = `${progress}%`;
+            document.getElementById('progressBar').style.width = `${progress}%`;
+        }
+
+        // Export to CSV
+        function exportToCSV() {
+            let csv = 'Day,Title,Status,Exercises\n';
+            
+            for (let i = 1; i <= 30; i++) {
+                const day = taiChiPlan[i];
+                const status = completedDays[i] ? 'Completed' : 'Pending';
+                const exercises = day.exercises.join('; ');
+                csv += `${i},"${day.title}",${status},"${exercises}"\n`;
+            }
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `taichi-progress-${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Reset progress
+        function resetProgress() {
+            if (confirm('Are you sure you want to reset all progress?')) {
+                completedDays = {};
+                localStorage.removeItem('taiChiProgress');
+                renderCalendar();
+                renderDayList();
+                updateStats();
+            }
+        }
+
+        // Pane resizing
+        let isResizing = false;
+        let currentResizer = null;
+
+        function initResize(e, side) {
+            isResizing = true;
+            currentResizer = side;
+            document.body.style.cursor = 'col-resize';
+            document.addEventListener('mousemove', resize);
+            document.addEventListener('mouseup', stopResize);
+        }
+
+        function resize(e) {
+            if (!isResizing) return;
+            
+            if (currentResizer === 'left') {
+                const newWidth = e.clientX;
+                if (newWidth >= 200 && newWidth <= 400) {
+                    document.getElementById('leftPane').style.width = newWidth + 'px';
+                }
+            } else if (currentResizer === 'right') {
+                const newWidth = window.innerWidth - e.clientX;
+                if (newWidth >= 250 && newWidth <= 500) {
+                    document.getElementById('rightPane').style.width = newWidth + 'px';
+                }
+            }
+        }
+
+        function stopResize() {
+            isResizing = false;
+            currentResizer = null;
+            document.body.style.cursor = 'default';
+            document.removeEventListener('mousemove', resize);
+            document.removeEventListener('mouseup', stopResize);
+        }
+
+        // Initialize on load
+        init();
+    </script>
+</body>
+</html>

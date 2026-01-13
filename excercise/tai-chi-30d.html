@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>30-Day Tai Chi Plan</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bg: '#0f172a',
+            panel: '#020617',
+            accent: '#f97316'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    .resizer {
+      width: 6px;
+      cursor: col-resize;
+      background: #1e293b;
+    }
+  </style>
+</head>
+
+<body class="bg-bg text-gray-200 h-screen overflow-hidden">
+
+<div class="flex h-full">
+
+  <!-- LEFT PANE -->
+  <aside id="leftPane" class="w-64 bg-panel border-r border-slate-800 overflow-y-auto">
+    <h1 class="text-xl font-bold p-4 text-accent">30-Day Tai Chi</h1>
+    <ul id="dayList" class="space-y-1 px-2"></ul>
+  </aside>
+
+  <div class="resizer" id="resizer1"></div>
+
+  <!-- CENTER PANE -->
+  <main id="centerPane" class="flex-1 p-6 overflow-y-auto">
+    <div class="flex justify-between items-center mb-4">
+      <h2 id="dayTitle" class="text-2xl font-bold"></h2>
+      <div class="space-x-2">
+        <button onclick="prevDay()" class="px-3 py-1 bg-slate-700 rounded">◀</button>
+        <button onclick="nextDay()" class="px-3 py-1 bg-slate-700 rounded">▶</button>
+      </div>
+    </div>
+
+    <ul id="exerciseList" class="space-y-3 mb-6"></ul>
+
+    <div class="flex items-center gap-4">
+      <button onclick="toggleComplete()"
+        class="px-4 py-2 bg-accent text-black rounded font-semibold">
+        Mark Completed
+      </button>
+
+      <span id="statusText" class="text-sm"></span>
+    </div>
+  </main>
+
+  <div class="resizer" id="resizer2"></div>
+
+  <!-- RIGHT PANE -->
+  <aside id="rightPane" class="w-80 bg-panel border-l border-slate-800 p-4">
+    <h3 class="font-bold mb-3">Progress Calendar</h3>
+
+    <div id="calendar" class="grid grid-cols-7 gap-2 mb-4"></div>
+
+    <button onclick="downloadCSV()"
+      class="w-full px-3 py-2 bg-slate-700 rounded hover:bg-slate-600">
+      Download Progress CSV
+    </button>
+  </aside>
+
+</div>
+
+<script>
+/* ---------------- DATA ---------------- */
+
+const plan = Array.from({ length: 30 }, (_, i) => ({
+  day: i + 1,
+  exercises: [
+    "Walking Lunges",
+    "Cross-Body Stretch",
+    "Jump Squat",
+    "Reverse Curl"
+  ]
+}));
+
+let currentDay = 1;
+let progress = JSON.parse(localStorage.getItem("taiChiProgress") || "{}");
+
+/* ---------------- UI BUILD ---------------- */
+
+const dayList = document.getElementById("dayList");
+const calendar = document.getElementById("calendar");
+
+function buildDayList() {
+  dayList.innerHTML = "";
+  plan.forEach(d => {
+    const li = document.createElement("li");
+    li.className =
+      "cursor-pointer px-3 py-2 rounded hover:bg-slate-800 flex justify-between";
+    li.innerHTML = `
+      <span>Day ${d.day}</span>
+      ${progress[d.day] ? "✅" : ""}
+    `;
+    li.onclick = () => loadDay(d.day);
+    dayList.appendChild(li);
+  });
+}
+
+function buildCalendar() {
+  calendar.innerHTML = "";
+  plan.forEach(d => {
+    const cell = document.createElement("div");
+    cell.className = `
+      text-center p-2 rounded text-sm
+      ${progress[d.day] ? "bg-green-600" : "bg-slate-700"}
+    `;
+    cell.textContent = d.day;
+    calendar.appendChild(cell);
+  });
+}
+
+function loadDay(day) {
+  currentDay = day;
+  const data = plan[day - 1];
+  document.getElementById("dayTitle").textContent = `Day ${day}`;
+  const list = document.getElementById("exerciseList");
+  list.innerHTML = "";
+  data.exercises.forEach(ex => {
+    const li = document.createElement("li");
+    li.className = "bg-slate-800 p-3 rounded";
+    li.textContent = ex;
+    list.appendChild(li);
+  });
+
+  document.getElementById("statusText").textContent =
+    progress[day] ? "✔ Completed" : "⏳ Not completed";
+}
+
+/* ---------------- ACTIONS ---------------- */
+
+function toggleComplete() {
+  progress[currentDay] = !progress[currentDay];
+  localStorage.setItem("taiChiProgress", JSON.stringify(progress));
+  buildDayList();
+  buildCalendar();
+  loadDay(currentDay);
+}
+
+function prevDay() {
+  if (currentDay > 1) loadDay(currentDay - 1);
+}
+
+function nextDay() {
+  if (currentDay < 30) loadDay(currentDay + 1);
+}
+
+function downloadCSV() {
+  let csv = "Day,Completed\n";
+  plan.forEach(d => {
+    csv += `${d.day},${progress[d.day] ? "Yes" : "No"}\n`;
+  });
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "tai-chi-progress.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/* ---------------- RESIZERS ---------------- */
+
+function initResizer(resizer, left, right) {
+  let x = 0;
+  let leftWidth = 0;
+
+  resizer.addEventListener("mousedown", e => {
+    x = e.clientX;
+    leftWidth = left.getBoundingClientRect().width;
+    document.addEventListener("mousemove", mouseMove);
+    document.addEventListener("mouseup", stopResize);
+  });
+
+  function mouseMove(e) {
+    const dx = e.clientX - x;
+    left.style.width = leftWidth + dx + "px";
+  }
+
+  function stopResize() {
+    document.removeEventListener("mousemove", mouseMove);
+    document.removeEventListener("mouseup", stopResize);
+  }
+}
+
+initResizer(
+  document.getElementById("resizer1"),
+  document.getElementById("leftPane"),
+  document.getElementById("centerPane")
+);
+
+initResizer(
+  document.getElementById("resizer2"),
+  document.getElementById("centerPane"),
+  document.getElementById("rightPane")
+);
+
+/* ---------------- INIT ---------------- */
+
+buildDayList();
+buildCalendar();
+loadDay(1);
+</script>
+
+</body>
+</html>
