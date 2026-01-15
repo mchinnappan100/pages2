@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoRules Decision Table Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            padding: 25px 30px;
+            border-radius: 12px 12px 0 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #2d3748;
+            font-size: 28px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .subtitle {
+            color: #718096;
+            font-size: 14px;
+        }
+
+        .editor-wrapper {
+            background: white;
+            border-radius: 0 0 12px 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            overflow: hidden;
+        }
+
+        #editor {
+            height: 600px;
+            border: none;
+            width: 100%;
+        }
+
+        .controls {
+            background: #f7fafc;
+            padding: 20px 30px;
+            border-top: 1px solid #e2e8f0;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            background: #5a67d8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .secondary {
+            background: #48bb78;
+        }
+
+        .secondary:hover {
+            background: #38a169;
+            box-shadow: 0 4px 12px rgba(72, 187, 120, 0.3);
+        }
+
+        .info {
+            background: #4299e1;
+        }
+
+        .info:hover {
+            background: #3182ce;
+            box-shadow: 0 4px 12px rgba(66, 153, 225, 0.3);
+        }
+
+        .output {
+            margin-top: 20px;
+            background: white;
+            padding: 20px 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+
+        .output h3 {
+            color: #2d3748;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+
+        pre {
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            font-size: 13px;
+            line-height: 1.6;
+            max-height: 400px;
+        }
+
+        .icon {
+            font-size: 18px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #718096;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 22px;
+            }
+
+            #editor {
+                height: 500px;
+            }
+
+            .controls {
+                padding: 15px 20px;
+            }
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>
+                <span class="icon">⚙️</span>
+                GoRules Decision Table Editor
+            </h1>
+            <p class="subtitle">Create and manage business rules with an intuitive decision table interface</p>
+        </div>
+
+        <div class="editor-wrapper">
+            <div id="editor">
+                <div class="loading">Loading editor...</div>
+            </div>
+            
+            <div class="controls">
+                <button onclick="loadSampleDecision()">
+                    <span class="icon">📊</span>
+                    Load Sample
+                </button>
+                <button class="secondary" onclick="getDecisionGraph()">
+                    <span class="icon">💾</span>
+                    Export JSON
+                </button>
+                <button class="info" onclick="validateDecision()">
+                    <span class="icon">✓</span>
+                    Validate
+                </button>
+            </div>
+        </div>
+
+        <div id="output" class="output" style="display: none;">
+            <h3>Decision Graph Output</h3>
+            <pre id="jsonOutput"></pre>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@gorules/jdm-editor@1.50.5/dist/jdm-editor.umd.js"></script>
+
+    <script>
+        let editor;
+
+        // Sample decision model for a loan approval system
+        const sampleDecision = {
+            nodes: [
+                {
+                    id: '1',
+                    name: 'Loan Approval',
+                    type: 'decisionTableNode',
+                    content: {
+                        hitPolicy: 'first',
+                        inputs: [
+                            { id: 'input1', name: 'Credit Score', field: 'creditScore' },
+                            { id: 'input2', name: 'Annual Income', field: 'annualIncome' },
+                            { id: 'input3', name: 'Loan Amount', field: 'loanAmount' }
+                        ],
+                        outputs: [
+                            { id: 'output1', name: 'Approved', field: 'approved' },
+                            { id: 'output2', name: 'Interest Rate', field: 'interestRate' }
+                        ],
+                        rules: [
+                            {
+                                id: 'rule1',
+                                input1: '> 750',
+                                input2: '> 50000',
+                                input3: '< 200000',
+                                output1: 'true',
+                                output2: '3.5'
+                            },
+                            {
+                                id: 'rule2',
+                                input1: '650..750',
+                                input2: '> 40000',
+                                input3: '< 150000',
+                                output1: 'true',
+                                output2: '5.0'
+                            },
+                            {
+                                id: 'rule3',
+                                input1: '< 650',
+                                input2: '',
+                                input3: '',
+                                output1: 'false',
+                                output2: '0'
+                            }
+                        ]
+                    },
+                    position: { x: 250, y: 100 }
+                }
+            ],
+            edges: []
+        };
+
+        // Initialize the editor
+        function initEditor() {
+            try {
+                const container = document.getElementById('editor');
+                
+                // Check if the library is loaded
+                if (typeof jdmEditor === 'undefined') {
+                    console.log('jdmEditor not loaded yet, retrying...');
+                    setTimeout(initEditor, 100);
+                    return;
+                }
+
+                if (typeof React === 'undefined' || typeof ReactDOM === 'undefined') {
+                    console.log('React not loaded yet, retrying...');
+                    setTimeout(initEditor, 100);
+                    return;
+                }
+
+                console.log('Initializing editor...');
+                container.innerHTML = '';
+                
+                // Create the editor using the DecisionGraph component
+                const root = ReactDOM.createRoot(container);
+                
+                const DecisionGraph = jdmEditor.DecisionGraph;
+                
+                const element = React.createElement(DecisionGraph, {
+                    defaultValue: sampleDecision,
+                    onChange: (val) => {
+                        window.currentValue = val;
+                        console.log('Decision graph changed:', val);
+                    }
+                });
+                
+                root.render(element);
+                
+                // Store root for later use
+                window.editorRoot = root;
+                window.currentValue = sampleDecision;
+                
+                console.log('Editor initialized successfully!');
+                showNotification('Editor loaded successfully!');
+
+            } catch (error) {
+                console.error('Error initializing editor:', error);
+                document.getElementById('editor').innerHTML = 
+                    `<div class="loading">Error loading editor: ${error.message}<br>Check console for details.</div>`;
+            }
+        }
+
+        // Load sample decision
+        function loadSampleDecision() {
+            if (window.editorRoot) {
+                const container = document.getElementById('editor');
+                const DecisionGraph = jdmEditor.DecisionGraph;
+                
+                // Force re-render with new key to reload the sample
+                const element = React.createElement(DecisionGraph, {
+                    key: Date.now(), // Force new instance
+                    defaultValue: sampleDecision,
+                    onChange: (val) => {
+                        window.currentValue = val;
+                        console.log('Decision graph changed:', val);
+                    }
+                });
+                
+                window.editorRoot.render(element);
+                window.currentValue = sampleDecision;
+                showNotification('Sample decision loaded!');
+            } else {
+                showNotification('Editor not ready yet, please wait...');
+            }
+        }
+
+        // Get and display current decision graph
+        function getDecisionGraph() {
+            if (window.currentValue) {
+                const graph = window.currentValue;
+                document.getElementById('jsonOutput').textContent = JSON.stringify(graph, null, 2);
+                document.getElementById('output').style.display = 'block';
+                
+                // Scroll to output
+                document.getElementById('output').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        // Validate decision
+        function validateDecision() {
+            if (window.currentValue) {
+                const graph = window.currentValue;
+                const isValid = graph.nodes && graph.nodes.length > 0;
+                
+                if (isValid) {
+                    showNotification('Decision graph is valid! ✓');
+                } else {
+                    showNotification('Please add at least one decision node.');
+                }
+            }
+        }
+
+        // Simple notification function
+        function showNotification(message) {
+            const notification = document.createElement('div');
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #48bb78;
+                color: white;
+                padding: 15px 25px;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+                z-index: 1000;
+                animation: slideIn 0.3s ease;
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            setTimeout(initEditor, 100);
+        });
+    </script>
+</body>
+</html>
