@@ -820,6 +820,10 @@ function render() {
                             <button onclick="state.showSettingsModal=true; render()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium">
                                 Settings
                             </button>
+                            <button onclick="window.open('coe-tracker-help.html', '_blank')" 
+                                    class="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-medium">
+                                Help
+                            </button>
                             <button style='display: none;' onclick="toggleTheme()" class="p-3 rounded-xl ${isDark ? "bg-gray-800 border-gray-700" : "bg-white border-gray-200"} border hover:opacity-90">
                                 ${isDark ? "☀️ Light" : "🌙 Dark"}
                             </button>
