@@ -2,7 +2,7 @@
 // State
 // ────────────────────────────────────────────────
 let state = {
-  theme: localStorage.getItem("theme") || "dark",
+  theme:  "dark",
   projects: JSON.parse(localStorage.getItem("coe_projects")) || [],
   currentProjectId: localStorage.getItem("coe_current_project") || null,
   assignees: JSON.parse(localStorage.getItem("coe_assignees")) || [],
