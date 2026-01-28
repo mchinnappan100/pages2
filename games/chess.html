@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Master Chess - Play Against AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+    <style>
+        body {
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+        }
+        
+        .chess-square {
+            aspect-ratio: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        
+        .chess-square:hover {
+            transform: scale(1.05);
+            z-index: 10;
+        }
+        
+        .light-square {
+            background-color: #f0d9b5;
+        }
+        
+        .dark-square {
+            background-color: #b58863;
+        }
+        
+        .selected {
+            background-color: #7fb3d5 !important;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.3);
+        }
+        
+        .valid-move {
+            position: relative;
+        }
+        
+        .valid-move::after {
+            content: '';
+            position: absolute;
+            width: 30%;
+            height: 30%;
+            background-color: rgba(100, 200, 100, 0.6);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+        
+        .valid-capture::after {
+            width: 85%;
+            height: 85%;
+            background-color: transparent;
+            border: 4px solid rgba(200, 100, 100, 0.7);
+            border-radius: 50%;
+        }
+        
+        .in-check {
+            background-color: #ff6b6b !important;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .last-move {
+            background-color: rgba(255, 255, 100, 0.3) !important;
+        }
+        
+        .piece {
+            user-select: none;
+            -webkit-user-select: none;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            pointer-events: none;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.8);
+            backdrop-filter: blur(5px);
+        }
+        
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .tab-button {
+            transition: all 0.3s;
+        }
+        
+        .tab-button.active {
+            background-color: #3b82f6;
+            color: white;
+        }
+        
+        .thinking {
+            animation: thinking 1.5s infinite;
+        }
+        
+        @keyframes thinking {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+        
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            z-index: 2000;
+            animation: slideIn 0.3s ease-out;
+            max-width: 400px;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        
+        .toast.success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+        }
+        
+        .toast.info {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+        
+        .toast.warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+        }
+        
+        .toast.hiding {
+            animation: slideOut 0.3s ease-in forwards;
+        }
+    </style>
+</head>
+<body class="text-gray-100">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-5xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent mb-2">
+                ♔ Master Chess ♚
+            </h1>
+            <p class="text-gray-400 text-lg">Challenge yourself against our intelligent AI opponent</p>
+        </div>
+
+        <div class="grid lg:grid-cols-3 gap-8">
+            <!-- Left Panel - Game Info -->
+            <div class="space-y-6">
+                <!-- Color Selection -->
+                <div class="bg-slate-800 rounded-lg p-6 border border-slate-700 shadow-xl">
+                    <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
+                        <span>🎮</span> Game Setup
+                    </h2>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2">Choose Your Color:</label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <button id="playWhite" class="bg-slate-700 hover:bg-slate-600 p-3 rounded-lg transition flex items-center justify-center gap-2 border-2 border-transparent">
+                                    <span class="text-3xl">♔</span>
+                                    <span>White</span>
+                                </button>
+                                <button id="playBlack" class="bg-slate-700 hover:bg-slate-600 p-3 rounded-lg transition flex items-center justify-center gap-2 border-2 border-transparent">
+                                    <span class="text-3xl">♚</span>
+                                    <span>Black</span>
+                                </button>
+                            </div>
+                        </div>
+                        <button id="newGame" class="w-full bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 p-3 rounded-lg font-semibold transition shadow-lg">
+                            🔄 New Game
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Game Status -->
+                <div class="bg-slate-800 rounded-lg p-6 border border-slate-700 shadow-xl">
+                    <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
+                        <span>📊</span> Game Status
+                    </h2>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-400">Turn:</span>
+                            <span id="currentTurn" class="font-bold text-xl">White</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-400">Status:</span>
+                            <span id="gameStatus" class="font-semibold text-green-400">In Progress</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-400">Move Count:</span>
+                            <span id="moveCount" class="font-bold">0</span>
+                        </div>
+                        <div id="aiThinking" class="hidden">
+                            <div class="flex items-center gap-2 text-blue-400 thinking">
+                                <span>🤖</span>
+                                <span class="font-semibold">AI is thinking...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Captured Pieces -->
+                <div class="bg-slate-800 rounded-lg p-6 border border-slate-700 shadow-xl">
+                    <h2 class="text-2xl font-bold mb-4">Captured Pieces</h2>
+                    <div class="space-y-3">
+                        <div>
+                            <div class="text-sm text-gray-400 mb-1">White Captured:</div>
+                            <div id="capturedWhite" class="text-2xl min-h-8 flex flex-wrap gap-1"></div>
+                        </div>
+                        <div>
+                            <div class="text-sm text-gray-400 mb-1">Black Captured:</div>
+                            <div id="capturedBlack" class="text-2xl min-h-8 flex flex-wrap gap-1"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chess Board -->
+            <div class="lg:col-span-1">
+                <div class="bg-slate-800 rounded-lg p-6 border border-slate-700 shadow-2xl">
+                    <div id="chessBoard" class="grid grid-cols-8 gap-0 border-4 border-slate-900 shadow-2xl mx-auto" style="max-width: 600px;">
+                        <!-- Board will be generated by JavaScript -->
+                    </div>
+                    <div class="mt-4 text-center">
+                        <button id="showHelp" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold transition shadow-lg">
+                            📖 How to Play & Rules
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Move History & Quick Rules -->
+            <div class="space-y-6">
+                <!-- Move History -->
+                <div class="bg-slate-800 rounded-lg p-6 border border-slate-700 shadow-xl">
+                    <h2 class="text-2xl font-bold mb-4 flex items-center gap-2">
+                        <span>📜</span> Move History
+                    </h2>
+                    <div id="moveHistory" class="space-y-2 max-h-96 overflow-y-auto pr-2">
+                        <p class="text-gray-500 italic">No moves yet</p>
+                    </div>
+                </div>
+
+                <!-- Quick Reference -->
+                <div class="bg-slate-800 rounded-lg p-6 border border-slate-700 shadow-xl">
+                    <h2 class="text-2xl font-bold mb-4">⚡ Quick Reference</h2>
+                    <div class="space-y-3 text-sm">
+                        <div>
+                            <div class="flex items-center gap-2 font-semibold text-blue-400 mb-1">
+                                <span class="text-2xl">♔♕</span> King & Queen
+                            </div>
+                            <p class="text-gray-400">King: 1 square any direction. Queen: Any distance any direction.</p>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2 font-semibold text-blue-400 mb-1">
+                                <span class="text-2xl">♖</span> Rook
+                            </div>
+                            <p class="text-gray-400">Moves horizontally or vertically any distance.</p>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2 font-semibold text-blue-400 mb-1">
+                                <span class="text-2xl">♗</span> Bishop
+                            </div>
+                            <p class="text-gray-400">Moves diagonally any distance.</p>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2 font-semibold text-blue-400 mb-1">
+                                <span class="text-2xl">♘</span> Knight
+                            </div>
+                            <p class="text-gray-400">L-shape: 2 squares + 1 square perpendicular. Jumps pieces.</p>
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2 font-semibold text-blue-400 mb-1">
+                                <span class="text-2xl">♙</span> Pawn
+                            </div>
+                            <p class="text-gray-400">Forward 1 (or 2 from start). Captures diagonally.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help Modal -->
+    <div id="helpModal" class="modal">
+        <div class="bg-slate-800 rounded-lg p-8 max-w-4xl max-h-[90vh] overflow-y-auto m-4 border border-slate-700 shadow-2xl">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                    Chess Master Guide
+                </h2>
+                <button id="closeHelp" class="text-gray-400 hover:text-white text-3xl leading-none">×</button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex gap-2 mb-6 flex-wrap">
+                <button class="tab-button active px-4 py-2 rounded-lg bg-slate-700" data-tab="howToPlay">How to Play</button>
+                <button class="tab-button px-4 py-2 rounded-lg bg-slate-700" data-tab="pieces">Piece Movements</button>
+                <button class="tab-button px-4 py-2 rounded-lg bg-slate-700" data-tab="rules">Rules</button>
+                <button class="tab-button px-4 py-2 rounded-lg bg-slate-700" data-tab="special">Special Moves</button>
+                <button class="tab-button px-4 py-2 rounded-lg bg-slate-700" data-tab="strategy">Strategy Tips</button>
+            </div>
+
+            <!-- Tab Contents -->
+            <div id="howToPlay" class="tab-content active">
+                <h3 class="text-2xl font-bold mb-4 text-blue-400">🎯 How to Play This Game</h3>
+                <div class="space-y-4 text-gray-300">
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-green-400">1. Choose Your Color</h4>
+                        <p>Select whether you want to play as White or Black pieces using the buttons in the left panel.</p>
+                    </div>
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-green-400">2. Start a New Game</h4>
+                        <p>Click "New Game" to begin. White always moves first!</p>
+                    </div>
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-green-400">3. Make Your Move</h4>
+                        <ul class="list-disc list-inside space-y-2 ml-4">
+                            <li>Click on one of your pieces to select it (it will be highlighted in blue)</li>
+                            <li>Valid moves will be shown with green circles</li>
+                            <li>Possible captures will be shown with red circles</li>
+                            <li>Click on a highlighted square to move your piece there</li>
+                            <li>Click the selected piece again to deselect it</li>
+                        </ul>
+                    </div>
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-green-400">4. AI Opponent</h4>
+                        <p>After your move, the AI will automatically make its move. The AI thinks strategically and will challenge you!</p>
+                    </div>
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-green-400">5. Win the Game</h4>
+                        <p>The objective is to checkmate your opponent's king. This means the king is under attack and has no legal moves to escape.</p>
+                    </div>
+                    <div class="bg-yellow-900 bg-opacity-30 border border-yellow-600 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-yellow-400">⚠️ Important Notes</h4>
+                        <ul class="list-disc list-inside space-y-1 ml-4">
+                            <li>You cannot move into check (put your own king in danger)</li>
+                            <li>If your king is in check, you MUST move out of check</li>
+                            <li>The game tracks all captures and move history</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div id="pieces" class="tab-content">
+                <h3 class="text-2xl font-bold mb-4 text-blue-400">♟️ Chess Piece Movements</h3>
+                <div class="space-y-6 text-gray-300">
+                    <div class="bg-slate-900 p-5 rounded-lg border border-purple-500">
+                        <h4 class="font-bold text-xl mb-3 flex items-center gap-2">
+                            <span class="text-3xl">♔♚</span>
+                            <span class="text-purple-400">King</span>
+                        </h4>
+                        <p class="mb-3"><strong>Movement:</strong> One square in any direction (horizontal, vertical, or diagonal).</p>
+                        <p class="mb-3"><strong>Value:</strong> Invaluable - the game's objective!</p>
+                        <p><strong>Special:</strong> Can castle with rook under specific conditions (see Special Moves tab).</p>
+                        <div class="mt-3 p-3 bg-slate-800 rounded">
+                            <p class="text-sm text-yellow-400">⚠️ The king can never move into check and must be protected at all costs!</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900 p-5 rounded-lg border border-pink-500">
+                        <h4 class="font-bold text-xl mb-3 flex items-center gap-2">
+                            <span class="text-3xl">♕♛</span>
+                            <span class="text-pink-400">Queen</span>
+                        </h4>
+                        <p class="mb-3"><strong>Movement:</strong> Any number of squares in any direction (horizontal, vertical, or diagonal).</p>
+                        <p class="mb-3"><strong>Value:</strong> 9 points - the most powerful piece!</p>
+                        <p><strong>Strategy:</strong> The queen combines the power of rook and bishop. She's your most valuable attacking piece but also needs protection.</p>
+                    </div>
+
+                    <div class="bg-slate-900 p-5 rounded-lg border border-blue-500">
+                        <h4 class="font-bold text-xl mb-3 flex items-center gap-2">
+                            <span class="text-3xl">♖♜</span>
+                            <span class="text-blue-400">Rook</span>
+                        </h4>
+                        <p class="mb-3"><strong>Movement:</strong> Any number of squares horizontally or vertically.</p>
+                        <p class="mb-3"><strong>Value:</strong> 5 points</p>
+                        <p><strong>Strategy:</strong> Rooks are most powerful on open files (columns with no pawns). They work well in pairs and are excellent for controlling ranks and files.</p>
+                    </div>
+
+                    <div class="bg-slate-900 p-5 rounded-lg border border-green-500">
+                        <h4 class="font-bold text-xl mb-3 flex items-center gap-2">
+                            <span class="text-3xl">♗♝</span>
+                            <span class="text-green-400">Bishop</span>
+                        </h4>
+                        <p class="mb-3"><strong>Movement:</strong> Any number of squares diagonally.</p>
+                        <p class="mb-3"><strong>Value:</strong> 3 points</p>
+                        <p><strong>Special Note:</strong> Each bishop stays on its starting color (light or dark) for the entire game. You start with one of each.</p>
+                    </div>
+
+                    <div class="bg-slate-900 p-5 rounded-lg border border-orange-500">
+                        <h4 class="font-bold text-xl mb-3 flex items-center gap-2">
+                            <span class="text-3xl">♘♞</span>
+                            <span class="text-orange-400">Knight</span>
+                        </h4>
+                        <p class="mb-3"><strong>Movement:</strong> L-shaped pattern - 2 squares in one direction, then 1 square perpendicular (or vice versa).</p>
+                        <p class="mb-3"><strong>Value:</strong> 3 points</p>
+                        <p><strong>Unique Ability:</strong> The knight is the ONLY piece that can jump over other pieces! This makes it especially useful in crowded positions.</p>
+                        <div class="mt-3 p-3 bg-slate-800 rounded">
+                            <p class="text-sm text-blue-400">💡 From any square, a knight can reach up to 8 different squares.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900 p-5 rounded-lg border border-yellow-500">
+                        <h4 class="font-bold text-xl mb-3 flex items-center gap-2">
+                            <span class="text-3xl">♙♟</span>
+                            <span class="text-yellow-400">Pawn</span>
+                        </h4>
+                        <p class="mb-3"><strong>Movement:</strong> One square forward (never backward).</p>
+                        <p class="mb-3"><strong>First Move:</strong> Can move two squares forward on its first move.</p>
+                        <p class="mb-3"><strong>Capturing:</strong> Captures diagonally one square forward (not straight ahead).</p>
+                        <p class="mb-3"><strong>Value:</strong> 1 point</p>
+                        <p><strong>Promotion:</strong> When a pawn reaches the opposite end of the board (8th rank), it must be promoted to a Queen, Rook, Bishop, or Knight!</p>
+                        <div class="mt-3 p-3 bg-slate-800 rounded">
+                            <p class="text-sm text-green-400">🌟 Despite being the weakest piece, pawns form the backbone of your position and can become queens!</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="rules" class="tab-content">
+                <h3 class="text-2xl font-bold mb-4 text-blue-400">📋 Official Chess Rules</h3>
+                <div class="space-y-4 text-gray-300">
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-purple-400">Starting the Game</h4>
+                        <ul class="list-disc list-inside space-y-2 ml-4">
+                            <li>White always moves first</li>
+                            <li>Players alternate turns</li>
+                            <li>Each player starts with 16 pieces: 1 King, 1 Queen, 2 Rooks, 2 Bishops, 2 Knights, and 8 Pawns</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-purple-400">Legal Moves</h4>
+                        <ul class="list-disc list-inside space-y-2 ml-4">
+                            <li>You can only move one piece per turn (except castling)</li>
+                            <li>You cannot move through other pieces (except the knight)</li>
+                            <li>You can capture an opponent's piece by moving to its square</li>
+                            <li>You cannot capture your own pieces</li>
+                            <li>You cannot make a move that puts or leaves your king in check</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-red-400">Check</h4>
+                        <p class="mb-2">When your king is under attack, it's "in check." You have three options to get out of check:</p>
+                        <ul class="list-disc list-inside space-y-2 ml-4">
+                            <li><strong>Move the king</strong> to a safe square</li>
+                            <li><strong>Block the attack</strong> by placing a piece between the attacker and your king</li>
+                            <li><strong>Capture the attacking piece</strong></li>
+                        </ul>
+                        <div class="mt-3 p-3 bg-red-900 bg-opacity-30 border border-red-600 rounded">
+                            <p class="text-sm">⚠️ You MUST get out of check. It's illegal to remain in check.</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-red-400">Checkmate - Winning the Game</h4>
+                        <p class="mb-2">Checkmate occurs when:</p>
+                        <ul class="list-disc list-inside space-y-2 ml-4">
+                            <li>The king is in check</li>
+                            <li>The king cannot move to a safe square</li>
+                            <li>No piece can block the attack</li>
+                            <li>The attacking piece cannot be captured</li>
+                        </ul>
+                        <p class="mt-3 text-green-400 font-semibold">🏆 Checkmate ends the game immediately - the player who checkmates wins!</p>
+                    </div>
+
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-yellow-400">Stalemate - Draw</h4>
+                        <p class="mb-2">A stalemate is a draw that occurs when:</p>
+                        <ul class="list-disc list-inside space-y-2 ml-4">
+                            <li>The player to move is NOT in check</li>
+                            <li>The player has no legal moves</li>
+                        </ul>
+                        <p class="mt-3 text-yellow-400">➡️ Stalemate results in a tie - neither player wins.</p>
+                    </div>
+
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-yellow-400">Other Ways to Draw</h4>
+                        <ul class="list-disc list-inside space-y-2 ml-4">
+                            <li><strong>Insufficient Material:</strong> Neither player has enough pieces to checkmate (e.g., king vs. king)</li>
+                            <li><strong>Threefold Repetition:</strong> The same position occurs three times</li>
+                            <li><strong>50-Move Rule:</strong> 50 moves without a capture or pawn move</li>
+                            <li><strong>Agreement:</strong> Both players agree to a draw</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-blue-400">Touch-Move Rule (Traditional Chess)</h4>
+                        <p>In official chess, if you touch a piece, you must move it if it has a legal move. In this digital version, you're free to select and deselect pieces!</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="special" class="tab-content">
+                <h3 class="text-2xl font-bold mb-4 text-blue-400">✨ Special Moves</h3>
+                <div class="space-y-6 text-gray-300">
+                    <div class="bg-slate-900 p-5 rounded-lg border border-cyan-500">
+                        <h4 class="font-bold text-xl mb-3 text-cyan-400">Castling 🏰</h4>
+                        <p class="mb-3">A special move involving the king and one rook, performed in a single turn.</p>
+                        
+                        <div class="mb-3">
+                            <strong>How it works:</strong>
+                            <ul class="list-disc list-inside space-y-1 ml-4 mt-2">
+                                <li><strong>Kingside Castling (O-O):</strong> King moves 2 squares toward the rook on the right, rook jumps over to the king's left</li>
+                                <li><strong>Queenside Castling (O-O-O):</strong> King moves 2 squares toward the rook on the left, rook jumps over to the king's right</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-slate-800 p-3 rounded mb-3">
+                            <strong class="text-yellow-400">Requirements (ALL must be met):</strong>
+                            <ul class="list-disc list-inside space-y-1 ml-4 mt-2">
+                                <li>Neither the king nor the chosen rook has moved before</li>
+                                <li>There are no pieces between the king and rook</li>
+                                <li>The king is not currently in check</li>
+                                <li>The king does not pass through a square under attack</li>
+                                <li>The king does not end up in check</li>
+                            </ul>
+                        </div>
+
+                        <p class="text-sm text-green-400">💡 Castling is important for king safety and rook development!</p>
+                    </div>
+
+                    <div class="bg-slate-900 p-5 rounded-lg border border-purple-500">
+                        <h4 class="font-bold text-xl mb-3 text-purple-400">En Passant 🎯</h4>
+                        <p class="mb-3">A special pawn capture that can only happen under specific circumstances.</p>
+                        
+                        <div class="mb-3">
+                            <strong>How it works:</strong>
+                            <p class="mt-2">If an enemy pawn moves two squares forward from its starting position and lands beside your pawn, you can capture it "in passing" on your very next turn as if it had only moved one square.</p>
+                        </div>
+
+                        <div class="bg-slate-800 p-3 rounded mb-3">
+                            <strong class="text-yellow-400">Requirements:</strong>
+                            <ul class="list-disc list-inside space-y-1 ml-4 mt-2">
+                                <li>Your pawn must be on the 5th rank (5th row for white, 4th for black)</li>
+                                <li>An enemy pawn moves two squares forward from its starting position</li>
+                                <li>The enemy pawn ends up directly beside your pawn</li>
+                                <li>You must capture on your very next turn (or lose the opportunity)</li>
+                            </ul>
+                        </div>
+
+                        <p class="text-sm text-blue-400">🎓 This move was created to prevent pawns from avoiding capture by using their two-square first move!</p>
+                    </div>
+
+                    <div class="bg-slate-900 p-5 rounded-lg border border-yellow-500">
+                        <h4 class="font-bold text-xl mb-3 text-yellow-400">Pawn Promotion 👑</h4>
+                        <p class="mb-3">When a pawn reaches the opposite end of the board, it must be promoted to a more powerful piece.</p>
+                        
+                        <div class="mb-3">
+                            <strong>Promotion Options:</strong>
+                            <ul class="list-disc list-inside space-y-1 ml-4 mt-2">
+                                <li><strong>Queen</strong> - Most common choice (most powerful)</li>
+                                <li><strong>Rook</strong> - Sometimes useful to avoid stalemate</li>
+                                <li><strong>Bishop</strong> - Rarely chosen</li>
+                                <li><strong>Knight</strong> - Can be useful for special tactics</li>
+                            </ul>
+                        </div>
+
+                        <div class="bg-slate-800 p-3 rounded mb-3">
+                            <p class="text-sm"><strong>Important:</strong> You can promote to any piece regardless of what has been captured. You can have multiple queens!</p>
+                        </div>
+
+                        <p class="text-sm text-green-400">⚡ Pawn promotion can completely change the game - always be aware of advancing pawns!</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="strategy" class="tab-content">
+                <h3 class="text-2xl font-bold mb-4 text-blue-400">🎯 Strategy & Tips</h3>
+                <div class="space-y-4 text-gray-300">
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-green-400">Opening Principles</h4>
+                        <ul class="list-disc list-inside space-y-2 ml-4">
+                            <li><strong>Control the Center:</strong> Place pawns and pieces in or attacking the center squares (e4, d4, e5, d5)</li>
+                            <li><strong>Develop Your Pieces:</strong> Move knights and bishops out from their starting positions</li>
+                            <li><strong>King Safety:</strong> Castle early to protect your king and activate your rook</li>
+                            <li><strong>Don't Move the Same Piece Twice:</strong> In the opening, develop all pieces before moving one piece multiple times</li>
+                            <li><strong>Don't Bring Queen Out Too Early:</strong> Your queen can be attacked and you'll waste moves retreating</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-blue-400">Middle Game Strategy</h4>
+                        <ul class="list-disc list-inside space-y-2 ml-4">
+                            <li><strong>Piece Activity:</strong> Keep your pieces active and coordinated</li>
+                            <li><strong>Pawn Structure:</strong> Avoid creating weak pawns that can be attacked</li>
+                            <li><strong>Look for Tactics:</strong> Forks, pins, skewers, and discovered attacks</li>
+                            <li><strong>Control Open Files:</strong> Place rooks on open or semi-open files</li>
+                            <li><strong>Create Threats:</strong> Force your opponent to respond to your ideas</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-purple-400">Endgame Tips</h4>
+                        <ul class="list-disc list-inside space-y-2 ml-4">
+                            <li><strong>Activate Your King:</strong> In the endgame, the king becomes a fighting piece</li>
+                            <li><strong>Push Passed Pawns:</strong> Pawns that have no enemy pawns blocking them are very strong</li>
+                            <li><strong>Coordinate Your Pieces:</strong> Use multiple pieces to create threats</li>
+                            <li><strong>Opposition:</strong> In king and pawn endgames, having your king directly facing the enemy king is powerful</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-slate-900 p-4 rounded-lg">
+                        <h4 class="font-bold text-lg mb-2 text-yellow-400">Common Tactical Patterns</h4>
+                        <ul class="list-disc list-inside space-y-2 ml-4">
+                            <li><strong>Fork:</strong> One piece attacks two or more enemy pieces simultaneously</li>
+                            <li><strong>Pin:</strong> A piece cannot move without exposing a more valuable piece behind it</li>
+                            <li><strong>Skewer:</strong> Like a pin but the more valuable piece is in front</li>
+                            <li><strong>Discovered Attack:</strong> Moving one piece reveals an attack from another piece</li>
+                            <li><strong>Double Attack:</strong> Two pieces attack the same target</li>
+                        </ul>
+                    </div>
+
+                    <div class="bg-gradient-to-r from-blue-900 to-purple-900 p-4 rounded-lg border border-blue-500">
+                        <h4 class="font-bold text-lg mb-2 text-cyan-300">Golden Rules</h4>
+                        <ul class="list-disc list-inside space-y-2 ml-4">
+                            <li><strong>Think Before You Move:</strong> Always consider your opponent's threats</li>
+                            <li><strong>Calculate Captures:</strong> Count the value of pieces before trading</li>
+                            <li><strong>Have a Plan:</strong> Every move should work toward a goal</li>
+                            <li><strong>Learn from Mistakes:</strong> Review your games to improve</li>
+                            <li><strong>Practice:</strong> The more you play, the better you'll become!</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 text-center">
+                <button id="closeHelpBtn" class="bg-blue-600 hover:bg-blue-700 px-8 py-3 rounded-lg font-semibold transition">
+                    Got it! Let's Play
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Chess Pieces (Unicode)
+        const PIECES = {
+            white: { king: '♔', queen: '♕', rook: '♖', bishop: '♗', knight: '♘', pawn: '♙' },
+            black: { king: '♚', queen: '♛', rook: '♜', bishop: '♝', knight: '♞', pawn: '♟' }
+        };
+
+        // Toast notification function
+        function showToast(message, type = 'info', duration = 3000) {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <div class="flex items-center gap-3">
+                    <div class="text-2xl">
+                        ${type === 'success' ? '✅' : type === 'info' ? 'ℹ️' : type === 'warning' ? '⚠️' : '🎮'}
+                    </div>
+                    <div class="flex-1">
+                        <div class="font-bold text-lg">${message.title || ''}</div>
+                        <div class="text-sm opacity-90">${message.body || message}</div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('hiding');
+                setTimeout(() => {
+                    document.body.removeChild(toast);
+                }, 300);
+            }, duration);
+        }
+
+        // Game State
+        let board = [];
+        let selectedSquare = null;
+        let currentPlayer = 'white';
+        let playerColor = 'white';
+        let gameActive = false;
+        let moveHistory = [];
+        let capturedPieces = { white: [], black: [] };
+        let lastMove = null;
+
+        // Initialize the board
+        function initBoard() {
+            board = [
+                ['♜', '♞', '♝', '♛', '♚', '♝', '♞', '♜'],
+                ['♟', '♟', '♟', '♟', '♟', '♟', '♟', '♟'],
+                [null, null, null, null, null, null, null, null],
+                [null, null, null, null, null, null, null, null],
+                [null, null, null, null, null, null, null, null],
+                [null, null, null, null, null, null, null, null],
+                ['♙', '♙', '♙', '♙', '♙', '♙', '♙', '♙'],
+                ['♖', '♘', '♗', '♕', '♔', '♗', '♘', '♖']
+            ];
+        }
+
+        // Render the board
+        function renderBoard() {
+            const boardElement = document.getElementById('chessBoard');
+            boardElement.innerHTML = '';
+
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const square = document.createElement('div');
+                    const isLight = (row + col) % 2 === 0;
+                    square.className = `chess-square ${isLight ? 'light-square' : 'dark-square'}`;
+                    square.dataset.row = row;
+                    square.dataset.col = col;
+
+                    const piece = board[row][col];
+                    if (piece) {
+                        const pieceSpan = document.createElement('span');
+                        pieceSpan.className = 'piece';
+                        pieceSpan.textContent = piece;
+                        square.appendChild(pieceSpan);
+                    }
+
+                    // Highlight last move
+                    if (lastMove && 
+                        ((lastMove.from.row === row && lastMove.from.col === col) ||
+                         (lastMove.to.row === row && lastMove.to.col === col))) {
+                        square.classList.add('last-move');
+                    }
+
+                    // Highlight selected square
+                    if (selectedSquare && selectedSquare.row === row && selectedSquare.col === col) {
+                        square.classList.add('selected');
+                    }
+
+                    // Show valid moves for selected piece
+                    if (selectedSquare) {
+                        const validMoves = getValidMoves(selectedSquare.row, selectedSquare.col);
+                        const isValidMove = validMoves.some(move => move.row === row && move.col === col);
+                        
+                        if (isValidMove) {
+                            if (board[row][col]) {
+                                square.classList.add('valid-capture');
+                            } else {
+                                square.classList.add('valid-move');
+                            }
+                        }
+                    }
+
+                    // Add click handler
+                    square.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        handleSquareClick(row, col);
+                    });
+                    
+                    boardElement.appendChild(square);
+                }
+            }
+
+            updateStatus();
+        }
+
+        // Get piece color
+        function getPieceColor(piece) {
+            if (!piece) return null;
+            return Object.values(PIECES.white).includes(piece) ? 'white' : 'black';
+        }
+
+        // Get piece type
+        function getPieceType(piece) {
+            if (!piece) return null;
+            for (let color in PIECES) {
+                for (let type in PIECES[color]) {
+                    if (PIECES[color][type] === piece) return type;
+                }
+            }
+            return null;
+        }
+
+        // Handle square click
+        function handleSquareClick(row, col) {
+            if (!gameActive) return;
+            if (currentPlayer !== playerColor) return;
+
+            const clickedPiece = board[row][col];
+            const clickedColor = getPieceColor(clickedPiece);
+
+            // If a piece is selected
+            if (selectedSquare) {
+                const validMoves = getValidMoves(selectedSquare.row, selectedSquare.col);
+                const isValidMove = validMoves.some(move => move.row === row && move.col === col);
+
+                if (isValidMove) {
+                    // Make the move
+                    makeMove(selectedSquare.row, selectedSquare.col, row, col);
+                    
+                    // AI move after a short delay
+                    if (gameActive && currentPlayer !== playerColor) {
+                        document.getElementById('aiThinking').classList.remove('hidden');
+                        setTimeout(() => {
+                            makeAIMove();
+                            document.getElementById('aiThinking').classList.add('hidden');
+                        }, 500);
+                    }
+                } else if (clickedColor === currentPlayer) {
+                    // Select different piece
+                    selectedSquare = { row, col };
+                    renderBoard();
+                } else {
+                    // Deselect
+                    selectedSquare = null;
+                    renderBoard();
+                }
+            } else if (clickedColor === currentPlayer) {
+                // Select piece
+                selectedSquare = { row, col };
+                renderBoard();
+            }
+        }
+
+        // Clear highlights (kept for compatibility but not used)
+        function clearHighlights() {
+            // This function is kept for potential future use
+            // Highlights are now managed within renderBoard()
+        }
+
+        // Get valid moves for a piece
+        function getValidMoves(row, col) {
+            const piece = board[row][col];
+            if (!piece) return [];
+
+            const type = getPieceType(piece);
+            const color = getPieceColor(piece);
+            let moves = [];
+
+            switch (type) {
+                case 'pawn':
+                    moves = getPawnMoves(row, col, color);
+                    break;
+                case 'knight':
+                    moves = getKnightMoves(row, col, color);
+                    break;
+                case 'bishop':
+                    moves = getBishopMoves(row, col, color);
+                    break;
+                case 'rook':
+                    moves = getRookMoves(row, col, color);
+                    break;
+                case 'queen':
+                    moves = getQueenMoves(row, col, color);
+                    break;
+                case 'king':
+                    moves = getKingMoves(row, col, color);
+                    break;
+            }
+
+            // Filter out moves that would put own king in check
+            return moves.filter(move => !wouldBeInCheck(row, col, move.row, move.col, color));
+        }
+
+        // Pawn moves
+        function getPawnMoves(row, col, color) {
+            const moves = [];
+            const direction = color === 'white' ? -1 : 1;
+            const startRow = color === 'white' ? 6 : 1;
+
+            // Forward one square
+            if (isValidSquare(row + direction, col) && !board[row + direction][col]) {
+                moves.push({ row: row + direction, col });
+
+                // Forward two squares from starting position
+                if (row === startRow && !board[row + 2 * direction][col]) {
+                    moves.push({ row: row + 2 * direction, col });
+                }
+            }
+
+            // Captures
+            [-1, 1].forEach(dcol => {
+                const newRow = row + direction;
+                const newCol = col + dcol;
+                if (isValidSquare(newRow, newCol)) {
+                    const target = board[newRow][newCol];
+                    if (target && getPieceColor(target) !== color) {
+                        moves.push({ row: newRow, col: newCol });
+                    }
+                }
+            });
+
+            return moves;
+        }
+
+        // Knight moves
+        function getKnightMoves(row, col, color) {
+            const moves = [];
+            const offsets = [
+                [-2, -1], [-2, 1], [-1, -2], [-1, 2],
+                [1, -2], [1, 2], [2, -1], [2, 1]
+            ];
+
+            offsets.forEach(([drow, dcol]) => {
+                const newRow = row + drow;
+                const newCol = col + dcol;
+                if (isValidSquare(newRow, newCol)) {
+                    const target = board[newRow][newCol];
+                    if (!target || getPieceColor(target) !== color) {
+                        moves.push({ row: newRow, col: newCol });
+                    }
+                }
+            });
+
+            return moves;
+        }
+
+        // Bishop moves
+        function getBishopMoves(row, col, color) {
+            return getSlidingMoves(row, col, color, [[-1, -1], [-1, 1], [1, -1], [1, 1]]);
+        }
+
+        // Rook moves
+        function getRookMoves(row, col, color) {
+            return getSlidingMoves(row, col, color, [[-1, 0], [1, 0], [0, -1], [0, 1]]);
+        }
+
+        // Queen moves
+        function getQueenMoves(row, col, color) {
+            return getSlidingMoves(row, col, color, [
+                [-1, -1], [-1, 0], [-1, 1],
+                [0, -1], [0, 1],
+                [1, -1], [1, 0], [1, 1]
+            ]);
+        }
+
+        // King moves
+        function getKingMoves(row, col, color) {
+            const moves = [];
+            const offsets = [
+                [-1, -1], [-1, 0], [-1, 1],
+                [0, -1], [0, 1],
+                [1, -1], [1, 0], [1, 1]
+            ];
+
+            offsets.forEach(([drow, dcol]) => {
+                const newRow = row + drow;
+                const newCol = col + dcol;
+                if (isValidSquare(newRow, newCol)) {
+                    const target = board[newRow][newCol];
+                    if (!target || getPieceColor(target) !== color) {
+                        moves.push({ row: newRow, col: newCol });
+                    }
+                }
+            });
+
+            return moves;
+        }
+
+        // Sliding moves (for bishop, rook, queen)
+        function getSlidingMoves(row, col, color, directions) {
+            const moves = [];
+
+            directions.forEach(([drow, dcol]) => {
+                let newRow = row + drow;
+                let newCol = col + dcol;
+
+                while (isValidSquare(newRow, newCol)) {
+                    const target = board[newRow][newCol];
+                    if (!target) {
+                        moves.push({ row: newRow, col: newCol });
+                    } else {
+                        if (getPieceColor(target) !== color) {
+                            moves.push({ row: newRow, col: newCol });
+                        }
+                        break;
+                    }
+                    newRow += drow;
+                    newCol += dcol;
+                }
+            });
+
+            return moves;
+        }
+
+        // Check if square is valid
+        function isValidSquare(row, col) {
+            return row >= 0 && row < 8 && col >= 0 && col < 8;
+        }
+
+        // Find king position
+        function findKing(color) {
+            const king = PIECES[color].king;
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    if (board[row][col] === king) {
+                        return { row, col };
+                    }
+                }
+            }
+            return null;
+        }
+
+        // Check if a position is under attack
+        function isSquareUnderAttack(row, col, byColor) {
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const piece = board[r][c];
+                    if (piece && getPieceColor(piece) === byColor) {
+                        const moves = getValidMovesWithoutCheckTest(r, c);
+                        if (moves.some(move => move.row === row && move.col === col)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Get valid moves without check test (to avoid infinite recursion)
+        function getValidMovesWithoutCheckTest(row, col) {
+            const piece = board[row][col];
+            if (!piece) return [];
+
+            const type = getPieceType(piece);
+            const color = getPieceColor(piece);
+
+            switch (type) {
+                case 'pawn': return getPawnMoves(row, col, color);
+                case 'knight': return getKnightMoves(row, col, color);
+                case 'bishop': return getBishopMoves(row, col, color);
+                case 'rook': return getRookMoves(row, col, color);
+                case 'queen': return getQueenMoves(row, col, color);
+                case 'king': return getKingMoves(row, col, color);
+                default: return [];
+            }
+        }
+
+        // Check if move would result in check
+        function wouldBeInCheck(fromRow, fromCol, toRow, toCol, color) {
+            // Simulate move
+            const originalPiece = board[toRow][toCol];
+            board[toRow][toCol] = board[fromRow][fromCol];
+            board[fromRow][fromCol] = null;
+
+            // Find king position
+            const kingPos = findKing(color);
+            const inCheck = isSquareUnderAttack(kingPos.row, kingPos.col, color === 'white' ? 'black' : 'white');
+
+            // Undo move
+            board[fromRow][fromCol] = board[toRow][toCol];
+            board[toRow][toCol] = originalPiece;
+
+            return inCheck;
+        }
+
+        // Check if current player is in check
+        function isInCheck(color) {
+            const kingPos = findKing(color);
+            if (!kingPos) return false;
+            return isSquareUnderAttack(kingPos.row, kingPos.col, color === 'white' ? 'black' : 'white');
+        }
+
+        // Check if checkmate or stalemate
+        function isGameOver(color) {
+            // Check if any piece has valid moves
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const piece = board[row][col];
+                    if (piece && getPieceColor(piece) === color) {
+                        const moves = getValidMoves(row, col);
+                        if (moves.length > 0) {
+                            return null; // Game continues
+                        }
+                    }
+                }
+            }
+
+            // No valid moves - checkmate or stalemate
+            return isInCheck(color) ? 'checkmate' : 'stalemate';
+        }
+
+        // Make a move
+        function makeMove(fromRow, fromCol, toRow, toCol) {
+            const piece = board[fromRow][fromCol];
+            const captured = board[toRow][toCol];
+            const pieceType = getPieceType(piece);
+            const pieceColor = getPieceColor(piece);
+
+            // Record capture
+            if (captured) {
+                const capturedColor = getPieceColor(captured);
+                capturedPieces[capturedColor].push(captured);
+                updateCapturedPieces();
+            }
+
+            // Move piece
+            board[toRow][toCol] = piece;
+            board[fromRow][fromCol] = null;
+
+            // Pawn promotion
+            if (pieceType === 'pawn') {
+                if ((pieceColor === 'white' && toRow === 0) || (pieceColor === 'black' && toRow === 7)) {
+                    board[toRow][toCol] = PIECES[pieceColor].queen; // Auto-promote to queen
+                    
+                    // Show promotion notification
+                    setTimeout(() => {
+                        showToast({
+                            title: '👑 Pawn Promoted!',
+                            body: 'Your pawn has been promoted to a Queen!'
+                        }, 'success', 3000);
+                    }, 300);
+                }
+            }
+
+            // Record move
+            lastMove = { from: { row: fromRow, col: fromCol }, to: { row: toRow, col: toCol } };
+            
+            const moveNotation = `${String.fromCharCode(97 + fromCol)}${8 - fromRow} → ${String.fromCharCode(97 + toCol)}${8 - toRow}`;
+            moveHistory.push({
+                player: currentPlayer,
+                piece: pieceType,
+                notation: moveNotation,
+                captured: captured ? getPieceType(captured) : null
+            });
+            updateMoveHistory();
+
+            // Switch player
+            currentPlayer = currentPlayer === 'white' ? 'black' : 'white';
+
+            // Clear selection and render board
+            selectedSquare = null;
+            renderBoard();
+
+            // Check game over
+            const gameOverStatus = isGameOver(currentPlayer);
+            if (gameOverStatus) {
+                gameActive = false;
+                if (gameOverStatus === 'checkmate') {
+                    const winner = currentPlayer === 'white' ? 'black' : 'white';
+                    const winnerName = winner.charAt(0).toUpperCase() + winner.slice(1);
+                    
+                    setTimeout(() => {
+                        showToast({
+                            title: '🏆 Checkmate!',
+                            body: `${winnerName} wins the game! The king has nowhere to escape.`
+                        }, 'success', 5000);
+                    }, 500);
+                    
+                    document.getElementById('gameStatus').textContent = `${winnerName} Wins!`;
+                    document.getElementById('gameStatus').className = 'font-semibold text-yellow-400';
+                } else {
+                    setTimeout(() => {
+                        showToast({
+                            title: '🤝 Stalemate!',
+                            body: 'The game is a draw. No legal moves available but not in check.'
+                        }, 'warning', 5000);
+                    }, 500);
+                    
+                    document.getElementById('gameStatus').textContent = 'Draw (Stalemate)';
+                    document.getElementById('gameStatus').className = 'font-semibold text-gray-400';
+                }
+            }
+        }
+
+        // Simple AI (makes random valid moves)
+        function makeAIMove() {
+            if (!gameActive) return;
+
+            const allMoves = [];
+            
+            // Collect all possible moves for AI
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const piece = board[row][col];
+                    if (piece && getPieceColor(piece) === currentPlayer) {
+                        const moves = getValidMoves(row, col);
+                        moves.forEach(move => {
+                            allMoves.push({ from: { row, col }, to: move });
+                        });
+                    }
+                }
+            }
+
+            if (allMoves.length === 0) return;
+
+            // Prioritize captures
+            const captures = allMoves.filter(move => board[move.to.row][move.to.col] !== null);
+            const moveToMake = captures.length > 0 && Math.random() > 0.3 
+                ? captures[Math.floor(Math.random() * captures.length)]
+                : allMoves[Math.floor(Math.random() * allMoves.length)];
+
+            makeMove(moveToMake.from.row, moveToMake.from.col, moveToMake.to.row, moveToMake.to.col);
+        }
+
+        // Update game status
+        function updateStatus() {
+            document.getElementById('currentTurn').textContent = 
+                currentPlayer.charAt(0).toUpperCase() + currentPlayer.slice(1);
+            document.getElementById('moveCount').textContent = Math.floor(moveHistory.length / 2);
+            
+            if (isInCheck(currentPlayer)) {
+                const kingPos = findKing(currentPlayer);
+                const index = kingPos.row * 8 + kingPos.col;
+                document.querySelectorAll('.chess-square')[index].classList.add('in-check');
+                
+                // Show check notification for human player
+                if (currentPlayer === playerColor && gameActive) {
+                    setTimeout(() => {
+                        showToast({
+                            title: '⚠️ Check!',
+                            body: 'Your king is under attack! You must move out of check.'
+                        }, 'warning', 3000);
+                    }, 100);
+                }
+            }
+        }
+
+        // Update move history
+        function updateMoveHistory() {
+            const historyElement = document.getElementById('moveHistory');
+            if (moveHistory.length === 0) {
+                historyElement.innerHTML = '<p class="text-gray-500 italic">No moves yet</p>';
+                return;
+            }
+
+            historyElement.innerHTML = moveHistory.map((move, index) => {
+                const moveNum = Math.floor(index / 2) + 1;
+                const isWhite = move.player === 'white';
+                const captureIcon = move.captured ? '⚔️' : '';
+                
+                return `
+                    <div class="flex items-center gap-2 text-sm ${isWhite ? 'bg-slate-700' : 'bg-slate-900'} p-2 rounded">
+                        <span class="font-bold text-gray-400 w-8">${isWhite ? moveNum + '.' : ''}</span>
+                        <span class="text-xl">${board.flat().find(p => p && getPieceType(p) === move.piece && getPieceColor(p) === move.player) || ''}</span>
+                        <span class="flex-1">${move.notation}</span>
+                        <span>${captureIcon}</span>
+                    </div>
+                `;
+            }).reverse().join('');
+        }
+
+        // Update captured pieces
+        function updateCapturedPieces() {
+            document.getElementById('capturedWhite').innerHTML = 
+                capturedPieces.white.map(p => `<span>${p}</span>`).join(' ') || 
+                '<span class="text-gray-600 text-sm">None</span>';
+            
+            document.getElementById('capturedBlack').innerHTML = 
+                capturedPieces.black.map(p => `<span>${p}</span>`).join(' ') || 
+                '<span class="text-gray-600 text-sm">None</span>';
+        }
+
+        // New game
+        function startNewGame() {
+            initBoard();
+            selectedSquare = null;
+            currentPlayer = 'white';
+            gameActive = true;
+            moveHistory = [];
+            capturedPieces = { white: [], black: [] };
+            lastMove = null;
+            
+            document.getElementById('gameStatus').textContent = 'In Progress';
+            document.getElementById('gameStatus').className = 'font-semibold text-green-400';
+            
+            updateCapturedPieces();
+            updateMoveHistory();
+            renderBoard();
+
+            // Show toast notification
+            const colorName = playerColor.charAt(0).toUpperCase() + playerColor.slice(1);
+            showToast({
+                title: '🎮 New Game Started!',
+                body: `You are playing as ${colorName}. ${playerColor === 'white' ? 'Make your first move!' : 'AI will move first...'}`
+            }, 'success', 3500);
+
+            // If AI plays white, make first move
+            if (playerColor === 'black') {
+                setTimeout(() => {
+                    document.getElementById('aiThinking').classList.remove('hidden');
+                    setTimeout(() => {
+                        makeAIMove();
+                        document.getElementById('aiThinking').classList.add('hidden');
+                    }, 500);
+                }, 300);
+            }
+        }
+
+        // Event Listeners
+        document.getElementById('newGame').addEventListener('click', startNewGame);
+
+        document.getElementById('playWhite').addEventListener('click', () => {
+            playerColor = 'white';
+            document.getElementById('playWhite').classList.add('border-blue-500', 'bg-blue-600');
+            document.getElementById('playBlack').classList.remove('border-blue-500', 'bg-blue-600');
+            
+            showToast({
+                title: '♔ White Pieces Selected',
+                body: 'You will play as White and move first. Click "New Game" to start!'
+            }, 'info', 3000);
+        });
+
+        document.getElementById('playBlack').addEventListener('click', () => {
+            playerColor = 'black';
+            document.getElementById('playBlack').classList.add('border-blue-500', 'bg-blue-600');
+            document.getElementById('playWhite').classList.remove('border-blue-500', 'bg-blue-600');
+            
+            showToast({
+                title: '♚ Black Pieces Selected',
+                body: 'You will play as Black. AI will make the first move. Click "New Game" to start!'
+            }, 'info', 3000);
+        });
+
+        // Help modal
+        const helpModal = document.getElementById('helpModal');
+        document.getElementById('showHelp').addEventListener('click', () => {
+            helpModal.classList.add('active');
+        });
+        document.getElementById('closeHelp').addEventListener('click', () => {
+            helpModal.classList.remove('active');
+        });
+        document.getElementById('closeHelpBtn').addEventListener('click', () => {
+            helpModal.classList.remove('active');
+        });
+
+        // Tab switching
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const tab = button.dataset.tab;
+                
+                // Update buttons
+                document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                button.classList.add('active');
+                
+                // Update content
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                document.getElementById(tab).classList.add('active');
+            });
+        });
+
+        // Initialize
+        document.getElementById('playWhite').click();
+        startNewGame();
+    </script>
+</body>
+</html>
