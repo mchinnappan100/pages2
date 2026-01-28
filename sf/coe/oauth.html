@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Tokens & MFA in Salesforce - Security Guide</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ 
+            startOnLoad: true,
+            theme: 'dark',
+            themeVariables: {
+                primaryColor: '#1e40af',
+                primaryTextColor: '#e5e7eb',
+                primaryBorderColor: '#3b82f6',
+                lineColor: '#60a5fa',
+                secondaryColor: '#7c3aed',
+                tertiaryColor: '#0891b2',
+                background: '#1f2937',
+                mainBkg: '#1f2937',
+                secondBkg: '#374151',
+                textColor: '#e5e7eb',
+                fontSize: '14px'
+            }
+        });
+    </script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100">
+    
+    <!-- Header -->
+    <header class="gradient-bg border-b border-gray-700">
+        <div class="container mx-auto px-6 py-8">
+            <div class="flex items-center space-x-4">
+                <svg class="w-12 h-12 text-blue-500" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5zm0 18c-3.86-1.01-6-4.35-6-8V8.3l6-3.11 6 3.11V12c0 3.65-2.14 6.99-6 8z"/>
+                    <path d="M11 7h2v6h-2zm0 8h2v2h-2z"/>
+                </svg>
+                <div>
+                    <h1 class="text-4xl font-bold text-white">OAuth Tokens & MFA in Salesforce</h1>
+                    <p class="text-gray-400 mt-2">Understanding Security Implications and Best Practices</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-6 py-12 max-w-6xl">
+        
+        <!-- Introduction Section -->
+        <section class="mb-16">
+            <div class="bg-gray-800 rounded-lg shadow-xl p-8 border border-gray-700">
+                <h2 class="text-3xl font-bold text-blue-400 mb-6">Overview</h2>
+                <p class="text-gray-300 leading-relaxed mb-4">
+                    In Salesforce, OAuth tokens can bypass Multi-Factor Authentication (MFA) after initial authentication. 
+                    This is a critical security consideration for administrators and developers working with connected apps, 
+                    integrations, and API access.
+                </p>
+                <div class="bg-yellow-900/30 border-l-4 border-yellow-500 p-4 mt-6">
+                    <p class="text-yellow-200">
+                        <strong>⚠️ Security Alert:</strong> Once an OAuth access token or refresh token is issued after successful 
+                        MFA authentication, that token can be used for API requests without requiring MFA again until it expires.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works Section -->
+        <section class="mb-16">
+            <div class="bg-gray-800 rounded-lg shadow-xl p-8 border border-gray-700">
+                <h2 class="text-3xl font-bold text-blue-400 mb-6">How OAuth Authentication Works in Salesforce</h2>
+                
+                <div class="mermaid bg-gray-900 p-6 rounded-lg mb-6">
+sequenceDiagram
+    participant User
+    participant App as Connected App
+    participant SF as Salesforce
+    participant MFA as MFA Service
+    
+    User->>App: 1. Initiate Login
+    App->>SF: 2. OAuth Authorization Request
+    SF->>User: 3. Login Prompt (Username/Password)
+    User->>SF: 4. Provide Credentials
+    SF->>MFA: 5. Trigger MFA Challenge
+    MFA->>User: 6. Send MFA Code (SMS/App/etc)
+    User->>MFA: 7. Enter MFA Code
+    MFA->>SF: 8. Verify MFA
+    SF->>App: 9. Authorization Code
+    App->>SF: 10. Exchange Code for Tokens
+    SF->>App: 11. Access Token + Refresh Token
+    
+    Note over App,SF: Subsequent API Calls
+    App->>SF: 12. API Request with Access Token
+    SF->>App: 13. Response (No MFA Required!)
+    App->>SF: 14. More API Requests...
+    SF->>App: 15. Responses (Still No MFA)
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-6 mt-8">
+                    <div class="bg-gray-900 p-6 rounded-lg border border-gray-700">
+                        <h3 class="text-xl font-semibold text-green-400 mb-3">✓ Initial Authentication</h3>
+                        <ul class="space-y-2 text-gray-300">
+                            <li>• Username and password required</li>
+                            <li>• MFA challenge presented</li>
+                            <li>• User must verify identity</li>
+                            <li>• Tokens issued after success</li>
+                        </ul>
+                    </div>
+                    <div class="bg-gray-900 p-6 rounded-lg border border-gray-700">
+                        <h3 class="text-xl font-semibold text-red-400 mb-3">⚠ Subsequent Requests</h3>
+                        <ul class="space-y-2 text-gray-300">
+                            <li>• Only token required</li>
+                            <li>• No password needed</li>
+                            <li>• No MFA challenge</li>
+                            <li>• Access until token expires</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Token Lifecycle Section -->
+        <section class="mb-16">
+            <div class="bg-gray-800 rounded-lg shadow-xl p-8 border border-gray-700">
+                <h2 class="text-3xl font-bold text-blue-400 mb-6">OAuth Token Lifecycle in Salesforce</h2>
+                
+                <div class="mermaid bg-gray-900 p-6 rounded-lg">
+stateDiagram-v2
+    [*] --> Authentication: User Login + MFA
+    Authentication --> TokenIssued: Successful Auth
+    TokenIssued --> ActiveToken: Access Token Valid
+    ActiveToken --> APIAccess: Make API Calls
+    APIAccess --> ActiveToken: Token Still Valid
+    ActiveToken --> Expired: Token Lifetime Ends
+    ActiveToken --> Revoked: Manual Revocation
+    Expired --> RefreshToken: Use Refresh Token
+    RefreshToken --> TokenIssued: New Access Token
+    Revoked --> [*]: Access Denied
+    Expired --> [*]: Re-authenticate Required
+    
+    note right of ActiveToken
+        No MFA required
+        during this phase
+    end note
+    
+    note right of RefreshToken
+        Refresh tokens can be
+        long-lived (up to 1 year)
+    end note
+                </div>
+
+                <div class="mt-8 bg-blue-900/30 border border-blue-700 rounded-lg p-6">
+                    <h3 class="text-xl font-semibold text-blue-300 mb-4">Token Types in Salesforce</h3>
+                    <div class="grid md:grid-cols-2 gap-4">
+                        <div>
+                            <h4 class="font-semibold text-blue-200 mb-2">Access Token</h4>
+                            <ul class="text-gray-300 text-sm space-y-1">
+                                <li>• Short-lived (15 minutes - 2 hours)</li>
+                                <li>• Used for API requests</li>
+                                <li>• No MFA after issuance</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-blue-200 mb-2">Refresh Token</h4>
+                            <ul class="text-gray-300 text-sm space-y-1">
+                                <li>• Long-lived (up to 1 year)</li>
+                                <li>• Gets new access tokens</li>
+                                <li>• Also bypasses MFA</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Security Risks Section -->
+        <section class="mb-16">
+            <div class="bg-gray-800 rounded-lg shadow-xl p-8 border border-gray-700">
+                <h2 class="text-3xl font-bold text-blue-400 mb-6">Security Risks & Attack Vectors</h2>
+                
+                <div class="mermaid bg-gray-900 p-6 rounded-lg mb-6">
+graph TD
+    A[OAuth Token Obtained] --> B{How Token is Compromised}
+    B -->|Malware| C[Keylogger/Token Stealer]
+    B -->|Network| D[Man-in-the-Middle Attack]
+    B -->|Storage| E[Insecure Token Storage]
+    B -->|Social Engineering| F[Phishing/Session Hijacking]
+    B -->|Insider Threat| G[Malicious Employee]
+    
+    C --> H[Attacker Has Valid Token]
+    D --> H
+    E --> H
+    F --> H
+    G --> H
+    
+    H --> I[Bypass MFA]
+    I --> J[Access Salesforce APIs]
+    J --> K[Data Exfiltration]
+    J --> L[Unauthorized Changes]
+    J --> M[Privilege Escalation]
+    
+    style H fill:#991b1b
+    style I fill:#991b1b
+    style K fill:#7f1d1d
+    style L fill:#7f1d1d
+    style M fill:#7f1d1d
+                </div>
+
+                <div class="grid md:grid-cols-3 gap-4 mt-6">
+                    <div class="bg-red-900/20 border border-red-700 rounded-lg p-4">
+                        <h3 class="font-semibold text-red-400 mb-2">🔓 Token Theft</h3>
+                        <p class="text-gray-300 text-sm">Attackers steal tokens from compromised devices or insecure storage</p>
+                    </div>
+                    <div class="bg-red-900/20 border border-red-700 rounded-lg p-4">
+                        <h3 class="font-semibold text-red-400 mb-2">🌐 Network Interception</h3>
+                        <p class="text-gray-300 text-sm">Tokens captured over unencrypted or compromised networks</p>
+                    </div>
+                    <div class="bg-red-900/20 border border-red-700 rounded-lg p-4">
+                        <h3 class="font-semibold text-red-400 mb-2">⏰ Long-lived Tokens</h3>
+                        <p class="text-gray-300 text-sm">Refresh tokens valid for months provide extended access window</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Best Practices Section -->
+        <section class="mb-16">
+            <div class="bg-gray-800 rounded-lg shadow-xl p-8 border border-gray-700">
+                <h2 class="text-3xl font-bold text-green-400 mb-6">🛡️ Best Practices for Salesforce OAuth Security</h2>
+
+                <!-- Connected App Configuration -->
+                <div class="mb-8">
+                    <h3 class="text-2xl font-semibold text-blue-300 mb-4 flex items-center">
+                        <span class="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-3 text-sm">1</span>
+                        Connected App Configuration
+                    </h3>
+                    <div class="bg-gray-900 rounded-lg p-6 space-y-4">
+                        <div class="border-l-4 border-green-500 pl-4">
+                            <h4 class="font-semibold text-green-400 mb-2">Enable IP Restrictions</h4>
+                            <p class="text-gray-300 text-sm">Set IP ranges in Connected App settings to limit where tokens can be used</p>
+                            <code class="block mt-2 bg-gray-800 p-2 rounded text-xs text-blue-300">Setup → Apps → App Manager → [Your App] → Manage → Edit Policies</code>
+                        </div>
+                        
+                        <div class="border-l-4 border-green-500 pl-4">
+                            <h4 class="font-semibold text-green-400 mb-2">Implement Session Timeout Policies</h4>
+                            <p class="text-gray-300 text-sm">Configure short token lifetimes and refresh token policies</p>
+                            <code class="block mt-2 bg-gray-800 p-2 rounded text-xs text-blue-300">Setup → Session Settings → Session Timeout & Refresh Token Policy</code>
+                        </div>
+                        
+                        <div class="border-l-4 border-green-500 pl-4">
+                            <h4 class="font-semibold text-green-400 mb-2">Use PKCE (Proof Key for Code Exchange)</h4>
+                            <p class="text-gray-300 text-sm">Enable PKCE for mobile and SPA apps to prevent authorization code interception</p>
+                            <code class="block mt-2 bg-gray-800 p-2 rounded text-xs text-blue-300">Require PKCE for OAuth flows in Connected App settings</code>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Token Management -->
+                <div class="mb-8">
+                    <h3 class="text-2xl font-semibold text-blue-300 mb-4 flex items-center">
+                        <span class="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-3 text-sm">2</span>
+                        Token Management & Lifecycle
+                    </h3>
+                    <div class="bg-gray-900 rounded-lg p-6">
+                        <ul class="space-y-3">
+                            <li class="flex items-start">
+                                <span class="text-green-400 mr-3">✓</span>
+                                <div>
+                                    <strong class="text-gray-200">Short Access Token Lifetimes:</strong>
+                                    <p class="text-gray-400 text-sm">Set access tokens to expire in 15-30 minutes maximum</p>
+                                </div>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-400 mr-3">✓</span>
+                                <div>
+                                    <strong class="text-gray-200">Refresh Token Rotation:</strong>
+                                    <p class="text-gray-400 text-sm">Enable refresh token rotation to issue new refresh tokens on each use</p>
+                                </div>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-400 mr-3">✓</span>
+                                <div>
+                                    <strong class="text-gray-200">Token Revocation Strategy:</strong>
+                                    <p class="text-gray-400 text-sm">Implement automated token revocation on user logout, password change, or suspicious activity</p>
+                                </div>
+                            </li>
+                            <li class="flex items-start">
+                                <span class="text-green-400 mr-3">✓</span>
+                                <div>
+                                    <strong class="text-gray-200">Secure Token Storage:</strong>
+                                    <p class="text-gray-400 text-sm">Store tokens encrypted in secure storage (Keychain/KeyStore for mobile, secure backend for web)</p>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Monitoring & Detection -->
+                <div class="mb-8">
+                    <h3 class="text-2xl font-semibold text-blue-300 mb-4 flex items-center">
+                        <span class="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-3 text-sm">3</span>
+                        Monitoring & Threat Detection
+                    </h3>
+                    <div class="bg-gray-900 rounded-lg p-6">
+                        <div class="grid md:grid-cols-2 gap-4">
+                            <div class="bg-gray-800 p-4 rounded border border-gray-700">
+                                <h4 class="font-semibold text-purple-400 mb-2">Enable Event Monitoring</h4>
+                                <ul class="text-gray-300 text-sm space-y-1">
+                                    <li>• Track API usage patterns</li>
+                                    <li>• Monitor login anomalies</li>
+                                    <li>• Alert on geo-velocity violations</li>
+                                    <li>• Review OAuth token usage logs</li>
+                                </ul>
+                            </div>
+                            <div class="bg-gray-800 p-4 rounded border border-gray-700">
+                                <h4 class="font-semibold text-purple-400 mb-2">Transaction Security Policies</h4>
+                                <ul class="text-gray-300 text-sm space-y-1">
+                                    <li>• Block suspicious API access</li>
+                                    <li>• Require step-up auth for sensitive ops</li>
+                                    <li>• Geo-location based policies</li>
+                                    <li>• Time-based access controls</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Additional Security Layers -->
+                <div class="mb-8">
+                    <h3 class="text-2xl font-semibold text-blue-300 mb-4 flex items-center">
+                        <span class="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-3 text-sm">4</span>
+                        Additional Security Layers
+                    </h3>
+                    <div class="bg-gray-900 rounded-lg p-6 space-y-4">
+                        <div class="flex items-start space-x-3">
+                            <div class="bg-blue-600 rounded-lg p-2 mt-1">
+                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-200">Certificate-Based Authentication</h4>
+                                <p class="text-gray-400 text-sm">Use mutual TLS authentication for server-to-server integrations</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start space-x-3">
+                            <div class="bg-blue-600 rounded-lg p-2 mt-1">
+                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-200">Named Credentials</h4>
+                                <p class="text-gray-400 text-sm">Use Named Credentials to centralize and secure external authentication</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-start space-x-3">
+                            <div class="bg-blue-600 rounded-lg p-2 mt-1">
+                                <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h4 class="font-semibold text-gray-200">OAuth Scopes</h4>
+                                <p class="text-gray-400 text-sm">Limit connected app permissions to minimum required scope (principle of least privilege)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Admin Tools -->
+                <div>
+                    <h3 class="text-2xl font-semibold text-blue-300 mb-4 flex items-center">
+                        <span class="bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center mr-3 text-sm">5</span>
+                        Administrator Tools & Actions
+                    </h3>
+                    <div class="bg-gray-900 rounded-lg p-6">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-800 border-b border-gray-700">
+                                    <tr>
+                                        <th class="text-left p-3 text-blue-300">Action</th>
+                                        <th class="text-left p-3 text-blue-300">Navigation Path</th>
+                                        <th class="text-left p-3 text-blue-300">Purpose</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="text-gray-300">
+                                    <tr class="border-b border-gray-800">
+                                        <td class="p-3">Review Active Sessions</td>
+                                        <td class="p-3 text-xs font-mono">Setup → Users → Active Sessions</td>
+                                        <td class="p-3">Monitor and terminate suspicious sessions</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-800">
+                                        <td class="p-3">OAuth Usage Reports</td>
+                                        <td class="p-3 text-xs font-mono">Setup → Identity → OAuth</td>
+                                        <td class="p-3">Audit OAuth token usage and patterns</td>
+                                    </tr>
+                                    <tr class="border-b border-gray-800">
+                                        <td class="p-3">Revoke Tokens</td>
+                                        <td class="p-3 text-xs font-mono">Setup → Apps → Connected Apps</td>
+                                        <td class="p-3">Manually revoke compromised tokens</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="p-3">Login History</td>
+                                        <td class="p-3 text-xs font-mono">Setup → Users → Login History</td>
+                                        <td class="p-3">Track authentication events and anomalies</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Quick Reference -->
+        <section class="mb-16">
+            <div class="bg-gray-800 rounded-lg shadow-xl p-8 border border-gray-700">
+                <h2 class="text-3xl font-bold text-blue-400 mb-6">Quick Security Checklist</h2>
+                <div class="grid md:grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <div class="flex items-center space-x-3 bg-gray-900 p-3 rounded">
+                            <input type="checkbox" class="w-5 h-5 text-blue-600">
+                            <label class="text-gray-300">MFA enabled org-wide</label>
+                        </div>
+                        <div class="flex items-center space-x-3 bg-gray-900 p-3 rounded">
+                            <input type="checkbox" class="w-5 h-5 text-blue-600">
+                            <label class="text-gray-300">Short access token lifetime (≤30 min)</label>
+                        </div>
+                        <div class="flex items-center space-x-3 bg-gray-900 p-3 rounded">
+                            <input type="checkbox" class="w-5 h-5 text-blue-600">
+                            <label class="text-gray-300">Refresh token rotation enabled</label>
+                        </div>
+                        <div class="flex items-center space-x-3 bg-gray-900 p-3 rounded">
+                            <input type="checkbox" class="w-5 h-5 text-blue-600">
+                            <label class="text-gray-300">IP restrictions configured</label>
+                        </div>
+                        <div class="flex items-center space-x-3 bg-gray-900 p-3 rounded">
+                            <input type="checkbox" class="w-5 h-5 text-blue-600">
+                            <label class="text-gray-300">Event Monitoring enabled</label>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <div class="flex items-center space-x-3 bg-gray-900 p-3 rounded">
+                            <input type="checkbox" class="w-5 h-5 text-blue-600">
+                            <label class="text-gray-300">Transaction Security policies active</label>
+                        </div>
+                        <div class="flex items-center space-x-3 bg-gray-900 p-3 rounded">
+                            <input type="checkbox" class="w-5 h-5 text-blue-600">
+                            <label class="text-gray-300">OAuth scopes minimized</label>
+                        </div>
+                        <div class="flex items-center space-x-3 bg-gray-900 p-3 rounded">
+                            <input type="checkbox" class="w-5 h-5 text-blue-600">
+                            <label class="text-gray-300">Regular access reviews scheduled</label>
+                        </div>
+                        <div class="flex items-center space-x-3 bg-gray-900 p-3 rounded">
+                            <input type="checkbox" class="w-5 h-5 text-blue-600">
+                            <label class="text-gray-300">Secure token storage implemented</label>
+                        </div>
+                        <div class="flex items-center space-x-3 bg-gray-900 p-3 rounded">
+                            <input type="checkbox" class="w-5 h-5 text-blue-600">
+                            <label class="text-gray-300">Certificate-based auth for integrations</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Resources -->
+        <section class="mb-16">
+            <div class="bg-gray-800 rounded-lg shadow-xl p-8 border border-gray-700">
+                <h2 class="text-3xl font-bold text-blue-400 mb-6">Additional Resources</h2>
+                <div class="grid md:grid-cols-3 gap-4">
+                    <a href="https://help.salesforce.com/s/articleView?id=sf.remoteaccess_oauth_web_server_flow.htm" 
+                       class="bg-gray-900 p-6 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors">
+                        <h3 class="font-semibold text-blue-400 mb-2">OAuth Web Server Flow</h3>
+                        <p class="text-gray-400 text-sm">Official Salesforce OAuth documentation</p>
+                    </a>
+                    <a href="https://help.salesforce.com/s/articleView?id=sf.security_overview.htm" 
+                       class="bg-gray-900 p-6 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors">
+                        <h3 class="font-semibold text-blue-400 mb-2">Security Guide</h3>
+                        <p class="text-gray-400 text-sm">Comprehensive security best practices</p>
+                    </a>
+                    <a href="https://help.salesforce.com/s/articleView?id=sf.connected_app_overview.htm" 
+                       class="bg-gray-900 p-6 rounded-lg border border-gray-700 hover:border-blue-500 transition-colors">
+                        <h3 class="font-semibold text-blue-400 mb-2">Connected Apps</h3>
+                        <p class="text-gray-400 text-sm">Managing connected applications</p>
+                    </a>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="gradient-bg border-t border-gray-700 mt-16">
+        <div class="container mx-auto px-6 py-8 text-center">
+            <p class="text-gray-400">
+                🔐 Salesforce OAuth Security Guide | Keep your organization secure
+            </p>
+            <p class="text-gray-500 text-sm mt-2">
+                Always follow the principle of least privilege and maintain defense in depth
+            </p>
+        </div>
+    </footer>
+
+</body>
+</html>
