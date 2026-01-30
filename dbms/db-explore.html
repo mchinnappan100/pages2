@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>SQLite Explorer Pro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- sql.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.9.0/sql-wasm.js"></script>
+
+  <!-- DataTables -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
+  <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
+
+  <!-- Monaco -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+
+  <style>
+    body { 
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+    
+    .splitter {
+      width: 4px;
+      cursor: col-resize;
+      background: #374151;
+      transition: background 0.2s;
+      position: relative;
+    }
+    
+    .splitter:hover {
+      background: #4b5563;
+    }
+    
+    .splitter::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 20px;
+      height: 60px;
+      background: transparent;
+    }
+    
+    .dataTables_wrapper {
+      color: #e5e7eb;
+      font-size: 0.875rem;
+    }
+    
+    .dataTables_wrapper .dataTables_length,
+    .dataTables_wrapper .dataTables_filter,
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_paginate {
+      color: #9ca3af;
+    }
+    
+    .dataTables_wrapper .dataTables_paginate .paginate_button {
+      color: #9ca3af !important;
+      background: transparent !important;
+      border: none !important;
+    }
+    
+    .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+      color: #fff !important;
+      background: #374151 !important;
+    }
+    
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+      color: #fff !important;
+      background: #4f46e5 !important;
+    }
+    
+    table.dataTable {
+      background: #1f2937;
+      border: 1px solid #374151;
+    }
+    
+    table.dataTable thead th {
+      background: #111827;
+      color: #e5e7eb;
+      border-bottom: 2px solid #4f46e5;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.05em;
+    }
+    
+    table.dataTable tbody tr {
+      background: #1f2937;
+      border-bottom: 1px solid #374151;
+    }
+    
+    table.dataTable tbody tr:hover {
+      background: #374151 !important;
+    }
+    
+    table.dataTable tbody td {
+      color: #d1d5db;
+      padding: 12px 8px;
+    }
+    
+    .dataTables_wrapper .dataTables_filter input {
+      background: #374151;
+      border: 1px solid #4b5563;
+      color: #e5e7eb;
+      padding: 6px 12px;
+      border-radius: 6px;
+    }
+    
+    .dataTables_wrapper .dataTables_length select {
+      background: #374151;
+      border: 1px solid #4b5563;
+      color: #e5e7eb;
+      padding: 4px 8px;
+      border-radius: 6px;
+    }
+    
+    .dt-button {
+      background: #4f46e5 !important;
+      color: white !important;
+      border: none !important;
+      padding: 6px 16px !important;
+      border-radius: 6px !important;
+      font-size: 0.875rem !important;
+      margin-left: 8px !important;
+    }
+    
+    .dt-button:hover {
+      background: #4338ca !important;
+    }
+    
+    .table-item {
+      transition: all 0.2s;
+    }
+    
+    .table-item:hover {
+      transform: translateX(4px);
+    }
+    
+    .table-item.active {
+      background: #4f46e5;
+      color: white;
+      border-left: 3px solid #818cf8;
+    }
+    
+    .column-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 4px;
+    }
+    
+    .schema-container {
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    
+    .schema-container::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    .schema-container::-webkit-scrollbar-track {
+      background: #1f2937;
+    }
+    
+    .schema-container::-webkit-scrollbar-thumb {
+      background: #4b5563;
+      border-radius: 3px;
+    }
+    
+    .query-history-item {
+      transition: all 0.2s;
+      cursor: pointer;
+    }
+    
+    .query-history-item:hover {
+      background: #374151;
+      transform: translateX(2px);
+    }
+    
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .animate-slide-in {
+      animation: slideIn 0.3s ease-out;
+    }
+    
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    
+    .tooltip {
+      position: relative;
+    }
+    
+    .tooltip:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #111827;
+      color: #e5e7eb;
+      padding: 6px 12px;
+      border-radius: 6px;
+      white-space: nowrap;
+      font-size: 0.75rem;
+      margin-bottom: 6px;
+      border: 1px solid #374151;
+      z-index: 1000;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-900 text-gray-100 h-screen flex flex-col overflow-hidden">
+
+  <!-- Header -->
+  <header class="bg-gradient-to-r from-gray-800 to-gray-900 border-b border-gray-700 shadow-xl">
+    <div class="p-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-4">
+          <div class="flex items-center gap-3">
+            <svg class="w-8 h-8 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4"></path>
+            </svg>
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-indigo-400 to-purple-500 bg-clip-text text-transparent">
+              SQLite Explorer Pro
+            </h1>
+          </div>
+          
+          <div class="flex items-center gap-2">
+            <label for="dbFile" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 rounded-lg cursor-pointer transition flex items-center gap-2 text-sm font-medium">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+              </svg>
+              Upload Database
+            </label>
+            <input type="file" id="dbFile" accept=".db,.sqlite,.sqlite3" class="hidden" />
+            
+            <span id="dbStatus" class="status-badge bg-gray-700 text-gray-400">
+              <span class="w-2 h-2 rounded-full bg-gray-500"></span>
+              No Database
+            </span>
+          </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+          <button onclick="runQuery()" 
+            class="px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg transition flex items-center gap-2 text-sm font-medium tooltip"
+            data-tooltip="Ctrl/Cmd + Enter">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Run Query
+          </button>
+          
+          <button onclick="formatQuery()" 
+            class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition flex items-center gap-2 text-sm font-medium tooltip"
+            data-tooltip="Format SQL">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7"></path>
+            </svg>
+            Format
+          </button>
+          
+          <button onclick="clearEditor()" 
+            class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition flex items-center gap-2 text-sm font-medium tooltip"
+            data-tooltip="Clear Editor">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+            </svg>
+            Clear
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Layout -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- Left Sidebar: Tables & Schema -->
+    <div id="leftPane" class="w-1/5 bg-gray-800 overflow-hidden flex flex-col border-r border-gray-700">
+      <div class="p-4 border-b border-gray-700">
+        <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+          </svg>
+          Database Tables
+        </h2>
+        <div id="tableCount" class="text-xs text-gray-500 mt-1">0 tables</div>
+      </div>
+      
+      <div class="flex-1 overflow-y-auto p-3" id="tablesContainer">
+        <div id="tables" class="space-y-1"></div>
+        <div id="noTablesMessage" class="text-center py-12 text-gray-500">
+          <svg class="w-12 h-12 mx-auto mb-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+          </svg>
+          <p class="text-sm">Upload a database to view tables</p>
+        </div>
+      </div>
+      
+      <!-- Query History -->
+      <div class="border-t border-gray-700 bg-gray-900">
+        <div class="p-3">
+          <div class="flex items-center justify-between mb-2">
+            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Recent Queries</h3>
+            <button onclick="clearHistory()" class="text-xs text-red-400 hover:text-red-300">Clear</button>
+          </div>
+          <div id="queryHistory" class="space-y-1 max-h-32 overflow-y-auto"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="splitter"></div>
+
+    <!-- Middle: SQL Editor -->
+    <div id="middlePane" class="w-2/5 flex flex-col bg-gray-900">
+      <div class="px-4 py-2 bg-gray-800 border-b border-gray-700 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+          </svg>
+          <span class="text-sm font-medium text-gray-300">SQL Editor</span>
+        </div>
+        <div class="text-xs text-gray-500" id="editorInfo">Line 1, Col 1</div>
+      </div>
+      <div id="editor" class="flex-1"></div>
+      <div id="queryResult" class="px-4 py-2 bg-gray-800 border-t border-gray-700 text-xs text-gray-400">
+        <div class="flex items-center gap-2">
+          <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+          <span>Ready to execute SQL queries</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="splitter"></div>
+
+    <!-- Right: Results -->
+    <div id="rightPane" class="w-2/5 bg-gray-900 overflow-hidden flex flex-col">
+      <div class="px-4 py-2 bg-gray-800 border-b border-gray-700 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+          <span class="text-sm font-medium text-gray-300">Query Results</span>
+        </div>
+        <div id="resultInfo" class="text-xs text-gray-500">No results</div>
+      </div>
+      <div class="flex-1 overflow-auto p-4">
+        <div id="resultTableContainer">
+          <table id="resultTable" class="display nowrap w-full" style="width:100%"></table>
+        </div>
+        <div id="noResultsMessage" class="text-center py-12 text-gray-500">
+          <svg class="w-12 h-12 mx-auto mb-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+          </svg>
+          <p class="text-sm">Run a query to see results</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+let db, editor, tableMeta = {}, selectedTable = null;
+const queryHistory = [];
+const MAX_HISTORY = 10;
+
+// Initialize SQL.js
+initSqlJs({
+  locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.9.0/${file}`
+}).then(SQL => {
+  window.SQL = SQL;
+  console.log('SQL.js initialized successfully');
+});
+
+// File upload handler
+document.getElementById("dbFile").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  try {
+    const buffer = await file.arrayBuffer();
+    db = new SQL.Database(new Uint8Array(buffer));
+    
+    // Update status
+    const statusBadge = document.getElementById("dbStatus");
+    statusBadge.innerHTML = `
+      <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+      ${file.name}
+    `;
+    statusBadge.className = "status-badge bg-green-900 text-green-300";
+    
+    loadTables();
+    showNotification(`Database loaded: ${file.name}`, 'success');
+  } catch (error) {
+    console.error('Error loading database:', error);
+    showNotification('Failed to load database', 'error');
+  }
+});
+
+// Load tables from database
+function loadTables() {
+  try {
+    const res = db.exec(`
+      SELECT name FROM sqlite_master 
+      WHERE type='table' AND name NOT LIKE 'sqlite_%'
+      ORDER BY name
+    `);
+
+    const tablesDiv = document.getElementById("tables");
+    const noTablesMsg = document.getElementById("noTablesMessage");
+    const tableCount = document.getElementById("tableCount");
+    
+    tablesDiv.innerHTML = "";
+    
+    if (!res.length || !res[0].values.length) {
+      noTablesMsg.style.display = "block";
+      tableCount.textContent = "0 tables";
+      return;
+    }
+    
+    noTablesMsg.style.display = "none";
+    const tables = res[0].values;
+    tableCount.textContent = `${tables.length} table${tables.length !== 1 ? 's' : ''}`;
+
+    tables.forEach(([name]) => {
+      const tableDiv = document.createElement("div");
+      tableDiv.className = "table-item p-3 rounded-lg cursor-pointer bg-gray-700 hover:bg-gray-600 transition";
+      
+      const columns = loadColumns(name);
+      const rowCount = getRowCount(name);
+      
+      tableDiv.innerHTML = `
+        <div class="flex items-center justify-between mb-2">
+          <div class="flex items-center gap-2">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+            </svg>
+            <span class="font-medium text-sm">${name}</span>
+          </div>
+          <span class="text-xs text-gray-400">${rowCount} rows</span>
+        </div>
+        <div class="schema-container text-xs text-gray-400 space-y-1" style="display: none;">
+          ${columns.map(col => `
+            <div class="flex items-center gap-2 pl-6">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+              </svg>
+              <span>${col.name}</span>
+              <span class="column-badge bg-gray-600 text-gray-300">${col.type || 'TEXT'}</span>
+              ${col.pk ? '<span class="column-badge bg-yellow-900 text-yellow-300">PK</span>' : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+      
+      tableDiv.onclick = (e) => {
+        // Toggle schema display
+        const schema = tableDiv.querySelector('.schema-container');
+        schema.style.display = schema.style.display === 'none' ? 'block' : 'none';
+        
+        // Set active table
+        document.querySelectorAll('.table-item').forEach(t => t.classList.remove('active'));
+        tableDiv.classList.add('active');
+        selectedTable = name;
+        
+        // Update editor
+        editor.setValue(`SELECT * FROM ${name} LIMIT 100;`);
+      };
+      
+      tablesDiv.appendChild(tableDiv);
+    });
+  } catch (error) {
+    console.error('Error loading tables:', error);
+    showNotification('Error loading tables', 'error');
+  }
+}
+
+// Load column information for a table
+function loadColumns(table) {
+  try {
+    const res = db.exec(`PRAGMA table_info(${table})`);
+    if (!res.length) return [];
+    
+    const columns = res[0].values.map(row => ({
+      cid: row[0],
+      name: row[1],
+      type: row[2],
+      notnull: row[3],
+      dflt_value: row[4],
+      pk: row[5]
+    }));
+    
+    tableMeta[table] = columns.map(c => c.name);
+    return columns;
+  } catch (error) {
+    console.error('Error loading columns:', error);
+    return [];
+  }
+}
+
+// Get row count for a table
+function getRowCount(table) {
+  try {
+    const res = db.exec(`SELECT COUNT(*) as count FROM ${table}`);
+    return res[0].values[0][0];
+  } catch (error) {
+    return 0;
+  }
+}
+
+// Run SQL query
+function runQuery() {
+  if (!db) {
+    showNotification('Please upload a database first', 'warning');
+    return;
+  }
+
+  const sql = editor.getValue().trim();
+  if (!sql) {
+    showNotification('Please enter a SQL query', 'warning');
+    return;
+  }
+
+  try {
+    const startTime = performance.now();
+    const res = db.exec(sql);
+    const endTime = performance.now();
+    const executionTime = (endTime - startTime).toFixed(2);
+    
+    if (!res.length) {
+      showNotification('Query executed successfully (no results)', 'info');
+      document.getElementById("queryResult").innerHTML = `
+        <div class="flex items-center gap-2">
+          <svg class="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          </svg>
+          <span class="text-green-400">Query executed in ${executionTime}ms</span>
+        </div>
+      `;
+      clearResults();
+      return;
+    }
+
+    const { columns, values } = res[0];
+    renderTable(columns, values);
+    
+    // Update query result info
+    document.getElementById("queryResult").innerHTML = `
+      <div class="flex items-center gap-2">
+        <svg class="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+        <span class="text-green-400">Query executed in ${executionTime}ms - ${values.length} row${values.length !== 1 ? 's' : ''} returned</span>
+      </div>
+    `;
+    
+    // Add to history
+    addToHistory(sql);
+    
+    showNotification(`Query executed successfully (${values.length} rows)`, 'success');
+  } catch (error) {
+    console.error('Query error:', error);
+    showNotification(`Query error: ${error.message}`, 'error');
+    document.getElementById("queryResult").innerHTML = `
+      <div class="flex items-center gap-2">
+        <svg class="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+        <span class="text-red-400">Error: ${error.message}</span>
+      </div>
+    `;
+  }
+}
+
+// Render results table
+function renderTable(columns, rows) {
+  const noResultsMsg = document.getElementById("noResultsMessage");
+  const resultContainer = document.getElementById("resultTableContainer");
+  const resultInfo = document.getElementById("resultInfo");
+  
+  noResultsMsg.style.display = "none";
+  resultContainer.style.display = "block";
+  resultInfo.textContent = `${rows.length} row${rows.length !== 1 ? 's' : ''}`;
+
+  if ($.fn.DataTable.isDataTable("#resultTable")) {
+    $("#resultTable").DataTable().destroy();
+  }
+
+  $("#resultTable").empty();
+
+  const thead = `<thead><tr>${columns.map(c => `<th>${c}</th>`).join("")}</tr></thead>`;
+  $("#resultTable").append(thead);
+
+  $("#resultTable").DataTable({
+    data: rows,
+    columns: columns.map(c => ({ title: c })),
+    paging: true,
+    pageLength: 25,
+    searching: true,
+    ordering: true,
+    scrollX: true,
+    autoWidth: false,
+    dom: 'Bfrtip',
+    buttons: [
+      {
+        extend: 'csv',
+        text: 'Export CSV',
+        className: 'dt-button'
+      }
+    ],
+    language: {
+      search: "Search:",
+      lengthMenu: "Show _MENU_ rows",
+      info: "Showing _START_ to _END_ of _TOTAL_ rows",
+      infoEmpty: "No rows available",
+      paginate: {
+        first: "First",
+        last: "Last",
+        next: "Next",
+        previous: "Previous"
+      }
+    }
+  });
+}
+
+// Clear results
+function clearResults() {
+  const noResultsMsg = document.getElementById("noResultsMessage");
+  const resultContainer = document.getElementById("resultTableContainer");
+  const resultInfo = document.getElementById("resultInfo");
+  
+  if ($.fn.DataTable.isDataTable("#resultTable")) {
+    $("#resultTable").DataTable().destroy();
+    $("#resultTable").empty();
+  }
+  
+  noResultsMsg.style.display = "block";
+  resultContainer.style.display = "none";
+  resultInfo.textContent = "No results";
+}
+
+// Format SQL query (basic formatting)
+function formatQuery() {
+  if (!editor) return;
+  
+  let sql = editor.getValue();
+  
+  // Basic SQL formatting
+  sql = sql.replace(/\s+/g, ' ').trim();
+  sql = sql.replace(/\bSELECT\b/gi, '\nSELECT\n  ');
+  sql = sql.replace(/\bFROM\b/gi, '\nFROM\n  ');
+  sql = sql.replace(/\bWHERE\b/gi, '\nWHERE\n  ');
+  sql = sql.replace(/\bAND\b/gi, '\n  AND ');
+  sql = sql.replace(/\bOR\b/gi, '\n  OR ');
+  sql = sql.replace(/\bORDER BY\b/gi, '\nORDER BY\n  ');
+  sql = sql.replace(/\bGROUP BY\b/gi, '\nGROUP BY\n  ');
+  sql = sql.replace(/\bLIMIT\b/gi, '\nLIMIT ');
+  sql = sql.replace(/\bJOIN\b/gi, '\nJOIN ');
+  sql = sql.replace(/\bLEFT JOIN\b/gi, '\nLEFT JOIN ');
+  sql = sql.replace(/\bINNER JOIN\b/gi, '\nINNER JOIN ');
+  sql = sql.replace(/,/g, ',\n  ');
+  
+  editor.setValue(sql);
+  showNotification('Query formatted', 'info');
+}
+
+// Clear editor
+function clearEditor() {
+  if (!editor) return;
+  editor.setValue('');
+  showNotification('Editor cleared', 'info');
+}
+
+// Query history
+function addToHistory(sql) {
+  const shortSql = sql.length > 50 ? sql.substring(0, 50) + '...' : sql;
+  queryHistory.unshift({ sql, shortSql, timestamp: new Date() });
+  
+  if (queryHistory.length > MAX_HISTORY) {
+    queryHistory.pop();
+  }
+  
+  renderHistory();
+}
+
+function renderHistory() {
+  const historyDiv = document.getElementById("queryHistory");
+  
+  if (queryHistory.length === 0) {
+    historyDiv.innerHTML = '<div class="text-xs text-gray-600 text-center py-2">No recent queries</div>';
+    return;
+  }
+  
+  historyDiv.innerHTML = queryHistory.map((item, index) => `
+    <div class="query-history-item p-2 rounded bg-gray-800 hover:bg-gray-700 text-xs" 
+         onclick="editor.setValue(\`${item.sql.replace(/`/g, '\\`')}\`)">
+      <div class="text-gray-300 truncate">${item.shortSql}</div>
+      <div class="text-gray-600 text-[10px] mt-1">${item.timestamp.toLocaleTimeString()}</div>
+    </div>
+  `).join('');
+}
+
+function clearHistory() {
+  queryHistory.length = 0;
+  renderHistory();
+  showNotification('History cleared', 'info');
+}
+
+// Notification system
+function showNotification(message, type = 'info') {
+  const colors = {
+    success: 'bg-green-600',
+    error: 'bg-red-600',
+    warning: 'bg-yellow-600',
+    info: 'bg-blue-600'
+  };
+  
+  const notification = document.createElement('div');
+  notification.className = `fixed top-20 right-4 ${colors[type]} text-white px-6 py-3 rounded-lg shadow-xl animate-slide-in z-50 flex items-center gap-3`;
+  notification.innerHTML = `
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+    </svg>
+    <span>${message}</span>
+  `;
+  
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.style.opacity = '0';
+    notification.style.transform = 'translateY(-20px)';
+    notification.style.transition = 'all 0.3s';
+    setTimeout(() => notification.remove(), 300);
+  }, 3000);
+}
+
+// Monaco Editor initialization
+require.config({ 
+  paths: { 
+    vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' 
+  }
+});
+
+require(['vs/editor/editor.main'], () => {
+  editor = monaco.editor.create(document.getElementById('editor'), {
+    value: "-- Upload a database to get started\n-- Press Ctrl/Cmd+Enter to run query\n\nSELECT 1 as example;",
+    language: "sql",
+    theme: "vs-dark",
+    automaticLayout: true,
+    fontSize: 14,
+    lineNumbers: "on",
+    roundedSelection: true,
+    scrollBeyondLastLine: false,
+    minimap: { enabled: true },
+    wordWrap: "on",
+    formatOnPaste: true,
+    formatOnType: true
+  });
+
+  // Update editor info on cursor position change
+  editor.onDidChangeCursorPosition((e) => {
+    const position = editor.getPosition();
+    document.getElementById('editorInfo').textContent = `Line ${position.lineNumber}, Col ${position.column}`;
+  });
+
+  // Add keyboard shortcut for running query
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+    runQuery();
+  });
+
+  // SQL autocomplete
+  monaco.languages.registerCompletionItemProvider("sql", {
+    provideCompletionItems: (model, position) => {
+      const suggestions = [];
+      
+      // Add SQL keywords
+      const keywords = ['SELECT', 'FROM', 'WHERE', 'ORDER BY', 'GROUP BY', 'LIMIT', 'JOIN', 'LEFT JOIN', 'INNER JOIN', 'ON', 'AND', 'OR', 'INSERT', 'UPDATE', 'DELETE', 'CREATE', 'DROP', 'ALTER', 'TABLE'];
+      keywords.forEach(keyword => {
+        suggestions.push({
+          label: keyword,
+          kind: monaco.languages.CompletionItemKind.Keyword,
+          insertText: keyword
+        });
+      });
+      
+      // Add tables and columns
+      Object.entries(tableMeta).forEach(([table, cols]) => {
+        suggestions.push({
+          label: table,
+          kind: monaco.languages.CompletionItemKind.Struct,
+          insertText: table,
+          documentation: `Table: ${table}`
+        });
+        
+        cols.forEach(col => {
+          suggestions.push({
+            label: col,
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: col,
+            documentation: `Column from ${table}`
+          });
+        });
+      });
+      
+      return { suggestions };
+    }
+  });
+  
+  console.log('Monaco Editor initialized');
+});
+
+// Splitter functionality
+document.querySelectorAll(".splitter").forEach(splitter => {
+  let isDown = false;
+  let startX = 0;
+  let startWidth = 0;
+  
+  splitter.addEventListener("mousedown", (e) => {
+    isDown = true;
+    startX = e.clientX;
+    const prev = splitter.previousElementSibling;
+    startWidth = prev.offsetWidth;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+  
+  window.addEventListener("mouseup", () => {
+    if (isDown) {
+      isDown = false;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+  });
+  
+  window.addEventListener("mousemove", (e) => {
+    if (!isDown) return;
+    
+    const prev = splitter.previousElementSibling;
+    const delta = e.clientX - startX;
+    const newWidth = startWidth + delta;
+    const minWidth = 200;
+    const maxWidth = window.innerWidth - 400;
+    
+    if (newWidth >= minWidth && newWidth <= maxWidth) {
+      prev.style.width = newWidth + "px";
+    }
+  });
+});
+
+// Initialize history display
+renderHistory();
+</script>
+
+</body>
+</html>
