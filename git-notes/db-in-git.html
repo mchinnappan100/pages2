@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <title>Why storing database content in Git is usually a bad idea</title>
+
+  <!-- Tailwind CSS v3+ CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              600: '#2563eb',
+              700: '#1d4ed8',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Dark mode logic: system preference + manual toggle + persistence -->
+  <script>
+    (function() {
+      function setTheme() {
+        const saved = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+
+        if (saved === 'dark' || (!saved && prefersDark)) {
+          document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
+        }
+      }
+
+      setTheme();
+
+      // Listen for OS theme change
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', setTheme);
+    })();
+
+    function toggleTheme() {
+      document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+    }
+  </script>
+
+  <style>
+    html { transition: background-color 0.4s ease, color 0.4s ease; }
+  </style>
+</head>
+
+<body class="min-h-screen bg-gray-50 dark:bg-slate-950 text-gray-900 dark:text-gray-100 antialiased">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-50 border-b border-gray-200 dark:border-gray-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+      <h1 class="text-2xl font-bold tracking-tight">
+        Git <span class="text-blue-600 dark:text-blue-400">≠</span> Database Storage
+      </h1>
+
+      <button 
+        onclick="toggleTheme()"
+        class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition"
+        aria-label="Toggle dark/light mode"
+      >
+        <!-- Moon (dark mode visible) -->
+        <svg class="w-6 h-6 hidden dark:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+        </svg>
+        <!-- Sun (light mode visible) -->
+        <svg class="w-6 h-6 block dark:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-6 py-10 md:py-16">
+
+    <div class="text-center mb-14">
+      <h2 class="text-4xl md:text-5xl font-bold tracking-tight mb-5">
+        Storing <span class="text-blue-600 dark:text-blue-400">database content</span> in Git<br class="hidden sm:block"/> is usually <span class="text-red-600 dark:text-red-400">not</span> a good idea
+      </h2>
+      <p class="text-lg md:text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto">
+        Git is fantastic for code. For live production data, binary dumps, large tables or frequently changing records — almost always the wrong tool.
+      </p>
+    </div>
+
+    <div class="space-y-10 md:space-y-12">
+
+      <!-- Reason 1 -->
+      <section class="bg-white dark:bg-slate-800 rounded-2xl p-7 md:p-9 shadow-lg ring-1 ring-gray-900/5 dark:ring-gray-100/10">
+        <h3 class="text-2xl font-semibold mb-5 text-red-600 dark:text-red-400">1. Repository size explodes very quickly</h3>
+        <div class="space-y-4 text-gray-700 dark:text-gray-300 leading-relaxed">
+          <p>Every <code>pg_dump</code> / <code>mysqldump</code> / CSV / JSON export → new commit.</p>
+          <p>Git stores near-full copies of binary/large files → history balloons to <strong>GBs very fast</strong>.</p>
+          <p class="font-medium">→ slow clones, huge disk usage, painful <code>git gc</code>, CI/CD timeouts, hosting limits exceeded</p>
+        </div>
+      </section>
+
+      <!-- Reason 2 -->
+      <section class="bg-white dark:bg-slate-800 rounded-2xl p-7 md:p-9 shadow-lg ring-1 ring-gray-900/5 dark:ring-gray-100/10">
+        <h3 class="text-2xl font-semibold mb-5 text-red-600 dark:text-red-400">2. Git is terrible at versioning large binary blobs</h3>
+        <div class="space-y-4 text-gray-700 dark:text-gray-300 leading-relaxed">
+          <p>Database dumps are usually <strong>not line-based text</strong> → delta compression is almost useless.</p>
+          <p>→ each version stored nearly in full → even Git LFS only moves the problem elsewhere (still slow fetches, no good history browsing).</p>
+        </div>
+      </section>
+
+      <!-- Reason 3 -->
+      <section class="bg-white dark:bg-slate-800 rounded-2xl p-7 md:p-9 shadow-lg ring-1 ring-gray-900/5 dark:ring-gray-100/10">
+        <h3 class="text-2xl font-semibold mb-5 text-red-600 dark:text-red-400">3. Security & compliance disaster waiting to happen</h3>
+        <div class="space-y-4 text-gray-700 dark:text-gray-300 leading-relaxed">
+          <p>Production data often contains:</p>
+          <ul class="list-disc pl-6 space-y-2">
+            <li>Personal information (PII)</li>
+            <li>Passwords / API keys / tokens</li>
+            <li>Financial / health records</li>
+          </ul>
+          <p class="font-medium">Once committed → present <strong>forever in history</strong> — even after <code>git rm --cached</code> + force push.</p>
+        </div>
+      </section>
+
+      <!-- Reason 4 -->
+      <section class="bg-white dark:bg-slate-800 rounded-2xl p-7 md:p-9 shadow-lg ring-1 ring-gray-900/5 dark:ring-gray-100/10">
+        <h3 class="text-2xl font-semibold mb-5 text-red-600 dark:text-red-400">4. Databases already have much better tools</h3>
+        <div class="grid md:grid-cols-2 gap-6 mt-6">
+          <div class="bg-gray-50 dark:bg-slate-700/40 p-5 rounded-xl">
+            <h4 class="font-semibold mb-2">What databases give you</h4>
+            <ul class="list-disc pl-5 space-y-1.5 text-sm">
+              <li>Point-in-time recovery</li>
+              <li>Incremental backups</li>
+              <li>WAL / binlogs / oplog</li>
+              <li>Replication & PITR</li>
+              <li>Fast & selective restore</li>
+            </ul>
+          </div>
+          <div class="bg-gray-50 dark:bg-slate-700/40 p-5 rounded-xl">
+            <h4 class="font-semibold mb-2">What Git gives you (for data)</h4>
+            <ul class="list-disc pl-5 space-y-1.5 text-sm text-red-700 dark:text-red-300">
+              <li>Slow full-history clones</li>
+              <li>No incremental restore</li>
+              <li>No transaction consistency</li>
+              <li>Terrible large-file performance</li>
+              <li>Accidental secret exposure</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- When it might be acceptable -->
+    <section class="mt-16 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-slate-800 dark:to-slate-900 rounded-3xl p-8 md:p-12 border border-blue-100 dark:border-blue-900/30">
+      <h2 class="text-3xl font-bold mb-8 text-center">
+        Very narrow cases where it <em>can</em> be acceptable
+      </h2>
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6 text-center">
+        <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow">
+          <p class="text-lg font-semibold mb-2">Tiny seed / lookup data</p>
+          <p class="text-sm text-gray-600 dark:text-gray-400">< 1–5 MB, rarely changes</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow">
+          <p class="text-lg font-semibold mb-2">Test fixtures / sample data</p>
+          <p class="text-sm text-gray-600 dark:text-gray-400">Small, static, non-sensitive</p>
+        </div>
+        <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow">
+          <p class="text-lg font-semibold mb-2">Dolt / versioned SQL database</p>
+          <p class="text-sm text-gray-600 dark:text-gray-400">Use tools made for this</p>
+        </div>
+      </div>
+      <p class="text-center mt-10 text-gray-600 dark:text-gray-400 italic">
+        For everything else → use proper backups, logical dumps with rotation, replication, or data versioning tools (DVC, lakeFS, Dolt, etc.)
+      </p>
+    </section>
+
+  </main>
+
+  <footer class="mt-20 py-10 border-t border-gray-200 dark:border-gray-800 text-center text-gray-500 dark:text-gray-600 text-sm">
+    <p>Git is version control for <strong>code</strong> — not a backup or data storage system</p>
+  </footer>
+
+</body>
+</html>
