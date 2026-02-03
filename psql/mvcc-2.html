@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>PostgreSQL MVCC – Advanced Internals</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Mermaid -->
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  </script>
+</head>
+
+<body class="bg-slate-950 text-slate-200">
+<main class="max-w-7xl mx-auto px-6 py-12">
+
+<!-- ====================================================== -->
+<header class="mb-16">
+  <h1 class="text-4xl font-bold text-indigo-400">
+    PostgreSQL MVCC – Advanced Internals
+  </h1>
+  <p class="mt-4 text-lg text-slate-400 max-w-4xl">
+    HOT updates, Serializable Isolation, Autovacuum tuning,
+    and how MVCC behaves in managed cloud databases.
+  </p>
+</header>
+
+<!-- ====================================================== -->
+<section class="mb-20">
+  <h2 class="text-2xl font-semibold text-emerald-400 mb-4">
+    🔥 HOT Updates & Index Interaction
+  </h2>
+
+  <p class="text-slate-400 mb-6 max-w-4xl">
+    A <strong>HOT (Heap-Only Tuple) update</strong> avoids index updates
+    when indexed columns are unchanged. This is one of PostgreSQL’s
+    biggest performance optimizations.
+  </p>
+
+  <div class="bg-slate-900 p-6 rounded-xl border border-slate-800 mb-6">
+    <pre class="mermaid">
+flowchart TB
+    I[Index Entry]
+    H1[Heap Tuple v1<br/>xmin=100]
+    H2[Heap Tuple v2 - HOT <br/>xmin=200]
+
+    I --> H1
+    H1 --> H2
+
+    style I fill:#1e293b,stroke:#60a5fa
+    style H1 fill:#064e3b,stroke:#10b981
+    style H2 fill:#022c22,stroke:#34d399
+    </pre>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6">
+    <div class="bg-slate-900 p-6 rounded-lg border border-slate-800">
+      <h3 class="text-emerald-300 font-semibold mb-2">Eligible for HOT</h3>
+      <pre class="bg-black text-green-400 p-4 rounded text-sm">
+UPDATE users
+SET last_login = now()
+WHERE id = 42;
+      </pre>
+      <p class="text-slate-400 mt-2">
+        No indexed columns changed → index untouched.
+      </p>
+    </div>
+
+    <div class="bg-slate-900 p-6 rounded-lg border border-slate-800">
+      <h3 class="text-rose-300 font-semibold mb-2">NOT HOT</h3>
+      <pre class="bg-black text-green-400 p-4 rounded text-sm">
+UPDATE users
+SET email = 'new@mail.com'
+WHERE id = 42;
+      </pre>
+      <p class="text-slate-400 mt-2">
+        Indexed column changed → new index entry created.
+      </p>
+    </div>
+  </div>
+
+  <p class="text-slate-400 mt-4">
+    HOT updates dramatically reduce index bloat and improve write throughput.
+  </p>
+</section>
+
+<!-- ====================================================== -->
+<section class="mb-20">
+  <h2 class="text-2xl font-semibold text-indigo-400 mb-4">
+    ⚙️ Serializable Isolation (SSI)
+  </h2>
+
+  <p class="text-slate-400 mb-6 max-w-4xl">
+    PostgreSQL implements <strong>Serializable Snapshot Isolation (SSI)</strong>,
+    detecting dangerous transaction patterns instead of blocking aggressively.
+  </p>
+
+  <div class="bg-slate-900 p-6 rounded-xl border border-slate-800 mb-6">
+    <pre class="mermaid">
+sequenceDiagram
+    participant T1 as Txn A
+    participant T2 as Txn B
+    participant DB as PostgreSQL
+
+    T1->>DB: Read balance
+    T2->>DB: Read balance
+    T1->>DB: Update balance
+    T2->>DB: Update balance
+    DB-->>T2: Serialization Failure ❌
+    </pre>
+  </div>
+
+  <div class="bg-slate-900 p-6 rounded-lg border border-slate-800">
+    <h3 class="text-indigo-300 font-semibold mb-2">
+      What PostgreSQL Does
+    </h3>
+    <ul class="list-disc list-inside text-slate-400 space-y-2">
+      <li>Tracks read/write dependencies</li>
+      <li>Detects cycles at commit time</li>
+      <li>Aborts one transaction to preserve correctness</li>
+    </ul>
+  </div>
+
+  <pre class="bg-black text-green-400 p-4 rounded text-sm mt-6">
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+  </pre>
+</section>
+
+<!-- ====================================================== -->
+<section class="mb-20">
+  <h2 class="text-2xl font-semibold text-amber-400 mb-4">
+    📉 Autovacuum, Bloat & Cleanup
+  </h2>
+
+  <p class="text-slate-400 mb-6 max-w-4xl">
+    MVCC creates dead tuples. <strong>Autovacuum</strong> removes them
+    asynchronously to reclaim space and prevent transaction ID wraparound.
+  </p>
+
+  <div class="bg-slate-900 p-6 rounded-xl border border-slate-800 mb-6">
+    <pre class="mermaid">
+flowchart LR
+    Live[Live Tuples]
+    Dead[Dead Tuples]
+    Vacuum[Autovacuum Worker]
+    Free[Free Space Map]
+
+    Live --> Dead
+    Dead --> Vacuum
+    Vacuum --> Free
+
+    style Live fill:#064e3b,stroke:#10b981
+    style Dead fill:#3f1d1d,stroke:#f87171
+    style Vacuum fill:#1e293b,stroke:#60a5fa
+    style Free fill:#022c22,stroke:#34d399
+    </pre>
+  </div>
+
+  <div class="grid md:grid-cols-2 gap-6">
+    <div class="bg-slate-900 p-6 rounded-lg border border-slate-800">
+      <h3 class="text-amber-300 font-semibold mb-2">Bloat Symptoms</h3>
+      <ul class="list-disc list-inside text-slate-400 space-y-2">
+        <li>Table grows but row count stays flat</li>
+        <li>Slow sequential scans</li>
+        <li>High disk usage</li>
+      </ul>
+    </div>
+
+    <div class="bg-slate-900 p-6 rounded-lg border border-slate-800">
+      <h3 class="text-amber-300 font-semibold mb-2">Tuning Knobs</h3>
+      <pre class="bg-black text-green-400 p-4 rounded text-sm">
+autovacuum_vacuum_scale_factor
+autovacuum_analyze_scale_factor
+autovacuum_naptime
+      </pre>
+    </div>
+  </div>
+</section>
+
+<!-- ====================================================== -->
+<section class="mb-20">
+  <h2 class="text-2xl font-semibold text-sky-400 mb-4">
+    ☁️ MVCC in RDS, Aurora & AlloyDB
+  </h2>
+
+  <div class="bg-slate-900 p-6 rounded-xl border border-slate-800 mb-6">
+    <pre class="mermaid">
+flowchart TB
+    App[Application]
+    Writer[Primary Writer]
+    Reader1[Read Replica]
+    Storage[Distributed Storage]
+
+    App --> Writer
+    Writer --> Storage
+    Reader1 --> Storage
+
+    style App fill:#020617,stroke:#38bdf8
+    style Writer fill:#1e293b,stroke:#818cf8
+    style Reader1 fill:#1e293b,stroke:#22d3ee
+    style Storage fill:#020617,stroke:#a855f7
+    </pre>
+  </div>
+
+  <table class="w-full border border-slate-800 text-sm">
+    <thead class="bg-slate-900 text-slate-300">
+      <tr>
+        <th class="p-3 border border-slate-800">Platform</th>
+        <th class="p-3 border border-slate-800">MVCC Behavior</th>
+      </tr>
+    </thead>
+    <tbody class="text-slate-400">
+      <tr>
+        <td class="p-3 border border-slate-800">RDS PostgreSQL</td>
+        <td class="p-3 border border-slate-800">Standard MVCC, managed autovacuum</td>
+      </tr>
+      <tr>
+        <td class="p-3 border border-slate-800">Aurora PostgreSQL</td>
+        <td class="p-3 border border-slate-800">Shared log storage, faster crash recovery</td>
+      </tr>
+      <tr>
+        <td class="p-3 border border-slate-800">AlloyDB</td>
+        <td class="p-3 border border-slate-800">Decoupled storage, aggressive vacuum optimization</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p class="text-slate-400 mt-4">
+    MVCC semantics remain the same, but storage, WAL, and vacuum
+    implementations are optimized under the hood.
+  </p>
+</section>
+
+<!-- ====================================================== -->
+<footer class="text-center text-slate-500 border-t border-slate-800 pt-6">
+  PostgreSQL MVCC — performance through immutability, correctness through time 🚀
+</footer>
+
+</main>
+</body>
+</html>
