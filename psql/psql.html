@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>PostgreSQL Architecture Explained</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Mermaid -->
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'dark'
+    });
+  </script>
+</head>
+
+<body class="bg-gray-950 text-gray-200">
+  <div class="max-w-7xl mx-auto px-6 py-10">
+
+    <!-- Header -->
+    <header class="mb-12">
+      <h1 class="text-4xl font-bold text-indigo-400">
+        PostgreSQL Architecture
+      </h1>
+      <p class="mt-4 text-lg text-gray-400">
+        A deep dive into how PostgreSQL processes queries, manages memory,
+        ensures durability, and supports massive concurrency.
+      </p>
+    </header>
+
+    <!-- Architecture Diagram -->
+    <section class="mb-16">
+      <h2 class="text-2xl font-semibold text-indigo-300 mb-4">
+        High-Level Architecture
+      </h2>
+
+      <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+        <pre class="mermaid">
+flowchart TB
+    Client[Client Applications<br/>psql, JDBC, pgAdmin]
+    Postmaster[Postmaster<br/>Connection Manager]
+    Backend[Backend Process<br/>Per Connection]
+    Parser[SQL Parser]
+    Planner[Query Planner / Optimizer]
+    Executor[Query Executor]
+    Buffer[Shared Buffers<br/>Cache]
+    WAL[WAL Writer<br/>Write-Ahead Log]
+    Data[Data Files<br/>Tables & Indexes]
+    BG[Background Workers<br/>Autovacuum, Checkpointer]
+
+    Client --> Postmaster
+    Postmaster --> Backend
+    Backend --> Parser
+    Parser --> Planner
+    Planner --> Executor
+    Executor --> Buffer
+    Buffer --> Data
+    Executor --> WAL
+    WAL --> Data
+    BG --> Buffer
+    BG --> WAL
+
+    style Client fill:#1e293b,stroke:#6366f1
+    style Postmaster fill:#312e81,stroke:#818cf8
+    style Backend fill:#0f766e,stroke:#2dd4bf
+    style Planner fill:#7c2d12,stroke:#fb923c
+    style Executor fill:#78350f,stroke:#facc15
+    style Buffer fill:#064e3b,stroke:#34d399
+    style WAL fill:#581c87,stroke:#c084fc
+    style Data fill:#1f2937,stroke:#9ca3af
+        </pre>
+      </div>
+    </section>
+
+    <!-- Process Model -->
+    <section class="mb-16">
+      <h2 class="text-2xl font-semibold text-indigo-300 mb-4">
+        1. Process-Based Architecture
+      </h2>
+
+      <p class="text-gray-400 mb-4">
+        PostgreSQL uses a <strong>process-per-connection</strong> model.
+        Each client connection gets its own backend OS process.
+      </p>
+
+      <div class="bg-gray-900 rounded-lg p-6 border border-gray-800">
+        <h3 class="text-lg font-semibold text-emerald-400 mb-2">
+          Why this matters
+        </h3>
+        <ul class="list-disc list-inside text-gray-300 space-y-2">
+          <li>Strong isolation between connections</li>
+          <li>Crashes affect only one backend, not the entire server</li>
+          <li>Leverages OS-level process scheduling</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Query Lifecycle -->
+    <section class="mb-16">
+      <h2 class="text-2xl font-semibold text-indigo-300 mb-4">
+        2. Query Lifecycle
+      </h2>
+
+      <ol class="list-decimal list-inside space-y-4 text-gray-300">
+        <li><strong>Parser</strong> checks syntax and builds a parse tree</li>
+        <li><strong>Planner</strong> chooses the cheapest execution plan</li>
+        <li><strong>Executor</strong> runs the plan and returns rows</li>
+      </ol>
+
+      <div class="mt-6 bg-gray-900 rounded-lg p-6 border border-gray-800">
+        <h3 class="text-lg font-semibold text-yellow-400 mb-2">
+          Example
+        </h3>
+        <pre class="bg-black text-green-400 rounded p-4 overflow-x-auto text-sm">
+EXPLAIN ANALYZE
+SELECT * FROM orders
+WHERE customer_id = 42;
+        </pre>
+
+        <p class="text-gray-400 mt-2">
+          The planner decides whether to use an index scan or sequential scan
+          based on statistics and cost estimates.
+        </p>
+      </div>
+    </section>
+
+    <!-- MVCC -->
+    <section class="mb-16">
+      <h2 class="text-2xl font-semibold text-indigo-300 mb-4">
+        3. MVCC (Multi-Version Concurrency Control)
+      </h2>
+
+      <p class="text-gray-400 mb-4">
+        PostgreSQL uses MVCC to allow readers and writers to work
+        <strong>without blocking each other</strong>.
+      </p>
+
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="bg-gray-900 p-6 rounded-lg border border-gray-800">
+          <h3 class="text-emerald-400 font-semibold mb-2">
+            Reader
+          </h3>
+          <pre class="bg-black text-green-400 rounded p-4 text-sm">
+BEGIN;
+SELECT balance FROM accounts WHERE id = 1;
+          </pre>
+        </div>
+
+        <div class="bg-gray-900 p-6 rounded-lg border border-gray-800">
+          <h3 class="text-pink-400 font-semibold mb-2">
+            Writer
+          </h3>
+          <pre class="bg-black text-green-400 rounded p-4 text-sm">
+BEGIN;
+UPDATE accounts
+SET balance = balance - 100
+WHERE id = 1;
+          </pre>
+        </div>
+      </div>
+
+      <p class="text-gray-400 mt-4">
+        The reader sees the old version, the writer creates a new version.
+        Cleanup happens later via <strong>VACUUM</strong>.
+      </p>
+    </section>
+
+    <!-- WAL -->
+    <section class="mb-16">
+      <h2 class="text-2xl font-semibold text-indigo-300 mb-4">
+        4. Write-Ahead Logging (WAL)
+      </h2>
+
+      <p class="text-gray-400 mb-4">
+        PostgreSQL guarantees durability by writing changes to the WAL
+        <strong>before</strong> modifying data files.
+      </p>
+
+      <div class="bg-gray-900 rounded-lg p-6 border border-gray-800">
+        <pre class="bg-black text-green-400 rounded p-4 text-sm">
+INSERT INTO users(name)
+VALUES ('Mohan');
+        </pre>
+
+        <p class="text-gray-400 mt-3">
+          Even if the server crashes, PostgreSQL replays WAL records
+          during startup to restore consistency.
+        </p>
+      </div>
+    </section>
+
+    <!-- Extensibility -->
+    <section class="mb-16">
+      <h2 class="text-2xl font-semibold text-indigo-300 mb-4">
+        5. Extensibility (Postgres Superpower)
+      </h2>
+
+      <ul class="list-disc list-inside text-gray-300 space-y-2">
+        <li>Custom data types</li>
+        <li>Custom indexes (GIN, GiST, BRIN)</li>
+        <li>Extensions (PostGIS, pgvector)</li>
+      </ul>
+
+      <div class="mt-6 bg-gray-900 rounded-lg p-6 border border-gray-800">
+        <h3 class="text-indigo-400 font-semibold mb-2">
+          Example: JSONB
+        </h3>
+        <pre class="bg-black text-green-400 rounded p-4 text-sm">
+SELECT data->>'email'
+FROM users
+WHERE data @> '{"role": "admin"}';
+        </pre>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center text-gray-500 border-t border-gray-800 pt-6">
+      Built to explain why PostgreSQL scales, stays consistent,
+      and remains developer-friendly 🚀
+    </footer>
+
+  </div>
+</body>
+</html>

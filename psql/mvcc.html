@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>PostgreSQL MVCC Internals</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Mermaid -->
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+  </script>
+</head>
+
+<body class="bg-slate-950 text-slate-200">
+  <main class="max-w-7xl mx-auto px-6 py-12">
+
+    <!-- Header -->
+    <header class="mb-14">
+      <h1 class="text-4xl font-bold text-indigo-400">
+        PostgreSQL MVCC Internals
+      </h1>
+      <p class="mt-4 text-lg text-slate-400 max-w-3xl">
+        How PostgreSQL achieves high concurrency without blocking readers,
+        using multi-version concurrency control (MVCC).
+      </p>
+    </header>
+
+    <!-- MVCC Diagram -->
+    <section class="mb-16">
+      <h2 class="text-2xl font-semibold text-indigo-300 mb-4">
+        MVCC Deep Internals – Tuple Versions & Visibility
+      </h2>
+
+      <div class="bg-slate-900 rounded-xl p-6 border border-slate-800">
+        <pre class="mermaid">
+flowchart LR
+    T1[Transaction T1<br/>TXID=100]
+    T2[Transaction T2<br/>TXID=200]
+
+    subgraph Heap["Heap Table (Row Versions)"]
+      V1[Row v1<br/>xmin=50<br/>xmax=200]
+      V2[Row v2<br/>xmin=200<br/>xmax=NULL]
+    end
+
+    subgraph S1["Snapshot T1"]
+      S1a[xmin=40<br/>xmax=150]
+    end
+
+    subgraph S2["Snapshot T2"]
+      S2a[xmin=40<br/>xmax=250]
+    end
+
+    T1 --> S1
+    T2 --> S2
+
+    V1 -->|Visible| S1
+    V2 -->|Invisible| S1
+
+    V1 -->|Invisible| S2
+    V2 -->|Visible| S2
+
+    style V1 fill:#1f2937,stroke:#10b981
+    style V2 fill:#020617,stroke:#f97316
+    style S1 fill:#0f172a,stroke:#60a5fa
+    style S2 fill:#020617,stroke:#e879f9
+        </pre>
+      </div>
+    </section>
+
+    <!-- Tuple Internals -->
+    <section class="mb-16">
+      <h2 class="text-2xl font-semibold text-indigo-300 mb-4">
+        What’s Inside a PostgreSQL Row
+      </h2>
+
+      <div class="grid md:grid-cols-2 gap-8">
+        <div>
+          <p class="text-slate-400 mb-4">
+            Every row (heap tuple) carries system metadata used by MVCC.
+          </p>
+
+          <table class="w-full border border-slate-800 text-sm">
+            <thead class="bg-slate-900 text-slate-300">
+              <tr>
+                <th class="p-3 border border-slate-800">Column</th>
+                <th class="p-3 border border-slate-800">Purpose</th>
+              </tr>
+            </thead>
+            <tbody class="text-slate-400">
+              <tr>
+                <td class="p-3 border border-slate-800">xmin</td>
+                <td class="p-3 border border-slate-800">Transaction that created the row</td>
+              </tr>
+              <tr>
+                <td class="p-3 border border-slate-800">xmax</td>
+                <td class="p-3 border border-slate-800">Transaction that deleted/updated it</td>
+              </tr>
+              <tr>
+                <td class="p-3 border border-slate-800">ctid</td>
+                <td class="p-3 border border-slate-800">Physical location on disk</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="bg-slate-900 rounded-lg p-6 border border-slate-800">
+          <h3 class="text-emerald-400 font-semibold mb-2">Inspecting MVCC Metadata</h3>
+          <pre class="bg-black text-green-400 rounded p-4 text-sm overflow-x-auto">
+SELECT xmin, xmax, ctid, *
+FROM accounts;
+
+-- Example
+psql -d postgres
+
+ SELECT xmin, xmax, ctid, *
+FROM region;
+ xmin | xmax | ctid  | region_id | region_description 
+------+------+-------+-----------+--------------------
+ 4010 |    0 | (0,1) |         1 | Eastern
+ 4011 |    0 | (0,2) |         2 | Western
+ 4012 |    0 | (0,3) |         3 | Northern
+ 4013 |    0 | (0,4) |         4 | Southern
+(4 rows)
+
+          </pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- MVCC Example -->
+    <section class="mb-16">
+      <h2 class="text-2xl font-semibold text-indigo-300 mb-4">
+        MVCC in Action (Reader vs Writer)
+      </h2>
+
+      <div class="grid md:grid-cols-2 gap-6">
+        <div class="bg-slate-900 p-6 rounded-lg border border-slate-800">
+          <h3 class="text-sky-400 font-semibold mb-2">Transaction T1 (Reader)</h3>
+          <pre class="bg-black text-green-400 rounded p-4 text-sm">
+BEGIN;
+SELECT balance FROM accounts WHERE id = 1;
+-- sees old committed version
+          </pre>
+        </div>
+
+        <div class="bg-slate-900 p-6 rounded-lg border border-slate-800">
+          <h3 class="text-pink-400 font-semibold mb-2">Transaction T2 (Writer)</h3>
+          <pre class="bg-black text-green-400 rounded p-4 text-sm">
+BEGIN;
+UPDATE accounts
+SET balance = balance - 100
+WHERE id = 1;
+COMMIT;
+          </pre>
+        </div>
+      </div>
+
+      <p class="text-slate-400 mt-4">
+        T1 continues to see the old row version. No blocking. No read locks.
+      </p>
+    </section>
+
+    <!-- MVCC vs Lock-Based -->
+    <section class="mb-16">
+      <h2 class="text-2xl font-semibold text-indigo-300 mb-6">
+        MVCC vs Lock-Based Databases
+      </h2>
+
+      <div class="overflow-x-auto">
+        <table class="w-full border border-slate-800 text-sm">
+          <thead class="bg-slate-900 text-slate-300">
+            <tr>
+              <th class="p-3 border border-slate-800">Aspect</th>
+              <th class="p-3 border border-slate-800 text-emerald-400">PostgreSQL (MVCC)</th>
+              <th class="p-3 border border-slate-800 text-rose-400">Lock-Based DBs</th>
+            </tr>
+          </thead>
+          <tbody class="text-slate-400">
+            <tr>
+              <td class="p-3 border border-slate-800">Reads vs Writes</td>
+              <td class="p-3 border border-slate-800">Never block each other</td>
+              <td class="p-3 border border-slate-800">Readers may block writers</td>
+            </tr>
+            <tr>
+              <td class="p-3 border border-slate-800">Row Updates</td>
+              <td class="p-3 border border-slate-800">New row version created</td>
+              <td class="p-3 border border-slate-800">Row modified in place</td>
+            </tr>
+            <tr>
+              <td class="p-3 border border-slate-800">Consistency</td>
+              <td class="p-3 border border-slate-800">Snapshot isolation</td>
+              <td class="p-3 border border-slate-800">Lock-based consistency</td>
+            </tr>
+            <tr>
+              <td class="p-3 border border-slate-800">Concurrency</td>
+              <td class="p-3 border border-slate-800">Very high</td>
+              <td class="p-3 border border-slate-800">Degrades under load</td>
+            </tr>
+            <tr>
+              <td class="p-3 border border-slate-800">Cleanup</td>
+              <td class="p-3 border border-slate-800">VACUUM removes dead rows</td>
+              <td class="p-3 border border-slate-800">Immediate overwrite</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="text-slate-400 mt-4">
+        PostgreSQL trades disk space and background cleanup for predictable,
+        high-throughput concurrency.
+      </p>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center text-slate-500 border-t border-slate-800 pt-6">
+      PostgreSQL MVCC — concurrency solved by time, not locks 🚀
+    </footer>
+
+  </main>
+</body>
+</html>
