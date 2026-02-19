@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Calendar</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: {
+        display: ['DM Serif Display', 'serif'],
+        body: ['DM Sans', 'sans-serif'],
+      }
+    }
+  }
+}
+</script>
+<style>
+  * { font-family: 'DM Sans', sans-serif; }
+  .font-display { font-family: 'DM Serif Display', serif; }
+
+  :root {
+    --accent: #e85d3c;
+    --accent-light: #fff0ec;
+    --accent-muted: #f4a38c;
+  }
+
+  /* Theme: Warm Parchment */
+  body.theme-warm {
+    --bg: #faf7f2;
+    --bg2: #f0ebe0;
+    --card: #ffffff;
+    --border: #e8e0d0;
+    --text: #2c2416;
+    --text-muted: #8c7a60;
+    --accent: #c4622d;
+    --accent-light: #fff3ed;
+    --kpi-bg: #fef9f5;
+    --kpi-border: #f0d9ca;
+    --cal-head: #f5efe5;
+    --today: #c4622d;
+    --range-bg: #fde8db;
+    --range-label: #c4622d;
+  }
+
+  /* Theme: Midnight */
+  body.theme-dark {
+    --bg: #0f1117;
+    --bg2: #181c27;
+    --card: #1e2330;
+    --border: #2d3447;
+    --text: #e8eaf6;
+    --text-muted: #6b7280;
+    --accent: #6c8fff;
+    --accent-light: #1a2140;
+    --kpi-bg: #161b2e;
+    --kpi-border: #2d3447;
+    --cal-head: #181c27;
+    --today: #6c8fff;
+    --range-bg: #1e2a50;
+    --range-label: #6c8fff;
+  }
+
+  /* Theme: Forest */
+  body.theme-forest {
+    --bg: #f2f5f0;
+    --bg2: #e6ede2;
+    --card: #ffffff;
+    --border: #d0dbc9;
+    --text: #1a2e1a;
+    --text-muted: #607060;
+    --accent: #3d7a4f;
+    --accent-light: #edf5ee;
+    --kpi-bg: #f5faf5;
+    --kpi-border: #c8e0ca;
+    --cal-head: #edf3eb;
+    --today: #3d7a4f;
+    --range-bg: #deeede;
+    --range-label: #3d7a4f;
+  }
+
+  /* Theme: Slate */
+  body.theme-slate {
+    --bg: #f8f9fb;
+    --bg2: #eef0f5;
+    --card: #ffffff;
+    --border: #dde1ec;
+    --text: #1a1f36;
+    --text-muted: #6b7280;
+    --accent: #4f46e5;
+    --accent-light: #eef2ff;
+    --kpi-bg: #f5f6ff;
+    --kpi-border: #d4d8f7;
+    --cal-head: #f0f1f9;
+    --today: #4f46e5;
+    --range-bg: #e0e7ff;
+    --range-label: #4f46e5;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    transition: background 0.3s, color 0.3s;
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    transition: all 0.3s;
+  }
+
+  .kpi-card {
+    background: var(--kpi-bg);
+    border: 1px solid var(--kpi-border);
+    border-radius: 12px;
+    transition: all 0.3s;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .kpi-card:hover::before { opacity: 1; }
+  .kpi-card.active::before { opacity: 1; }
+  .kpi-card.active { border-color: var(--accent); }
+
+  .accent-text { color: var(--accent); }
+  .accent-bg { background: var(--accent); }
+  .accent-light-bg { background: var(--accent-light); }
+  .border-color { border-color: var(--border); }
+  .text-muted { color: var(--text-muted); }
+  .bg2 { background: var(--bg2); }
+  .cal-head-bg { background: var(--cal-head); }
+
+  /* Calendar day styles */
+  .day-cell {
+    aspect-ratio: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    position: relative;
+  }
+
+  .day-cell:hover { background: var(--accent-light); }
+
+  .day-in-range {
+    background: var(--range-bg) !important;
+    border-radius: 0 !important;
+  }
+
+  .day-range-start {
+    background: var(--accent) !important;
+    color: white !important;
+    border-radius: 8px 0 0 8px !important;
+  }
+
+  .day-range-end {
+    background: var(--accent) !important;
+    color: white !important;
+    border-radius: 0 8px 8px 0 !important;
+  }
+
+  .day-today {
+    border: 2px solid var(--today);
+    color: var(--today);
+    font-weight: 600;
+  }
+
+  .day-other-month { color: var(--text-muted); opacity: 0.4; }
+
+  .dot-container {
+    position: absolute;
+    bottom: 2px;
+    display: flex;
+    gap: 2px;
+    justify-content: center;
+  }
+
+  .event-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  /* Pill tag */
+  .phase-pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    background: var(--accent-light);
+    color: var(--accent);
+  }
+
+  /* Theme switcher */
+  .theme-btn {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .theme-btn:hover, .theme-btn.active { border-color: var(--text); transform: scale(1.15); }
+
+  /* Animations */
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .slide-in { animation: slideIn 0.3s ease forwards; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; } to { opacity: 1; }
+  }
+  .fade-in { animation: fadeIn 0.3s ease forwards; }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    transition: all 0.2s;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-light);
+  }
+
+  /* Modal */
+  .modal-overlay {
+    background: rgba(0,0,0,0.4);
+    backdrop-filter: blur(4px);
+  }
+
+  /* Nav button */
+  .nav-btn {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center;
+  }
+  .nav-btn:hover { background: var(--accent-light); border-color: var(--accent); color: var(--accent); }
+
+  input, select, textarea {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.875rem;
+    transition: all 0.15s;
+    outline: none;
+    width: 100%;
+  }
+  input:focus, select:focus, textarea:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-light);
+  }
+
+  label { color: var(--text-muted); font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .phase-colors { 
+    --c0: #e85d3c; --c1: #7c56e8; --c2: #2da672; --c3: #e8ac2d; --c4: #2d82e8; --c5: #e82d6e;
+  }
+</style>
+</head>
+<body class="theme-warm phase-colors min-h-screen" id="app">
+
+<!-- TOP NAV -->
+<header class="sticky top-0 z-40" style="background: var(--card); border-bottom: 1px solid var(--border);">
+  <div class="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg accent-bg flex items-center justify-center">
+        <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+      </div>
+      <h1 class="font-display text-xl" style="color: var(--text)">Project Calendar</h1>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <!-- Theme Switcher -->
+      <div class="flex items-center gap-2">
+        <button class="theme-btn active" style="background:#f0ebe0" data-theme="theme-warm" title="Warm"></button>
+        <button class="theme-btn" style="background:#181c27" data-theme="theme-dark" title="Midnight"></button>
+        <button class="theme-btn" style="background:#e6ede2" data-theme="theme-forest" title="Forest"></button>
+        <button class="theme-btn" style="background:#eef0f5" data-theme="theme-slate" title="Slate"></button>
+      </div>
+
+      <div class="w-px h-5" style="background: var(--border)"></div>
+
+      <!-- Upload -->
+      <label for="fileInput" class="btn-ghost text-sm cursor-pointer flex items-center gap-2 px-3 py-1.5 rounded-lg" style="text-transform:none;letter-spacing:0;font-size:0.875rem;color:var(--text-muted);border:1px solid var(--border);">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Import
+      </label>
+      <input type="file" id="fileInput" accept=".json,.csv" class="hidden">
+
+      <!-- Download -->
+      <div class="relative" id="downloadMenu">
+        <button onclick="toggleDownloadMenu()" class="btn-primary text-sm flex items-center gap-2 px-3 py-1.5">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export
+        </button>
+        <div id="downloadDropdown" class="hidden absolute right-0 top-full mt-2 card z-50 p-1 min-w-max shadow-lg">
+          <button onclick="exportData('json')" class="block w-full text-left px-4 py-2 text-sm rounded-lg hover:opacity-80" style="color:var(--text)">Download JSON</button>
+          <button onclick="exportData('csv')" class="block w-full text-left px-4 py-2 text-sm rounded-lg hover:opacity-80" style="color:var(--text)">Download CSV</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-6 py-8">
+
+  <!-- KPI STRIP -->
+  <div id="kpiStrip" class="mb-8">
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="font-display text-lg" style="color:var(--text-muted)">Key Phases</h2>
+      <div class="flex items-center gap-2">
+        <button class="nav-btn" id="kpiPrev" onclick="shiftKpi(-1)" title="Previous">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <span id="kpiRange" class="text-sm" style="color:var(--text-muted)"></span>
+        <button class="nav-btn" id="kpiNext" onclick="shiftKpi(1)" title="Next">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="kpiCards" class="grid gap-3" style="grid-template-columns: repeat(auto-fill, minmax(200px, 1fr))">
+      <!-- filled by JS -->
+    </div>
+  </div>
+
+  <!-- CALENDAR + SIDEBAR -->
+  <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+    <!-- Calendar -->
+    <div class="xl:col-span-2 card p-6">
+      <div class="flex items-center justify-between mb-6">
+        <button class="nav-btn" onclick="changeMonth(-1)">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <h2 class="font-display text-2xl" id="calMonthLabel" style="color:var(--text)"></h2>
+        <button class="nav-btn" onclick="changeMonth(1)">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+
+      <!-- Day headers -->
+      <div class="grid grid-cols-7 mb-2">
+        <div class="text-center text-xs font-bold py-1" style="color:var(--text-muted)" v-for="">Sun</div>
+        <div class="text-center text-xs font-bold py-1" style="color:var(--text-muted)">Mon</div>
+        <div class="text-center text-xs font-bold py-1" style="color:var(--text-muted)">Tue</div>
+        <div class="text-center text-xs font-bold py-1" style="color:var(--text-muted)">Wed</div>
+        <div class="text-center text-xs font-bold py-1" style="color:var(--text-muted)">Thu</div>
+        <div class="text-center text-xs font-bold py-1" style="color:var(--text-muted)">Fri</div>
+        <div class="text-center text-xs font-bold py-1" style="color:var(--text-muted)">Sat</div>
+      </div>
+
+      <div id="calGrid" class="grid grid-cols-7 gap-1"></div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="flex flex-col gap-4">
+
+      <!-- Selected phase info -->
+      <div class="card p-5" id="phaseDetail">
+        <h3 class="font-display text-lg mb-3" style="color:var(--text)">Phase Details</h3>
+        <div id="phaseDetailContent" class="text-sm" style="color:var(--text-muted)">
+          <p>Click a phase card or calendar day to view details.</p>
+        </div>
+      </div>
+
+      <!-- All phases list -->
+      <div class="card p-5 flex-1">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-display text-lg" style="color:var(--text)">All Phases</h3>
+          <button onclick="openAddModal()" class="btn-primary text-xs px-3 py-1.5">+ Add</button>
+        </div>
+        <div id="phaseList" class="space-y-2"></div>
+
+        <!-- Empty state / import prompt -->
+        <div id="emptyState" class="hidden upload-zone p-6 text-center cursor-pointer mt-2" onclick="document.getElementById('fileInput').click()">
+          <svg class="w-8 h-8 mx-auto mb-2" style="color:var(--text-muted)" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          <p class="text-sm font-medium" style="color:var(--text-muted)">Drop JSON/CSV or click to import</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<!-- ADD / EDIT MODAL -->
+<div id="modal" class="hidden fixed inset-0 modal-overlay z-50 flex items-center justify-center p-4">
+  <div class="card p-6 w-full max-w-md slide-in">
+    <div class="flex items-center justify-between mb-5">
+      <h2 class="font-display text-xl" style="color:var(--text)" id="modalTitle">Add Phase</h2>
+      <button onclick="closeModal()" style="color:var(--text-muted)" class="hover:opacity-70">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="space-y-4">
+      <div>
+        <label class="block mb-1">Phase Name</label>
+        <input type="text" id="mName" placeholder="e.g. UAT Testing">
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block mb-1">Start Date</label>
+          <input type="date" id="mStart">
+        </div>
+        <div>
+          <label class="block mb-1">End Date</label>
+          <input type="date" id="mEnd">
+        </div>
+      </div>
+      <div>
+        <label class="block mb-1">Notes (optional)</label>
+        <textarea id="mNotes" rows="2" placeholder="Add any notes..."></textarea>
+      </div>
+    </div>
+    <div class="flex gap-3 mt-6">
+      <button onclick="closeModal()" class="btn-ghost flex-1">Cancel</button>
+      <button onclick="savePhase()" class="btn-primary flex-1" id="modalSaveBtn">Save Phase</button>
+      <button onclick="deletePhase()" id="modalDeleteBtn" class="hidden px-4 py-2 rounded-lg text-sm font-medium" style="background:#fee2e2;color:#dc2626;border:none;cursor:pointer;">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ STATE ============
+let phases = [];
+let currentMonth = new Date().getMonth();
+let currentYear = new Date().getFullYear();
+let activePhaseIdx = null;
+let editingIdx = null;
+let kpiOffset = 0;
+const KPI_PAGE = 4;
+
+const PHASE_COLORS = [
+  { bg: '#fff0ec', accent: '#e85d3c' },
+  { bg: '#f0ecff', accent: '#7c56e8' },
+  { bg: '#ecfff5', accent: '#2da672' },
+  { bg: '#fffaec', accent: '#e8ac2d' },
+  { bg: '#ecf5ff', accent: '#2d82e8' },
+  { bg: '#ffecf4', accent: '#e82d6e' },
+];
+
+// ============ SAMPLE DATA ============
+const SAMPLE = [
+  { name: "SIT", startDate: "2026-05-04", endDate: "2026-05-22", notes: "System Integration Testing" },
+  { name: "UAT", startDate: "2026-05-25", endDate: "2026-06-12", notes: "User Acceptance Testing" },
+  { name: "Go Live Prep / Mock Deployment", startDate: "2026-06-15", endDate: "2026-06-19", notes: "" },
+  { name: "Go Live", startDate: "2026-06-22", endDate: "2026-06-26", notes: "Operational Readiness Testing" },
+];
+
+// ============ INIT ============
+window.addEventListener('DOMContentLoaded', () => {
+  loadSample();
+  setupThemes();
+  setupFileInput();
+  setupDragDrop();
+  renderAll();
+});
+
+function loadSample() {
+  phases = SAMPLE.map(p => ({ ...p }));
+}
+
+// ============ THEME ============
+function setupThemes() {
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const theme = btn.dataset.theme;
+      document.body.className = document.body.className.replace(/theme-\w+/, '').trim() + ' ' + theme + ' phase-colors min-h-screen';
+      document.querySelectorAll('.theme-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+}
+
+// ============ FILE I/O ============
+function setupFileInput() {
+  document.getElementById('fileInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    readFile(file);
+    e.target.value = '';
+  });
+}
+
+function setupDragDrop() {
+  const emptyState = document.getElementById('emptyState');
+  emptyState.addEventListener('dragover', e => { e.preventDefault(); emptyState.classList.add('drag-over'); });
+  emptyState.addEventListener('dragleave', () => emptyState.classList.remove('drag-over'));
+  emptyState.addEventListener('drop', e => {
+    e.preventDefault();
+    emptyState.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) readFile(file);
+  });
+}
+
+function readFile(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const content = e.target.result;
+    if (file.name.endsWith('.json')) {
+      try {
+        const data = JSON.parse(content);
+        phases = Array.isArray(data) ? data : data.phases || [];
+        kpiOffset = 0;
+        renderAll();
+      } catch { alert('Invalid JSON file.'); }
+    } else if (file.name.endsWith('.csv')) {
+      const result = Papa.parse(content, { header: true, skipEmptyLines: true });
+      phases = result.data.map(row => ({
+        name: row.name || row.Name || '',
+        startDate: row.startDate || row['Start Date'] || row.start_date || '',
+        endDate: row.endDate || row['End Date'] || row.end_date || '',
+        notes: row.notes || row.Notes || '',
+      })).filter(p => p.name);
+      kpiOffset = 0;
+      renderAll();
+    }
+  };
+  reader.readAsText(file);
+}
+
+function exportData(fmt) {
+  toggleDownloadMenu();
+  if (fmt === 'json') {
+    const blob = new Blob([JSON.stringify(phases, null, 2)], { type: 'application/json' });
+    downloadBlob(blob, 'project-phases.json');
+  } else {
+    const csv = Papa.unparse(phases.map(p => ({
+      name: p.name, startDate: p.startDate, endDate: p.endDate, notes: p.notes || ''
+    })));
+    const blob = new Blob([csv], { type: 'text/csv' });
+    downloadBlob(blob, 'project-phases.csv');
+  }
+}
+
+function downloadBlob(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+}
+
+function toggleDownloadMenu() {
+  document.getElementById('downloadDropdown').classList.toggle('hidden');
+}
+document.addEventListener('click', e => {
+  if (!document.getElementById('downloadMenu').contains(e.target)) {
+    document.getElementById('downloadDropdown').classList.add('hidden');
+  }
+});
+
+// ============ RENDER ============
+function renderAll() {
+  renderKpi();
+  renderCalendar();
+  renderPhaseList();
+  updateEmptyState();
+}
+
+function updateEmptyState() {
+  document.getElementById('emptyState').classList.toggle('hidden', phases.length > 0);
+}
+
+// ============ KPI ============
+function renderKpi() {
+  const container = document.getElementById('kpiCards');
+  container.innerHTML = '';
+  const visible = phases.slice(kpiOffset, kpiOffset + KPI_PAGE);
+
+  if (phases.length === 0) {
+    container.innerHTML = `<div class="col-span-full text-sm" style="color:var(--text-muted)">No phases yet. Import data or add a phase.</div>`;
+    document.getElementById('kpiRange').textContent = '';
+    return;
+  }
+
+  visible.forEach((phase, i) => {
+    const idx = kpiOffset + i;
+    const color = PHASE_COLORS[idx % PHASE_COLORS.length];
+    const start = parseDate(phase.startDate);
+    const end = parseDate(phase.endDate);
+    const days = Math.round((end - start) / 86400000) + 1;
+    const today = new Date(); today.setHours(0,0,0,0);
+    let status = 'Upcoming';
+    if (today > end) status = 'Completed';
+    else if (today >= start) status = 'In Progress';
+
+    const card = document.createElement('div');
+    card.className = `kpi-card p-4 ${activePhaseIdx === idx ? 'active' : ''}`;
+    card.style.cssText = `--accent: ${color.accent}; --accent-light: ${color.bg}; --kpi-border: ${color.accent}40;`;
+    card.innerHTML = `
+      <div class="flex items-start justify-between mb-2">
+        <span class="phase-pill" style="background:${color.bg};color:${color.accent}">${status}</span>
+        <button onclick="openEditModal(${idx}, event)" style="color:var(--text-muted)" class="hover:opacity-70 ml-2">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+        </button>
+      </div>
+      <div class="font-display text-base leading-tight mb-1" style="color:var(--text)">${phase.name}</div>
+      <div class="text-xs mb-2" style="color:var(--text-muted)">${fmtDate(phase.startDate)} – ${fmtDate(phase.endDate)}</div>
+      <div class="text-2xl font-display" style="color:${color.accent}">${days}<span class="text-sm font-body" style="color:var(--text-muted)"> days</span></div>
+    `;
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('button')) return;
+      selectPhase(idx);
+    });
+    container.appendChild(card);
+  });
+
+  const total = phases.length;
+  const from = kpiOffset + 1;
+  const to = Math.min(kpiOffset + KPI_PAGE, total);
+  document.getElementById('kpiRange').textContent = total > KPI_PAGE ? `${from}–${to} of ${total}` : `${total} phase${total !== 1 ? 's' : ''}`;
+  document.getElementById('kpiPrev').style.opacity = kpiOffset === 0 ? '0.3' : '1';
+  document.getElementById('kpiNext').style.opacity = kpiOffset + KPI_PAGE >= total ? '0.3' : '1';
+}
+
+function shiftKpi(dir) {
+  const max = Math.max(0, phases.length - KPI_PAGE);
+  kpiOffset = Math.max(0, Math.min(kpiOffset + dir * KPI_PAGE, max));
+  renderKpi();
+}
+
+// ============ CALENDAR ============
+function changeMonth(dir) {
+  currentMonth += dir;
+  if (currentMonth > 11) { currentMonth = 0; currentYear++; }
+  if (currentMonth < 0) { currentMonth = 11; currentYear--; }
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+  const label = document.getElementById('calMonthLabel');
+
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  label.textContent = `${months[currentMonth]} ${currentYear}`;
+
+  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const daysInPrev = new Date(currentYear, currentMonth, 0).getDate();
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  const totalCells = Math.ceil((firstDay + daysInMonth) / 7) * 7;
+
+  for (let i = 0; i < totalCells; i++) {
+    let date, isCurrentMonth = true;
+    if (i < firstDay) {
+      date = new Date(currentYear, currentMonth - 1, daysInPrev - firstDay + i + 1);
+      isCurrentMonth = false;
+    } else if (i >= firstDay + daysInMonth) {
+      date = new Date(currentYear, currentMonth + 1, i - firstDay - daysInMonth + 1);
+      isCurrentMonth = false;
+    } else {
+      date = new Date(currentYear, currentMonth, i - firstDay + 1);
+    }
+
+    date.setHours(0,0,0,0);
+    const cell = document.createElement('div');
+    cell.className = 'day-cell';
+
+    if (!isCurrentMonth) cell.classList.add('day-other-month');
+    if (date.getTime() === today.getTime()) cell.classList.add('day-today');
+
+    // Check phase ranges
+    let inRanges = [];
+    phases.forEach((phase, idx) => {
+      const s = parseDate(phase.startDate);
+      const e = parseDate(phase.endDate);
+      if (date >= s && date <= e) inRanges.push({ idx, s, e });
+    });
+
+    if (inRanges.length > 0) {
+      const primary = inRanges[0];
+      const color = PHASE_COLORS[primary.idx % PHASE_COLORS.length];
+      if (date.getTime() === primary.s.getTime()) {
+        cell.classList.add('day-range-start');
+        cell.style.background = color.accent;
+        cell.style.color = 'white';
+      } else if (date.getTime() === primary.e.getTime()) {
+        cell.classList.add('day-range-end');
+        cell.style.background = color.accent;
+        cell.style.color = 'white';
+      } else {
+        cell.classList.add('day-in-range');
+        cell.style.background = color.bg;
+      }
+
+      if (inRanges.length > 1) {
+        const dot = document.createElement('div');
+        dot.className = 'dot-container';
+        inRanges.slice(1).forEach(r => {
+          const c = PHASE_COLORS[r.idx % PHASE_COLORS.length];
+          const d = document.createElement('div');
+          d.className = 'event-dot';
+          d.style.background = c.accent;
+          dot.appendChild(d);
+        });
+        cell.appendChild(dot);
+      }
+
+      cell.title = inRanges.map(r => phases[r.idx].name).join(', ');
+      cell.addEventListener('click', () => selectPhase(primary.idx));
+    }
+
+    const span = document.createElement('span');
+    span.textContent = date.getDate();
+    cell.insertBefore(span, cell.firstChild);
+    grid.appendChild(cell);
+  }
+}
+
+// ============ PHASE LIST ============
+function renderPhaseList() {
+  const list = document.getElementById('phaseList');
+  list.innerHTML = '';
+  phases.forEach((phase, idx) => {
+    const color = PHASE_COLORS[idx % PHASE_COLORS.length];
+    const today = new Date(); today.setHours(0,0,0,0);
+    const start = parseDate(phase.startDate);
+    const end = parseDate(phase.endDate);
+    let status = 'Upcoming';
+    if (today > end) status = 'Done';
+    else if (today >= start) status = 'Active';
+
+    const item = document.createElement('div');
+    item.className = `flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all ${activePhaseIdx === idx ? 'ring-1' : ''}`;
+    item.style.background = activePhaseIdx === idx ? color.bg : 'transparent';
+    item.style.borderColor = color.accent;
+    item.innerHTML = `
+      <div class="w-2 h-8 rounded-full flex-shrink-0" style="background:${color.accent}"></div>
+      <div class="flex-1 min-w-0">
+        <div class="text-sm font-semibold truncate" style="color:var(--text)">${phase.name}</div>
+        <div class="text-xs" style="color:var(--text-muted)">${fmtDate(phase.startDate)} – ${fmtDate(phase.endDate)}</div>
+      </div>
+      <span class="text-xs px-2 py-0.5 rounded-full font-medium" style="background:${color.bg};color:${color.accent}">${status}</span>
+    `;
+    item.addEventListener('click', () => selectPhase(idx));
+    list.appendChild(item);
+  });
+}
+
+// ============ SELECT PHASE ============
+function selectPhase(idx) {
+  activePhaseIdx = idx;
+  const phase = phases[idx];
+  const color = PHASE_COLORS[idx % PHASE_COLORS.length];
+  const start = parseDate(phase.startDate);
+  const end = parseDate(phase.endDate);
+  const days = Math.round((end - start) / 86400000) + 1;
+
+  // Navigate calendar to start month
+  currentMonth = start.getMonth();
+  currentYear = start.getFullYear();
+
+  const detail = document.getElementById('phaseDetailContent');
+  detail.innerHTML = `
+    <div class="flex items-center gap-2 mb-3">
+      <div class="w-3 h-3 rounded-full" style="background:${color.accent}"></div>
+      <span class="font-semibold text-base" style="color:var(--text)">${phase.name}</span>
+    </div>
+    <div class="space-y-2">
+      <div class="flex justify-between py-1.5" style="border-bottom:1px solid var(--border)">
+        <span style="color:var(--text-muted)">Start</span>
+        <span style="color:var(--text);font-weight:500">${fmtDate(phase.startDate)}</span>
+      </div>
+      <div class="flex justify-between py-1.5" style="border-bottom:1px solid var(--border)">
+        <span style="color:var(--text-muted)">End</span>
+        <span style="color:var(--text);font-weight:500">${fmtDate(phase.endDate)}</span>
+      </div>
+      <div class="flex justify-between py-1.5" style="border-bottom:1px solid var(--border)">
+        <span style="color:var(--text-muted)">Duration</span>
+        <span style="color:${color.accent};font-weight:600">${days} days</span>
+      </div>
+      ${phase.notes ? `<div class="pt-2 text-sm" style="color:var(--text-muted)">${phase.notes}</div>` : ''}
+    </div>
+    <button onclick="openEditModal(${idx})" class="mt-4 w-full btn-ghost text-sm" style="color:var(--text-muted)">Edit Phase</button>
+  `;
+
+  renderKpi();
+  renderCalendar();
+  renderPhaseList();
+}
+
+// ============ MODAL ============
+function openAddModal() {
+  editingIdx = null;
+  document.getElementById('modalTitle').textContent = 'Add Phase';
+  document.getElementById('mName').value = '';
+  document.getElementById('mStart').value = '';
+  document.getElementById('mEnd').value = '';
+  document.getElementById('mNotes').value = '';
+  document.getElementById('modalDeleteBtn').classList.add('hidden');
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+function openEditModal(idx, e) {
+  if (e) e.stopPropagation();
+  editingIdx = idx;
+  const p = phases[idx];
+  document.getElementById('modalTitle').textContent = 'Edit Phase';
+  document.getElementById('mName').value = p.name;
+  document.getElementById('mStart').value = p.startDate;
+  document.getElementById('mEnd').value = p.endDate;
+  document.getElementById('mNotes').value = p.notes || '';
+  document.getElementById('modalDeleteBtn').classList.remove('hidden');
+  document.getElementById('modal').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.add('hidden');
+}
+
+function savePhase() {
+  const name = document.getElementById('mName').value.trim();
+  const startDate = document.getElementById('mStart').value;
+  const endDate = document.getElementById('mEnd').value;
+  const notes = document.getElementById('mNotes').value.trim();
+
+  if (!name || !startDate || !endDate) { alert('Please fill in name, start, and end date.'); return; }
+  if (startDate > endDate) { alert('Start date must be before end date.'); return; }
+
+  const phase = { name, startDate, endDate, notes };
+  if (editingIdx !== null) {
+    phases[editingIdx] = phase;
+  } else {
+    phases.push(phase);
+  }
+  closeModal();
+  renderAll();
+  if (editingIdx !== null) selectPhase(editingIdx);
+}
+
+function deletePhase() {
+  if (editingIdx === null) return;
+  if (!confirm(`Delete "${phases[editingIdx].name}"?`)) return;
+  phases.splice(editingIdx, 1);
+  if (activePhaseIdx === editingIdx) activePhaseIdx = null;
+  else if (activePhaseIdx > editingIdx) activePhaseIdx--;
+  closeModal();
+  renderAll();
+}
+
+// Close modal on overlay click
+document.getElementById('modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+
+// ============ UTILS ============
+function parseDate(str) {
+  const [y,m,d] = str.split('-').map(Number);
+  const dt = new Date(y, m-1, d);
+  dt.setHours(0,0,0,0);
+  return dt;
+}
+
+function fmtDate(str) {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const [y,m,d] = str.split('-').map(Number);
+  return `${months[m-1]} ${d}, ${y}`;
+}
+</script>
+</body>
+</html>
