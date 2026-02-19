@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="midnight">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Weekly Report Generator</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f1a;
+    --surface: #13162a;
+    --surface2: #1a1f38;
+    --border: #2a2f52;
+    --accent: #6c8aff;
+    --accent2: #a78bfa;
+    --text: #e2e8f8;
+    --text-muted: #7a85b0;
+    --text-dim: #4a5280;
+    --success: #34d399;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --card-glow: rgba(108, 138, 255, 0.08);
+    --header-glow: rgba(108, 138, 255, 0.15);
+  }
+  [data-theme="arctic"] {
+    --bg: #f0f4f8;
+    --surface: #ffffff;
+    --surface2: #e8edf5;
+    --border: #c8d4e8;
+    --accent: #2563eb;
+    --accent2: #7c3aed;
+    --text: #1e2d4a;
+    --text-muted: #5a7099;
+    --text-dim: #94a3b8;
+    --success: #059669;
+    --warning: #d97706;
+    --danger: #dc2626;
+    --card-glow: rgba(37, 99, 235, 0.06);
+    --header-glow: rgba(37, 99, 235, 0.10);
+  }
+  [data-theme="forest"] {
+    --bg: #0f1a14;
+    --surface: #141f18;
+    --surface2: #1c2d22;
+    --border: #2a4033;
+    --accent: #4ade80;
+    --accent2: #86efac;
+    --text: #e2f0e8;
+    --text-muted: #6b9a78;
+    --text-dim: #3a5542;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --card-glow: rgba(74, 222, 128, 0.07);
+    --header-glow: rgba(74, 222, 128, 0.12);
+  }
+  [data-theme="amber"] {
+    --bg: #1a1200;
+    --surface: #231800;
+    --surface2: #2e2000;
+    --border: #4a3800;
+    --accent: #f59e0b;
+    --accent2: #fbbf24;
+    --text: #fef3c7;
+    --text-muted: #b8960a;
+    --text-dim: #6a5500;
+    --success: #4ade80;
+    --warning: #f59e0b;
+    --danger: #f87171;
+    --card-glow: rgba(245, 158, 11, 0.08);
+    --header-glow: rgba(245, 158, 11, 0.15);
+  }
+  [data-theme="rose"] {
+    --bg: #fdf2f4;
+    --surface: #ffffff;
+    --surface2: #fce7eb;
+    --border: #f0c0ca;
+    --accent: #e11d48;
+    --accent2: #be123c;
+    --text: #1f0a10;
+    --text-muted: #9b5e6e;
+    --text-dim: #d0aab2;
+    --success: #059669;
+    --warning: #d97706;
+    --danger: #e11d48;
+    --card-glow: rgba(225, 29, 72, 0.05);
+    --header-glow: rgba(225, 29, 72, 0.10);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    transition: background 0.4s, color 0.4s;
+  }
+
+  /* Animated background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 80% 50% at 20% 20%, var(--header-glow), transparent),
+                radial-gradient(ellipse 60% 40% at 80% 80%, var(--card-glow), transparent);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app-wrap { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem 4rem; }
+
+  /* Header */
+  .app-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 2.5rem; flex-wrap: wrap; gap: 1rem;
+  }
+  .app-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(1.6rem, 4vw, 2.4rem);
+    color: var(--text);
+    letter-spacing: -0.02em;
+  }
+  .app-title span { color: var(--accent); font-style: italic; }
+
+  /* Theme switcher */
+  .theme-switcher { display: flex; gap: 0.4rem; align-items: center; }
+  .theme-btn {
+    width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent;
+    cursor: pointer; transition: transform 0.2s, border-color 0.2s;
+    outline: none;
+  }
+  .theme-btn:hover { transform: scale(1.2); }
+  .theme-btn.active { border-color: var(--text); transform: scale(1.15); }
+  .theme-btn[data-t="midnight"] { background: linear-gradient(135deg, #6c8aff, #0d0f1a); }
+  .theme-btn[data-t="arctic"] { background: linear-gradient(135deg, #2563eb, #f0f4f8); }
+  .theme-btn[data-t="forest"] { background: linear-gradient(135deg, #4ade80, #0f1a14); }
+  .theme-btn[data-t="amber"] { background: linear-gradient(135deg, #f59e0b, #1a1200); }
+  .theme-btn[data-t="rose"] { background: linear-gradient(135deg, #e11d48, #fdf2f4); }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.75rem;
+    box-shadow: 0 4px 24px var(--card-glow);
+    transition: background 0.4s, border-color 0.4s;
+  }
+  .card-label {
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 0.75rem;
+  }
+
+  /* Upload zone */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: 14px;
+    padding: 2.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--surface2);
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--card-glow);
+  }
+  .upload-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+  .upload-text { color: var(--text-muted); font-size: 0.9rem; }
+  .upload-text strong { color: var(--accent); }
+  #file-input { display: none; }
+
+  /* Tabs display */
+  .tabs-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 1rem; }
+  .tab-chip {
+    padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.78rem; font-weight: 600;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text-muted);
+    cursor: pointer; transition: all 0.2s;
+  }
+  .tab-chip:hover, .tab-chip.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+
+  /* Controls row */
+  .controls-row {
+    display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem;
+    align-items: end; margin-top: 1.5rem;
+  }
+  @media (max-width: 640px) { .controls-row { grid-template-columns: 1fr; } }
+
+  .field-group label {
+    display: block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.4rem;
+  }
+  .field-group input[type="date"], .field-group select {
+    width: 100%; padding: 0.65rem 0.9rem; border-radius: 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.9rem;
+    outline: none; transition: border-color 0.2s;
+    appearance: none; -webkit-appearance: none;
+    color-scheme: dark;
+  }
+  .field-group input[type="date"]:focus, .field-group select:focus {
+    border-color: var(--accent);
+  }
+
+  .btn-generate {
+    padding: 0.7rem 1.8rem; border-radius: 10px; border: none;
+    background: var(--accent); color: var(--bg); font-family: 'Syne', sans-serif;
+    font-weight: 700; font-size: 0.9rem; cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s;
+    white-space: nowrap; letter-spacing: 0.04em;
+  }
+  .btn-generate:hover { opacity: 0.88; transform: translateY(-1px); }
+  .btn-generate:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* Report output */
+  #report-section { margin-top: 2rem; }
+
+  .report-meta {
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1.5rem;
+  }
+  .report-week-label {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.6rem; color: var(--text);
+  }
+  .report-week-label span { color: var(--accent); }
+
+  .report-stats { display: flex; gap: 1rem; flex-wrap: wrap; }
+  .stat-pill {
+    padding: 0.3rem 0.9rem; border-radius: 999px;
+    background: var(--surface2); border: 1px solid var(--border);
+    font-size: 0.78rem; font-weight: 600; color: var(--text-muted);
+  }
+  .stat-pill b { color: var(--accent); }
+
+  /* Issue cards */
+  .issue-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+    border-left: 4px solid var(--accent);
+    transition: transform 0.15s, box-shadow 0.15s;
+    animation: slideIn 0.35s ease both;
+  }
+  .issue-card:hover { transform: translateX(3px); box-shadow: -4px 0 20px var(--card-glow); }
+
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .issue-date {
+    font-family: 'DM Mono', monospace; font-size: 0.72rem; font-weight: 500;
+    color: var(--accent2); margin-bottom: 0.5rem; letter-spacing: 0.05em;
+  }
+  .issue-title {
+    font-weight: 700; font-size: 1rem; color: var(--text); margin-bottom: 0.6rem;
+    line-height: 1.4;
+  }
+  .issue-section-label {
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--text-dim); margin-top: 0.8rem; margin-bottom: 0.2rem;
+  }
+  .issue-content { font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; }
+  .members-row { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.4rem; }
+  .member-tag {
+    padding: 0.15rem 0.6rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600;
+    background: var(--surface); border: 1px solid var(--border); color: var(--accent);
+  }
+
+  /* Section divider */
+  .section-header {
+    display: flex; align-items: center; gap: 1rem; margin: 2rem 0 1rem;
+  }
+  .section-header-line { flex: 1; height: 1px; background: var(--border); }
+  .section-header-title {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--text-dim); white-space: nowrap;
+  }
+
+  /* Summary block */
+  .summary-block {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px; padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 1.25rem; margin-top: 1rem; }
+  .summary-item { text-align: center; }
+  .summary-num {
+    font-family: 'DM Serif Display', serif;
+    font-size: 2rem; color: var(--accent); line-height: 1;
+  }
+  .summary-desc { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.25rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+  /* Copy / Export button */
+  .action-row { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+  .btn-secondary {
+    padding: 0.55rem 1.2rem; border-radius: 8px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-muted); font-family: 'Syne', sans-serif;
+    font-size: 0.82rem; font-weight: 600; cursor: pointer;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* Empty / error state */
+  .state-empty {
+    text-align: center; padding: 3rem 1rem; color: var(--text-dim);
+  }
+  .state-empty .big-icon { font-size: 3rem; margin-bottom: 1rem; }
+  .state-empty p { font-size: 0.9rem; }
+
+  /* Tab source labels */
+  .source-label {
+    display: inline-block; padding: 0.1rem 0.5rem; border-radius: 5px;
+    font-size: 0.65rem; font-weight: 700; letter-spacing: 0.06em;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--text-dim); margin-left: 0.5rem; vertical-align: middle;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+</style>
+</head>
+<body>
+<div class="app-wrap">
+
+  <!-- Header -->
+  <header class="app-header">
+    <div>
+      <h1 class="app-title">Weekly <span>Report</span> Generator</h1>
+      <p style="color:var(--text-muted);font-size:0.82rem;margin-top:0.25rem;">Upload your issue log, pick a week, get a report.</p>
+    </div>
+    <div class="theme-switcher" title="Switch theme">
+      <button class="theme-btn active" data-t="midnight" onclick="setTheme('midnight')" title="Midnight"></button>
+      <button class="theme-btn" data-t="arctic" onclick="setTheme('arctic')" title="Arctic"></button>
+      <button class="theme-btn" data-t="forest" onclick="setTheme('forest')" title="Forest"></button>
+      <button class="theme-btn" data-t="amber" onclick="setTheme('amber')" title="Amber"></button>
+      <button class="theme-btn" data-t="rose" onclick="setTheme('rose')" title="Rose"></button>
+    </div>
+  </header>
+
+  <!-- Upload Card -->
+  <div class="card" style="margin-bottom:1.5rem">
+    <div class="card-label">Step 1 — Upload Spreadsheet</div>
+    <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+      <div class="upload-icon">📊</div>
+      <div class="upload-text">
+        <strong>Click to upload</strong> or drag & drop your Excel file (.xlsx / .xls)
+      </div>
+      <div class="upload-text" style="margin-top:0.35rem;font-size:0.78rem;opacity:0.7">
+        Expected columns: Date · Issue Description · How it is Solved · Team Members Involved · Comments
+      </div>
+    </div>
+    <input type="file" id="file-input" accept=".xlsx,.xls" onchange="handleFile(event)" />
+
+    <!-- Tabs detected -->
+    <div id="tabs-area" style="display:none">
+      <div style="margin-top:1.25rem;font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem;">
+        Sheets detected — select which to include:
+      </div>
+      <div class="tabs-row" id="tabs-row"></div>
+    </div>
+  </div>
+
+  <!-- Controls Card -->
+  <div class="card" style="margin-bottom:1.5rem">
+    <div class="card-label">Step 2 — Select Week</div>
+    <div class="controls-row">
+      <div class="field-group">
+        <label>Pick any day in the week</label>
+        <input type="date" id="week-picker" />
+      </div>
+      <div class="field-group">
+        <label>Report Scope</label>
+        <select id="scope-select">
+          <option value="all">All selected sheets</option>
+          <option value="bysheet">Group by sheet</option>
+        </select>
+      </div>
+      <button class="btn-generate" id="gen-btn" onclick="generateReport()" disabled>
+        ⚡ Generate Report
+      </button>
+    </div>
+  </div>
+
+  <!-- Report Output -->
+  <div id="report-section"></div>
+</div>
+
+<script>
+  // ── State ──────────────────────────────────────────
+  let workbook = null;
+  let sheetData = {};       // { sheetName: [ {Date,Issue Description,...} ] }
+  let selectedSheets = new Set();
+
+  // ── Theme ──────────────────────────────────────────
+  function setTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    document.querySelectorAll('.theme-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.t === t);
+    });
+    localStorage.setItem('wr-theme', t);
+  }
+  (function() {
+    const saved = localStorage.getItem('wr-theme');
+    if (saved) setTheme(saved);
+  })();
+
+  // ── Default date to today ──────────────────────────
+  (function() {
+    const d = new Date();
+    const s = d.toISOString().split('T')[0];
+    document.getElementById('week-picker').value = s;
+  })();
+
+  // ── Drag & Drop ────────────────────────────────────
+  const zone = document.getElementById('upload-zone');
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) processFile(file);
+  });
+
+  // ── File handling ──────────────────────────────────
+  function handleFile(event) { processFile(event.target.files[0]); }
+
+  function processFile(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        // Read with cellDates:true AND raw:false to let SheetJS handle date conversion
+        workbook = XLSX.read(e.target.result, { type: 'array', cellDates: true, dateNF: 'yyyy-mm-dd' });
+        sheetData = {};
+        selectedSheets = new Set();
+        window._rawSheetData = {}; // for debug
+
+        workbook.SheetNames.forEach(name => {
+          const ws = workbook.Sheets[name];
+          // Parse with cellDates enabled — dates come as JS Date objects
+          const rows = XLSX.utils.sheet_to_json(ws, { defval: '', raw: false, dateNF: 'yyyy-mm-dd' });
+          const rowsRaw = XLSX.utils.sheet_to_json(ws, { defval: '', raw: true });
+          window._rawSheetData[name] = rowsRaw.slice(0, 3);
+
+          const normalized = rows.map((row, i) => {
+            const n = normalizeRow(row);
+            // Also grab the raw date value as fallback
+            const rawRow = rowsRaw[i] || {};
+            n._rawRow = rawRow;
+            return n;
+          });
+          sheetData[name] = normalized;
+          selectedSheets.add(name);
+        });
+
+        renderSheetTabs();
+        updateUI();
+        showDebugInfo();
+        zone.innerHTML = `<div class="upload-icon">✅</div><div class="upload-text"><strong>${file.name}</strong> loaded successfully — ${workbook.SheetNames.length} sheet(s) found</div>`;
+      } catch(err) {
+        console.error(err);
+        zone.innerHTML = `<div class="upload-icon">❌</div><div class="upload-text"><strong>Error reading file.</strong> ${err.message}</div>`;
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function showDebugInfo() {
+    // Show a small debug panel so user can see what the Date values look like
+    const existing = document.getElementById('debug-panel');
+    if (existing) existing.remove();
+
+    let samples = [];
+    for (const [sheet, rows] of Object.entries(sheetData)) {
+      rows.slice(0, 2).forEach(r => {
+        const dateVal = r['Date'];
+        samples.push(`<b>${sheet}</b>: Date="${dateVal}" (type: ${typeof dateVal})`);
+      });
+    }
+
+    if (!samples.length) return;
+    const panel = document.createElement('div');
+    panel.id = 'debug-panel';
+    panel.style.cssText = 'margin-top:0.75rem;padding:0.75rem 1rem;background:var(--surface2);border:1px solid var(--border);border-radius:10px;font-family:monospace;font-size:0.72rem;color:var(--text-muted);';
+    panel.innerHTML = `<span style="color:var(--accent);font-weight:700">🔍 Date sample (first 2 rows per sheet):</span><br>${samples.join('<br>')}`;
+    document.getElementById('tabs-area').appendChild(panel);
+  }
+
+  // Normalize row keys to our expected field names
+  const FIELD_MAP = {
+    'date': 'Date',
+    'issue description': 'Issue Description',
+    'issue': 'Issue Description',
+    'description': 'Issue Description',
+    'how it is solved': 'How it is Solved',
+    'how it\'s solved': 'How it is Solved',
+    'solution': 'How it is Solved',
+    'solved': 'How it is Solved',
+    'resolution': 'How it is Solved',
+    'team members involved': 'Team Members Involved',
+    'team members': 'Team Members Involved',
+    'members': 'Team Members Involved',
+    'assignees': 'Team Members Involved',
+    'comments': 'Comments',
+    'comment': 'Comments',
+    'notes': 'Comments',
+  };
+
+  function normalizeRow(row) {
+    const out = {};
+    for (const [k, v] of Object.entries(row)) {
+      const key = k.trim().toLowerCase();
+      const mapped = FIELD_MAP[key] || k;
+      out[mapped] = v;
+    }
+    return out;
+  }
+
+  function renderSheetTabs() {
+    const area = document.getElementById('tabs-area');
+    const row = document.getElementById('tabs-row');
+    row.innerHTML = '';
+    workbook.SheetNames.forEach(name => {
+      const btn = document.createElement('button');
+      btn.className = 'tab-chip active';
+      btn.textContent = `${name} (${sheetData[name].length})`;
+      btn.onclick = () => {
+        if (selectedSheets.has(name)) {
+          if (selectedSheets.size === 1) return; // keep at least one
+          selectedSheets.delete(name);
+          btn.classList.remove('active');
+        } else {
+          selectedSheets.add(name);
+          btn.classList.add('active');
+        }
+        updateUI();
+      };
+      row.appendChild(btn);
+    });
+    area.style.display = 'block';
+  }
+
+  function updateUI() {
+    const hasData = workbook && selectedSheets.size > 0;
+    document.getElementById('gen-btn').disabled = !hasData;
+  }
+
+  // ── Week calculation ───────────────────────────────
+  function getWeekRange(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const day = d.getDay(); // 0=Sun
+    const mon = new Date(d); mon.setDate(d.getDate() - ((day + 6) % 7));
+    const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+    // Normalize to midnight
+    mon.setHours(0, 0, 0, 0);
+    sun.setHours(23, 59, 59, 999);
+    return { start: mon, end: sun };
+  }
+
+  function fmtDate(d) {
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  function fmtDateShort(d) {
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+  function parseRowDate(val) {
+    if (val === null || val === undefined || val === '') return null;
+
+    // Already a JS Date (cellDates:true path)
+    if (val instanceof Date) {
+      return isNaN(val.getTime()) ? null : val;
+    }
+
+    // Excel serial number (cellDates:false path)
+    if (typeof val === 'number') {
+      try {
+        const d = XLSX.SSF.parse_date_code(val);
+        if (d && d.y > 1900) return new Date(d.y, d.m - 1, d.d);
+      } catch(e) {}
+      // Fallback: manual Excel epoch (days since 1900-01-01, with leap year bug)
+      const excelEpoch = new Date(1899, 11, 30);
+      const ms = excelEpoch.getTime() + val * 86400000;
+      const d = new Date(ms);
+      if (!isNaN(d.getTime()) && d.getFullYear() > 1900) return d;
+      return null;
+    }
+
+    const str = String(val).trim();
+    if (!str) return null;
+
+    // Already formatted as YYYY-MM-DD (dateNF path)
+    if (/^\d{4}-\d{2}-\d{2}/.test(str)) {
+      const d = new Date(str.substring(0, 10) + 'T00:00:00');
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    // DD/MM/YYYY or MM/DD/YYYY or DD-MM-YYYY etc.
+    const slashMatch = str.match(/^(\d{1,4})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})$/);
+    if (slashMatch) {
+      let [, a, b, c] = slashMatch;
+      a = parseInt(a); b = parseInt(b); c = parseInt(c);
+      // If first part > 31, it's YYYY-MM-DD style
+      if (a > 31) { const d = new Date(a, b-1, c); return isNaN(d.getTime()) ? null : d; }
+      // If last part < 100, assume 2000+
+      if (c < 100) c += 2000;
+      // Try DD/MM/YYYY first (common in EU/AU), then MM/DD/YYYY
+      if (a > 12) { const d = new Date(c, b-1, a); return isNaN(d.getTime()) ? null : d; }
+      // Default to MM/DD/YYYY (US)
+      const d1 = new Date(c, a-1, b);
+      return isNaN(d1.getTime()) ? null : d1;
+    }
+
+    // Month name: "Feb 16, 2026" or "16 Feb 2026"
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d;
+
+    return null;
+  }
+
+  // ── Report generation ──────────────────────────────
+  function generateReport() {
+    const weekDate = document.getElementById('week-picker').value;
+    if (!weekDate) return;
+    const { start, end } = getWeekRange(weekDate);
+    const scope = document.getElementById('scope-select').value;
+
+    // Collect issues in the week from selected sheets
+    const allIssues = [];
+    const bySheet = {};
+
+    for (const sheet of selectedSheets) {
+      const rows = sheetData[sheet] || [];
+      const filtered = rows.filter(row => {
+        let d = parseRowDate(row['Date']);
+        // Also try _rawRow for the Date key in case string parse missed it
+        if (!d && row._rawRow) {
+          const rawKeys = Object.keys(row._rawRow);
+          for (const k of rawKeys) {
+            if (k.toLowerCase().includes('date')) {
+              d = parseRowDate(row._rawRow[k]);
+              if (d) break;
+            }
+          }
+        }
+        if (!d) return false;
+        d.setHours(0, 0, 0, 0);
+        return d >= start && d <= end;
+      });
+      bySheet[sheet] = filtered;
+      filtered.forEach(r => allIssues.push({ ...r, _sheet: sheet }));
+    }
+
+    renderReport({ start, end, allIssues, bySheet, scope });
+  }
+
+  function renderReport({ start, end, allIssues, bySheet, scope }) {
+    const section = document.getElementById('report-section');
+
+    if (allIssues.length === 0) {
+      section.innerHTML = `
+        <div class="state-empty">
+          <div class="big-icon">🔍</div>
+          <p>No issues found for the week of <strong>${fmtDateShort(start)} – ${fmtDateShort(end)}</strong>.</p>
+          <p style="margin-top:0.5rem;font-size:0.8rem;color:var(--text-dim)">Try selecting a different week or check that your Date column is formatted correctly.</p>
+        </div>`;
+      return;
+    }
+
+    // Unique team members
+    const allMembers = new Set();
+    allIssues.forEach(r => {
+      const m = r['Team Members Involved'] || '';
+      m.split(/[,;]/).map(s => s.trim()).filter(Boolean).forEach(n => allMembers.add(n));
+    });
+
+    // Sheets that had issues
+    const activeSheets = Object.entries(bySheet).filter(([, rows]) => rows.length > 0);
+
+    let html = `
+      <div class="report-meta">
+        <div>
+          <div style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--text-dim);margin-bottom:0.25rem;">Weekly Report</div>
+          <div class="report-week-label">Week of <span>${fmtDateShort(start)}</span> — <span>${fmtDate(end)}</span></div>
+        </div>
+        <div class="report-stats">
+          <div class="stat-pill"><b>${allIssues.length}</b> Issue${allIssues.length !== 1 ? 's' : ''}</div>
+          <div class="stat-pill"><b>${allMembers.size}</b> Member${allMembers.size !== 1 ? 's' : ''}</div>
+          <div class="stat-pill"><b>${activeSheets.length}</b> Sheet${activeSheets.length !== 1 ? 's' : ''}</div>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <button class="btn-secondary" onclick="copyMarkdown()">📋 Copy as Markdown</button>
+        <button class="btn-secondary" onclick="printReport()">🖨️ Print / Save PDF</button>
+      </div>
+    `;
+
+    // Summary block
+    html += `
+      <div class="summary-block">
+        <div class="card-label">Summary</div>
+        <div class="summary-grid">
+          <div class="summary-item">
+            <div class="summary-num">${allIssues.length}</div>
+            <div class="summary-desc">Total Issues</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-num">${allIssues.filter(r => r['How it is Solved'] && String(r['How it is Solved']).trim()).length}</div>
+            <div class="summary-desc">Resolved</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-num">${allIssues.filter(r => !r['How it is Solved'] || !String(r['How it is Solved']).trim()).length}</div>
+            <div class="summary-desc">Pending</div>
+          </div>
+          <div class="summary-item">
+            <div class="summary-num">${allMembers.size}</div>
+            <div class="summary-desc">Contributors</div>
+          </div>
+        </div>
+        ${allMembers.size > 0 ? `
+          <div class="issue-section-label" style="margin-top:1.25rem">Team involved this week</div>
+          <div class="members-row">
+            ${[...allMembers].map(m => `<span class="member-tag">${m}</span>`).join('')}
+          </div>
+        ` : ''}
+      </div>
+    `;
+
+    // Issues
+    if (scope === 'bysheet') {
+      activeSheets.forEach(([sheet, rows]) => {
+        html += `
+          <div class="section-header">
+            <div class="section-header-line"></div>
+            <div class="section-header-title">📋 ${sheet}</div>
+            <div class="section-header-line"></div>
+          </div>
+        `;
+        rows.forEach((row, i) => { html += renderIssueCard(row, i, sheet, false); });
+      });
+    } else {
+      html += `
+        <div class="section-header">
+          <div class="section-header-line"></div>
+          <div class="section-header-title">All Issues — ${fmtDateShort(start)} to ${fmtDateShort(end)}</div>
+          <div class="section-header-line"></div>
+        </div>
+      `;
+      allIssues.forEach((row, i) => { html += renderIssueCard(row, i, row._sheet, selectedSheets.size > 1); });
+    }
+
+    section.innerHTML = html;
+
+    // Store markdown for copy
+    window._reportMarkdown = buildMarkdown({ start, end, allIssues, bySheet, allMembers, activeSheets, scope });
+  }
+
+  function renderIssueCard(row, i, sheet, showSheet) {
+    const d = parseRowDate(row['Date']);
+    const dateStr = d ? fmtDate(d) : (row['Date'] || '—');
+    const desc = row['Issue Description'] || 'No description';
+    const solution = row['How it is Solved'] || '';
+    const members = (row['Team Members Involved'] || '').toString().split(/[,;]/).map(s => s.trim()).filter(Boolean);
+    const comments = row['Comments'] || '';
+    const resolved = solution && solution.trim();
+
+    return `
+      <div class="issue-card" style="animation-delay:${i * 0.04}s; border-left-color: ${resolved ? 'var(--success)' : 'var(--warning)'}">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem">
+          <div class="issue-date">📅 ${dateStr}${showSheet ? ` <span class="source-label">${sheet}</span>` : ''}</div>
+          <div style="font-size:0.72rem;font-weight:700;padding:0.15rem 0.6rem;border-radius:999px;background:var(--surface);border:1px solid var(--border);color:${resolved ? 'var(--success)' : 'var(--warning)'}">
+            ${resolved ? '✓ Resolved' : '⏳ Pending'}
+          </div>
+        </div>
+        <div class="issue-title">${escHtml(String(desc))}</div>
+
+        ${solution ? `
+          <div class="issue-section-label">How it was solved</div>
+          <div class="issue-content">${escHtml(String(solution))}</div>
+        ` : ''}
+
+        ${members.length ? `
+          <div class="issue-section-label">Team members</div>
+          <div class="members-row">${members.map(m => `<span class="member-tag">${escHtml(m)}</span>`).join('')}</div>
+        ` : ''}
+
+        ${comments ? `
+          <div class="issue-section-label">Comments</div>
+          <div class="issue-content" style="color:var(--text-dim);font-style:italic">${escHtml(String(comments))}</div>
+        ` : ''}
+      </div>
+    `;
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+  }
+
+  // ── Markdown builder ──────────────────────────────
+  function buildMarkdown({ start, end, allIssues, bySheet, allMembers, activeSheets, scope }) {
+    let md = `# Weekly Report — ${fmtDateShort(start)} to ${fmtDate(end)}\n\n`;
+    md += `## Summary\n\n`;
+    md += `| Metric | Value |\n|--------|-------|\n`;
+    md += `| Total Issues | ${allIssues.length} |\n`;
+    md += `| Resolved | ${allIssues.filter(r => r['How it is Solved'] && String(r['How it is Solved']).trim()).length} |\n`;
+    md += `| Pending | ${allIssues.filter(r => !r['How it is Solved'] || !String(r['How it is Solved']).trim()).length} |\n`;
+    md += `| Team Members | ${allMembers.size} |\n`;
+    if (allMembers.size > 0) {
+      md += `\n**Contributors:** ${[...allMembers].join(', ')}\n`;
+    }
+    md += '\n---\n\n';
+
+    const renderMdIssue = (row, showSheet) => {
+      const d = parseRowDate(row['Date']);
+      const dateStr = d ? fmtDate(d) : (row['Date'] || '—');
+      const desc = row['Issue Description'] || 'No description';
+      const solution = row['How it is Solved'] || '';
+      const members = (row['Team Members Involved'] || '').toString().split(/[,;]/).map(s => s.trim()).filter(Boolean);
+      const comments = row['Comments'] || '';
+      const resolved = solution && solution.trim();
+      let out = `### ${desc}\n\n`;
+      out += `- **Date:** ${dateStr}\n`;
+      out += `- **Status:** ${resolved ? '✅ Resolved' : '⏳ Pending'}\n`;
+      if (showSheet) out += `- **Sheet:** ${row._sheet}\n`;
+      if (solution) out += `\n**Resolution:**\n${solution}\n`;
+      if (members.length) out += `\n**Team:** ${members.join(', ')}\n`;
+      if (comments) out += `\n**Comments:** ${comments}\n`;
+      out += '\n---\n\n';
+      return out;
+    };
+
+    if (scope === 'bysheet') {
+      activeSheets.forEach(([sheet, rows]) => {
+        md += `## ${sheet}\n\n`;
+        rows.forEach(row => { md += renderMdIssue(row, false); });
+      });
+    } else {
+      md += `## Issues\n\n`;
+      allIssues.forEach(row => { md += renderMdIssue(row, activeSheets.length > 1); });
+    }
+
+    return md;
+  }
+
+  function copyMarkdown() {
+    if (!window._reportMarkdown) return;
+    navigator.clipboard.writeText(window._reportMarkdown).then(() => {
+      const btn = event.target;
+      const orig = btn.textContent;
+      btn.textContent = '✅ Copied!';
+      setTimeout(() => btn.textContent = orig, 1800);
+    });
+  }
+
+  function printReport() { window.print(); }
+</script>
+</body>
+</html>
