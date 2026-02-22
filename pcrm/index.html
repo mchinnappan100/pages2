@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Personal CRM</title>
+
+<link rel="icon" type="image/x-icon"
+href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+
+<!-- Tailwind -->
+<script src="https://cdn.tailwindcss.com"></script>
+
+<script>
+tailwind.config = {
+  darkMode: 'class'
+}
+</script>
+
+</head>
+
+
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen transition-colors">
+
+<!-- HEADER -->
+<div class="flex justify-between items-center p-4 bg-white dark:bg-gray-800 shadow">
+
+  <div class="flex items-center gap-3">
+
+    <h1 class="text-2xl font-bold">
+      Personal CRM
+    </h1>
+
+    <span id="dbStatus"
+      class="text-xs px-2 py-1 rounded bg-gray-500 text-white">
+      DB Unknown
+    </span>
+
+  </div>
+
+  <div class="flex gap-2">
+
+    <button id="testDbBtn"
+      class="px-3 py-2 rounded bg-purple-600 text-white hover:bg-purple-700">
+      Test DB
+    </button>
+
+    <button id="themeToggle"
+      class="px-3 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">
+      Toggle Theme
+    </button>
+
+  </div>
+
+</div>
+
+
+
+<!-- MAIN -->
+<div class="max-w-3xl mx-auto p-6">
+
+  <!-- ERROR -->
+  <div id="errorBox"
+    class="hidden mb-4 p-3 rounded bg-red-500 text-white">
+  </div>
+
+  <!-- SUCCESS -->
+  <div id="successBox"
+    class="hidden mb-4 p-3 rounded bg-green-600 text-white">
+  </div>
+
+
+
+  <!-- ADD CONTACT -->
+  <div class="bg-white dark:bg-gray-800 p-4 rounded shadow mb-6">
+
+    <h2 class="text-lg font-semibold mb-3">
+      Add Contact
+    </h2>
+
+    <div class="grid gap-3">
+
+      <input id="name"
+        class="p-2 border rounded dark:bg-gray-700"
+        placeholder="Name (required)">
+
+      <input id="email"
+        class="p-2 border rounded dark:bg-gray-700"
+        placeholder="Email">
+
+      <input id="phone"
+        class="p-2 border rounded dark:bg-gray-700"
+        placeholder="Phone">
+
+      <input id="company"
+        class="p-2 border rounded dark:bg-gray-700"
+        placeholder="Company">
+
+      <button id="addBtn"
+        class="bg-green-600 text-white p-2 rounded hover:bg-green-700">
+        Add Contact
+      </button>
+
+    </div>
+
+  </div>
+
+
+
+  <!-- CONTACT LIST -->
+  <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
+
+    <h2 class="text-lg font-semibold mb-3">
+      Contacts
+    </h2>
+
+    <div id="contactsList" class="space-y-3"></div>
+
+  </div>
+
+</div>
+
+
+
+
+<script type="module">
+
+import { createClient }
+from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+
+/* CONFIG */
+
+const SUPABASE_URL = 'https://tbzeejmkwtohlpswohas.supabase.co'
+const SUPABASE_KEY = 'sb_publishable_tSfHpPJJsmjzASU-T_yD3Q_LSbPD_PT'
+
+const supabase = createClient(
+  SUPABASE_URL,
+  SUPABASE_KEY
+)
+
+
+
+/* ELEMENTS */
+
+const nameInput = document.getElementById('name')
+const emailInput = document.getElementById('email')
+const phoneInput = document.getElementById('phone')
+const companyInput = document.getElementById('company')
+
+const errorBox = document.getElementById('errorBox')
+const successBox = document.getElementById('successBox')
+const contactsList = document.getElementById('contactsList')
+const dbStatus = document.getElementById('dbStatus')
+
+
+
+/* UI */
+
+function showError(msg) {
+
+  errorBox.textContent = msg
+  errorBox.classList.remove('hidden')
+
+  setTimeout(() =>
+    errorBox.classList.add('hidden'), 4000)
+}
+
+function showSuccess(msg) {
+
+  successBox.textContent = msg
+  successBox.classList.remove('hidden')
+
+  setTimeout(() =>
+    successBox.classList.add('hidden'), 3000)
+}
+
+
+function setDbStatus(text, color) {
+
+  dbStatus.textContent = text
+
+  dbStatus.className =
+    "text-xs px-2 py-1 rounded text-white " + color
+}
+
+
+
+/* VALIDATION */
+
+function validateContact(contact) {
+
+  if (!contact.name || contact.name.trim() === '')
+    throw new Error("Name required")
+
+  if (contact.email &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.email))
+    throw new Error("Invalid email")
+
+}
+
+
+
+/* DATABASE TEST */
+
+async function testDatabase() {
+
+  try {
+
+    setDbStatus("Testing...", "bg-yellow-500")
+
+    const { error } =
+      await supabase
+        .from('contacts')
+        .select('id')
+        .limit(1)
+
+    if (error) throw error
+
+    setDbStatus("DB Ready", "bg-green-600")
+
+    return true
+
+  }
+  catch(err) {
+
+    setDbStatus("DB Error", "bg-red-600")
+
+    showError(err.message)
+
+    return false
+  }
+
+}
+
+
+
+/* LOAD CONTACTS */
+
+async function loadContacts() {
+
+  try {
+
+    const { data, error } =
+      await supabase
+        .from('contacts')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    contactsList.innerHTML =
+      data.map(c => `
+
+        <div class="p-4 border rounded dark:border-gray-700">
+
+          <div class="grid gap-2">
+
+            <input id="name-${c.id}"
+              value="${c.name || ''}"
+              class="p-2 border rounded dark:bg-gray-700">
+
+            <input id="email-${c.id}"
+              value="${c.email || ''}"
+              class="p-2 border rounded dark:bg-gray-700">
+
+            <input id="phone-${c.id}"
+              value="${c.phone || ''}"
+              class="p-2 border rounded dark:bg-gray-700">
+
+            <input id="company-${c.id}"
+              value="${c.company || ''}"
+              class="p-2 border rounded dark:bg-gray-700">
+
+            <div class="flex gap-2 mt-2">
+
+              <button
+                onclick="updateContact('${c.id}')"
+                class="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700">
+                Save
+              </button>
+
+              <button
+                onclick="deleteContact('${c.id}')"
+                class="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700">
+                Delete
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      `).join('')
+
+  }
+  catch(err) {
+
+    showError(err.message)
+
+  }
+
+}
+
+
+
+/* ADD CONTACT */
+
+document.getElementById('addBtn')
+.onclick = async () => {
+
+  try {
+
+    const contact = {
+
+      name: nameInput.value.trim(),
+      email: emailInput.value.trim(),
+      phone: phoneInput.value.trim(),
+      company: companyInput.value.trim()
+
+    }
+
+    validateContact(contact)
+
+    if (!(await testDatabase()))
+      throw new Error("Database not ready")
+
+    const { error } =
+      await supabase
+        .from('contacts')
+        .insert(contact)
+
+    if (error) throw error
+
+    showSuccess("Contact added")
+
+    nameInput.value = ''
+    emailInput.value = ''
+    phoneInput.value = ''
+    companyInput.value = ''
+
+    loadContacts()
+
+  }
+  catch(err) {
+
+    showError(err.message)
+
+  }
+
+}
+
+
+
+/* UPDATE CONTACT */
+
+window.updateContact = async function(id) {
+
+  try {
+
+    const contact = {
+
+      name:
+        document.getElementById(`name-${id}`).value.trim(),
+
+      email:
+        document.getElementById(`email-${id}`).value.trim(),
+
+      phone:
+        document.getElementById(`phone-${id}`).value.trim(),
+
+      company:
+        document.getElementById(`company-${id}`).value.trim()
+
+    }
+
+    validateContact(contact)
+
+    const { error } =
+      await supabase
+        .from('contacts')
+        .update(contact)
+        .eq('id', id)
+
+    if (error) throw error
+
+    showSuccess("Contact updated")
+
+  }
+  catch(err) {
+
+    showError(err.message)
+
+  }
+
+}
+
+
+
+/* DELETE CONTACT */
+
+window.deleteContact = async function(id) {
+
+  if (!confirm("Delete contact?"))
+    return
+
+  try {
+
+    const { error } =
+      await supabase
+        .from('contacts')
+        .delete()
+        .eq('id', id)
+
+    if (error) throw error
+
+    showSuccess("Contact deleted")
+
+    loadContacts()
+
+  }
+  catch(err) {
+
+    showError(err.message)
+
+  }
+
+}
+
+
+
+/* BUTTONS */
+
+document.getElementById('testDbBtn')
+.onclick = testDatabase
+
+
+document.getElementById('themeToggle')
+.onclick = () => {
+
+  const html = document.documentElement
+
+  if (html.classList.contains('dark')) {
+
+    html.classList.remove('dark')
+    localStorage.theme = 'light'
+
+  } else {
+
+    html.classList.add('dark')
+    localStorage.theme = 'dark'
+
+  }
+
+}
+
+
+
+/* INIT */
+
+if (localStorage.theme === 'dark')
+  document.documentElement.classList.add('dark')
+
+await testDatabase()
+
+await loadContacts()
+
+</script>
+
+
+</body>
+</html>
