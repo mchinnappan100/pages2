@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NPM Packages Explorer</title>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: { extend: { colors: { primary: '#0D6EFD' } } }
+        }
+    </script>
+
+    <!-- Reveal.js (for slides) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.6.0/reveal.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.6.0/theme/black.min.css" id="theme">
+    <style>
+        .reveal section {
+            text-align: left;
+            padding: 0 80px;
+        }
+        .reveal h2 {
+            color: #0D6EFD;
+            margin-bottom: 0.4em;
+        }
+        .reveal .package-tag {
+            display: inline-block;
+            padding: 0.35em 0.65em;
+            font-size: 0.8em;
+            font-weight: 600;
+            border-radius: 9999px;
+            margin-top: 1em;
+        }
+        .reveal .salesforce { background: #10b98133; color: #10b981; }
+        .reveal .utility    { background: #3b82f633; color: #3b82f6; }
+        .reveal a.npm-link {
+            display: inline-block;
+            margin-top: 1.5em;
+            padding: 0.6em 1.2em;
+            background: #0D6EFD;
+            color: white;
+            border-radius: 0.5em;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        .reveal a.npm-link:hover { background: #2563eb; }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 min-h-screen transition-colors duration-300">
+
+    <header class="sticky top-0 z-10 bg-gray-50/90 dark:bg-gray-950/90 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 id="page-title" class="text-2xl sm:text-3xl font-bold text-primary">NPM Packages Explorer</h1>
+                <p id="subtitle" class="text-sm sm:text-base text-gray-600 dark:text-gray-400">Loading packages...</p>
+            </div>
+            <div class="flex gap-3">
+                <button id="slides-btn" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition">
+                    Show as Slides
+                </button>
+                <button id="theme-toggle" class="px-4 py-2 bg-primary text-white rounded-lg hover:bg-blue-700 dark:bg-gray-700 dark:hover:bg-gray-600 transition">
+                    Toggle Dark Mode
+                </button>
+            </div>
+        </div>
+        <div class="max-w-3xl mx-auto px-4 pb-4">
+            <input id="search" type="text" placeholder="Search name or description..."
+                   class="w-full p-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary">
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <p id="stats" class="text-center text-gray-600 dark:text-gray-400 mb-8">Loading...</p>
+        <div id="grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <!-- Cards inserted here -->
+        </div>
+    </main>
+
+    <!-- Slides container (hidden by default) -->
+    <div id="slides-container" class="hidden fixed inset-0 z-50 bg-black">
+        <div class="reveal">
+            <div class="slides" id="slides-content">
+                <!-- Slides generated here -->
+            </div>
+        </div>
+        <button id="close-slides" class="fixed top-4 right-4 z-60 bg-gray-800 text-white px-4 py-2 rounded hover:bg-gray-700">
+            Close Slides ×
+        </button>
+    </div>
+
+    <footer class="text-center py-6 text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-800">
+        <p>Data from <a href="https://registry.npmjs.org" class="text-primary hover:underline">npm registry</a> • 
+        <a href="https://www.npmjs.com/~mohanchinnappan" class="text-primary hover:underline" id="profile-link">npm profile</a></p>
+    </footer>
+
+    <!-- Reveal.js scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.6.0/reveal.min.js"></script>
+
+    <script>
+        // ────────────────────────────────────────────────
+        // Theme persistence
+        // ────────────────────────────────────────────────
+        const html = document.documentElement;
+        const themeToggle = document.getElementById('theme-toggle');
+        if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            html.classList.add('dark');
+            themeToggle.textContent = 'Toggle Light Mode';
+        }
+        themeToggle.addEventListener('click', () => {
+            html.classList.toggle('dark');
+            localStorage.theme = html.classList.contains('dark') ? 'dark' : 'light';
+            themeToggle.textContent = html.classList.contains('dark') ? 'Toggle Light Mode' : 'Toggle Dark Mode';
+        });
+
+        // ────────────────────────────────────────────────
+        // Username from ?u= or default
+        // ────────────────────────────────────────────────
+        const urlParams = new URLSearchParams(window.location.search);
+        const username = urlParams.get('u') || 'mohanchinnappan';
+
+        document.getElementById('page-title').textContent = `${username}'s NPM Packages`;
+        document.getElementById('subtitle').textContent = `Loading packages for maintainer: ${username}...`;
+        document.getElementById('profile-link').href = `https://www.npmjs.com/~${username}`;
+        document.getElementById('profile-link').textContent = `${username} on npm`;
+
+        const API_URL = `https://registry.npmjs.org/-/v1/search?text=maintainer:${username}&size=250`;
+
+        let allPackages = []; // store for slides
+
+        // ────────────────────────────────────────────────
+        // Load packages
+        // ────────────────────────────────────────────────
+        async function loadPackages() {
+            try {
+                const res = await fetch(API_URL);
+                if (!res.ok) throw new Error('Network error');
+                const data = await res.json();
+                allPackages = data.objects || [];
+
+                document.getElementById('stats').textContent = 
+                    `Found ${allPackages.length} packages • Last updated ${new Date().toLocaleDateString()}`;
+
+                const grid = document.getElementById('grid');
+                grid.innerHTML = '';
+
+                allPackages.forEach(obj => {
+                    const pkg = obj.package;
+                    const npmUrl = `https://www.npmjs.com/package/${pkg.name}`;
+                    const version = pkg.version || '—';
+                    const date = pkg.date ? new Date(pkg.date).toISOString().split('T')[0] : '—';
+                    const desc = pkg.description || 'No description available';
+
+                    const card = document.createElement('div');
+                    card.className = 'package-card bg-white dark:bg-gray-800 rounded-xl shadow-md p-5 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow flex flex-col';
+                    card.innerHTML = `
+                        <h2 class="text-lg font-bold text-primary mb-1">${pkg.name}</h2>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">v${version} • ${date}</p>
+                        <p class="text-sm mb-4 flex-grow line-clamp-4">${desc}</p>
+                        <div class="mt-auto flex items-center justify-between">
+                            <span class="package-tag ${pkg.name.includes('sf-') || pkg.name.includes('salesforce') ? 'salesforce' : 'utility'}">
+                                ${pkg.name.includes('sf-') || pkg.name.includes('salesforce') ? 'Salesforce' : 'Utility'}
+                            </span>
+                            <a href="${npmUrl}" target="_blank" rel="noopener noreferrer"
+                               class="text-xs bg-primary hover:bg-blue-700 text-white px-3 py-1.5 rounded-md transition">
+                                View on npm →
+                            </a>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+
+                if (allPackages.length === 0) {
+                    grid.innerHTML = '<p class="text-center col-span-full text-gray-500 dark:text-gray-400 py-12">No packages found.</p>';
+                }
+
+            } catch (err) {
+                console.error(err);
+                document.getElementById('stats').textContent = 'Error loading packages.';
+                document.getElementById('grid').innerHTML = '<p class="text-center col-span-full text-red-500 py-12">Failed to load data.</p>';
+            }
+        }
+
+        // ────────────────────────────────────────────────
+        // Live search (filters cards)
+        // ────────────────────────────────────────────────
+        document.getElementById('search').addEventListener('input', e => {
+            const term = e.target.value.toLowerCase().trim();
+            document.querySelectorAll('.package-card').forEach(card => {
+                const title = card.querySelector('h2').textContent.toLowerCase();
+                const desc = card.querySelector('p.mb-4')?.textContent.toLowerCase() || '';
+                card.style.display = (title.includes(term) || desc.includes(term)) ? '' : 'none';
+            });
+        });
+
+        // ────────────────────────────────────────────────
+        // Show as Slides
+        // ────────────────────────────────────────────────
+        const slidesBtn = document.getElementById('slides-btn');
+        const slidesContainer = document.getElementById('slides-container');
+        const slidesContent = document.getElementById('slides-content');
+        const closeSlides = document.getElementById('close-slides');
+
+        slidesBtn.addEventListener('click', () => {
+            // Build slides from currently visible cards
+            slidesContent.innerHTML = '';
+
+            // Add title slide
+            const titleSlide = document.createElement('section');
+            titleSlide.innerHTML = `
+                <h1>${username}'s NPM Packages</h1>
+                <p class="text-xl mt-6 opacity-80">${new Date().toLocaleDateString()} • ${allPackages.length} packages</p>
+            `;
+            slidesContent.appendChild(titleSlide);
+
+            // Package slides (only visible ones)
+            document.querySelectorAll('.package-card:not([style*="display: none"])').forEach(card => {
+                const name = card.querySelector('h2').textContent;
+                const meta = card.querySelector('p.text-xs').textContent;
+                const desc = card.querySelector('p.mb-4').textContent.trim();
+                const tag = card.querySelector('.package-tag').textContent.trim();
+                const tagClass = card.querySelector('.package-tag').className.includes('salesforce') ? 'salesforce' : 'utility';
+                const npmUrl = card.querySelector('a.npm-link')?.href || '#';
+
+                const slide = document.createElement('section');
+                slide.innerHTML = `
+                    <h2>${name}</h2>
+                    <p class="text-lg opacity-80 mb-6">${meta}</p>
+                    <p class="text-xl leading-relaxed mb-8">${desc}</p>
+                    <span class="package-tag ${tagClass}">${tag}</span>
+                    <br>
+                    <a href="${npmUrl}" target="_blank" class="npm-link">View on npm →</a>
+                `;
+                slidesContent.appendChild(slide);
+            });
+
+            // Show slides
+            slidesContainer.classList.remove('hidden');
+            Reveal.initialize({
+                hash: true,
+                transition: 'slide',
+                backgroundTransition: 'fade',
+                width: '100%',
+                height: '100%',
+                margin: 0.04,
+                minScale: 0.2,
+                maxScale: 2.0
+            });
+        });
+
+        closeSlides.addEventListener('click', () => {
+            slidesContainer.classList.add('hidden');
+            Reveal.getRevealElement().innerHTML = ''; // clean up
+        });
+
+        // Load packages when page is ready
+        loadPackages();
+    </script>
+</body>
+</html>
