@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
   <title>Mission Control</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
@@ -258,7 +258,6 @@
     aside {
       width: 52px;
       background: var(--bg1);
-      border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -289,10 +288,83 @@
     }
     .nav-divider { width: 24px; height: 1px; background: var(--border); margin: 4px 0; }
 
+    /* ─── SPLITTERS ─── */
+    .splitter {
+      width: 4px;
+      flex-shrink: 0;
+      background: transparent;
+      cursor: col-resize;
+      position: relative;
+      z-index: 10;
+      transition: background 0.15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .splitter::before {
+      content: '';
+      position: absolute;
+      top: 0; bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 1px;
+      background: var(--border);
+      transition: width 0.15s, background 0.15s;
+    }
+    .splitter::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 2px;
+      height: 32px;
+      border-radius: 2px;
+      background: transparent;
+      transition: background 0.15s, height 0.15s;
+    }
+    /* Dot handle in center */
+    .splitter-dots {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      opacity: 0;
+      transition: opacity 0.15s;
+      position: relative;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .splitter-dots span {
+      width: 2px; height: 2px;
+      border-radius: 50%;
+      background: var(--text3);
+      display: block;
+    }
+    .splitter:hover .splitter-dots,
+    .splitter.dragging .splitter-dots { opacity: 1; }
+    .splitter:hover::before,
+    .splitter.dragging::before {
+      width: 2px;
+      background: var(--accent);
+    }
+    .splitter:hover::after,
+    .splitter.dragging::after {
+      background: var(--accent);
+      height: 48px;
+      opacity: 0.4;
+    }
+    .splitter.dragging { background: hsl(from var(--accent) h s l / 0.05); }
+    /* Glow pulse on hover */
+    .splitter:hover {
+      background: hsl(from var(--accent) h s l / 0.04);
+    }
+    /* Prevent text selection during drag */
+    body.dragging-splitter { user-select: none; cursor: col-resize; }
+    body.dragging-splitter * { cursor: col-resize !important; }
+
     /* ─── DOC LIST ─── */
     .doc-panel {
       width: 260px;
-      border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
       flex-shrink: 0;
@@ -405,7 +477,6 @@
     /* ─── LLM PANEL ─── */
     .llm-panel {
       width: 300px;
-      border-left: 1px solid var(--border);
       background: var(--bg1);
       display: flex;
       flex-direction: column;
@@ -824,8 +895,12 @@
     <div class="nav-item" title="Feedback">📝</div>
   </aside>
 
+  <div class="splitter" id="splitter-1" title="Drag to resize">
+    <div class="splitter-dots"><span></span><span></span><span></span><span></span><span></span></div>
+  </div>
+
   <!-- DOC LIST -->
-  <div class="doc-panel">
+  <div class="doc-panel" id="docPanel">
     <div class="panel-header">
       <span class="panel-title">Docs</span>
       <span class="badge">12</span>
@@ -876,8 +951,12 @@
     </div>
   </div>
 
+  <div class="splitter" id="splitter-2" title="Drag to resize">
+    <div class="splitter-dots"><span></span><span></span><span></span><span></span><span></span></div>
+  </div>
+
   <!-- PREVIEW -->
-  <div class="preview-panel">
+  <div class="preview-panel" id="previewPanel">
     <div class="preview-header">
       <span style="color:var(--text3);font-size:10px">📁 Docs /</span>
       <span class="preview-filename" id="previewFilename">meeting-prep.md</span>
@@ -890,6 +969,10 @@
     <div class="preview-body" id="previewBody">
       <!-- meeting-prep content injected by JS -->
     </div>
+  </div>
+
+  <div class="splitter" id="splitter-3" title="Drag to resize">
+    <div class="splitter-dots"><span></span><span></span><span></span><span></span><span></span></div>
   </div>
 
   <!-- LLM PANEL -->
@@ -1401,7 +1484,218 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// ─── THEME SYSTEM ────────────────────────────────────
+// ─── SPLITTER SYSTEM ─────────────────────────────────
+(function() {
+  const MIN = 140; // minimum pane width px
+
+  function initSplitter(splitterId, getPaneA, getPaneB, opts = {}) {
+    const splitter = document.getElementById(splitterId);
+    if (!splitter) return;
+
+    let dragging = false;
+    let startX = 0;
+    let startAWidth = 0;
+    let startBWidth = 0;
+
+    splitter.addEventListener('mousedown', e => {
+      e.preventDefault();
+      dragging = true;
+      startX = e.clientX;
+
+      const paneA = getPaneA();
+      const paneB = getPaneB();
+      startAWidth = paneA.getBoundingClientRect().width;
+      startBWidth = paneB ? paneB.getBoundingClientRect().width : null;
+
+      splitter.classList.add('dragging');
+      document.body.classList.add('dragging-splitter');
+    });
+
+    // Double-click to reset to default
+    splitter.addEventListener('dblclick', () => {
+      const paneA = getPaneA();
+      const paneB = getPaneB();
+      if (opts.defaultA) paneA.style.width = opts.defaultA;
+      if (opts.defaultB && paneB) paneB.style.width = opts.defaultB;
+      // Animate reset
+      paneA.style.transition = 'width 0.3s cubic-bezier(0.4,0,0.2,1)';
+      if (paneB) paneB.style.transition = 'width 0.3s cubic-bezier(0.4,0,0.2,1)';
+      setTimeout(() => {
+        paneA.style.transition = '';
+        if (paneB) paneB.style.transition = '';
+      }, 320);
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const delta = e.clientX - startX;
+      const paneA = getPaneA();
+      const paneB = getPaneB();
+
+      let newA = startAWidth + delta;
+      newA = Math.max(MIN, newA);
+
+      if (opts.maxA) newA = Math.min(opts.maxA, newA);
+
+      paneA.style.width = newA + 'px';
+      paneA.style.flexShrink = '0';
+
+      // If paneB is fixed-width too, shrink it inversely
+      if (paneB && startBWidth !== null && opts.resizeBoth) {
+        let newB = startBWidth - delta;
+        newB = Math.max(MIN, newB);
+        if (opts.maxB) newB = Math.min(opts.maxB, newB);
+        paneB.style.width = newB + 'px';
+        paneB.style.flexShrink = '0';
+      }
+
+      // Snap indicator near edges
+      splitter.style.setProperty('--snap', newA <= MIN + 10 ? '1' : '0');
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      splitter.classList.remove('dragging');
+      document.body.classList.remove('dragging-splitter');
+    });
+
+    // Touch support
+    splitter.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      dragging = true;
+      const paneA = getPaneA();
+      const paneB = getPaneB();
+      startAWidth = paneA.getBoundingClientRect().width;
+      startBWidth = paneB ? paneB.getBoundingClientRect().width : null;
+      splitter.classList.add('dragging');
+      document.body.classList.add('dragging-splitter');
+    }, { passive: true });
+
+    document.addEventListener('touchmove', e => {
+      if (!dragging) return;
+      const delta = e.touches[0].clientX - startX;
+      const paneA = getPaneA();
+      let newA = startAWidth + delta;
+      newA = Math.max(MIN, newA);
+      if (opts.maxA) newA = Math.min(opts.maxA, newA);
+      paneA.style.width = newA + 'px';
+      paneA.style.flexShrink = '0';
+    }, { passive: true });
+
+    document.addEventListener('touchend', () => {
+      dragging = false;
+      splitter.classList.remove('dragging');
+      document.body.classList.remove('dragging-splitter');
+    });
+  }
+
+  // Splitter 1: sidebar ↔ doc panel
+  initSplitter('splitter-1',
+    () => document.querySelector('aside'),
+    () => document.getElementById('docPanel'),
+    { defaultA: '52px', maxA: 200 }
+  );
+
+  // Splitter 2: doc panel ↔ preview
+  initSplitter('splitter-2',
+    () => document.getElementById('docPanel'),
+    () => document.getElementById('previewPanel'),
+    { defaultA: '260px', maxA: 480, resizeBoth: false }
+  );
+
+  // Splitter 3: preview ↔ LLM panel
+  initSplitter('splitter-3',
+    () => {
+      // For splitter 3 we resize the LLM panel (right side) inversely
+      // by treating it as "pane A" conceptually but from the right
+      // We'll handle this by swapping delta direction
+      return document.getElementById('llmPanel');
+    },
+    () => null,
+    { defaultA: '300px', maxA: 560 }
+  );
+
+  // Splitter 3 needs reversed delta (dragging left = LLM panel grows)
+  (function() {
+    const splitter = document.getElementById('splitter-3');
+    if (!splitter) return;
+    // Remove the generic listener above won't help - override with custom
+    let dragging = false;
+    let startX = 0;
+    let startW = 0;
+
+    splitter.addEventListener('mousedown', e => {
+      e.preventDefault();
+      dragging = true;
+      startX = e.clientX;
+      const panel = document.getElementById('llmPanel');
+      startW = panel.getBoundingClientRect().width;
+      splitter.classList.add('dragging');
+      document.body.classList.add('dragging-splitter');
+    });
+
+    splitter.addEventListener('dblclick', () => {
+      const panel = document.getElementById('llmPanel');
+      panel.style.transition = 'width 0.3s cubic-bezier(0.4,0,0.2,1)';
+      panel.style.width = '300px';
+      panel.style.flexShrink = '0';
+      setTimeout(() => panel.style.transition = '', 320);
+    });
+
+    document.addEventListener('mousemove', e => {
+      if (!dragging) return;
+      const delta = e.clientX - startX;
+      const panel = document.getElementById('llmPanel');
+      // Moving left (negative delta) = panel grows
+      let newW = startW - delta;
+      newW = Math.max(200, Math.min(600, newW));
+      panel.style.width = newW + 'px';
+      panel.style.flexShrink = '0';
+      // Remove collapsed class if dragging open
+      if (newW > 220) panel.classList.remove('collapsed');
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      splitter.classList.remove('dragging');
+      document.body.classList.remove('dragging-splitter');
+      // Snap closed if very narrow
+      const panel = document.getElementById('llmPanel');
+      if (parseInt(panel.style.width) < 220) {
+        panel.style.transition = 'width 0.2s ease';
+        panel.classList.add('collapsed');
+        setTimeout(() => panel.style.transition = '', 220);
+        document.getElementById('llmToggleBtn').classList.remove('active');
+      }
+    });
+
+    // Touch for splitter-3
+    splitter.addEventListener('touchstart', e => {
+      startX = e.touches[0].clientX;
+      dragging = true;
+      startW = document.getElementById('llmPanel').getBoundingClientRect().width;
+      splitter.classList.add('dragging');
+    }, { passive: true });
+    document.addEventListener('touchmove', e => {
+      if (!dragging) return;
+      const delta = e.touches[0].clientX - startX;
+      const panel = document.getElementById('llmPanel');
+      let newW = startW - delta;
+      newW = Math.max(200, Math.min(600, newW));
+      panel.style.width = newW + 'px';
+      panel.style.flexShrink = '0';
+    }, { passive: true });
+    document.addEventListener('touchend', () => {
+      dragging = false;
+      splitter.classList.remove('dragging');
+      document.body.classList.remove('dragging-splitter');
+    });
+  })();
+})();
+
+// ─── THEME SYSTEM ─────────────────────────────────────
 const THEMES = {
   space:    { label: 'Space',    accent: 'hsl(169,70%,52%)' },
   midnight: { label: 'Midnight', accent: 'hsl(210,100%,62%)' },
