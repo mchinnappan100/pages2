@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Mission Control</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+  <style>
+    :root {
+      --bg0: hsl(220 20% 6%);
+      --bg1: hsl(220 18% 9%);
+      --bg2: hsl(220 16% 13%);
+      --bg3: hsl(220 14% 17%);
+      --border: hsl(220 14% 22%);
+      --text1: hsl(210 30% 96%);
+      --text2: hsl(210 15% 60%);
+      --text3: hsl(210 10% 40%);
+      --accent: hsl(169 70% 52%);
+      --accent2: hsl(259 80% 65%);
+      --warn: hsl(38 95% 62%);
+      --danger: hsl(4 80% 60%);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg0);
+      color: var(--text1);
+      font-family: 'IBM Plex Mono', monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    ::selection { background: var(--accent2); color: white; }
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--bg3); border-radius: 4px; }
+
+    /* ─── TOP BAR ─── */
+    header {
+      height: 52px;
+      background: var(--bg1);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 16px;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 50;
+    }
+    .logo {
+      font-family: 'Syne', sans-serif;
+      font-weight: 800;
+      font-size: 15px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .logo span { color: var(--text2); }
+    .search-bar {
+      flex: 1;
+      max-width: 320px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+      height: 30px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .search-bar input {
+      background: none;
+      border: none;
+      outline: none;
+      font-size: 11px;
+      color: var(--text1);
+      font-family: inherit;
+      width: 100%;
+    }
+    .search-bar input::placeholder { color: var(--text3); }
+    .header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .hbtn {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text2);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      padding: 4px 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .hbtn:hover { border-color: var(--accent); color: var(--accent); }
+    .hbtn.active { border-color: var(--accent2); color: var(--accent2); background: hsl(259 80% 65% / 0.1); }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+    /* ─── LAYOUT ─── */
+    .app-body { display: flex; flex: 1; overflow: hidden; }
+
+    /* ─── SIDEBAR ─── */
+    aside {
+      width: 52px;
+      background: var(--bg1);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px 0;
+      gap: 4px;
+      flex-shrink: 0;
+      overflow-y: auto;
+    }
+    .nav-item {
+      width: 36px; height: 36px;
+      border-radius: 4px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      cursor: pointer;
+      transition: all 0.15s;
+      position: relative;
+      color: var(--text3);
+    }
+    .nav-item:hover { background: var(--bg3); color: var(--text1); }
+    .nav-item.active { background: hsl(169 70% 52% / 0.15); color: var(--accent); }
+    .nav-item.active::before {
+      content: '';
+      position: absolute;
+      left: -4px;
+      width: 2px; height: 20px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+    .nav-divider { width: 24px; height: 1px; background: var(--border); margin: 4px 0; }
+
+    /* ─── DOC LIST ─── */
+    .doc-panel {
+      width: 260px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      background: var(--bg1);
+    }
+    .panel-header {
+      padding: 12px 14px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .panel-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text2);
+    }
+    .badge {
+      font-size: 9px;
+      padding: 2px 6px;
+      background: var(--bg3);
+      border-radius: 2px;
+      color: var(--text3);
+    }
+    .doc-list { overflow-y: auto; flex: 1; padding: 8px; }
+    .doc-item {
+      padding: 9px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.12s;
+      border: 1px solid transparent;
+      margin-bottom: 2px;
+    }
+    .doc-item:hover { background: var(--bg2); }
+    .doc-item.selected {
+      background: hsl(169 70% 52% / 0.08);
+      border-color: hsl(169 70% 52% / 0.3);
+    }
+    .doc-name { font-size: 11px; color: var(--text1); margin-bottom: 3px; }
+    .doc-meta { font-size: 9px; color: var(--text3); display: flex; gap: 8px; }
+    .doc-tag {
+      font-size: 8px;
+      padding: 1px 5px;
+      border-radius: 2px;
+      background: var(--bg3);
+      color: var(--text3);
+    }
+    .doc-tag.meet { background: hsl(259 60% 50% / 0.2); color: var(--accent2); }
+    .doc-tag.goal { background: hsl(38 95% 62% / 0.15); color: var(--warn); }
+    .doc-tag.ai { background: hsl(169 70% 52% / 0.15); color: var(--accent); }
+
+    /* ─── MAIN PREVIEW ─── */
+    .preview-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg0);
+    }
+    .preview-header {
+      padding: 0 20px;
+      height: 48px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+      background: var(--bg1);
+    }
+    .preview-filename { font-size: 12px; color: var(--text1); font-weight: 500; }
+    .preview-actions { margin-left: auto; display: flex; gap: 6px; }
+    .preview-body { flex: 1; overflow-y: auto; padding: 28px 32px; }
+    .doc-h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text1);
+      margin-bottom: 6px;
+      line-height: 1.2;
+    }
+    .doc-meta-line { font-size: 10px; color: var(--text3); margin-bottom: 24px; display: flex; gap: 12px; }
+    .doc-h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin: 24px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .doc-ul { list-style: none; padding: 0; }
+    .doc-ul li {
+      font-size: 11.5px;
+      color: var(--text2);
+      padding: 5px 0 5px 14px;
+      position: relative;
+      line-height: 1.6;
+      border-bottom: 1px solid hsl(220 14% 22% / 0.5);
+    }
+    .doc-ul li::before { content: '›'; position: absolute; left: 0; color: var(--accent); }
+    .doc-ul li strong { color: var(--text1); }
+    .doc-ul li em { color: var(--accent2); font-style: normal; }
+
+    /* ─── LLM PANEL ─── */
+    .llm-panel {
+      width: 300px;
+      border-left: 1px solid var(--border);
+      background: var(--bg1);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      transition: width 0.25s ease;
+    }
+    .llm-panel.collapsed { width: 0; overflow: hidden; }
+    .llm-section { padding: 14px; border-bottom: 1px solid var(--border); }
+    .llm-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text3);
+      margin-bottom: 10px;
+    }
+    .provider-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .provider-card {
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 8px 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      background: var(--bg2);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .provider-card:hover { border-color: var(--text3); }
+    .provider-card.selected { border-color: var(--accent); background: hsl(169 70% 52% / 0.08); }
+    .provider-card.selected .pname { color: var(--accent); }
+    .provider-icon { font-size: 16px; flex-shrink: 0; }
+    .pname { font-size: 10px; color: var(--text2); font-weight: 500; }
+    .pmodel { font-size: 8px; color: var(--text3); }
+
+    .prompt-area {
+      padding: 14px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .task-select {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 10px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      color: var(--text1);
+      outline: none;
+      cursor: pointer;
+      width: 100%;
+    }
+    .task-select:focus { border-color: var(--accent2); }
+    textarea.prompt-input {
+      flex: 1;
+      min-height: 100px;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 10px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      color: var(--text1);
+      resize: none;
+      outline: none;
+      line-height: 1.6;
+    }
+    textarea.prompt-input:focus { border-color: var(--accent2); }
+    textarea.prompt-input::placeholder { color: var(--text3); }
+    .run-btn {
+      background: var(--accent);
+      color: hsl(220 20% 6%);
+      border: none;
+      border-radius: 4px;
+      padding: 9px;
+      font-family: 'Syne', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-transform: uppercase;
+    }
+    .run-btn:hover { filter: brightness(1.1); }
+    .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ─── OUTPUT MODAL ─── */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: hsl(220 20% 3% / 0.85);
+      backdrop-filter: blur(4px);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal-backdrop.open { display: flex; animation: fadeIn 0.15s ease; }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    .modal {
+      background: var(--bg1);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      width: 100%;
+      max-width: 760px;
+      max-height: 88vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 32px 80px hsl(220 20% 3% / 0.7);
+      animation: slideUp 0.18s ease;
+    }
+    @keyframes slideUp { from{transform:translateY(12px);opacity:0} to{transform:translateY(0);opacity:1} }
+    .modal-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .modal-provider-badge {
+      font-family: 'Syne', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 3px 8px;
+      border-radius: 3px;
+      background: hsl(169 70% 52% / 0.15);
+      color: var(--accent);
+      border: 1px solid hsl(169 70% 52% / 0.3);
+    }
+    .modal-doc-label {
+      font-size: 10px;
+      color: var(--text3);
+    }
+    .modal-title {
+      font-size: 11px;
+      color: var(--text2);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .modal-actions { display: flex; gap: 6px; margin-left: auto; }
+    .modal-btn {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text2);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .modal-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .modal-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+    .modal-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 28px 32px;
+    }
+    .modal-output {
+      font-size: 13.5px;
+      color: var(--text1);
+      line-height: 1.85;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    /* ── Rendered markdown styles ── */
+    .modal-output h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: 20px; font-weight: 800;
+      color: var(--text1);
+      margin: 0 0 18px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-output h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 12px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--accent);
+      margin: 26px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid var(--border);
+    }
+    .modal-output h3 {
+      font-family: 'Syne', sans-serif;
+      font-size: 13px; font-weight: 700;
+      color: var(--text1);
+      margin: 18px 0 6px;
+    }
+    .modal-output p {
+      color: var(--text2);
+      margin: 0 0 12px;
+    }
+    .modal-output ul, .modal-output ol {
+      padding-left: 0;
+      margin: 0 0 14px;
+      list-style: none;
+    }
+    .modal-output ul li, .modal-output ol li {
+      color: var(--text2);
+      padding: 4px 0 4px 18px;
+      position: relative;
+      border-bottom: 1px solid hsl(220 14% 22% / 0.4);
+    }
+    .modal-output ul li::before {
+      content: '›';
+      position: absolute; left: 0;
+      color: var(--accent); font-weight: 700;
+    }
+    .modal-output ol { counter-reset: li; }
+    .modal-output ol li { counter-increment: li; }
+    .modal-output ol li::before {
+      content: counter(li) '.';
+      position: absolute; left: 0;
+      color: var(--accent2); font-size: 10px;
+      top: 6px;
+    }
+    .modal-output strong {
+      color: var(--text1);
+      font-weight: 600;
+    }
+    .modal-output em {
+      color: var(--accent2);
+      font-style: normal;
+    }
+    .modal-output code {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      color: var(--accent);
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .modal-output pre {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      margin: 12px 0;
+    }
+    .modal-output pre code {
+      background: none;
+      border: none;
+      padding: 0;
+      font-size: 12px;
+      color: var(--text1);
+    }
+    .modal-output blockquote {
+      border-left: 3px solid var(--accent2);
+      margin: 12px 0;
+      padding: 6px 14px;
+      color: var(--text2);
+      background: hsl(259 80% 65% / 0.06);
+      border-radius: 0 4px 4px 0;
+    }
+    .modal-output hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 20px 0;
+    }
+    .modal-output a { color: var(--accent); text-decoration: underline; text-underline-offset: 3px; }
+    .modal-output table { width: 100%; border-collapse: collapse; margin: 14px 0; font-size: 12px; }
+    .modal-output th { background: var(--bg3); color: var(--accent); font-weight: 700; text-transform: uppercase; font-size: 10px; letter-spacing: 0.08em; padding: 7px 10px; border: 1px solid var(--border); }
+    .modal-output td { padding: 6px 10px; border: 1px solid var(--border); color: var(--text2); }
+    .modal-output tr:nth-child(even) td { background: hsl(220 16% 13% / 0.5); }
+    .modal-footer {
+      padding: 12px 18px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .modal-status { font-size: 9px; color: var(--text3); flex: 1; }
+    .modal-copy-btn {
+      background: var(--accent);
+      color: hsl(220 20% 6%);
+      border: none;
+      border-radius: 3px;
+      font-family: 'Syne', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      padding: 6px 14px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: filter 0.12s;
+    }
+    .modal-copy-btn:hover { filter: brightness(1.1); }
+
+    .key-input-wrap { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 6px; }
+    .key-row { display: flex; gap: 6px; }
+    .key-input {
+      flex: 1;
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 5px 8px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 9px;
+      color: var(--text2);
+      outline: none;
+    }
+    .key-input:focus { border-color: var(--accent2); }
+    .key-input::placeholder { color: var(--text3); }
+    .save-key-btn {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--text2);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 9px;
+      padding: 5px 8px;
+      cursor: pointer;
+    }
+    .save-key-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* streaming cursor */
+    .cursor { display: inline-block; width: 6px; height: 12px; background: var(--accent); animation: blink 1s infinite; vertical-align: middle; }
+    @keyframes blink { 0%,49%{opacity:1} 50%,100%{opacity:0} }
+    @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+    /* ─── Ideas panel ─── */
+    .idea-chips { display: flex; flex-wrap: wrap; gap: 5px; padding: 0 14px 14px; }
+    .idea-chip {
+      font-size: 9px;
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      color: var(--text3);
+      cursor: pointer;
+      transition: all 0.12s;
+      background: var(--bg2);
+    }
+    .idea-chip:hover { border-color: var(--accent2); color: var(--accent2); }
+  </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<header>
+  <div class="logo">Mission<span>Control</span></div>
+  <div class="search-bar">
+    <span style="color:var(--text3);font-size:10px">⌘</span>
+    <input type="text" placeholder="search documents…" />
+  </div>
+  <div class="header-actions">
+    <div class="hbtn"><div class="status-dot"></div> Live</div>
+    <button class="hbtn" id="pingBtn">📡 Ping Henry</button>
+    <button class="hbtn active" id="llmToggleBtn" onclick="toggleLLMPanel()">⚡ AI Panel</button>
+  </div>
+</header>
+
+<div class="app-body">
+
+  <!-- SIDEBAR ICONS -->
+  <aside>
+    <div class="nav-item active" title="Tasks">📋</div>
+    <div class="nav-item" title="Content">📚</div>
+    <div class="nav-item" title="Approvals">✅</div>
+    <div class="nav-divider"></div>
+    <div class="nav-item" title="Council">🗳️</div>
+    <div class="nav-item" title="Calendar">📅</div>
+    <div class="nav-item" title="Projects">🚀</div>
+    <div class="nav-divider"></div>
+    <div class="nav-item" title="Memory">🧠</div>
+    <div class="nav-item active" title="Docs">📁</div>
+    <div class="nav-item" title="People">👥</div>
+    <div class="nav-item" title="Office">🏢</div>
+    <div class="nav-divider"></div>
+    <div class="nav-item" title="Feedback">📝</div>
+  </aside>
+
+  <!-- DOC LIST -->
+  <div class="doc-panel">
+    <div class="panel-header">
+      <span class="panel-title">Docs</span>
+      <span class="badge">12</span>
+    </div>
+    <div class="doc-list">
+      <div class="doc-item selected" onclick="selectDoc(this, 'meeting')">
+        <div class="doc-name">meeting-prep.md</div>
+        <div class="doc-meta">
+          <span class="doc-tag meet">meeting</span>
+          <span>2.8 KB</span>
+        </div>
+      </div>
+      <div class="doc-item" onclick="selectDoc(this, 'goals')">
+        <div class="doc-name">weekly-goals-tracker.md</div>
+        <div class="doc-meta">
+          <span class="doc-tag goal">goals</span>
+          <span>1.4 KB</span>
+        </div>
+      </div>
+      <div class="doc-item" onclick="selectDoc(this, 'ai')">
+        <div class="doc-name">ai-professor-llms.md</div>
+        <div class="doc-meta">
+          <span class="doc-tag ai">research</span>
+          <span>5.1 KB</span>
+        </div>
+      </div>
+      <div class="doc-item" onclick="selectDoc(this, 'creator')">
+        <div class="doc-name">creator-buddy-roadmap.md</div>
+        <div class="doc-meta">
+          <span class="doc-tag">roadmap</span>
+          <span>3.2 KB</span>
+        </div>
+      </div>
+      <div class="doc-item" onclick="selectDoc(this, 'outreach')">
+        <div class="doc-name">outreach-templates.md</div>
+        <div class="doc-meta">
+          <span class="doc-tag">templates</span>
+          <span>1.9 KB</span>
+        </div>
+      </div>
+      <div class="doc-item" onclick="selectDoc(this, 'notes')">
+        <div class="doc-name">session-notes-feb.md</div>
+        <div class="doc-meta">
+          <span class="doc-tag meet">notes</span>
+          <span>4.0 KB</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PREVIEW -->
+  <div class="preview-panel">
+    <div class="preview-header">
+      <span style="color:var(--text3);font-size:10px">📁 Docs /</span>
+      <span class="preview-filename" id="previewFilename">meeting-prep.md</span>
+      <div class="preview-actions">
+        <button class="hbtn" onclick="injectToPrompt()">⚡ Send to AI</button>
+        <button class="hbtn">✏️ Edit</button>
+        <button class="hbtn">⋯</button>
+      </div>
+    </div>
+    <div class="preview-body" id="previewBody">
+      <!-- meeting-prep content injected by JS -->
+    </div>
+  </div>
+
+  <!-- LLM PANEL -->
+  <div class="llm-panel" id="llmPanel">
+    <div class="llm-section">
+      <div class="llm-label">Provider</div>
+      <div class="provider-grid">
+        <div class="provider-card selected" onclick="selectProvider(this,'claude')" data-provider="claude">
+          <span class="provider-icon">🟣</span>
+          <div>
+            <div class="pname">Claude</div>
+            <div class="pmodel">sonnet-4-5</div>
+          </div>
+        </div>
+        <div class="provider-card" onclick="selectProvider(this,'openai')" data-provider="openai">
+          <span class="provider-icon">⚫</span>
+          <div>
+            <div class="pname">OpenAI</div>
+            <div class="pmodel">gpt-4o</div>
+          </div>
+        </div>
+        <div class="provider-card" onclick="selectProvider(this,'gemini')" data-provider="gemini">
+          <span class="provider-icon">🔵</span>
+          <div>
+            <div class="pname">Gemini</div>
+            <div class="pmodel">2.0-flash</div>
+          </div>
+        </div>
+        <div class="provider-card" onclick="selectProvider(this,'xai')" data-provider="xai">
+          <span class="provider-icon">✖️</span>
+          <div>
+            <div class="pname">xAI</div>
+            <div class="pmodel">grok-3</div>
+          </div>
+        </div>
+        <div class="provider-card" onclick="selectProvider(this,'ollama')" data-provider="ollama" style="grid-column: span 2;">
+          <span class="provider-icon">🦙</span>
+          <div>
+            <div class="pname">Ollama (local)</div>
+            <div class="pmodel" id="ollama-card-subtitle">localhost:11434</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Ollama model picker — shown only when Ollama is selected -->
+    <div id="ollama-model-row" style="display:none; padding: 0 14px 12px; border-bottom: 1px solid var(--border);">
+
+      <!-- Host row -->
+      <div class="llm-label" style="margin-bottom:5px;">Host</div>
+      <div style="display:flex; gap:6px; margin-bottom:10px;">
+        <input class="key-input" id="ollama-host-input" type="text" value="http://localhost:11434"
+          placeholder="http://localhost:11434"
+          style="flex:1;"
+          onkeydown="if(event.key==='Enter') fetchOllamaModels()" />
+        <button class="save-key-btn" onclick="fetchOllamaModels()" id="ollama-refresh-btn" title="Connect &amp; fetch models"
+          style="white-space:nowrap; min-width:32px; text-align:center;">
+          <span id="ollama-refresh-icon">↺</span>
+        </button>
+      </div>
+
+      <!-- Model row -->
+      <div class="llm-label" style="margin-bottom:5px; display:flex; align-items:center;">
+        Model
+        <span id="ollama-fetch-status" style="font-size:9px;color:var(--text3);margin-left:auto;"></span>
+      </div>
+      <select class="task-select" id="ollama-model-select" style="width:100%;">
+        <option value="">— enter host and connect —</option>
+      </select>
+      <div id="ollama-no-models" style="display:none; margin-top:8px; font-size:10px; color:var(--warn); line-height:1.6;">
+        No models found. Run: <code style="color:var(--text2)">ollama pull llama3</code>
+      </div>
+    </div>
+
+    <div class="key-input-wrap">
+      <div class="llm-label" style="margin-bottom:4px">API Key</div>
+      <div class="key-row">
+        <input class="key-input" id="apiKeyInput" type="password" placeholder="sk-… (stored in memory only)" />
+        <button class="save-key-btn" onclick="saveKey()">✓</button>
+      </div>
+    </div>
+
+    <div class="prompt-area">
+      <div class="llm-label">Task</div>
+      <select class="task-select" id="taskSelect" onchange="updatePromptTemplate()">
+        <option value="meetingprep">✦ Generate meeting prep</option>
+        <option value="summarize">✦ Summarize this doc</option>
+        <option value="actionitems">✦ Extract action items</option>
+        <option value="smartgoals">✦ Rewrite as SMART goals</option>
+        <option value="council">✦ AI Council vote</option>
+        <option value="draft">✦ Draft follow-up message</option>
+        <option value="custom">✦ Custom prompt</option>
+      </select>
+      <div class="llm-label" style="margin-top:6px">Prompt</div>
+      <textarea class="prompt-input" id="promptInput" placeholder="Describe what you want the AI to do with this document…">You are a strategic assistant. Based on the document shown, generate a concise meeting prep briefing with:
+1. Key talking points (3-5 bullets)
+2. Likely questions from the other party
+3. Recommended tone and approach
+4. One bold move to make</textarea>
+      <button class="run-btn" id="runBtn" onclick="runLLM()">▶ Run</button>
+    </div>
+
+    <div style="padding:0 14px 6px">
+      <div class="llm-label">Quick Ideas</div>
+    </div>
+    <div class="idea-chips">
+      <div class="idea-chip" onclick="quickPrompt('What questions should I ask Jamie?')">ask Jamie</div>
+      <div class="idea-chip" onclick="quickPrompt('What objections might come up?')">objections</div>
+      <div class="idea-chip" onclick="quickPrompt('Summarize in 3 sentences')">TL;DR</div>
+      <div class="idea-chip" onclick="quickPrompt('What are the action items?')">actions</div>
+      <div class="idea-chip" onclick="quickPrompt('Draft a follow-up email after this meeting')">follow-up</div>
+      <div class="idea-chip" onclick="quickPrompt('What risks should I be aware of?')">risks</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── MARKED CONFIG ───────────────────────────────────
+marked.setOptions({
+  breaks: true,      // single newline = <br>
+  gfm: true,         // GitHub Flavored Markdown
+});
+
+// Buffer for streaming markdown — render periodically so partial
+// tokens don't produce broken HTML
+let mdBuffer = '';
+let mdRenderTimer = null;
+
+function streamMarkdown(el, token) {
+  mdBuffer += token;
+  // Debounce re-render to ~60fps
+  if (mdRenderTimer) return;
+  mdRenderTimer = setTimeout(() => {
+    mdRenderTimer = null;
+    el.innerHTML = marked.parse(mdBuffer);
+    // Scroll to bottom
+    const modalBody = el.closest('.modal-body');
+    if (modalBody) modalBody.scrollTop = modalBody.scrollHeight;
+  }, 16);
+}
+
+function finalizeMarkdown(el) {
+  if (mdRenderTimer) { clearTimeout(mdRenderTimer); mdRenderTimer = null; }
+  el.innerHTML = marked.parse(mdBuffer);
+}
+
+function resetMarkdown() {
+  mdBuffer = '';
+  if (mdRenderTimer) { clearTimeout(mdRenderTimer); mdRenderTimer = null; }
+}
+
+// ─── STATE ───────────────────────────────────────────
+const state = {
+  provider: 'claude',
+  apiKey: '',
+  currentDoc: 'meeting',
+  ollamaHost: ''
+};
+
+// ─── DOCS ────────────────────────────────────────────
+const docs = {
+  meeting: {
+    filename: 'meeting-prep.md',
+    html: `
+      <div class="doc-h1">Meeting Prep: AI Strategy Discussion with Jamie Okafor</div>
+      <div class="doc-meta-line">
+        <span>📅 Tuesday, Feb 25</span>
+        <span>⏰ 2:00 PM PST</span>
+        <span>📍 Google Meet</span>
+        <span>⏱ 30 min</span>
+      </div>
+      <div class="doc-h2">About Jamie Okafor</div>
+      <ul class="doc-ul">
+        <li><strong>Title:</strong> VP of Product, leading AI company</li>
+        <li><strong>Background:</strong> 12+ years AI/ML product leadership — Google Brain → OpenAI → …</li>
+        <li><strong>Last interaction:</strong> DM'd on X (Jan 14) about your <em>"vibe coding is the future"</em> thread</li>
+        <li>She said: <em>"this is exactly what we're building toward."</em></li>
+        <li>Reached out after your viral Claude Code workflows thread (2.4M views)</li>
+      </ul>
+      <div class="doc-h2">Context From Past Conversations</div>
+      <ul class="doc-ul">
+        <li>Jan 14: Explored creator partnerships for Claude — real-world use cases, not just benchmarks</li>
+        <li>Jan 22: You replied Creator Buddy is built entirely with Claude → <em>"we should talk"</em></li>
+        <li>Follows you on X • liked 8 of your posts last month (mostly Claude Code content)</li>
+      </ul>
+      <div class="doc-h2">Open Questions</div>
+      <ul class="doc-ul">
+        <li>What's their partnership model — revenue share, API credits, equity?</li>
+        <li>Is this a product placement deal or genuine co-build?</li>
+        <li>What's their timeline — are they moving fast or exploring?</li>
+      </ul>`
+  },
+  goals: {
+    filename: 'weekly-goals-tracker.md',
+    html: `
+      <div class="doc-h1">Weekly Goals — Week of Feb 24</div>
+      <div class="doc-meta-line"><span>📅 Feb 24 – Mar 1</span><span>🔄 Sprint 7</span></div>
+      <div class="doc-h2">Primary Goals</div>
+      <ul class="doc-ul">
+        <li><strong>Ship:</strong> Creator Buddy v2.1 with memory panel</li>
+        <li><strong>Content:</strong> Publish 3 threads, 1 long-form post on Claude workflows</li>
+        <li><strong>Revenue:</strong> Hit $8k MRR milestone</li>
+      </ul>
+      <div class="doc-h2">Secondary Goals</div>
+      <ul class="doc-ul">
+        <li>Follow up with Jamie Okafor after Tuesday call</li>
+        <li>Onboard 2 beta testers for Mission Control</li>
+        <li>Review 5 user feedback submissions</li>
+      </ul>`
+  },
+  ai: {
+    filename: 'ai-professor-llms.md',
+    html: `
+      <div class="doc-h1">LLM Landscape: Research Notes</div>
+      <div class="doc-meta-line"><span>🧠 Research</span><span>Updated Feb 22</span></div>
+      <div class="doc-h2">Frontier Models</div>
+      <ul class="doc-ul">
+        <li><strong>Claude 3.5 Sonnet:</strong> Best for reasoning, long context, coding. API via Anthropic.</li>
+        <li><strong>GPT-4o:</strong> Fast, multimodal. Best ecosystem & tooling.</li>
+        <li><strong>Gemini 2.0 Flash:</strong> Blazing speed, cheap. Google ecosystem tight integration.</li>
+        <li><strong>Grok-3 (xAI):</strong> Real-time X/Twitter data. Uncensored. Promising for trend analysis.</li>
+      </ul>
+      <div class="doc-h2">Local / Open Models (Ollama)</div>
+      <ul class="doc-ul">
+        <li><strong>Llama 3.3 70B:</strong> Best open-source for complex reasoning. Needs 48GB VRAM.</li>
+        <li><strong>Mistral 7B:</strong> Small, fast, surprisingly capable. Great for lightweight tasks.</li>
+        <li><strong>Phi-4:</strong> Microsoft's latest small model — punches above weight.</li>
+      </ul>`
+  },
+  creator: {
+    filename: 'creator-buddy-roadmap.md',
+    html: `
+      <div class="doc-h1">Creator Buddy — Product Roadmap</div>
+      <div class="doc-meta-line"><span>🚀 Q1 2025</span><span>Private Beta</span></div>
+      <div class="doc-h2">Now (v2.1)</div>
+      <ul class="doc-ul">
+        <li>Memory panel — persistent context across sessions</li>
+        <li>Multi-model support — Claude, GPT-4o, Gemini</li>
+        <li>Thread generator with hook scoring</li>
+      </ul>
+      <div class="doc-h2">Next (v2.5)</div>
+      <ul class="doc-ul">
+        <li>Analytics dashboard — track which AI-drafted content performs</li>
+        <li>Voice memos → structured notes pipeline</li>
+        <li>Scheduling integrations (Buffer, Typefully)</li>
+      </ul>`
+  },
+  outreach: {
+    filename: 'outreach-templates.md',
+    html: `
+      <div class="doc-h1">Outreach Templates</div>
+      <div class="doc-meta-line"><span>📬 DM / Email</span><span>6 templates</span></div>
+      <div class="doc-h2">Cold DM (Twitter/X)</div>
+      <ul class="doc-ul">
+        <li>Keep under 280 chars. Lead with specific observation, not flattery.</li>
+        <li>Template: <em>"Saw your [post/talk] on [topic] — [specific observation]. Building something adjacent. Would love 20 min."</em></li>
+      </ul>
+      <div class="doc-h2">Partnership Inquiry</div>
+      <ul class="doc-ul">
+        <li>Open with mutual value — not what you want, what you both get.</li>
+        <li>Reference specific thing they've shipped or said publicly.</li>
+      </ul>`
+  },
+  notes: {
+    filename: 'session-notes-feb.md',
+    html: `
+      <div class="doc-h1">Session Notes — February</div>
+      <div class="doc-meta-line"><span>📝 Notes</span><span>Feb 1 – Feb 22</span></div>
+      <div class="doc-h2">Feb 22 — Build Session</div>
+      <ul class="doc-ul">
+        <li>Shipped Mission Control dark theme + sidebar collapse</li>
+        <li>Decided to add multi-LLM panel this week</li>
+        <li>Blocked on Ollama streaming API — need to test locally</li>
+      </ul>
+      <div class="doc-h2">Feb 18 — Strategy Session</div>
+      <ul class="doc-ul">
+        <li>Positioning: Mission Control = "second brain for operators"</li>
+        <li>Target: solo founders + indie hackers running AI-native products</li>
+      </ul>`
+  }
+};
+
+// ─── DOC SELECTION ───────────────────────────────────
+function selectDoc(el, key) {
+  document.querySelectorAll('.doc-item').forEach(d => d.classList.remove('selected'));
+  el.classList.add('selected');
+  state.currentDoc = key;
+  const doc = docs[key];
+  document.getElementById('previewFilename').textContent = doc.filename;
+  document.getElementById('previewBody').innerHTML = doc.html;
+}
+
+// Init
+document.getElementById('previewBody').innerHTML = docs.meeting.html;
+
+// ─── LLM PANEL TOGGLE ────────────────────────────────
+function toggleLLMPanel() {
+  const panel = document.getElementById('llmPanel');
+  const btn = document.getElementById('llmToggleBtn');
+  panel.classList.toggle('collapsed');
+  btn.classList.toggle('active');
+}
+
+// ─── PROVIDER SELECTION ──────────────────────────────
+function selectProvider(el, provider) {
+  document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  state.provider = provider;
+  // Update API key placeholder
+  const placeholders = {
+    claude: 'sk-ant-… (Anthropic)',
+    openai: 'sk-… (OpenAI)',
+    gemini: 'AIza… (Google)',
+    xai: 'xai-… (xAI)',
+    ollama: 'No key needed (local)'
+  };
+  document.getElementById('apiKeyInput').placeholder = placeholders[provider] || 'API Key';
+  const ollamaRow = document.getElementById('ollama-model-row');
+  if (provider === 'ollama') {
+    document.getElementById('apiKeyInput').value = '';
+    document.getElementById('apiKeyInput').disabled = true;
+    ollamaRow.style.display = 'block';
+    // Restore saved host if any
+    if (state.ollamaHost) {
+      document.getElementById('ollama-host-input').value = state.ollamaHost;
+    }
+    // Auto-fetch if we already have a host saved (reconnect on re-select)
+    if (state.ollamaHost) fetchOllamaModels();
+  } else {
+    document.getElementById('apiKeyInput').disabled = false;
+    ollamaRow.style.display = 'none';
+  }
+}
+
+async function fetchOllamaModels() {
+  const hostInput = document.getElementById('ollama-host-input');
+  const host = (hostInput?.value || 'http://localhost:11434').replace(/\/$/, '');
+  state.ollamaHost = host;
+
+  const select = document.getElementById('ollama-model-select');
+  const status = document.getElementById('ollama-fetch-status');
+  const noModels = document.getElementById('ollama-no-models');
+  const cardSubtitle = document.getElementById('ollama-card-subtitle');
+  const refreshIcon = document.getElementById('ollama-refresh-icon');
+
+  status.textContent = 'connecting…';
+  refreshIcon.style.display = 'inline-block';
+  refreshIcon.style.animation = 'spin 0.8s linear infinite';
+  select.disabled = true;
+  noModels.style.display = 'none';
+
+  try {
+    const res = await fetch(`${host}/api/tags`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const models = (json.models || []).map(m => m.name);
+
+    select.innerHTML = '';
+    if (models.length === 0) {
+      select.innerHTML = '<option value="">— no models installed —</option>';
+      noModels.style.display = 'block';
+      cardSubtitle.textContent = 'no models';
+      status.textContent = '0 models';
+    } else {
+      models.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m;
+        // Show model name; strip host-specific suffixes for display
+        opt.textContent = m;
+        select.appendChild(opt);
+      });
+      // Prefer known good defaults, otherwise pick first
+      const preferred = ['llama3:latest', 'llama3', 'llama3.2:latest', 'mistral', 'phi4', 'deepseek-v3.1:671b-cloud'];
+      const def = preferred.find(p => models.includes(p)) || models[0];
+      select.value = def;
+      // Show short host label on card
+      const hostLabel = host.replace('http://', '').replace('https://', '');
+      cardSubtitle.textContent = `${hostLabel} · ${models.length} model${models.length !== 1 ? 's' : ''}`;
+      status.textContent = `${models.length} found`;
+    }
+  } catch (e) {
+    select.innerHTML = '<option value="">— connection failed —</option>';
+    cardSubtitle.textContent = 'not reachable';
+    status.textContent = 'error';
+    noModels.innerHTML = `⚠ Could not reach <code style="color:var(--text2)">${host}</code><br>Check the host URL and that Ollama is running.`;
+    noModels.style.display = 'block';
+  }
+
+  select.disabled = false;
+  refreshIcon.style.animation = '';
+}
+
+function saveKey() {
+  state.apiKey = document.getElementById('apiKeyInput').value;
+}
+
+// ─── TASK TEMPLATES ──────────────────────────────────
+const templates = {
+  meetingprep: `You are a strategic assistant. Based on the document, generate a concise meeting prep briefing with:
+1. Key talking points (3-5 bullets)
+2. Likely questions from the other party
+3. Recommended tone and approach
+4. One bold move to make`,
+  summarize: `Summarize this document in 3-5 sentences. Be concise and highlight only what matters most.`,
+  actionitems: `Extract all action items from this document. Format as a numbered list with owner and deadline if mentioned.`,
+  smartgoals: `Rewrite the goals in this document as SMART goals (Specific, Measurable, Achievable, Relevant, Time-bound).`,
+  council: `You are an AI council member reviewing this document. Give your verdict: approve / reject / revise — with a 2-sentence rationale and one concrete suggestion.`,
+  draft: `Draft a follow-up message (email or DM) based on this document. Keep it under 100 words, warm but direct.`,
+  custom: ``
+};
+
+function updatePromptTemplate() {
+  const task = document.getElementById('taskSelect').value;
+  if (templates[task] !== undefined) {
+    document.getElementById('promptInput').value = templates[task];
+  }
+}
+
+function quickPrompt(text) {
+  document.getElementById('taskSelect').value = 'custom';
+  document.getElementById('promptInput').value = text;
+  runLLM();
+}
+
+function injectToPrompt() {
+  const doc = docs[state.currentDoc];
+  document.getElementById('promptInput').value = `Regarding the document "${doc.filename}":\n\n`;
+  document.getElementById('promptInput').focus();
+}
+
+// ─── LLM RUNNER ──────────────────────────────────────
+async function runLLM() {
+  const prompt = document.getElementById('promptInput').value.trim();
+  if (!prompt) return;
+
+  const docContent = document.getElementById('previewBody').innerText;
+  const doc = docs[state.currentDoc];
+  const systemPrompt = `You are a smart assistant embedded in Mission Control, a personal productivity app. The user is an indie hacker building AI-native tools. Be direct, insightful, and concise. Current document content:\n\n${docContent}`;
+  const fullPrompt = prompt;
+
+  // Open modal
+  const content = document.getElementById('outputContent');
+  const providerName = state.provider.charAt(0).toUpperCase() + state.provider.slice(1);
+  document.getElementById('modalProviderBadge').textContent = providerName;
+  document.getElementById('modalDocLabel').textContent = doc.filename;
+  document.getElementById('modalStatus').textContent = 'Generating…';
+  content.innerHTML = '<span class="cursor"></span>';
+  openModal();
+
+  const runBtn = document.getElementById('runBtn');
+  runBtn.disabled = true;
+
+  const startTime = Date.now();
+  try {
+    if (state.provider === 'claude') {
+      await runClaude(systemPrompt, fullPrompt, content);
+    } else if (state.provider === 'openai') {
+      await runOpenAI(systemPrompt, fullPrompt, content);
+    } else if (state.provider === 'gemini') {
+      await runGemini(systemPrompt, fullPrompt, content);
+    } else if (state.provider === 'xai') {
+      await runXAI(systemPrompt, fullPrompt, content);
+    } else if (state.provider === 'ollama') {
+      await runOllama(systemPrompt, fullPrompt, content);
+    }
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    const wordCount = (content.innerText || '').trim().split(/\s+/).filter(Boolean).length;
+    document.getElementById('modalStatus').textContent = `${wordCount} words · ${elapsed}s`;
+  } catch (err) {
+    content.innerHTML = `<span style="color:var(--danger)">Error: ${err.message}</span>`;
+    document.getElementById('modalStatus').textContent = 'Error';
+  }
+
+  runBtn.disabled = false;
+}
+
+function openModal() {
+  resetMarkdown();
+  document.getElementById('outputModal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('outputModal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function handleModalBackdropClick(e) {
+  if (e.target === document.getElementById('outputModal')) closeModal();
+}
+
+async function copyOutput() {
+  const text = document.getElementById('outputContent').innerText || '';
+  try {
+    await navigator.clipboard.writeText(text);
+    const btn = document.querySelector('.modal-copy-btn');
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = orig, 1800);
+  } catch {}
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+// ─── PROVIDER IMPLEMENTATIONS ─────────────────────────
+
+async function runClaude(system, prompt, el) {
+  const key = state.apiKey || document.getElementById('apiKeyInput').value;
+  if (!key) { el.innerHTML = noKeyMsg('Anthropic'); return; }
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-5',
+      max_tokens: 1024,
+      system,
+      messages: [{ role: 'user', content: prompt }],
+      stream: true
+    })
+  });
+  await streamSSE(res, el, (data) => {
+    if (data.type === 'content_block_delta') return data.delta?.text || '';
+    return '';
+  });
+}
+
+async function runOpenAI(system, prompt, el) {
+  const key = state.apiKey || document.getElementById('apiKeyInput').value;
+  if (!key) { el.innerHTML = noKeyMsg('OpenAI'); return; }
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      stream: true,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }]
+    })
+  });
+  await streamSSE(res, el, (data) => data.choices?.[0]?.delta?.content || '');
+}
+
+async function runGemini(system, prompt, el) {
+  const key = state.apiKey || document.getElementById('apiKeyInput').value;
+  if (!key) { el.innerHTML = noKeyMsg('Google AI Studio'); return; }
+  el.innerHTML = '<span style="color:var(--text3)">Calling Gemini…</span>';
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: system + '\n\n' + prompt }] }]
+    })
+  });
+  const json = await res.json();
+  const text = json.candidates?.[0]?.content?.parts?.[0]?.text || 'No response.';
+  typeOut(el, text);
+}
+
+async function runXAI(system, prompt, el) {
+  const key = state.apiKey || document.getElementById('apiKeyInput').value;
+  if (!key) { el.innerHTML = noKeyMsg('xAI'); return; }
+  // xAI uses OpenAI-compatible API
+  const res = await fetch('https://api.x.ai/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'grok-3',
+      stream: true,
+      messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }]
+    })
+  });
+  await streamSSE(res, el, (data) => data.choices?.[0]?.delta?.content || '');
+}
+
+async function runOllama(system, prompt, el) {
+  const modelSelect = document.getElementById('ollama-model-select');
+  const model = modelSelect?.value;
+  const host = (state.ollamaHost || document.getElementById('ollama-host-input')?.value || 'http://localhost:11434').replace(/\/$/, '');
+
+  if (!model || model.startsWith('\u2014')) {
+    el.innerHTML = `<span style="color:var(--warn)">\u26a0 No model selected. Connect to your Ollama host first.</span>`;
+    return;
+  }
+
+  el.innerHTML = `<span style="color:var(--text3)">&rarr; <strong style="color:var(--accent)">${model}</strong> &middot; waiting for first token&hellip;</span>`;
+
+  const body = {
+    model,
+    stream: true,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user',   content: prompt }
+    ]
+  };
+
+  let res;
+  try {
+    res = await fetch(`${host}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch (e) {
+    el.innerHTML = `<span style="color:var(--danger)">\u26a0 Network error: ${e.message}<br><small style="color:var(--text3)">Host: ${host}</small></span>`;
+    return;
+  }
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    el.innerHTML = `<span style="color:var(--danger)">\u26a0 HTTP ${res.status} from Ollama<br><small style="color:var(--text3)">${errText.slice(0, 200)}</small></span>`;
+    return;
+  }
+
+  el.textContent = '';
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let gotTokens = false;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+        try {
+          const obj = JSON.parse(trimmed);
+          const token = obj?.message?.content ?? obj?.response ?? '';
+          if (token) {
+            streamMarkdown(el, token);
+            gotTokens = true;
+          }
+        } catch (parseErr) {}
+      }
+    }
+
+    if (buffer.trim()) {
+      try {
+        const obj = JSON.parse(buffer.trim());
+        const token = obj?.message?.content ?? obj?.response ?? '';
+        if (token) streamMarkdown(el, token);
+      } catch {}
+    }
+    finalizeMarkdown(el);
+
+    if (!gotTokens) {
+      el.innerHTML = `<span style="color:var(--warn)">\u26a0 Connected but no output from <strong>${model}</strong>.<br><small style="color:var(--text3)">Model may still be loading — try again in a moment.</small></span>`;
+    }
+  } catch (e) {
+    el.innerHTML += `<span style="color:var(--danger)"><br>Stream error: ${e.message}</span>`;
+  }
+}
+
+// ─── STREAMING HELPERS ────────────────────────────────
+
+async function streamSSE(res, el, extractor) {
+  el.innerHTML = '';
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (raw === '[DONE]') { finalizeMarkdown(el); return; }
+      try {
+        const data = JSON.parse(raw);
+        const text = extractor(data);
+        if (text) streamMarkdown(el, text);
+      } catch {}
+    }
+  }
+  finalizeMarkdown(el);
+}
+
+function typeOut(el, text, i = 0) {
+  if (i === 0) { el.innerHTML = ''; resetMarkdown(); }
+  if (i < text.length) {
+    streamMarkdown(el, text[i]);
+    setTimeout(() => typeOut(el, text, i + 1), 8);
+  } else {
+    finalizeMarkdown(el);
+  }
+}
+
+function noKeyMsg(provider) {
+  return `<span style="color:var(--warn)">⚠ Enter your ${provider} API key above to use this provider.</span>`;
+}
+
+function clearOutput() {
+  document.getElementById('outputContent').textContent = '';
+  closeModal();
+}
+</script>
+
+<!-- ─── LLM OUTPUT MODAL ─── -->
+<div class="modal-backdrop" id="outputModal" onclick="handleModalBackdropClick(event)">
+  <div class="modal" id="modalInner">
+    <div class="modal-header">
+      <span class="modal-provider-badge" id="modalProviderBadge">Claude</span>
+      <span class="modal-doc-label" id="modalDocLabel"></span>
+      <div class="modal-actions">
+        <button class="modal-btn" onclick="copyOutput()">⎘ Copy</button>
+        <button class="modal-btn danger" onclick="closeModal()">✕</button>
+      </div>
+    </div>
+    <div class="modal-body">
+      <div class="modal-output" id="outputContent"></div>
+    </div>
+    <div class="modal-footer">
+      <span class="modal-status" id="modalStatus"></span>
+      <button class="modal-copy-btn" onclick="copyOutput()">Copy to Clipboard</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
