@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Amazon Aurora Architecture – Deep Dive</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: { extend: { typography: { DEFAULT: { css: { maxWidth: 'none' } } } } }
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+      flowchart: { useMaxWidth: false, htmlLabels: true }
+    });
+  </script>
+  <style>
+    .mermaid { text-align: center; }
+    pre.mermaid { background: transparent !important; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 min-h-screen transition-colors duration-300">
+
+  <!-- HEADER -->
+  <header class="border-b bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-gray-200 dark:border-gray-800 sticky top-0 z-10">
+    <div class="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
+      <h1 class="text-3xl md:text-4xl font-bold tracking-tight">Amazon Aurora Architecture</h1>
+      <button id="themeToggle" class="px-5 py-2.5 rounded-full bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900 font-medium hover:opacity-90 transition">
+        Toggle Theme
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="max-w-7xl mx-auto px-6 py-12 space-y-16">
+
+    <!-- INTRODUCTION -->
+    <section class="prose dark:prose-invert max-w-none">
+      <h2 class="text-3xl font-bold mb-6">Overview</h2>
+      <p class="text-lg leading-relaxed">
+        <strong>Amazon Aurora</strong> is AWS's cloud-native relational database, fully compatible with MySQL and PostgreSQL. It delivers up to 5× the throughput of standard MySQL and 3× that of PostgreSQL by decoupling compute from storage and using innovative techniques like redo-log shipping and quorum-based durability.
+      </p>
+      <p class="text-lg leading-relaxed mt-4">
+        The core design ships only redo logs (not full data pages) to a distributed, fault-tolerant storage layer. This reduces network I/O, enables fast crash recovery (often <30 seconds), and supports massive scale with shared storage.
+      </p>
+    </section>
+
+    <!-- CLUSTER ARCHITECTURE -->
+    <section>
+      <h2 class="text-3xl font-bold mb-6">Aurora DB Cluster Architecture</h2>
+      <div class="bg-white dark:bg-gray-800/70 rounded-2xl shadow-lg p-8 border border-gray-200 dark:border-gray-700">
+        <div class="mermaid">
+          flowchart TD
+            subgraph "Client Layer"
+              App[Applications / Clients]
+              WEnd["Writer Endpoint"]
+              REnd["Reader Endpoint (load-balanced)"]
+            end
+
+            subgraph "Aurora Cluster (Single Region)"
+              Primary["Primary Instance (Writer)"]
+              Replicas["Aurora Replicas<br>(up to 15)"]
+            end
+
+            subgraph "Shared Distributed Storage Volume"
+              Storage["Cluster Volume<br>(6 copies across 3 AZs)<br>Redo logs applied on-demand"]
+            end
+
+            App --> WEnd
+            App --> REnd
+            WEnd --> Primary
+            REnd --> Replicas
+
+            Primary <-->|Redo log records + quorum| Storage
+            Replicas <-->|On-demand materialization from redo logs| Storage
+
+            classDef endpoint fill:#3b82f6,stroke:#1e40af,color:#fff
+            classDef instance fill:#10b981,stroke:#065f46,color:#fff
+            classDef storage fill:#8b5cf6,stroke:#6d28d9,color:#fff
+
+            class WEnd,REnd endpoint
+            class Primary,Replicas instance
+            class Storage storage
+        </div>
+        <p class="mt-6 text-sm text-gray-600 dark:text-gray-400 text-center">
+          Compute instances share one virtual cluster volume. Replicas read from the same storage without copying data—redo logs are applied on-demand.
+        </p>
+      </div>
+    </section>
+
+    <!-- UNDER THE HOOD: QUORUM & DURABILITY -->
+    <section>
+      <h2 class="text-3xl font-bold mb-6">Under the Hood: Quorum-Based Storage & Durability</h2>
+      <div class="bg-white dark:bg-gray-800/70 rounded-2xl shadow-lg p-8 border border-gray-200 dark:border-gray-700 space-y-8">
+        <div>
+          <h3 class="text-2xl font-semibold mb-4">Distributed Storage Layout</h3>
+          <div class="mermaid">
+            flowchart LR
+              Compute["DB Instance (Compute)"]
+
+              subgraph "Protection Group (10 GB segment)"
+                direction TB
+                C1[(Copy 1)]
+                C2[(Copy 2)]
+                C3[(Copy 3)]
+                C4[(Copy 4)]
+                C5[(Copy 5)]
+                C6[(Copy 6)]
+              end
+
+              Compute -->|"Redo log records"| C1 & C2 & C3 & C4 & C5 & C6
+
+              Quorum["Write Quorum: 4 of 6 acknowledgments<br>Read / Repair Quorum: 3 of 6<br>Across 3 AZs (2 copies per AZ)"]:::note
+
+              classDef note fill:#fef3c7,stroke:#ca8a04,color:#92400e,font-weight:bold
+
+              class Quorum note
+          </div>
+          <p class="mt-4 leading-relaxed">
+            Data is divided into 10 GB segments (Protection Groups), each replicated six ways across three AZs (two copies per AZ). Aurora uses <strong>redo-log-based writes</strong>: only small log records are sent to storage (not full pages), appended to logs, and materialized on-demand. This is the key to high write throughput.
+          </p>
+        </div>
+
+        <div>
+          <h3 class="text-2xl font-semibold mb-4">Quorum Rules & Fault Tolerance</h3>
+          <ul class="list-disc pl-6 space-y-3 text-lg">
+            <li>Writes are durable after <strong>4 out of 6</strong> copies acknowledge (Vw=4, V=6).</li>
+            <li>Reads require <strong>3 out of 6</strong> copies (Vr=3) to guarantee seeing the latest version.</li>
+            <li>Tolerates full AZ loss (2 copies) + 1 additional fault without data loss or write availability impact.</li>
+            <li>Fast repairs: Small segments rebuild in <1 minute on 10 Gbit networks; MTTR is minutes.</li>
+            <li>Self-healing: Continuous scanning detects/replaces bad blocks; membership changes handle permanent failures.</li>
+          </ul>
+          <p class="mt-4 italic text-gray-700 dark:text-gray-300">
+            "In Aurora, we use a six-way quorum spread across three AZs, with a write set of four and a read set of three." — AWS Aurora Under the Hood (2017)
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- GLOBAL DATABASE -->
+    <section>
+      <h2 class="text-3xl font-bold mb-6">Aurora Global Database (Multi-Region)</h2>
+      <div class="bg-white dark:bg-gray-800/70 rounded-2xl shadow-lg p-8 border border-gray-200 dark:border-gray-700">
+        <div class="mermaid">
+          flowchart LR
+            Primary["Primary Region<br>Writer Cluster<br>(Read/Write)"]
+
+            subgraph "Secondary Regions (Read-only)"
+              Sec1["Secondary Region A<br>Up to 16 reader instances"]
+              Sec2["Secondary Region B<br>Up to 16 reader instances"]
+              SecN["… (up to 5–10 secondary regions)"]
+            end
+
+            Primary -->|"Async storage replication<br>typically <1s lag"| Sec1
+            Primary --> Sec2
+            Primary --> SecN
+
+            classDef primary fill:#ef4444,stroke:#991b1b,color:#fff
+            classDef secondary fill:#3b82f6,stroke:#1e40af,color:#fff
+
+            class Primary primary
+            class Sec1,Sec2,SecN secondary
+        </div>
+        <p class="mt-6 leading-relaxed">
+          Enables low-latency global reads and disaster recovery. Replication uses the same quorum-based storage replication for sub-second typical lag.
+        </p>
+      </div>
+    </section>
+
+    <!-- KEY FEATURES -->
+    <section>
+      <h2 class="text-3xl font-bold mb-8">Key Features & Innovations</h2>
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="bg-white dark:bg-gray-800/70 p-7 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 class="text-xl font-semibold mb-3">Compute-Storage Separation + Redo Log Shipping</h3>
+          <p>Only redo logs sent to storage → 5× MySQL / 3× PostgreSQL throughput; fast recovery (no replay of data pages).</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800/70 p-7 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 class="text-xl font-semibold mb-3">Quorum Durability & Availability</h3>
+          <p>6 copies / 3 AZs; AZ+1 fault tolerance; 99.99% availability SLA; self-healing storage.</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800/70 p-7 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 class="text-xl font-semibold mb-3">Read Scaling</h3>
+          <p>Up to 15 same-region replicas + 16 per secondary region in Global DB; no replication lag for reads.</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800/70 p-7 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 class="text-xl font-semibold mb-3">Continuous Backup & PITR</h3>
+          <p>Incremental backups to S3; point-in-time recovery to seconds; no performance hit.</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800/70 p-7 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 class="text-xl font-semibold mb-3">I/O-Optimized & Serverless v2</h3>
+          <p>Optimized pricing for high-I/O; auto-scaling from 0 to massive throughput.</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800/70 p-7 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 class="text-xl font-semibold mb-3">Limitless Database</h3>
+          <p>Scale-out sharding for virtually unlimited capacity (preview/GA features as of 2025+).</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-gray-200 dark:border-gray-800 mt-20 py-8 text-center text-sm text-gray-500 dark:text-gray-400 bg-white/50 dark:bg-gray-950/50">
+    <p>Amazon Aurora Architecture Deep Dive • Core quorum & storage design from AWS 2017 blogs • Validated with 2025–2026 docs • Built for high performance and durability</p>
+  </footer>
+
+  <script>
+    const toggle = document.getElementById('themeToggle');
+    toggle.onclick = () => {
+      document.documentElement.classList.toggle('dark');
+      setTimeout(() => mermaid.run(), 100);
+    };
+  </script>
+</body>
+</html>

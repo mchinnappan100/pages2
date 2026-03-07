@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Amazon Aurora Architecture – Deep Dive</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          typography: (theme) => ({
+            DEFAULT: {
+              css: {
+                maxWidth: 'none',
+              },
+            },
+          }),
+        },
+      },
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.documentElement.classList.contains('dark') ? 'dark' : 'default',
+      flowchart: { useMaxWidth: false }
+    });
+  </script>
+  <style>
+    .mermaid { text-align: center; }
+    pre.mermaid { background: transparent !important; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 min-h-screen transition-colors duration-300">
+
+  <!-- HEADER -->
+  <header class="border-b bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-gray-200 dark:border-gray-800 sticky top-0 z-10">
+    <div class="max-w-7xl mx-auto px-6 py-5 flex justify-between items-center">
+      <h1 class="text-3xl md:text-4xl font-bold tracking-tight">Amazon Aurora Architecture</h1>
+      <button id="themeToggle" class="px-5 py-2.5 rounded-full bg-gray-800 text-white dark:bg-gray-200 dark:text-gray-900 font-medium hover:opacity-90 transition">
+        Toggle Theme
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN CONTENT -->
+  <main class="max-w-7xl mx-auto px-6 py-12 space-y-16">
+
+    <!-- INTRODUCTION -->
+    <section class="prose dark:prose-invert max-w-none">
+      <h2 class="text-3xl font-bold mb-6">Overview</h2>
+      <p class="text-lg leading-relaxed">
+        <strong>Amazon Aurora</strong> is a high-performance, fully managed, cloud-native relational database service from AWS. 
+        It is MySQL- and PostgreSQL-compatible while delivering up to 5× the throughput of standard MySQL and 3× that of PostgreSQL.
+      </p>
+      <p class="text-lg leading-relaxed mt-4">
+        Aurora's core innovation is the <strong>decoupling of compute and storage</strong>, enabling independent scaling, faster crash recovery, 
+        high availability, and massive read scaling with shared storage across replicas.
+      </p>
+    </section>
+
+    <!-- CLUSTER ARCHITECTURE -->
+    <section>
+      <h2 class="text-3xl font-bold mb-6">Aurora DB Cluster Architecture</h2>
+      <div class="bg-white dark:bg-gray-800/70 rounded-2xl shadow-lg p-8 border border-gray-200 dark:border-gray-700">
+        <div class="mermaid">
+          flowchart TD
+            subgraph "Client Layer"
+              App[Applications / Clients]
+              WriterEndpoint["Writer Endpoint"]
+              ReaderEndpoint["Reader Endpoint (load-balanced)"]
+            end
+
+            subgraph "Aurora Cluster (Single Region)"
+              Primary["Primary Instance<br>(Writer)"]
+              Replicas["Aurora Replicas<br>(up to 15)"]
+            end
+
+            subgraph "Shared Distributed Storage"
+              Storage["Cluster Volume<br>(6 copies across 3 AZs)"]
+            end
+
+            App --> WriterEndpoint
+            App --> ReaderEndpoint
+            WriterEndpoint --> Primary
+            ReaderEndpoint --> Replicas
+
+            Primary <--> Storage
+            Replicas <--> Storage
+
+            classDef endpoint fill:#3b82f6,stroke:#1e40af,color:#fff
+            classDef instance fill:#10b981,stroke:#065f46,color:#fff
+            classDef storage fill:#8b5cf6,stroke:#6d28d9,color:#fff
+
+            class WriterEndpoint,ReaderEndpoint endpoint
+            class Primary,Replicas instance
+            class Storage storage
+        </div>
+        <p class="mt-6 text-sm text-gray-600 dark:text-gray-400 text-center">
+          All DB instances (writer + replicas) share the same underlying storage volume → no data copying lag between writer and replicas.
+        </p>
+      </div>
+    </section>
+
+    <!-- STORAGE LAYER -->
+    <section>
+      <h2 class="text-3xl font-bold mb-6">Distributed Shared Storage Layer</h2>
+      <div class="bg-white dark:bg-gray-800/70 rounded-2xl shadow-lg p-8 border border-gray-200 dark:border-gray-700">
+        <div class="mermaid">
+          flowchart LR
+            Instance["DB Instance<br>(Compute)"]
+
+            subgraph "Protection Group (per 10 GB segment)"
+              direction TB
+              Copy1[(Copy 1)]
+              Copy2[(Copy 2)]
+              Copy3[(Copy 3)]
+              Copy4[(Copy 4)]
+              Copy5[(Copy 5)]
+              Copy6[(Copy 6)]
+            end
+
+            Instance --> Copy1 & Copy2 & Copy3 & Copy4 & Copy5 & Copy6
+
+            Note["Quorum: Write = 4/6<br>Read/Repair = 3/6<br>Across 3 AZs (2 copies/AZ)"]:::note
+
+            classDef note fill:#fef3c7,stroke:#ca8a04,color:#92400e,font-weight:bold
+
+            class Note note
+        </div>
+        <p class="mt-6 leading-relaxed">
+          Aurora stores data in a virtual cluster volume composed of many 10 GB segments. Each segment is replicated <strong>six times</strong> 
+          across <strong>three Availability Zones</strong> (two copies per AZ). Writes require acknowledgment from <strong>4 out of 6</strong> copies; 
+          reads need <strong>3 out of 6</strong>. This provides strong durability and fault tolerance (can survive AZ+1 failures).
+        </p>
+      </div>
+    </section>
+
+    <!-- GLOBAL DATABASE -->
+    <section>
+      <h2 class="text-3xl font-bold mb-6">Aurora Global Database (Multi-Region)</h2>
+      <div class="bg-white dark:bg-gray-800/70 rounded-2xl shadow-lg p-8 border border-gray-200 dark:border-gray-700">
+        <div class="mermaid">
+          flowchart LR
+            Primary["Primary Region<br>Writer Cluster<br>(Full read/write)"]
+
+            subgraph "Secondary Regions (Read-only)"
+              Sec1["Secondary Region A<br>Up to 16 reader instances"]
+              Sec2["Secondary Region B<br>Up to 16 reader instances"]
+              SecN["… up to 10 secondary regions"]
+            end
+
+            Primary -->|"Async replication<br>typically <1s latency"| Sec1
+            Primary -->|"Async replication<br>typically <1s latency"| Sec2
+            Primary --> SecN
+
+            classDef primary fill:#ef4444,stroke:#991b1b,color:#fff
+            classDef secondary fill:#3b82f6,stroke:#1e40af,color:#fff
+
+            class Primary primary
+            class Sec1,Sec2,SecN secondary
+        </div>
+        <p class="mt-6 leading-relaxed">
+          Aurora Global Database enables low-latency global reads and cross-region disaster recovery. One primary region handles writes; 
+          up to 10 secondary regions provide local read access with sub-second replication lag in most cases.
+        </p>
+      </div>
+    </section>
+
+    <!-- KEY FEATURES -->
+    <section>
+      <h2 class="text-3xl font-bold mb-8">Key Features & Benefits</h2>
+      <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="bg-white dark:bg-gray-800/70 p-7 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 class="text-xl font-semibold mb-3">Compute & Storage Separation</h3>
+          <p>Compute scales independently of storage. Fast crash recovery (often <30s) and no I/O freezes during repairs.</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800/70 p-7 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 class="text-xl font-semibold mb-3">High Availability & Durability</h3>
+          <p>Six copies across three AZs → survives AZ failure + one additional fault. Automatic self-healing storage.</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800/70 p-7 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 class="text-xl font-semibold mb-3">Read Scaling</h3>
+          <p>Up to 15 Aurora Replicas (same region) or 16 per secondary region in Global Database → massive read throughput.</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800/70 p-7 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 class="text-xl font-semibold mb-3">Continuous Backup & Recovery</h3>
+          <p>Automatic incremental backups to S3. Point-in-time recovery down to seconds without performance impact.</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800/70 p-7 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 class="text-xl font-semibold mb-3">Aurora I/O-Optimized</h3>
+          <p>Configuration for I/O-intensive workloads with better price/performance and predictable costs.</p>
+        </div>
+        <div class="bg-white dark:bg-gray-800/70 p-7 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 class="text-xl font-semibold mb-3">Aurora Serverless v2 & Limitless</h3>
+          <p>Automatic scaling from zero to hundreds of thousands of transactions. Limitless offers virtually unlimited scale-out.</p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-gray-200 dark:border-gray-800 mt-20 py-8 text-center text-sm text-gray-500 dark:text-gray-400 bg-white/50 dark:bg-gray-950/50">
+    <p>Amazon Aurora Architecture Overview • Updated for 2026 • Based on official AWS documentation</p>
+  </footer>
+
+  <script>
+    const toggle = document.getElementById('themeToggle');
+    toggle.onclick = () => {
+      document.documentElement.classList.toggle('dark');
+      // Re-init mermaid on theme change (optional but helps dark mode rendering)
+      setTimeout(() => mermaid.run(), 100);
+    };
+  </script>
+</body>
+</html>

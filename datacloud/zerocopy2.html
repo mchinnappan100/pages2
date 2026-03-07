@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+<meta charset="UTF-8">
+<title>Zero-Copy Data Integration: Salesforce Data Cloud & Amazon Aurora</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<!-- Mermaid.js for diagrams -->
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({ startOnLoad: true, theme: 'default' });
+  // Auto-switch theme for dark mode
+  function updateMermaidTheme() {
+    const isDark = document.documentElement.classList.contains('dark');
+    mermaid.initialize({ theme: isDark ? 'dark' : 'default' });
+    // Re-render all diagrams on theme change
+    document.querySelectorAll('.mermaid').forEach(el => {
+      el.removeAttribute('data-processed');
+      mermaid.init(undefined, el);
+    });
+  }
+</script>
+<!-- Highlight.js -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css" id="hl-light">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" id="hl-dark" disabled>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>hljs.highlightAll();</script>
+</head>
+<body class="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+<!-- HEADER -->
+<header class="border-b bg-white dark:bg-gray-800 sticky top-0 z-10">
+<div class="max-w-6xl mx-auto px-6 py-6 flex justify-between items-center">
+<h1 class="text-2xl font-bold">
+Zero-Copy Integration
+<span class="text-indigo-600">Salesforce Data Cloud</span>
++ Amazon Aurora
+</h1>
+<button onclick="toggleTheme(); updateMermaidTheme();" class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition">
+Toggle Theme
+</button>
+</div>
+</header>
+
+<!-- HERO -->
+<section class="max-w-6xl mx-auto px-6 py-16 md:py-20">
+<h2 class="text-4xl md:text-5xl font-bold mb-8 leading-tight">
+Zero-Copy Data Architecture for Modern Enterprises
+</h2>
+<p class="text-xl leading-relaxed mb-8">
+Enterprises today manage petabytes of customer, transactional, and operational data spread across SaaS platforms and cloud databases. Companies leveraging <strong>Salesforce Data Cloud</strong> (part of Salesforce Data 360) alongside <strong>Amazon Aurora</strong> need unified views without costly duplication, ETL latency, or governance risks.
+</p>
+<p class="text-lg leading-relaxed">
+This guide explores **zero-copy data integration** patterns — enabling Salesforce to access live Aurora data (especially Aurora MySQL/PostgreSQL) directly — reducing costs, ensuring freshness, and simplifying architecture.
+</p>
+</section>
+
+<!-- WHAT IS ZERO-COPY -->
+<section class="bg-white dark:bg-gray-800 py-16">
+<div class="max-w-6xl mx-auto px-6">
+<h2 class="text-3xl font-bold mb-8">1. What is Zero-Copy Data Integration?</h2>
+<p class="mb-6 text-lg">
+Zero-copy (also called data federation or query pushdown) allows platforms like Salesforce Data Cloud to <strong>query external data sources in place</strong> — no replication, no full dataset movement, no persistent storage in Data Cloud.
+</p>
+
+<div class="bg-gray-100 dark:bg-gray-900 rounded-xl p-6 mb-6">
+<div class="mermaid">
+flowchart LR
+    A[Aurora MySQL/PostgreSQL] -->|ETL / CDC / Batch| B[Ingestion Pipeline]
+    B --> C[Salesforce Data Cloud Storage]
+    C --> D[Query / Analytics / Activation]
+
+    subgraph "Traditional ETL"
+    A --> B --> C
+    end
+
+    E[Aurora MySQL/PostgreSQL] -.->|Live Federated Query / Pushdown| F[Salesforce Data Cloud]
+    subgraph "Zero-Copy Federation"
+    E -.-> F
+    end
+
+    style Traditional fill:#fee2e2,stroke:#ef4444
+    style Zero-Copy fill:#d1fae5,stroke:#10b981
+</div>
+</div>
+
+<p class="mb-4">
+Salesforce supports this via <strong>MySQL/PostgreSQL connectors</strong> (Beta for Aurora) for ingestion + federation, and broader zero-copy ecosystem partnerships (Redshift, Snowflake, etc.).
+</p>
+</div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section class="py-16">
+<div class="max-w-6xl mx-auto px-6">
+<h2 class="text-3xl font-bold mb-8">2. Reference Architecture Patterns</h2>
+
+<div class="space-y-12">
+  <div>
+    <h3 class="text-2xl font-semibold mb-4">A. Native Zero-Copy Federation (Preferred – Point-and-Click)</h3>
+    <div class="bg-gray-100 dark:bg-gray-800 p-6 rounded-xl mb-4">
+<div class="mermaid">
+flowchart TD
+    A[Salesforce Data Cloud<br>Data Manager / Setup] -->|New Connection| B[Connector: AWS Aurora MySQL / PostgreSQL<br>(Beta – Query Federation)]
+    B -->|JDBC / Secure Credentials| C[Amazon Aurora Cluster<br>(MySQL or PostgreSQL Compatible)]
+    C -->|Execute Query Pushdown<br>Results Streamed Back| A
+    A -->|Use in Calculated Insights,<br>Segments, Activations| D[Unified Customer 360 / Real-time Apps]
+
+    style A fill:#c7d2fe,stroke:#6366f1
+    style C fill:#dbeafe,stroke:#3b82f6
+</div>
+    </div>
+    <p>Use Data Cloud's built-in connectors to federate queries directly. Ideal for read-only access to reference/master data (customers, orders, inventory).</p>
+  </div>
+
+  <div>
+    <h3 class="text-2xl font-semibold mb-4">B. API Mediation Layer (When Federation Not Sufficient)</h3>
+    <div class="bg-gray-100 dark:bg-gray-800 p-6 rounded-xl">
+<div class="mermaid">
+flowchart LR
+    A[Salesforce Data Cloud / External Services<br>MuleSoft / Flow] -->|HTTPS / OAuth / API Call| B[API Gateway / Lambda / ECS]
+    B -->|Secure Query| C[Amazon Aurora<br>Operational DB]
+    C -->|Results| B
+    B -->|JSON Response| A
+    A -->|Enriched Data| D[Real-time Personalization / Service]
+
+    style A fill:#c7d2fe,stroke:#6366f1
+    style B fill:#fef3c7,stroke:#d97706
+    style C fill:#dbeafe,stroke:#3b82f6
+</div>
+    </div>
+    <p>Common when complex joins, business logic, or fine-grained security are needed before exposing data.</p>
+  </div>
+</div>
+</div>
+</section>
+
+<!-- BENEFITS -->
+<section class="bg-white dark:bg-gray-800 py-16">
+<div class="max-w-6xl mx-auto px-6">
+<h2 class="text-3xl font-bold mb-8">3. Key Benefits</h2>
+<div class="grid md:grid-cols-3 gap-8">
+<div class="p-6 bg-gray-100 dark:bg-gray-900 rounded-xl">
+<h3 class="font-semibold text-xl mb-3">Near Real-Time Access</h3>
+<p>Query live Aurora data — no batch delays.</p>
+</div>
+<div class="p-6 bg-gray-100 dark:bg-gray-900 rounded-xl">
+<h3 class="font-semibold text-xl mb-3">Cost Efficiency</h3>
+<p>Eliminate duplicate storage & heavy ETL jobs.</p>
+</div>
+<div class="p-6 bg-gray-100 dark:bg-gray-900 rounded-xl">
+<h3 class="font-semibold text-xl mb-3">Governance & Security</h3>
+<p>Data stays in Aurora — apply existing policies, encryption, VPC.</p>
+</div>
+<div class="p-6 bg-gray-100 dark:bg-gray-900 rounded-xl">
+<h3 class="font-semibold text-xl mb-3">Simplified Operations</h3>
+<p>Fewer moving parts, less failure surface.</p>
+</div>
+<div class="p-6 bg-gray-100 dark:bg-gray-900 rounded-xl">
+<h3 class="font-semibold text-xl mb-3">Scalability</h3>
+<p>Leverages Aurora's serverless/read replicas for query load.</p>
+</div>
+<div class="p-6 bg-gray-100 dark:bg-gray-900 rounded-xl">
+<h3 class="font-semibold text-xl mb-3">Compliance</h3>
+<p>Minimized data movement aids GDPR, HIPAA, etc.</p>
+</div>
+</div>
+</div>
+</section>
+
+<!-- IMPLEMENTATION -->
+<section class="py-16">
+<div class="max-w-6xl mx-auto px-6">
+<h2 class="text-3xl font-bold mb-8">4. Implementation Guidance</h2>
+<p class="mb-6">Preferred path: Use Salesforce Data Cloud's <strong>Aurora MySQL/PostgreSQL connectors</strong> (Beta) for federation/ingestion.</p>
+<ol class="list-decimal pl-6 space-y-4 mb-10">
+  <li>Navigate to Data Cloud → Data Manager → New Connection</li>
+  <li>Select AWS Aurora MySQL or PostgreSQL</li>
+  <li>Provide endpoint, credentials (use IAM or secrets), database name</li>
+  <li>Choose tables/objects to federate (or ingest if needed)</li>
+  <li>Map fields → create Data Streams or Lakehouse views</li>
+  <li>Use in Calculated Insights, Segments, Activations</li>
+</ol>
+
+<h3 class="text-2xl font-semibold mt-12 mb-4">Fallback: Secure API Layer (Node.js Example)</h3>
+<pre><code class="language-javascript">
+// Secure Express + MySQL2 + IAM auth example
+const express = require('express');
+const mysql = require('mysql2/promise');
+const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+
+const app = express();
+app.use(express.json());
+
+async function getDbPool() {
+  const client = new SecretsManagerClient({ region: 'us-east-1' });
+  const secret = await client.send(new GetSecretValueCommand({ SecretId: 'aurora-creds' }));
+  const creds = JSON.parse(secret.SecretString);
+
+  return mysql.createPool({
+    host: creds.host,
+    user: creds.username,
+    password: creds.password,
+    database: 'sales',
+    ssl: { rejectUnauthorized: true }
+  });
+}
+
+const poolPromise = getDbPool();
+
+app.get('/api/orders/:id', async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const [rows] = await pool.execute('SELECT * FROM orders WHERE id = ? LIMIT 1', [req.params.id]);
+    res.json(rows[0] || {});
+  } catch (err) {
+    res.status(500).json({ error: 'Query failed' });
+  }
+});
+
+app.listen(3000, () => console.log('Secure API on port 3000'));
+</code></pre>
+</div>
+</section>
+
+<!-- USE CASES -->
+<section class="bg-white dark:bg-gray-800 py-16">
+<div class="max-w-6xl mx-auto px-6">
+<h2 class="text-3xl font-bold mb-8">5. Real-World Use Cases</h2>
+<ul class="space-y-6 list-disc pl-6">
+  <li><strong>Unified Customer 360:</strong> Enrich Salesforce profiles with live order status, inventory, or billing from Aurora.</li>
+  <li><strong>Real-time Personalization:</strong> Marketing campaigns or Next Best Action using up-to-the-minute transaction data.</li>
+  <li><strong>Support Efficiency:</strong> Service agents see latest order/shipment details without switching systems.</li>
+  <li><strong>Hybrid Analytics:</strong> Combine Aurora operational metrics with Data Cloud behavioral insights.</li>
+</ul>
+</div>
+</section>
+
+<!-- LIMITATIONS & BEST PRACTICES -->
+<section class="py-16">
+<div class="max-w-6xl mx-auto px-6">
+<h2 class="text-3xl font-bold mb-8">6. Considerations & Best Practices</h2>
+<div class="grid md:grid-cols-2 gap-8">
+  <div class="p-6 bg-gray-100 dark:bg-gray-900 rounded-xl">
+    <h3 class="font-semibold text-xl mb-3">Performance</h3>
+    <ul class="list-disc pl-5 space-y-1 text-sm">
+      <li>Federated queries can be slower for large scans — use indexes, limit rows.</li>
+      <li>Cache frequent queries in Data Cloud when freshness allows.</li>
+    </ul>
+  </div>
+  <div class="p-6 bg-gray-100 dark:bg-gray-900 rounded-xl">
+    <h3 class="font-semibold text-xl mb-3">Security</h3>
+    <ul class="list-disc pl-5 space-y-1 text-sm">
+      <li>Use IAM database auth for Aurora</li>
+      <li>Secrets Manager / Parameter Store</li>
+      <li>PrivateLink or VPC peering</li>
+      <li>Row-level / column-level security</li>
+    </ul>
+  </div>
+</div>
+<p class="mt-8 italic">When data volume or join complexity is high → consider hybrid (federate small reference data, ingest aggregates).</p>
+</div>
+</section>
+
+<!-- CONCLUSION -->
+<section class="bg-indigo-600 text-white py-20">
+<div class="max-w-6xl mx-auto px-6 text-center">
+<h2 class="text-4xl font-bold mb-6">Conclusion</h2>
+<p class="text-xl leading-relaxed max-w-3xl mx-auto">
+Zero-copy integration — especially via Salesforce Data Cloud's native connectors and federation capabilities — empowers organizations to break down silos between CRM and operational systems like Amazon Aurora. Achieve real-time, governed, cost-efficient data unification without traditional ETL burdens.
+</p>
+<p class="mt-8 text-lg">Start small with reference data federation, measure performance, and expand to power Agentforce, personalized journeys, and unified analytics.</p>
+</div>
+</section>
+
+<!-- FOOTER -->
+<footer class="py-12 text-center text-sm opacity-70 bg-gray-100 dark:bg-gray-800">
+© 2026 Data Architecture Insights • Zero-Copy with Salesforce Data Cloud + Amazon Aurora
+</footer>
+
+<script>
+function toggleTheme() {
+  document.documentElement.classList.toggle("dark");
+  const isDark = document.documentElement.classList.contains("dark");
+  document.getElementById("hl-light").disabled = isDark;
+  document.getElementById("hl-dark").disabled = !isDark;
+}
+</script>
+</body>
+</html>
