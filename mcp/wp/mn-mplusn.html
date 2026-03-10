@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCP — The M×N Problem, Solved</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          display: ['Syne', 'sans-serif'],
+          body: ['Inter', 'sans-serif'],
+          mono: ['IBM Plex Mono', 'monospace'],
+        },
+        colors: {
+          brand: {
+            50: '#fff7ed',
+            100: '#ffedd5',
+            400: '#fb923c',
+            500: '#f97316',
+            600: '#ea580c',
+            900: '#431407',
+          }
+        }
+      }
+    }
+  }
+</script>
+
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --surface2: #1c1c28;
+    --border: #2a2a3a;
+    --text: #e8e8f0;
+    --muted: #6b6b88;
+    --accent: #f97316;
+    --accent2: #fb923c;
+    --green: #34d399;
+    --blue: #60a5fa;
+    --purple: #a78bfa;
+  }
+  .light {
+    --bg: #fafaf7;
+    --surface: #ffffff;
+    --surface2: #f2f2ec;
+    --border: #e0e0d8;
+    --text: #1a1a28;
+    --muted: #888880;
+    --accent: #ea580c;
+    --accent2: #f97316;
+    --green: #059669;
+    --blue: #2563eb;
+    --purple: #7c3aed;
+  }
+  html { font-family: 'Inter', sans-serif; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    transition: background 0.3s, color 0.3s;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+  }
+  .card2 { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; }
+  .accent { color: var(--accent); }
+  .accent-bg { background: var(--accent); }
+  .muted { color: var(--muted); }
+  .border-c { border-color: var(--border); }
+  .text-c { color: var(--text); }
+  .surface { background: var(--surface); }
+  .surface2 { background: var(--surface2); }
+
+  /* Mermaid theming */
+  .mermaid svg { max-width: 100%; }
+
+  /* Hero grid bg */
+  .grid-bg {
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* Glow */
+  .glow { box-shadow: 0 0 40px rgba(249,115,22,0.15); }
+  .glow-sm { box-shadow: 0 0 20px rgba(249,115,22,0.1); }
+
+  /* Code block overrides */
+  pre[class*="language-"] {
+    background: var(--surface2) !important;
+    border: 1px solid var(--border) !important;
+    border-radius: 10px !important;
+    margin: 0 !important;
+    font-size: 0.82rem;
+    line-height: 1.65;
+  }
+  code[class*="language-"] { font-family: 'IBM Plex Mono', monospace !important; }
+
+  .tab-active {
+    background: var(--accent);
+    color: white;
+  }
+  .tab-inactive {
+    background: var(--surface2);
+    color: var(--muted);
+  }
+  .tab-inactive:hover { color: var(--text); }
+
+  /* Badge */
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 99px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* Scroll animations */
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Number pill */
+  .num-pill {
+    width: 36px; height: 36px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%;
+    background: var(--accent);
+    color: white;
+    font-family: 'IBM Plex Mono';
+    font-weight: 600;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+  }
+
+  /* Horizontal rule */
+  hr { border-color: var(--border); }
+
+  /* Mermaid force dark/light */
+  .mermaid-wrap {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    overflow-x: auto;
+  }
+
+  /* Theme toggle */
+  #theme-toggle {
+    cursor: pointer;
+    width: 48px; height: 26px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    position: relative;
+    transition: background 0.3s;
+  }
+  #theme-toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--accent);
+    transition: transform 0.3s;
+  }
+  html.light #theme-toggle::after { transform: translateX(22px); }
+
+  /* Section header line */
+  .section-label {
+    font-family: 'IBM Plex Mono';
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  /* Callout box */
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--surface2);
+    border-radius: 0 10px 10px 0;
+    padding: 16px 20px;
+  }
+
+  /* Flow arrow */
+  .flow-arrow {
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted);
+    font-size: 1.4rem;
+  }
+</style>
+</head>
+
+<body class="min-h-screen">
+
+<!-- NAVBAR -->
+<nav class="sticky top-0 z-50 border-b border-c" style="background: rgba(10,10,15,0.85); backdrop-filter: blur(12px);">
+  <div class="max-w-5xl mx-auto px-6 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-7 h-7 rounded-lg accent-bg flex items-center justify-center">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <circle cx="4" cy="4" r="2.5" fill="white" opacity="0.9"/>
+          <circle cx="12" cy="4" r="2.5" fill="white" opacity="0.9"/>
+          <circle cx="8" cy="12" r="2.5" fill="white" opacity="0.9"/>
+          <line x1="4" y1="4" x2="8" y2="12" stroke="white" stroke-width="1.2" opacity="0.5"/>
+          <line x1="12" y1="4" x2="8" y2="12" stroke="white" stroke-width="1.2" opacity="0.5"/>
+          <line x1="4" y1="4" x2="12" y2="4" stroke="white" stroke-width="1.2" opacity="0.5"/>
+        </svg>
+      </div>
+      <span class="font-display font-700 text-sm tracking-wide" style="color:var(--text)">Model Context Protocol</span>
+    </div>
+    <div class="flex items-center gap-4">
+      <span class="text-xs muted hidden sm:block font-mono">M×N → M+N</span>
+      <div id="theme-toggle" onclick="toggleTheme()" title="Toggle theme"></div>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="relative overflow-hidden grid-bg">
+  <div class="absolute inset-0 pointer-events-none" style="background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(249,115,22,0.12) 0%, transparent 70%)"></div>
+  <div class="max-w-5xl mx-auto px-6 py-24 text-center relative">
+    <div class="badge mb-6" style="background: rgba(249,115,22,0.12); color: var(--accent); border: 1px solid rgba(249,115,22,0.3)">Protocol Deep Dive</div>
+    <h1 class="font-display text-5xl sm:text-6xl font-800 leading-tight mb-6" style="color:var(--text)">
+      How MCP Turns<br/>
+      <span class="accent">M×N</span> into <span class="accent">M+N</span>
+    </h1>
+    <p class="text-lg max-w-2xl mx-auto leading-relaxed" style="color:var(--muted)">
+      The Model Context Protocol solves one of AI integration's messiest problems — the combinatorial explosion of connecting every AI model to every tool — with an elegant, universal standard.
+    </p>
+    <div class="mt-10 flex flex-wrap items-center justify-center gap-3 text-sm font-mono muted">
+      <span class="badge" style="background:var(--surface2); color:var(--muted); border: 1px solid var(--border)">Node.js examples</span>
+      <span class="badge" style="background:var(--surface2); color:var(--muted); border: 1px solid var(--border)">Python examples</span>
+      <span class="badge" style="background:var(--surface2); color:var(--muted); border: 1px solid var(--border)">Architecture diagrams</span>
+    </div>
+  </div>
+</section>
+
+<main class="max-w-5xl mx-auto px-6 pb-24 space-y-20">
+
+  <!-- ── SECTION 1: The Problem ── -->
+  <section class="reveal">
+    <div class="section-label mb-3">The Problem</div>
+    <h2 class="font-display text-3xl font-700 mb-4" style="color:var(--text)">The M×N Integration Hell</h2>
+    <p class="leading-relaxed mb-8 max-w-3xl" style="color:var(--muted)">
+      Imagine you have <strong style="color:var(--text)">M AI models</strong> (GPT-4, Claude, Gemini, Llama, Mistral…) and <strong style="color:var(--text)">N tools</strong> (GitHub, Slack, databases, file systems, APIs…). Without a standard, each model needs a custom integration for every tool. That's <strong class="accent">M × N connectors</strong> to build and maintain.
+    </p>
+
+    <div class="grid md:grid-cols-2 gap-6 mb-8">
+      <!-- Without MCP -->
+      <div class="card p-6">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-2 h-2 rounded-full" style="background:#f87171"></div>
+          <span class="font-display font-600 text-sm" style="color:#f87171">Without MCP — M×N</span>
+        </div>
+        <div class="mermaid-wrap" id="diagram-mnproblem">
+          <div class="mermaid">
+graph LR
+    GPT["🤖 GPT-4"]:::model
+    Claude["🤖 Claude"]:::model
+    Gemini["🤖 Gemini"]:::model
+
+    GH["🐙 GitHub"]:::tool
+    DB["🗄️ Database"]:::tool
+    FS["📁 Files"]:::tool
+    SL["💬 Slack"]:::tool
+
+    GPT -->|custom| GH
+    GPT -->|custom| DB
+    GPT -->|custom| FS
+    GPT -->|custom| SL
+    Claude -->|custom| GH
+    Claude -->|custom| DB
+    Claude -->|custom| FS
+    Claude -->|custom| SL
+    Gemini -->|custom| GH
+    Gemini -->|custom| DB
+    Gemini -->|custom| FS
+    Gemini -->|custom| SL
+
+    classDef model fill:#7c3aed,stroke:#a78bfa,color:#fff,rx:8
+    classDef tool fill:#1e40af,stroke:#60a5fa,color:#fff,rx:8
+          </div>
+        </div>
+        <p class="mt-4 text-sm" style="color:var(--muted)">3 models × 4 tools = <strong style="color:#f87171">12 custom integrations</strong></p>
+      </div>
+
+      <!-- With MCP -->
+      <div class="card p-6 glow">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-2 h-2 rounded-full" style="background:var(--green)"></div>
+          <span class="font-display font-600 text-sm" style="color:var(--green)">With MCP — M+N</span>
+        </div>
+        <div class="mermaid-wrap" id="diagram-mnsolution">
+          <div class="mermaid">
+graph LR
+    GPT["🤖 GPT-4"]:::model
+    Claude["🤖 Claude"]:::model
+    Gemini["🤖 Gemini"]:::model
+
+    MCP(["⚡ MCP Protocol"]):::mcp
+
+    GH["🐙 GitHub"]:::tool
+    DB["🗄️ Database"]:::tool
+    FS["📁 Files"]:::tool
+    SL["💬 Slack"]:::tool
+
+    GPT --> MCP
+    Claude --> MCP
+    Gemini --> MCP
+
+    MCP --> GH
+    MCP --> DB
+    MCP --> FS
+    MCP --> SL
+
+    classDef model fill:#7c3aed,stroke:#a78bfa,color:#fff
+    classDef tool fill:#1e40af,stroke:#60a5fa,color:#fff
+    classDef mcp fill:#ea580c,stroke:#f97316,color:#fff,font-weight:bold
+          </div>
+        </div>
+        <p class="mt-4 text-sm" style="color:var(--muted)">3 + 4 = <strong style="color:var(--green)">7 integrations only</strong></p>
+      </div>
+    </div>
+
+    <div class="callout">
+      <p class="text-sm leading-relaxed" style="color:var(--text)">
+        <strong class="accent">The key insight:</strong> Instead of every AI model knowing how to talk to every tool, you only need each model to speak <em>one common language</em> (MCP), and each tool to expose itself via the same standard. The complexity drops from multiplicative to additive.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── SECTION 2: Architecture ── -->
+  <section class="reveal">
+    <div class="section-label mb-3">Architecture</div>
+    <h2 class="font-display text-3xl font-700 mb-4" style="color:var(--text)">How MCP Works</h2>
+    <p class="leading-relaxed mb-8 max-w-3xl" style="color:var(--muted)">
+      MCP defines a three-layer architecture: a <strong style="color:var(--text)">Host</strong> (the AI application), a <strong style="color:var(--text)">Client</strong> (connector inside the host), and one or more <strong style="color:var(--text)">Servers</strong> (tools/data sources). Communication uses JSON-RPC 2.0 over stdio or HTTP/SSE.
+    </p>
+
+    <div class="mermaid-wrap mb-8">
+      <div class="mermaid">
+sequenceDiagram
+    participant U as 👤 User
+    participant H as 🖥️ Host (Claude Desktop)
+    participant C as 🔌 MCP Client
+    participant S as ⚙️ MCP Server
+    participant T as 🛠️ Tool / Resource
+
+    U->>H: "What files are in my project?"
+    H->>C: Initialize connection
+    C->>S: initialize {protocolVersion, capabilities}
+    S-->>C: {capabilities: {tools, resources}}
+
+    H->>C: List available tools
+    C->>S: tools/list
+    S-->>C: [{name:"read_file"}, {name:"list_dir"}]
+    C-->>H: Available tools
+
+    H->>C: Call tool
+    C->>S: tools/call {name:"list_dir", arguments:{path:"."}}
+    S->>T: Execute list_dir(".")
+    T-->>S: ["main.py","README.md","src/"]
+    S-->>C: {content:[{type:"text", text:"..."}]}
+    C-->>H: Tool result
+    H-->>U: "Your project contains: main.py, README.md, src/"
+      </div>
+    </div>
+
+    <div class="grid sm:grid-cols-3 gap-4">
+      <div class="card2 p-5">
+        <div class="text-2xl mb-2">🖥️</div>
+        <div class="font-display font-600 mb-1" style="color:var(--text)">Host</div>
+        <p class="text-sm" style="color:var(--muted)">The AI application (Claude Desktop, Cursor, your app). Manages MCP clients and orchestrates LLM interactions.</p>
+      </div>
+      <div class="card2 p-5">
+        <div class="text-2xl mb-2">🔌</div>
+        <div class="font-display font-600 mb-1" style="color:var(--text)">Client</div>
+        <p class="text-sm" style="color:var(--muted)">Runs inside the host. Maintains a 1:1 session with an MCP server, handles protocol negotiation and message routing.</p>
+      </div>
+      <div class="card2 p-5 glow-sm" style="border-color: rgba(249,115,22,0.3)">
+        <div class="text-2xl mb-2">⚙️</div>
+        <div class="font-display font-600 mb-1" style="color:var(--accent)">Server</div>
+        <p class="text-sm" style="color:var(--muted)">Exposes <strong style="color:var(--text)">Tools</strong>, <strong style="color:var(--text)">Resources</strong>, and <strong style="color:var(--text)">Prompts</strong> via the standard protocol. This is where your integrations live.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SECTION 3: Core Primitives ── -->
+  <section class="reveal">
+    <div class="section-label mb-3">Core Primitives</div>
+    <h2 class="font-display text-3xl font-700 mb-4" style="color:var(--text)">What Servers Expose</h2>
+
+    <div class="mermaid-wrap mb-8">
+      <div class="mermaid">
+mindmap
+  root((MCP Server))
+    Tools
+      Executable functions
+      Has JSON Schema input
+      Model-invoked actions
+      Examples: read_file, query_db, send_email
+    Resources
+      Data sources and files
+      URI-addressed content
+      Application-controlled
+      Examples: file contents, DB rows, API responses
+    Prompts
+      Reusable prompt templates
+      Parameterized workflows
+      User-selectable snippets
+      Examples: code review, summarize doc
+      </div>
+    </div>
+
+    <div class="grid sm:grid-cols-3 gap-4">
+      <div class="card p-5">
+        <span class="badge mb-3" style="background:rgba(167,139,250,0.15); color:var(--purple); border:1px solid rgba(167,139,250,0.3)">Tools</span>
+        <p class="text-sm leading-relaxed" style="color:var(--muted)">Functions the <strong style="color:var(--text)">model can call</strong>. Like REST endpoints — they take typed inputs and return results. Enable real-world actions.</p>
+      </div>
+      <div class="card p-5">
+        <span class="badge mb-3" style="background:rgba(96,165,250,0.15); color:var(--blue); border:1px solid rgba(96,165,250,0.3)">Resources</span>
+        <p class="text-sm leading-relaxed" style="color:var(--muted)">Data the <strong style="color:var(--text)">application exposes</strong> to the model. Addressed by URI. Like GET endpoints — read-only structured data.</p>
+      </div>
+      <div class="card p-5">
+        <span class="badge mb-3" style="background:rgba(52,211,153,0.15); color:var(--green); border:1px solid rgba(52,211,153,0.3)">Prompts</span>
+        <p class="text-sm leading-relaxed" style="color:var(--muted)">Reusable <strong style="color:var(--text)">prompt templates</strong> controlled by the server. Users can invoke them for consistent, well-crafted workflows.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SECTION 4: Code Examples ── -->
+  <section class="reveal">
+    <div class="section-label mb-3">Code Examples</div>
+    <h2 class="font-display text-3xl font-700 mb-2" style="color:var(--text)">Building an MCP Server</h2>
+    <p class="leading-relaxed mb-8 max-w-3xl" style="color:var(--muted)">
+      Write once, connect to any MCP-compatible host. Here's a minimal file-reading MCP server in both Node.js and Python.
+    </p>
+
+    <!-- Tab switcher -->
+    <div class="flex gap-2 mb-4">
+      <button onclick="showTab('node')" id="tab-node" class="tab-active px-4 py-2 rounded-lg text-sm font-mono font-600 transition-all">Node.js</button>
+      <button onclick="showTab('python')" id="tab-python" class="tab-inactive px-4 py-2 rounded-lg text-sm font-mono font-600 transition-all">Python</button>
+    </div>
+
+    <!-- Node.js -->
+    <div id="code-node" class="space-y-4">
+      <div class="card p-5">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="font-mono text-xs muted">install</span>
+        </div>
+        <pre><code class="language-javascript">npm install @modelcontextprotocol/sdk</code></pre>
+      </div>
+
+      <div class="card p-5">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="font-mono text-xs muted">server.js — MCP Server with Tools & Resources</span>
+        </div>
+        <pre><code class="language-javascript">import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { readFile, readdir } from "fs/promises";
+import { z } from "zod";
+
+// 1️⃣  Create the MCP server
+const server = new McpServer({
+  name: "file-explorer",
+  version: "1.0.0",
+});
+
+// 2️⃣  Expose a TOOL: list directory contents
+server.tool(
+  "list_directory",
+  "List files and folders at a given path",
+  { path: z.string().describe("Directory path to list") },
+  async ({ path }) => {
+    const entries = await readdir(path, { withFileTypes: true });
+    const result = entries.map((e) =>
+      `${e.isDirectory() ? "📁" : "📄"} ${e.name}`
+    ).join("\n");
+
+    return {
+      content: [{ type: "text", text: result }],
+    };
+  }
+);
+
+// 3️⃣  Expose a TOOL: read file contents
+server.tool(
+  "read_file",
+  "Read the contents of a file",
+  {
+    path: z.string().describe("Path to the file"),
+    encoding: z.enum(["utf8", "base64"]).default("utf8"),
+  },
+  async ({ path, encoding }) => {
+    const content = await readFile(path, encoding);
+    return {
+      content: [{ type: "text", text: content }],
+    };
+  }
+);
+
+// 4️⃣  Expose a RESOURCE: project README
+server.resource(
+  "readme",
+  new ResourceTemplate("file://{path}/README.md", { list: undefined }),
+  async (uri, { path }) => {
+    const text = await readFile(`${path}/README.md`, "utf8");
+    return {
+      contents: [{ uri: uri.href, mimeType: "text/markdown", text }],
+    };
+  }
+);
+
+// 5️⃣  Start server over stdio (for local use)
+const transport = new StdioServerTransport();
+await server.connect(transport);
+console.error("MCP file-explorer server running…");</code></pre>
+      </div>
+
+      <div class="card p-5">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="font-mono text-xs muted">client.js — Connecting as an MCP Client</span>
+        </div>
+        <pre><code class="language-javascript">import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+
+// Spin up our server as a subprocess
+const transport = new StdioClientTransport({
+  command: "node",
+  args: ["server.js"],
+});
+
+const client = new Client({ name: "demo-client", version: "1.0.0" });
+await client.connect(transport);
+
+// Discover tools (this is the M+N magic — no hardcoding!)
+const { tools } = await client.listTools();
+console.log("Available tools:", tools.map((t) => t.name));
+// → ["list_directory", "read_file"]
+
+// Call a tool
+const result = await client.callTool({
+  name: "list_directory",
+  arguments: { path: "./src" },
+});
+
+console.log(result.content[0].text);
+// → 📁 components
+// → 📄 index.ts
+// → 📄 utils.ts
+
+await client.close();</code></pre>
+      </div>
+    </div>
+
+    <!-- Python -->
+    <div id="code-python" class="space-y-4 hidden">
+      <div class="card p-5">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="font-mono text-xs muted">install</span>
+        </div>
+        <pre><code class="language-python">pip install mcp</code></pre>
+      </div>
+
+      <div class="card p-5">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="font-mono text-xs muted">server.py — MCP Server with Tools & Resources</span>
+        </div>
+        <pre><code class="language-python">import asyncio
+import os
+from pathlib import Path
+from mcp.server import Server
+from mcp.server.stdio import stdio_server
+from mcp import types
+
+# 1️⃣  Create the MCP server
+app = Server("file-explorer")
+
+
+# 2️⃣  List available TOOLS
+@app.list_tools()
+async def list_tools() -> list[types.Tool]:
+    return [
+        types.Tool(
+            name="list_directory",
+            description="List files and folders at a given path",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Directory path"}
+                },
+                "required": ["path"],
+            },
+        ),
+        types.Tool(
+            name="read_file",
+            description="Read the contents of a file",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "File path"},
+                    "encoding": {"type": "string", "default": "utf-8"},
+                },
+                "required": ["path"],
+            },
+        ),
+    ]
+
+
+# 3️⃣  Handle TOOL calls
+@app.call_tool()
+async def call_tool(
+    name: str, arguments: dict
+) -> list[types.TextContent]:
+
+    if name == "list_directory":
+        path = Path(arguments["path"])
+        entries = []
+        for entry in sorted(path.iterdir()):
+            icon = "📁" if entry.is_dir() else "📄"
+            entries.append(f"{icon} {entry.name}")
+        return [types.TextContent(type="text", text="\n".join(entries))]
+
+    elif name == "read_file":
+        path = Path(arguments["path"])
+        encoding = arguments.get("encoding", "utf-8")
+        content = path.read_text(encoding=encoding)
+        return [types.TextContent(type="text", text=content)]
+
+    raise ValueError(f"Unknown tool: {name}")
+
+
+# 4️⃣  Expose RESOURCES
+@app.list_resources()
+async def list_resources() -> list[types.Resource]:
+    return [
+        types.Resource(
+            uri="file://./README.md",
+            name="Project README",
+            mimeType="text/markdown",
+        )
+    ]
+
+
+@app.read_resource()
+async def read_resource(uri: str) -> str:
+    if uri == "file://./README.md":
+        return Path("README.md").read_text()
+    raise ValueError(f"Unknown resource: {uri}")
+
+
+# 5️⃣  Start server over stdio
+async def main():
+    async with stdio_server() as streams:
+        await app.run(
+            streams[0], streams[1],
+            app.create_initialization_options()
+        )
+
+if __name__ == "__main__":
+    asyncio.run(main())</code></pre>
+      </div>
+
+      <div class="card p-5">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="font-mono text-xs muted">client.py — Connecting as an MCP Client</span>
+        </div>
+        <pre><code class="language-python">import asyncio
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
+
+server_params = StdioServerParameters(
+    command="python",
+    args=["server.py"],
+)
+
+async def main():
+    async with stdio_client(server_params) as (read, write):
+        async with ClientSession(read, write) as session:
+
+            # Initialize the connection
+            await session.initialize()
+
+            # Discover tools — the M+N magic!
+            tools = await session.list_tools()
+            print("Available tools:", [t.name for t in tools.tools])
+            # → ['list_directory', 'read_file']
+
+            # Call a tool
+            result = await session.call_tool(
+                "list_directory",
+                arguments={"path": "./src"}
+            )
+            print(result.content[0].text)
+            # → 📁 components
+            # → 📄 index.ts
+            # → 📄 utils.ts
+
+            # Read a resource
+            resource = await session.read_resource("file://./README.md")
+            print(resource.contents[0].text[:100])
+
+asyncio.run(main())</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SECTION 5: Protocol Flow ── -->
+  <section class="reveal">
+    <div class="section-label mb-3">Under the Hood</div>
+    <h2 class="font-display text-3xl font-700 mb-4" style="color:var(--text)">JSON-RPC Message Flow</h2>
+    <p class="leading-relaxed mb-8 max-w-3xl" style="color:var(--muted)">
+      All MCP communication uses <strong style="color:var(--text)">JSON-RPC 2.0</strong>. Here's what the wire messages look like for a tool call.
+    </p>
+
+    <div class="grid md:grid-cols-2 gap-6">
+      <div class="card p-5">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-2 h-2 rounded-full" style="background:var(--blue)"></div>
+          <span class="font-mono text-xs" style="color:var(--blue)">Client → Server (Request)</span>
+        </div>
+        <pre><code class="language-json">{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "read_file",
+    "arguments": {
+      "path": "./src/index.ts",
+      "encoding": "utf8"
+    }
+  }
+}</code></pre>
+      </div>
+
+      <div class="card p-5">
+        <div class="flex items-center gap-2 mb-3">
+          <div class="w-2 h-2 rounded-full" style="background:var(--green)"></div>
+          <span class="font-mono text-xs" style="color:var(--green)">Server → Client (Response)</span>
+        </div>
+        <pre><code class="language-json">{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "export const main = () => {\n  // ..."
+      }
+    ],
+    "isError": false
+  }
+}</code></pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SECTION 6: M+N Math ── -->
+  <section class="reveal">
+    <div class="section-label mb-3">The Math</div>
+    <h2 class="font-display text-3xl font-700 mb-6" style="color:var(--text)">Complexity at Scale</h2>
+
+    <div class="card p-8 glow">
+      <div class="mermaid-wrap mb-6">
+        <div class="mermaid">
+xychart-beta
+    title "Integrations Required: M×N vs M+N"
+    x-axis "Number of Tools (N)" [5, 10, 20, 50, 100]
+    y-axis "Integrations needed" 0 --> 10500
+    bar [50, 200, 800, 5000, 10000]
+    line [10, 15, 25, 55, 105]
+        </div>
+      </div>
+      <div class="grid sm:grid-cols-3 gap-6 mt-6 text-center">
+        <div>
+          <div class="font-mono text-3xl font-600" style="color:#f87171">M × N</div>
+          <div class="text-sm muted mt-1">Without MCP</div>
+          <div class="text-xs mt-2 font-mono" style="color:var(--muted)">10 models × 100 tools<br/>= 1,000 connectors</div>
+        </div>
+        <div class="flex items-center justify-center text-3xl muted">→</div>
+        <div>
+          <div class="font-mono text-3xl font-600 accent">M + N</div>
+          <div class="text-sm muted mt-1">With MCP</div>
+          <div class="text-xs mt-2 font-mono" style="color:var(--muted)">10 models + 100 tools<br/>= 110 connectors</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── SECTION 7: Summary ── -->
+  <section class="reveal">
+    <div class="section-label mb-3">Summary</div>
+    <h2 class="font-display text-3xl font-700 mb-8" style="color:var(--text)">Why MCP Matters</h2>
+
+    <div class="space-y-4">
+      <div class="flex gap-4 items-start card p-5">
+        <div class="num-pill">1</div>
+        <div>
+          <div class="font-display font-600 mb-1" style="color:var(--text)">Universal Standard</div>
+          <p class="text-sm leading-relaxed" style="color:var(--muted)">Any MCP-compliant model works with any MCP-compliant server. Build once, integrate everywhere. No more per-model, per-tool custom code.</p>
+        </div>
+      </div>
+      <div class="flex gap-4 items-start card p-5">
+        <div class="num-pill">2</div>
+        <div>
+          <div class="font-display font-600 mb-1" style="color:var(--text)">Discovery at Runtime</div>
+          <p class="text-sm leading-relaxed" style="color:var(--muted)">Models don't need to be pre-trained on your tools. They discover capabilities dynamically via <code class="font-mono text-xs accent">tools/list</code> — making the ecosystem truly extensible.</p>
+        </div>
+      </div>
+      <div class="flex gap-4 items-start card p-5">
+        <div class="num-pill">3</div>
+        <div>
+          <div class="font-display font-600 mb-1" style="color:var(--text)">Security Boundaries</div>
+          <p class="text-sm leading-relaxed" style="color:var(--muted)">MCP servers run in separate processes. The host controls what servers are started and what capabilities are exposed — no direct model-to-tool access.</p>
+        </div>
+      </div>
+      <div class="flex gap-4 items-start card p-5">
+        <div class="num-pill">4</div>
+        <div>
+          <div class="font-display font-600 mb-1" style="color:var(--text)">Open Ecosystem</div>
+          <p class="text-sm leading-relaxed" style="color:var(--muted)">MCP is open-source and already supported by Claude, Cursor, Cline, and dozens of community servers for GitHub, Postgres, Slack, Brave Search, and more.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- FOOTER -->
+<footer class="border-t border-c mt-8 py-8">
+  <div class="max-w-5xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <div class="w-5 h-5 rounded accent-bg flex items-center justify-center">
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <circle cx="2.5" cy="2.5" r="1.5" fill="white" opacity="0.9"/>
+          <circle cx="7.5" cy="2.5" r="1.5" fill="white" opacity="0.9"/>
+          <circle cx="5" cy="8" r="1.5" fill="white" opacity="0.9"/>
+        </svg>
+      </div>
+      <span class="text-xs muted font-mono">Model Context Protocol — spec.modelcontextprotocol.io</span>
+    </div>
+    <span class="text-xs muted font-mono">M × N → M + N</span>
+  </div>
+</footer>
+
+<script>
+  // ── Theme toggle ──
+  function toggleTheme() {
+    const html = document.documentElement;
+    html.classList.toggle('light');
+    html.classList.toggle('dark');
+    // Re-init mermaid with correct theme
+    initMermaid();
+  }
+
+  function isDark() { return document.documentElement.classList.contains('dark'); }
+
+  function initMermaid() {
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: isDark() ? 'dark' : 'default',
+      themeVariables: isDark() ? {
+        primaryColor: '#1c1c28',
+        primaryTextColor: '#e8e8f0',
+        primaryBorderColor: '#2a2a3a',
+        lineColor: '#6b6b88',
+        secondaryColor: '#13131a',
+        tertiaryColor: '#0a0a0f',
+        edgeLabelBackground: '#1c1c28',
+        clusterBkg: '#13131a',
+        titleColor: '#f97316',
+        fontFamily: 'IBM Plex Mono',
+      } : {
+        primaryColor: '#fff7ed',
+        primaryTextColor: '#1a1a28',
+        primaryBorderColor: '#e0e0d8',
+        lineColor: '#888880',
+        fontFamily: 'IBM Plex Mono',
+      },
+      flowchart: { curve: 'basis', padding: 20 },
+      sequence: { actorMargin: 60, boxMargin: 10, useMaxWidth: true },
+    });
+    // Re-render all mermaid diagrams
+    document.querySelectorAll('.mermaid').forEach((el, i) => {
+      const code = el.textContent;
+      el.removeAttribute('data-processed');
+      el.innerHTML = code;
+    });
+    mermaid.run({ querySelector: '.mermaid' });
+  }
+
+  // ── Code tabs ──
+  function showTab(lang) {
+    document.getElementById('code-node').classList.toggle('hidden', lang !== 'node');
+    document.getElementById('code-python').classList.toggle('hidden', lang !== 'python');
+    document.getElementById('tab-node').className = lang === 'node'
+      ? 'tab-active px-4 py-2 rounded-lg text-sm font-mono font-600 transition-all'
+      : 'tab-inactive px-4 py-2 rounded-lg text-sm font-mono font-600 transition-all';
+    document.getElementById('tab-python').className = lang === 'python'
+      ? 'tab-active px-4 py-2 rounded-lg text-sm font-mono font-600 transition-all'
+      : 'tab-inactive px-4 py-2 rounded-lg text-sm font-mono font-600 transition-all';
+  }
+
+  // ── Scroll reveal ──
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+  }, { threshold: 0.08 });
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+  // ── Init ──
+  document.addEventListener('DOMContentLoaded', () => {
+    initMermaid();
+    Prism.highlightAll();
+  });
+  // Fallback if DOMContentLoaded already fired
+  if (document.readyState !== 'loading') {
+    initMermaid();
+    Prism.highlightAll();
+  }
+</script>
+</body>
+</html>
