@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SLM Architecture — Training & Inference</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.6.1/mermaid.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet" />
+
+  <script>tailwind.config = { darkMode: 'class' }</script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    /* ── CSS custom properties ── */
+    :root {
+      --bg:           #f4f3ef;
+      --surface:      #ffffff;
+      --border:       #e0ddd8;
+      --border2:      #ccc8c1;
+      --text:         #1a1917;
+      --text2:        #57534e;
+      --text3:        #a8a29e;
+      --grid:         rgba(99,102,241,0.06);
+      --glass-bg:     rgba(255,255,255,0.78);
+      --glass-bd:     rgba(99,102,241,0.13);
+      --glow-a: 0 4px 28px rgba(99,102,241,0.10), inset 0 1px 0 rgba(99,102,241,0.08);
+      --glow-t: 0 4px 28px rgba(13,148,136,0.10),  inset 0 1px 0 rgba(13,148,136,0.06);
+      --glow-b: 0 4px 28px rgba(217,119,6,0.10),   inset 0 1px 0 rgba(217,119,6,0.06);
+      --sb-track: #dedad4;
+      --sb-thumb: #bdb8b0;
+      --accent:   #6366f1;
+      --teal:     #0d9488;
+      --amber:    #d97706;
+      --rose:     #e11d48;
+    }
+    .dark {
+      --bg:           #0a0a0f;
+      --surface:      #141428;
+      --border:       #1e1e3a;
+      --border2:      #2c2c50;
+      --text:         #e2e8f0;
+      --text2:        #94a3b8;
+      --text3:        #4b5270;
+      --grid:         rgba(99,102,241,0.04);
+      --glass-bg:     rgba(20,20,40,0.72);
+      --glass-bd:     rgba(99,102,241,0.16);
+      --glow-a: 0 0 32px rgba(99,102,241,0.16), inset 0 1px 0 rgba(99,102,241,0.10);
+      --glow-t: 0 0 32px rgba(45,212,191,0.13),  inset 0 1px 0 rgba(45,212,191,0.08);
+      --glow-b: 0 0 32px rgba(245,158,11,0.13),   inset 0 1px 0 rgba(245,158,11,0.08);
+      --sb-track: #0a0a0f;
+      --sb-thumb: #1e1e3a;
+      --accent:   #818cf8;
+      --teal:     #2dd4bf;
+      --amber:    #f59e0b;
+      --rose:     #f43f5e;
+    }
+
+    html { transition: background .3s, color .3s; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      overflow-x: hidden;
+      transition: background .35s, color .35s;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none; z-index: 0;
+    }
+
+    /* Glass */
+    .glass {
+      background: var(--glass-bg);
+      backdrop-filter: blur(14px);
+      border: 1px solid var(--glass-bd);
+      transition: background .35s, border-color .35s, box-shadow .35s;
+    }
+    .glow-a { box-shadow: var(--glow-a); }
+    .glow-t { box-shadow: var(--glow-t); }
+    .glow-b { box-shadow: var(--glow-b); }
+
+    /* Toggle */
+    #theme-btn {
+      position: fixed; top: 18px; right: 22px; z-index: 200;
+      width: 54px; height: 30px; border-radius: 999px;
+      border: 1.5px solid var(--border2);
+      background: var(--surface);
+      cursor: pointer; display: flex; align-items: center; padding: 4px;
+      transition: background .3s, border-color .3s;
+      box-shadow: 0 2px 10px rgba(0,0,0,.15);
+    }
+    #theme-btn .knob {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--accent);
+      transition: transform .3s cubic-bezier(.34,1.56,.64,1), background .3s;
+      display: flex; align-items: center; justify-content: center; font-size: 11px;
+    }
+    .dark #theme-btn .knob { transform: translateX(24px); }
+
+    /* Badge */
+    .badge {
+      font-family: 'Space Mono', monospace;
+      font-size: .63rem; letter-spacing: .12em; text-transform: uppercase;
+      padding: 3px 10px; border-radius: 999px;
+    }
+    .bd-i { background: rgba(99,102,241,.12); color:#4338ca; border:1px solid rgba(99,102,241,.22); }
+    .bd-t { background: rgba(13,148,136,.10);  color:#0f766e; border:1px solid rgba(13,148,136,.22); }
+    .bd-r { background: rgba(225,29,72,.10);   color:#be123c; border:1px solid rgba(225,29,72,.22); }
+    .dark .bd-i { background:rgba(99,102,241,.20); color:#a5b4fc; border-color:rgba(99,102,241,.30); }
+    .dark .bd-t { background:rgba(45,212,191,.15);  color:#5eead4; border-color:rgba(45,212,191,.28); }
+    .dark .bd-r { background:rgba(244,63,94,.15);   color:#fda4af; border-color:rgba(244,63,94,.28); }
+
+    /* Heading colours */
+    .hc-i { color:#4f46e5 } .dark .hc-i { color:#818cf8 }
+    .hc-t { color:#0d9488 } .dark .hc-t { color:#2dd4bf }
+    .hc-b { color:#d97706 } .dark .hc-b { color:#f59e0b }
+
+    /* Gradient lines */
+    .ln-i { background:linear-gradient(to right,rgba(99,102,241,.35),transparent); }
+    .ln-t { background:linear-gradient(to right,rgba(13,148,136,.35),transparent); }
+    .ln-b { background:linear-gradient(to right,rgba(217,119,6,.35),transparent); }
+    .dark .ln-i { background:linear-gradient(to right,rgba(99,102,241,.5),transparent); }
+    .dark .ln-t { background:linear-gradient(to right,rgba(45,212,191,.5),transparent); }
+    .dark .ln-b { background:linear-gradient(to right,rgba(245,158,11,.5),transparent); }
+
+    /* H1 gradient text */
+    .grad-text {
+      background: linear-gradient(135deg,#6366f1,#0d9488);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    }
+    .dark .grad-text {
+      background: linear-gradient(135deg,#a5b4fc,#2dd4bf);
+      -webkit-background-clip:text; background-clip:text;
+    }
+
+    /* Stat card */
+    .stat-card {
+      background: rgba(0,0,0,.03); border:1px solid var(--border);
+      border-radius:12px; padding:14px 16px;
+      transition: background .3s, border-color .3s;
+    }
+    .dark .stat-card { background:rgba(255,255,255,.03); }
+    .stat-num { font-family:'Space Mono',monospace; font-size:1.45rem; font-weight:700; }
+
+    /* Design card */
+    .dcard {
+      background: var(--surface); border:1px solid var(--border);
+      border-left-width: 3px;
+      border-radius:14px; padding:22px;
+      transition: background .3s, border-color .3s, box-shadow .2s;
+    }
+    .dcard:hover { box-shadow: 0 4px 20px rgba(0,0,0,.09); }
+    .dark .dcard:hover { box-shadow: 0 4px 20px rgba(0,0,0,.35); }
+
+    /* Mermaid */
+    .mwrap { overflow-x:auto; }
+    .mwrap .mermaid { display:flex; justify-content:center; }
+    .mermaid svg { max-width:100%; height:auto; }
+
+    /* Pulse dot */
+    @keyframes pulse-ring {
+      0%   { transform:scale(1);   opacity:1; }
+      100% { transform:scale(2.8); opacity:0; }
+    }
+    .pdot { position:relative; }
+    .pdot::before {
+      content:''; position:absolute; inset:0; border-radius:50%;
+      background:currentColor;
+      animation:pulse-ring 2s ease-out infinite;
+    }
+
+    /* Fade-up reveal */
+    @keyframes fadeUp {
+      from { opacity:0; transform:translateY(18px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .rev   { animation:fadeUp .55s ease both; }
+    .rev-1 { animation-delay:.05s; }
+    .rev-2 { animation-delay:.18s; }
+    .rev-3 { animation-delay:.32s; }
+    .rev-4 { animation-delay:.46s; }
+
+    /* Scanlines */
+    .scan::after {
+      content:''; position:absolute; inset:0;
+      background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.04) 2px,rgba(0,0,0,.04) 4px);
+      pointer-events:none;
+    }
+
+    /* Connector */
+    .conn {
+      width:1px; height:48px;
+      background:linear-gradient(to bottom,rgba(99,102,241,.35),rgba(45,212,191,.35));
+      margin:0 auto;
+    }
+
+    /* Subtext helpers */
+    .sub  { color:var(--text2); transition:color .3s; }
+    .dim  { color:var(--text3); transition:color .3s; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width:6px; height:6px; }
+    ::-webkit-scrollbar-track { background:var(--sb-track); }
+    ::-webkit-scrollbar-thumb { background:var(--sb-thumb); border-radius:3px; }
+
+    /* Loading state for mermaid containers */
+    .mermaid-loading {
+      display:flex; align-items:center; justify-content:center;
+      min-height:200px; color:var(--text3);
+      font-family:'Space Mono',monospace; font-size:.75rem;
+    }
+  </style>
+</head>
+<body class="relative min-h-screen">
+
+  <!-- Theme toggle -->
+  <button id="theme-btn" title="Toggle light / dark" aria-label="Toggle theme">
+    <div class="knob" id="knob">☀️</div>
+  </button>
+
+  <div class="relative z-10 max-w-6xl mx-auto px-5 py-16 space-y-6">
+
+    <!-- Header -->
+    <header class="scan relative glass glow-a rounded-2xl overflow-hidden rev rev-1">
+      <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/[.07] via-transparent to-teal-500/[.07] pointer-events-none"></div>
+      <div class="relative px-8 md:px-12 py-10 md:py-12">
+        <div class="flex items-center gap-3 mb-5">
+          <span class="badge bd-i">Architecture</span>
+          <span class="badge bd-t">v1.0</span>
+          <span class="badge bd-r" id="theme-badge">Dark</span>
+        </div>
+        <h1 class="font-mono text-4xl md:text-5xl font-bold tracking-tight leading-tight" style="color:var(--text)">
+          Small Language<br/>
+          <span class="grad-text">Model — SLM</span>
+        </h1>
+        <p class="mt-4 sub text-lg max-w-2xl font-light">
+          Full pipeline architecture covering tokenization, transformer training, KV-cache inference,
+          and sampling — pure Python · NumPy demo · PyTorch MPS/CUDA.
+        </p>
+        <div class="mt-8 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div class="stat-card"><div class="stat-num" style="color:var(--accent)">4.4M</div><div class="text-xs dim mt-1 font-mono uppercase tracking-wider">Parameters</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:var(--teal)">8192</div><div class="text-xs dim mt-1 font-mono uppercase tracking-wider">Vocab Size</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:var(--amber)">512</div><div class="text-xs dim mt-1 font-mono uppercase tracking-wider">Context Length</div></div>
+          <div class="stat-card"><div class="stat-num" style="color:var(--rose)">6</div><div class="text-xs dim mt-1 font-mono uppercase tracking-wider">Layers (micro)</div></div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Training -->
+    <section class="rev rev-2">
+      <div class="flex items-center gap-4 mb-4">
+        <div class="pdot flex-shrink-0 w-3 h-3 rounded-full" style="background:var(--accent);color:var(--accent)"></div>
+        <h2 class="font-mono text-xl hc-i tracking-wide uppercase">Training Pipeline</h2>
+        <div class="flex-1 h-px ln-i"></div>
+      </div>
+      <div class="glass glow-a rounded-2xl p-6 md:p-8">
+        <p class="sub text-sm mb-6 font-light">From raw text to a trained transformer — BPE tokenization → sliding window dataset → AdamW optimiser → cosine LR schedule → checkpoint.</p>
+        <div class="mwrap"><div class="mermaid" id="d-train"><div class="mermaid-loading">Rendering diagram…</div></div></div>
+      </div>
+    </section>
+
+    <div class="conn rev rev-3"></div>
+
+    <!-- Inference -->
+    <section class="rev rev-3">
+      <div class="flex items-center gap-4 mb-4">
+        <div class="pdot flex-shrink-0 w-3 h-3 rounded-full" style="background:var(--teal);color:var(--teal)"></div>
+        <h2 class="font-mono text-xl hc-t tracking-wide uppercase">Inference Pipeline</h2>
+        <div class="flex-1 h-px ln-t"></div>
+      </div>
+      <div class="glass glow-t rounded-2xl p-6 md:p-8">
+        <p class="sub text-sm mb-6 font-light">Autoregressive decoding with KV-cache, RoPE position offset, and nucleus + min-p sampling for quality output.</p>
+        <div class="mwrap"><div class="mermaid" id="d-infer"><div class="mermaid-loading">Rendering diagram…</div></div></div>
+      </div>
+    </section>
+
+    <div class="conn rev rev-4"></div>
+
+    <!-- Block detail -->
+    <section class="rev rev-4">
+      <div class="flex items-center gap-4 mb-4">
+        <div class="pdot flex-shrink-0 w-3 h-3 rounded-full" style="background:var(--amber);color:var(--amber)"></div>
+        <h2 class="font-mono text-xl hc-b tracking-wide uppercase">Transformer Block — Detail</h2>
+        <div class="flex-1 h-px ln-b"></div>
+      </div>
+      <div class="glass glow-b rounded-2xl p-6 md:p-8">
+        <p class="sub text-sm mb-6 font-light">Each of the 6 transformer blocks uses pre-norm (LLaMA style), Grouped Query Attention with RoPE, and a SwiGLU feed-forward network.</p>
+        <div class="mwrap"><div class="mermaid" id="d-block"><div class="mermaid-loading">Rendering diagram…</div></div></div>
+      </div>
+    </section>
+
+    <!-- Design decisions -->
+    <section class="rev rev-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="dcard" style="border-left-color:var(--accent)">
+          <div class="text-2xl mb-3">🔤</div>
+          <h3 class="font-mono text-xs uppercase tracking-widest mb-2" style="color:var(--accent)">BPE Tokenizer</h3>
+          <p class="sub text-sm leading-relaxed">Byte-level base vocab (256) + 4 special tokens + 7932 learned merges. Priority-queue encoding O(n log n) — encodes 5.4M chars in ~3s. Word-level cache avoids re-encoding repeated tokens.</p>
+        </div>
+        <div class="dcard" style="border-left-color:var(--teal)">
+          <div class="text-2xl mb-3">🔄</div>
+          <h3 class="font-mono text-xs uppercase tracking-widest mb-2 hc-t">RoPE + KV Cache</h3>
+          <p class="sub text-sm leading-relaxed">Rotary Position Embeddings replace learned absolute positions. KV cache stores K and V tensors per layer. Position offset ensures token N gets angle θ·N not θ·0.</p>
+        </div>
+        <div class="dcard" style="border-left-color:var(--amber)">
+          <div class="text-2xl mb-3">🎲</div>
+          <h3 class="font-mono text-xs uppercase tracking-widest mb-2 hc-b">Sampling Stack</h3>
+          <p class="sub text-sm leading-relaxed">Temperature → Top-k → Top-p nucleus → Min-p adaptive filter → Repetition penalty (frequency-aware) → Presence penalty (flat) → Multinomial draw.</p>
+        </div>
+        <div class="dcard" style="border-left-color:var(--rose)">
+          <div class="text-2xl mb-3">⚖️</div>
+          <h3 class="font-mono text-xs uppercase tracking-widest mb-2" style="color:var(--rose)">Weight Tying</h3>
+          <p class="sub text-sm leading-relaxed">Token embedding matrix is shared with the LM head output projection. Saves 4M parameters and improves generalisation — gradient flows through both input and output paths.</p>
+        </div>
+        <div class="dcard" style="border-left-color:#a855f7">
+          <div class="text-2xl mb-3">⚡</div>
+          <h3 class="font-mono text-xs uppercase tracking-widest mb-2" style="color:#a855f7">Mixed Precision</h3>
+          <p class="sub text-sm leading-relaxed">bfloat16 inference on MPS / CUDA halves memory bandwidth. Training uses torch.autocast; optimiser states stay in float32 for numerical stability.</p>
+        </div>
+        <div class="dcard" style="border-left-color:#22c55e">
+          <div class="text-2xl mb-3">📐</div>
+          <h3 class="font-mono text-xs uppercase tracking-widest mb-2" style="color:#22c55e">SwiGLU + GQA</h3>
+          <p class="sub text-sm leading-relaxed">SwiGLU (Shazeer 2020) replaces GELU FFN with gated activation. GQA (2 KV heads vs 4 Q heads) cuts KV cache memory by 2× at inference time.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="text-center py-8 rev rev-4">
+      <p class="font-mono text-xs dim tracking-widest uppercase">SLM · GPT-style decoder-only transformer · Apple MPS + CUDA + CPU</p>
+    </footer>
+
+  </div><!-- /container -->
+
+<script>
+// ── Diagram source generator ─────────────────────────────────────────────────
+function diagrams(dark) {
+  // Palette
+  const BG  = dark ? '#0f0f1a' : '#f9f8f6';
+  const N1  = dark ? '#1e1e3a' : '#eef0ff';   // node fill - indigo family
+  const N2  = dark ? '#141428' : '#f0fdf9';   // node fill - teal family
+  const N3  = dark ? '#0e0e20' : '#fafafa';   // subgraph bg
+  const N4  = dark ? '#111125' : '#f5f3ff';   // nested subgraph bg
+  const TX  = dark ? '#e2e8f0' : '#1e1b4b';   // node text
+  const TX2 = dark ? '#94a3b8' : '#374151';   // subgraph label
+  const LN  = dark ? '#4b5270' : '#9ca3af';   // edge colour
+  const SI  = dark ? '#818cf8' : '#6366f1';
+  const ST  = dark ? '#2dd4bf' : '#0d9488';
+  const SA  = dark ? '#f59e0b' : '#d97706';
+  const SR  = dark ? '#f43f5e' : '#e11d48';
+  const SV  = dark ? '#a78bfa' : '#7c3aed';
+  const TH  = dark ? 'dark'    : 'default';
+
+  const hdr = (border) => `%%{init:{"theme":"${TH}","themeVariables":{` +
+    `"background":"${BG}","primaryColor":"${N1}","primaryTextColor":"${TX}",` +
+    `"primaryBorderColor":"${border}","lineColor":"${LN}","secondaryColor":"${N2}",` +
+    `"tertiaryColor":"${N3}","edgeLabelBackground":"${BG}",` +
+    `"fontFamily":"Space Mono, monospace","fontSize":"12px"}}}%%`;
+
+  const TRAIN = `${hdr(SI)}
+flowchart TD
+    A([📄 Raw Text\\nshakespeare.txt]) --> B
+    subgraph TOK["  🔤  BPETokenizer  "]
+        B[Regex Pre-tokenise\\nword boundaries] --> C[Count pair\\nfrequencies]
+        C --> D[Greedy merge\\ntop pair → token]
+        D --> E{vocab_size\\nreached?}
+        E -- No --> C
+        E -- Yes --> F([vocab.json\\n8192 tokens])
+    end
+    F --> G[Encode corpus\\nPriority-queue O n·log n]
+    G --> H[(Token ID array\\n~2.7 M integers)]
+    H --> I
+    subgraph DS["  📦  TextDataset  "]
+        I[Sliding window\\nstride = ctx ÷ 2] --> J[x = ids i:i+T\\ny = ids i+1:i+T+1]
+    end
+    J --> K[DataLoader · batch=16]
+    subgraph MODEL["  🧠  SLM Transformer  "]
+        K --> L[Token Embedding\\n+ Dropout]
+        L --> M
+        subgraph BLK["  TransformerBlock × 6  "]
+            M[RMSNorm] --> N[GroupedQuery\\nAttention n_heads=4]
+            N --> O[RoPE · offset-aware]
+            O --> P[Residual add]
+            P --> Q[RMSNorm]
+            Q --> R[SwiGLU FFN d_ff=682]
+            R --> S[Residual add]
+        end
+        S --> T[Final RMSNorm]
+        T --> U[LM Head · weight-tied]
+    end
+    U --> V[Cross-Entropy Loss]
+    V --> W[loss.backward]
+    subgraph OPT["  ⚙️  Optimiser  "]
+        W --> X[Grad Clip max_norm=1.0]
+        X --> Y[AdamW β₁=0.9 β₂=0.95]
+        Y --> Z[Cosine LR · warmup 100]
+    end
+    Z --> AA{step % 1000?}
+    AA -- Yes --> AB([💾 Checkpoint · latest.pt])
+    AA -- No  --> K
+    style A   fill:${N1},stroke:${SI},color:${TX}
+    style F   fill:${N1},stroke:${SI},color:${TX}
+    style H   fill:${N2},stroke:${ST},color:${TX}
+    style AB  fill:${N1},stroke:${SA},color:${TX}
+    style TOK fill:${N3},stroke:${SI},color:${TX2}
+    style DS  fill:${N3},stroke:${ST},color:${TX2}
+    style MODEL fill:${N3},stroke:${SV},color:${TX2}
+    style BLK fill:${N4},stroke:${LN},color:${TX2}
+    style OPT fill:${N3},stroke:${SA},color:${TX2}`;
+
+  const INFER = `${hdr(ST)}
+flowchart TD
+    P0([💬 Prompt Text]) --> P1[BPETokenizer encode + BOS]
+    P1 --> P2[Tensor 1×T_prompt]
+    P2 --> P3
+    subgraph S0["  Step 0 — Full Prompt Forward  "]
+        P3[Token Embed + Dropout] --> P4
+        subgraph A0["  Attention ×6 layers  "]
+            P4[RMSNorm] --> P5[Q K V projections]
+            P5 --> P6[RoPE positions 0…T-1]
+            P6 --> P7[SDPA · is_causal=True]
+            P7 --> P8[Output proj + Residual]
+        end
+        P8 --> P9[SwiGLU FFN + Residual]
+        P9 --> P10[(KV Cache per layer)]
+        P10 --> P11[LM Head → last-token logits]
+    end
+    P11 --> P12
+    subgraph SAM["  🎲  Sampling  "]
+        P12[÷ Temperature] --> P13[Top-k · k=20]
+        P13 --> P14[Top-p nucleus · p=0.95]
+        P14 --> P15[Min-p · 0.05 × p_max]
+        P15 --> P16[Repetition Penalty ÷ 1.1]
+        P16 --> P17[Softmax → probs]
+        P17 --> P18[torch.multinomial]
+    end
+    P18 --> P19{EOS or max_tokens?}
+    P19 -- Yes --> P24([✅ Decoded output · streamed])
+    P19 -- No  --> P20
+    subgraph S1["  Step N — Cached Single-Token Forward  "]
+        P20[Embed single token] --> P21
+        subgraph A1["  Attention ×6  offset=cache_len  "]
+            P21[RMSNorm] --> P22[Q K V projections]
+            P22 --> P23A[RoPE offset = cache_len]
+            P23A --> P23B[Concat cached K V]
+            P23B --> P23C[SDPA · is_causal=False]
+            P23C --> P23D[Output proj + Residual]
+        end
+        P23D --> P23E[SwiGLU FFN → logits]
+    end
+    P23E --> P12
+    style P0  fill:${N1},stroke:${ST},color:${TX}
+    style P24 fill:${N1},stroke:${ST},color:${TX}
+    style P10 fill:${N2},stroke:${SA},color:${TX}
+    style S0  fill:${N3},stroke:${ST},color:${TX2}
+    style S1  fill:${N3},stroke:${SI},color:${TX2}
+    style A0  fill:${N4},stroke:${LN},color:${TX2}
+    style A1  fill:${N4},stroke:${LN},color:${TX2}
+    style SAM fill:${N3},stroke:${SR},color:${TX2}`;
+
+  const BLOCK = `${hdr(SA)}
+flowchart LR
+    IN([x · B×T×512]) --> RN1
+    subgraph ATT["  Grouped Query Attention  "]
+        RN1["RMSNorm"] --> QP["Q proj 512→256\\n4 heads × 64"]
+        RN1 --> KP["K proj 512→128\\n2 kv_heads × 64"]
+        RN1 --> VP["V proj 512→128\\n2 kv_heads × 64"]
+        QP --> RO["RoPE · offset-aware"]
+        KP --> RO
+        RO --> GQ["GQA expand\\nrepeat_interleave ×2"]
+        VP --> GQ
+        GQ --> SD["SDPA Flash-style ÷√64"]
+        SD --> OP["O proj 256→512"]
+    end
+    OP  --> R1["⊕ Residual"]
+    IN  --> R1
+    R1  --> RN2
+    subgraph FFN["  SwiGLU Feed-Forward  "]
+        RN2["RMSNorm"] --> GA["Gate proj 512→682"]
+        RN2 --> UP["Up proj 512→682"]
+        GA --> SL["SiLU gate · element-wise ×"]
+        UP --> SL
+        SL --> DN["Down proj 682→512"]
+        DN --> DR["Dropout 0.1"]
+    end
+    DR  --> R2["⊕ Residual"]
+    R1  --> R2
+    R2  --> OUT([x' · B×T×512])
+    style IN   fill:${N1},stroke:${SA},color:${TX}
+    style OUT  fill:${N1},stroke:${SA},color:${TX}
+    style ATT  fill:${N3},stroke:${SI},color:${TX2}
+    style FFN  fill:${N3},stroke:${ST},color:${TX2}
+    style RO   fill:${N2},stroke:${SR},color:${TX}
+    style GQ   fill:${N2},stroke:${SV},color:${TX}
+    style SD   fill:${N2},stroke:${SI},color:${TX}`;
+
+  return { TRAIN, INFER, BLOCK };
+}
+
+// ── Render ───────────────────────────────────────────────────────────────────
+let isDark = true;
+let rendering = false;
+
+async function render(dark) {
+  if (rendering) return;
+  rendering = true;
+
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: dark ? 'dark' : 'default',
+    securityLevel: 'loose',
+    flowchart: { curve: 'basis', padding: 20, useMaxWidth: true },
+  });
+
+  const { TRAIN, INFER, BLOCK } = diagrams(dark);
+  const pairs = [
+    ['d-train', TRAIN],
+    ['d-infer', INFER],
+    ['d-block', BLOCK],
+  ];
+
+  for (const [id, src] of pairs) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    el.innerHTML = '<div class="mermaid-loading">Rendering…</div>';
+    try {
+      const uid = id + '-' + Date.now();
+      const { svg } = await mermaid.render(uid, src);
+      el.innerHTML = svg;
+    } catch(e) {
+      el.innerHTML = `<div class="mermaid-loading" style="color:#e11d48">Render error: ${e.message}</div>`;
+      console.warn('Mermaid error', id, e);
+    }
+  }
+  rendering = false;
+}
+
+// ── Toggle ────────────────────────────────────────────────────────────────────
+const html  = document.documentElement;
+const knob  = document.getElementById('knob');
+const badge = document.getElementById('theme-badge');
+
+function setTheme(dark) {
+  isDark = dark;
+  html.classList.toggle('dark', dark);
+  knob.textContent  = dark ? '☀️' : '🌙';
+  badge.textContent = dark ? 'Dark' : 'Light';
+  localStorage.setItem('slm-theme', dark ? 'dark' : 'light');
+  render(dark);
+}
+
+document.getElementById('theme-btn').addEventListener('click', () => setTheme(!isDark));
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  const saved      = localStorage.getItem('slm-theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  setTheme(saved ? saved === 'dark' : prefersDark);
+});
+</script>
+</body>
+</html>
