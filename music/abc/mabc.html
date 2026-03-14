@@ -1,0 +1,2220 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="obsidian">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ABC Music Studio</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/split.js/dist/split.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+
+<style>
+/* ─── THEME VARIABLES ─────────────────────────────────────────── */
+:root {
+  --font-display: 'DM Serif Display', serif;
+  --font-mono: 'JetBrains Mono', monospace;
+  --font-ui: 'Instrument Sans', sans-serif;
+  --radius: 10px;
+  --anim: 200ms cubic-bezier(.4,0,.2,1);
+}
+
+[data-theme="obsidian"] {
+  --bg: #0a0c10;
+  --bg2: #0f1117;
+  --bg3: #151820;
+  --surface: #1a1e28;
+  --surface2: #222736;
+  --border: #2a2f3f;
+  --border2: #353c52;
+  --accent: #7c6af7;
+  --accent2: #a78bfa;
+  --accent-glow: rgba(124,106,247,.25);
+  --text: #e8eaf0;
+  --text2: #9098b0;
+  --text3: #5a6278;
+  --green: #34d399;
+  --red: #f87171;
+  --yellow: #fbbf24;
+  --score-bg: #ffffff;
+  --score-ink: #1a1a2e;
+}
+
+[data-theme="parchment"] {
+  --bg: #f5efe0;
+  --bg2: #ede4cf;
+  --bg3: #e4d8be;
+  --surface: #faf6ec;
+  --surface2: #f0e8d4;
+  --border: #d4c4a0;
+  --border2: #c4b088;
+  --accent: #8b4513;
+  --accent2: #a0522d;
+  --accent-glow: rgba(139,69,19,.2);
+  --text: #2c1a0e;
+  --text2: #6b4226;
+  --text3: #9b7050;
+  --green: #2d7a2d;
+  --red: #c0392b;
+  --yellow: #b8860b;
+  --score-bg: #faf6ec;
+  --score-ink: #2c1a0e;
+}
+
+[data-theme="midnight"] {
+  --bg: #010409;
+  --bg2: #0d1117;
+  --bg3: #161b22;
+  --surface: #1c2128;
+  --surface2: #22272e;
+  --border: #30363d;
+  --border2: #444c56;
+  --accent: #58a6ff;
+  --accent2: #79c0ff;
+  --accent-glow: rgba(88,166,255,.2);
+  --text: #e6edf3;
+  --text2: #8b949e;
+  --text3: #484f58;
+  --green: #3fb950;
+  --red: #f85149;
+  --yellow: #d29922;
+  --score-bg: #ffffff;
+  --score-ink: #0d1117;
+}
+
+[data-theme="forest"] {
+  --bg: #0d1a0f;
+  --bg2: #111f13;
+  --bg3: #162418;
+  --surface: #1a2e1c;
+  --surface2: #1f3622;
+  --border: #2a4430;
+  --border2: #345640;
+  --accent: #4ade80;
+  --accent2: #86efac;
+  --accent-glow: rgba(74,222,128,.2);
+  --text: #dcfce7;
+  --text2: #86efac;
+  --text3: #4ade80;
+  --green: #22c55e;
+  --red: #f87171;
+  --yellow: #fde047;
+  --score-bg: #ffffff;
+  --score-ink: #0d1a0f;
+}
+
+[data-theme="rose"] {
+  --bg: #fff0f3;
+  --bg2: #ffe4e8;
+  --bg3: #ffd6dc;
+  --surface: #fff5f7;
+  --surface2: #ffecf0;
+  --border: #ffc0c9;
+  --border2: #f9a8b4;
+  --accent: #e11d48;
+  --accent2: #f43f5e;
+  --accent-glow: rgba(225,29,72,.15);
+  --text: #1a0a0d;
+  --text2: #8c2335;
+  --text3: #b34758;
+  --green: #059669;
+  --red: #dc2626;
+  --yellow: #d97706;
+  --score-bg: #fff5f7;
+  --score-ink: #1a0a0d;
+}
+
+/* ─── BASE ────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  transition: background .3s, color .3s;
+}
+
+/* ─── LAYOUT ─────────────────────────────────────────────────── */
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* ─── HEADER ─────────────────────────────────────────────────── */
+.header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 20;
+}
+
+.logo {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--accent2);
+  letter-spacing: -.02em;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.logo-icon {
+  width: 32px; height: 32px;
+  background: var(--accent-glow);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+}
+
+.header-spacer { flex: 1; }
+
+.header-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ─── CONTROLS ───────────────────────────────────────────────── */
+.ctrl-select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 5px 10px;
+  border-radius: var(--radius);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color var(--anim), background var(--anim);
+  outline: none;
+}
+.ctrl-select:hover { border-color: var(--border2); }
+.ctrl-select:focus { border-color: var(--accent); }
+.ctrl-select option { background: var(--surface); }
+
+.btn {
+  padding: 5px 14px;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--anim);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.btn:active { transform: scale(.97); }
+
+.btn-primary {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+.btn-primary:hover { filter: brightness(1.15); box-shadow: 0 0 12px var(--accent-glow); }
+
+.btn-ghost {
+  background: var(--surface);
+  color: var(--text2);
+  border-color: var(--border);
+}
+.btn-ghost:hover { border-color: var(--border2); color: var(--text); background: var(--surface2); }
+
+.btn-danger {
+  background: transparent;
+  color: var(--red);
+  border-color: var(--border);
+}
+.btn-danger:hover { background: rgba(248,113,113,.12); border-color: var(--red); }
+
+.btn-success {
+  background: transparent;
+  color: var(--green);
+  border-color: var(--border);
+}
+.btn-success:hover { background: rgba(52,211,153,.12); border-color: var(--green); }
+
+/* ─── TOOLBAR (below header) ──────────────────────────────────── */
+.toolbar {
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.toolbar::-webkit-scrollbar { display: none; }
+
+.toolbar-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text3);
+  white-space: nowrap;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.insert-btn {
+  padding: 3px 9px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all var(--anim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.insert-btn:hover {
+  background: var(--surface2);
+  border-color: var(--accent);
+  color: var(--accent2);
+}
+
+/* ─── MAIN SPLIT ─────────────────────────────────────────────── */
+.main-area {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#editorPane {
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+}
+
+#scorePane {
+  background: var(--bg);
+  min-width: 180px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* Ensure content isn't clipped — let it scroll */
+  align-items: stretch;
+}
+#scorePane::-webkit-scrollbar { width: 6px; }
+#scorePane::-webkit-scrollbar-track { background: transparent; }
+#scorePane::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+.gutter {
+  background: var(--border);
+  cursor: col-resize;
+  flex-shrink: 0;
+  position: relative;
+  transition: background var(--anim);
+}
+.gutter-col { width: 5px; }
+.gutter:hover, .gutter:active { background: var(--accent); }
+
+/* ─── SCORE PANEL ────────────────────────────────────────────── */
+.score-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.score-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--text2);
+}
+.score-meta {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+
+#score {
+  transition: background .3s;
+  border-radius: 10px;
+  padding: 20px 16px 24px;
+  /* Let the score be as tall as it needs — parent scrolls */
+  flex-shrink: 0;
+  box-shadow: 0 2px 16px rgba(0,0,0,.12);
+  height:100%;
+}
+/* Make SVG fill width and size itself naturally — never clip */
+#score svg {
+  width: 100% !important;
+  height: auto !important;
+  display: block;
+  overflow: visible !important;
+}
+
+.score-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 60px 20px;
+  color: var(--text3);
+  text-align: center;
+}
+.score-empty-icon { font-size: 48px; opacity: .4; }
+.score-empty-text { font-family: var(--font-display); font-size: 18px; }
+.score-empty-sub { font-size: 12px; line-height: 1.6; }
+
+/* ─── FOOTER / PLAYER ────────────────────────────────────────── */
+.player {
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  padding: 0 20px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.player-controls { display: flex; gap: 6px; align-items: center; }
+
+.play-btn {
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--anim);
+  flex-shrink: 0;
+}
+.play-btn:hover { filter: brightness(1.2); box-shadow: 0 0 16px var(--accent-glow); transform: scale(1.05); }
+.play-btn:active { transform: scale(.95); }
+
+.stop-btn {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1px solid var(--border2);
+  background: var(--surface);
+  color: var(--red);
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--anim);
+  flex-shrink: 0;
+}
+.stop-btn:hover { border-color: var(--red); background: rgba(248,113,113,.1); }
+
+.player-spacer { flex: 1; }
+
+.tempo-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tempo-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text2);
+  white-space: nowrap;
+  min-width: 80px;
+}
+
+input[type=range] {
+  -webkit-appearance: none;
+  width: 140px;
+  height: 4px;
+  background: var(--surface2);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-glow);
+  transition: transform var(--anim);
+}
+input[type=range]::-webkit-slider-thumb:hover { transform: scale(1.2); }
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--text3);
+  transition: background var(--anim);
+}
+.status-dot.playing {
+  background: var(--green);
+  box-shadow: 0 0 6px rgba(52,211,153,.5);
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50% { opacity: .4; }
+}
+.status-text {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+
+/* ─── TOAST ──────────────────────────────────────────────────── */
+.toast-container {
+  position: fixed;
+  bottom: 80px;
+  right: 20px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  color: var(--text);
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  box-shadow: 0 8px 24px rgba(0,0,0,.3);
+  transform: translateX(20px);
+  opacity: 0;
+  transition: all .3s cubic-bezier(.4,0,.2,1);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.toast.show { transform: translateX(0); opacity: 1; }
+.toast.success { border-left: 3px solid var(--green); }
+.toast.error { border-left: 3px solid var(--red); }
+.toast.info { border-left: 3px solid var(--accent); }
+
+/* ─── MODAL ──────────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.6);
+  backdrop-filter: blur(4px);
+  z-index: 50;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.modal-backdrop.open { display: flex; }
+.modal {
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 16px;
+  padding: 24px;
+  width: 460px;
+  max-width: 90vw;
+  box-shadow: 0 24px 48px rgba(0,0,0,.5);
+  animation: modal-in .25s cubic-bezier(.4,0,.2,1);
+}
+@keyframes modal-in {
+  from { transform: scale(.94); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+.modal-close {
+  float: right;
+  background: none;
+  border: none;
+  color: var(--text3);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+  transition: color var(--anim);
+}
+.modal-close:hover { color: var(--text); }
+
+.key-grid {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap: 6px;
+  margin-top: 8px;
+}
+.key-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.key-item kbd {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent2);
+  background: var(--surface2);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+.key-item span {
+  font-size: 11px;
+  color: var(--text2);
+}
+
+/* ─── EDITOR TAB BAR ─────────────────────────────────────────── */
+.tab-bar {
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: end;
+  padding: 0 12px;
+  gap: 2px;
+  flex-shrink: 0;
+  height: 36px;
+}
+.tab {
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--text3);
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  transition: all var(--anim);
+  white-space: nowrap;
+  font-family: var(--font-ui);
+}
+.tab:hover { color: var(--text2); background: var(--surface); }
+.tab.active {
+  color: var(--text);
+  background: var(--bg);
+  border-color: var(--border);
+  border-bottom-color: var(--bg);
+}
+
+/* ─── ABC REFERENCE ──────────────────────────────────────────── */
+.ref-section { margin-bottom: 16px; }
+.ref-section h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text3);
+  margin-bottom: 8px;
+}
+.ref-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.ref-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text2);
+}
+.ref-table td:first-child {
+  font-family: var(--font-mono);
+  color: var(--accent2);
+  width: 100px;
+}
+
+/* ─── TRANSITIONS ────────────────────────────────────────────── */
+.header, .toolbar, .player, .tab-bar, #scorePane {
+  transition: background .3s, border-color .3s, color .3s;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* ─── AI SIDEBAR ─────────────────────────────────────────────── */
+.ai-sidebar {
+  width: 0;
+  min-width: 0;
+  max-width: 360px;
+  background: var(--bg2);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transition: width .3s cubic-bezier(.4,0,.2,1), min-width .3s cubic-bezier(.4,0,.2,1);
+  flex-shrink: 0;
+}
+.ai-sidebar.open {
+  width: 340px;
+  min-width: 280px;
+}
+
+.ai-sidebar-header {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.ai-sidebar-title {
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--text);
+  flex: 1;
+}
+.ai-tab-row {
+  display: flex;
+  gap: 0;
+  padding: 8px 12px 0;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.ai-tab {
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--text3);
+  cursor: pointer;
+  border-radius: 6px 6px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  transition: all var(--anim);
+  font-family: var(--font-ui);
+  white-space: nowrap;
+}
+.ai-tab:hover { color: var(--text2); background: var(--surface); }
+.ai-tab.active {
+  color: var(--text);
+  background: var(--bg3);
+  border-color: var(--border);
+  border-bottom-color: var(--bg3);
+}
+
+/* ─── AI CHAT ────────────────────────────────────────────────── */
+.ai-panel { display: none; flex-direction: column; flex: 1; min-height: 0; }
+.ai-panel.visible { display: flex; }
+
+.ai-provider-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px 8px;
+  flex-shrink: 0;
+}
+.ai-provider-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--text3);
+}
+.ai-provider-dot.connected { background: var(--green); box-shadow: 0 0 5px rgba(52,211,153,.4); }
+.ai-provider-name { font-size: 11px; color: var(--text3); font-family: var(--font-mono); }
+
+.ai-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ai-messages::-webkit-scrollbar { width: 4px; }
+.ai-messages::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.ai-msg {
+  max-width: 88%;
+  padding: 9px 13px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  animation: msg-in .2s ease;
+}
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.ai-msg.user {
+  align-self: flex-end;
+  background: var(--accent);
+  color: white;
+  border-bottom-right-radius: 3px;
+}
+.ai-msg.assistant {
+  align-self: flex-start;
+  background: var(--surface);
+  color: var(--text);
+  border-bottom-left-radius: 3px;
+  border: 1px solid var(--border);
+}
+.ai-msg.assistant code {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--surface2);
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--accent2);
+}
+.ai-msg.assistant pre {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  margin-top: 6px;
+  color: var(--text2);
+  white-space: pre-wrap;
+}
+.ai-msg.system {
+  align-self: center;
+  background: transparent;
+  color: var(--text3);
+  font-size: 11px;
+  font-style: italic;
+  border: none;
+  padding: 2px 0;
+}
+.ai-thinking {
+  align-self: flex-start;
+  display: flex;
+  gap: 4px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  border-bottom-left-radius: 3px;
+}
+.ai-thinking span {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--text3);
+  animation: think .9s ease-in-out infinite;
+}
+.ai-thinking span:nth-child(2) { animation-delay: .18s; }
+.ai-thinking span:nth-child(3) { animation-delay: .36s; }
+@keyframes think {
+  0%,60%,100% { transform: translateY(0); opacity: .4; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+.ai-quick-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 8px 14px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+}
+.ai-quick-btn {
+  padding: 4px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text2);
+  border-radius: 20px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all var(--anim);
+  font-family: var(--font-ui);
+  white-space: nowrap;
+}
+.ai-quick-btn:hover { border-color: var(--accent); color: var(--accent2); background: var(--surface2); }
+
+.ai-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg3);
+}
+.ai-input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  outline: none;
+  resize: none;
+  transition: border-color var(--anim);
+  max-height: 80px;
+  overflow-y: auto;
+}
+.ai-input:focus { border-color: var(--accent); }
+.ai-input::placeholder { color: var(--text3); }
+.ai-send-btn {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: flex-end;
+  transition: all var(--anim);
+  margin-bottom: 1px;
+}
+.ai-send-btn:hover { filter: brightness(1.2); box-shadow: 0 0 10px var(--accent-glow); }
+.ai-send-btn:disabled { opacity: .4; cursor: default; }
+
+/* ─── AI SETTINGS ────────────────────────────────────────────── */
+.ai-settings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.provider-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: all var(--anim);
+  position: relative;
+}
+.provider-card:hover { border-color: var(--border2); background: var(--surface2); }
+.provider-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 12px var(--accent-glow);
+}
+.provider-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.provider-icon {
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.provider-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+.provider-model {
+  font-size: 11px;
+  color: var(--text3);
+  font-family: var(--font-mono);
+}
+.provider-badge {
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  letter-spacing: .04em;
+}
+.badge-local { background: rgba(52,211,153,.15); color: var(--green); border: 1px solid rgba(52,211,153,.3); }
+.badge-cloud { background: rgba(124,106,247,.15); color: var(--accent2); border: 1px solid rgba(124,106,247,.3); }
+.badge-active { background: var(--accent); color: white; }
+.provider-key-row {
+  display: flex;
+  gap: 6px;
+}
+.provider-key-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  outline: none;
+  transition: border-color var(--anim);
+}
+.provider-key-input:focus { border-color: var(--accent); }
+.provider-key-input::placeholder { color: var(--text3); }
+.provider-select-btn {
+  padding: 5px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  color: var(--text2);
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all var(--anim);
+  font-family: var(--font-ui);
+  white-space: nowrap;
+}
+.provider-select-btn:hover { border-color: var(--accent); color: var(--accent2); }
+.provider-card.active .provider-select-btn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.settings-section-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--text3);
+  padding: 4px 2px;
+}
+
+</style>
+</head>
+
+<body>
+<div class="app-shell">
+
+<!-- ═══ HEADER ══════════════════════════════════════════════════ -->
+<header class="header">
+  <div class="logo">
+    <div class="logo-icon">𝄞</div>
+    ABC Music Studio
+  </div>
+
+  <div class="header-spacer"></div>
+
+  <div class="header-group">
+    <!-- Sample library -->
+    <select id="sampleSelect" class="ctrl-select" title="Load sample">
+      <option value="">📁 Samples…</option>
+      <optgroup label="Classical">
+        <option value="ode_to_joy">Ode to Joy</option>
+        <option value="fur_elise">Für Elise</option>
+        <option value="minuet_g">Minuet in G</option>
+      </optgroup>
+      <optgroup label="Folk & Traditional">
+        <option value="twinkle">Twinkle Twinkle</option>
+        <option value="irish_jig">Irish Jig</option>
+        <option value="scarborough">Scarborough Fair</option>
+        <option value="greensleeves">Greensleeves</option>
+        <option value="danny_boy">Danny Boy</option>
+      </optgroup>
+      <optgroup label="Scales & Exercises">
+        <option value="c_major">C Major Scale</option>
+        <option value="chromatic">Chromatic Scale</option>
+        <option value="arpeggios">C Major Arpeggios</option>
+        <option value="pentatonic">Pentatonic Scale</option>
+      </optgroup>
+      <optgroup label="World Music">
+        <option value="sakura">Sakura (Japan)</option>
+        <option value="havah">Hava Nagila</option>
+        <option value="amazing_grace">Amazing Grace</option>
+      </optgroup>
+    </select>
+
+    <!-- Theme picker -->
+    <select id="themeSelect" class="ctrl-select" title="Theme">
+      <option value="obsidian">🌑 Obsidian</option>
+      <option value="midnight">🌌 Midnight Blue</option>
+      <option value="forest">🌿 Forest</option>
+      <option value="parchment">📜 Parchment</option>
+      <option value="rose">🌹 Rose</option>
+    </select>
+
+    <button class="btn btn-ghost" onclick="showShortcuts()" title="Keyboard shortcuts">⌨</button>
+    <button class="btn btn-ghost" onclick="showAbcRef()" title="ABC Reference">?</button>
+    <button class="btn btn-ghost" onclick="formatABC()" title="Format / Pretty-print">⊞ Format</button>
+    <button id="aiToggleBtn" class="btn btn-ghost" onclick="toggleAISidebar()" title="AI Assistant">✦ AI</button>
+    <button class="btn btn-success" onclick="exportABC()" title="Export .abc file">↓ Export</button>
+    <button class="btn btn-primary" onclick="saveABC()" title="Save to browser storage">💾 Save</button>
+  </div>
+</header>
+
+<!-- ═══ TOOLBAR ══════════════════════════════════════════════════ -->
+<div class="toolbar">
+  <span class="toolbar-label">Insert</span>
+  <div class="toolbar-divider"></div>
+
+  <span class="toolbar-label" style="font-size:10px;text-transform:none;letter-spacing:0;color:var(--text3)">Headers:</span>
+  <button class="insert-btn" onclick="insertSnippet('X:1\nT:Title\nM:4/4\nL:1/8\nQ:1/4=120\nK:C\n')">New Song</button>
+  <button class="insert-btn" onclick="insertSnippet('K:G\n')">K:G</button>
+  <button class="insert-btn" onclick="insertSnippet('K:D\n')">K:D</button>
+  <button class="insert-btn" onclick="insertSnippet('K:F\n')">K:F</button>
+  <button class="insert-btn" onclick="insertSnippet('M:3/4\n')">3/4</button>
+  <button class="insert-btn" onclick="insertSnippet('M:6/8\n')">6/8</button>
+
+  <div class="toolbar-divider"></div>
+  <span class="toolbar-label" style="font-size:10px;text-transform:none;letter-spacing:0;color:var(--text3)">Symbols:</span>
+  <button class="insert-btn" onclick="insertSnippet('|')">| bar</button>
+  <button class="insert-btn" onclick="insertSnippet('||')">|| double</button>
+  <button class="insert-btn" onclick="insertSnippet('|:')">|: repeat</button>
+  <button class="insert-btn" onclick="insertSnippet(':|')">:| end rpt</button>
+  <button class="insert-btn" onclick="insertSnippet('z')">z rest</button>
+  <button class="insert-btn" onclick="insertSnippet('^')">^ sharp</button>
+  <button class="insert-btn" onclick="insertSnippet('_')">_ flat</button>
+  <button class="insert-btn" onclick="insertSnippet('(3')">( triplet</button>
+  <button class="insert-btn" onclick="insertSnippet('\"Am\"')">\"chord\"</button>
+
+  <div class="toolbar-divider"></div>
+  <span class="toolbar-label" style="font-size:10px;text-transform:none;letter-spacing:0;color:var(--text3)">Decorations:</span>
+  <button class="insert-btn" onclick="insertSnippet('!trill!')">~trill</button>
+  <button class="insert-btn" onclick="insertSnippet('!staccato!')">stacc.</button>
+  <button class="insert-btn" onclick="insertSnippet('!fermata!')">fermata</button>
+  <button class="insert-btn" onclick="insertSnippet('!accent!')">accent</button>
+</div>
+
+<!-- ═══ MAIN SPLIT ════════════════════════════════════════════════ -->
+<div id="mainSplit" class="main-area">
+
+  <!-- Editor side -->
+  <div id="editorPane">
+    <div class="tab-bar">
+      <div class="tab active" id="tabEditor">Editor</div>
+      <div class="tab" id="tabRef" onclick="toggleRefPane()">ABC Reference</div>
+    </div>
+    <div id="editor" style="flex:1;min-height:0;"></div>
+    <div id="refPane" style="display:none;flex:1;overflow-y:auto;padding:16px;background:var(--bg);"></div>
+  </div>
+
+  <!-- Score side -->
+  <div id="scorePane">
+    <div class="score-header">
+      <div class="score-title" id="scoreTitle">Score Preview</div>
+      <div class="score-meta" id="scoreMeta">—</div>
+    </div>
+    <div id="score"></div>
+  </div>
+
+  <!-- ═══ AI SIDEBAR ════════════════════════════════════════════ -->
+  <div class="ai-sidebar" id="aiSidebar">
+
+    <div class="ai-sidebar-header">
+      <span style="font-size:16px;">✦</span>
+      <span class="ai-sidebar-title">AI Assistant</span>
+      <button class="btn btn-ghost" style="padding:3px 8px;font-size:12px;" onclick="toggleAISidebar()">✕</button>
+    </div>
+
+    <div class="ai-tab-row">
+      <div class="ai-tab active" id="aiTabChat" onclick="switchAITab('chat')">💬 Chat</div>
+      <div class="ai-tab" id="aiTabSettings" onclick="switchAITab('settings')">⚙ AI Settings</div>
+    </div>
+
+    <!-- CHAT PANEL -->
+    <div class="ai-panel visible" id="aiChatPanel">
+      <div class="ai-provider-badge">
+        <div class="ai-provider-dot" id="aiProviderDot"></div>
+        <span class="ai-provider-name" id="aiProviderLabel">No provider selected</span>
+      </div>
+
+      <div class="ai-messages" id="aiMessages">
+        <div class="ai-msg system">Ask me anything about your score, ABC notation, or music theory!</div>
+      </div>
+
+      <div class="ai-quick-btns">
+        <button class="ai-quick-btn" onclick="quickPrompt('Analyze my current score and give feedback')">🔍 Analyze score</button>
+        <button class="ai-quick-btn" onclick="quickPrompt('What key and time signature is this in? Explain the structure.')">🎵 Explain structure</button>
+        <button class="ai-quick-btn" onclick="quickPrompt('Suggest improvements or variations for this melody')">✨ Suggest improvements</button>
+        <button class="ai-quick-btn" onclick="quickPrompt('Convert this to a minor key version in ABC notation')">🔄 Minor key version</button>
+        <button class="ai-quick-btn" onclick="quickPrompt('Write me a simple 8-bar melody in C major, 4/4 time in ABC notation')">🎼 New melody</button>
+        <button class="ai-quick-btn" onclick="quickPrompt('Explain how to add chord symbols to ABC notation')">📖 ABC tips</button>
+      </div>
+
+      <div class="ai-input-row">
+        <textarea class="ai-input" id="aiInput" placeholder="Ask about your score…" rows="1"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAIMessage()}"
+          oninput="this.style.height='auto';this.style.height=Math.min(this.scrollHeight,80)+'px'"></textarea>
+        <button class="ai-send-btn" id="aiSendBtn" onclick="sendAIMessage()">➤</button>
+      </div>
+    </div>
+
+    <!-- SETTINGS PANEL -->
+    <div class="ai-panel" id="aiSettingsPanel">
+      <div class="ai-settings-body">
+        <div class="settings-section-title">AI Provider</div>
+
+        <!-- Claude -->
+        <div class="provider-card" id="providerClaude" onclick="selectProvider('claude')">
+          <div class="provider-card-header">
+            <div class="provider-icon" style="background:rgba(205,160,80,.15);">🤖</div>
+            <div>
+              <div class="provider-name">Claude (Anthropic)</div>
+              <div class="provider-model">claude-sonnet-4-20250514</div>
+            </div>
+            <span class="provider-badge badge-cloud">CLOUD</span>
+          </div>
+          <div class="provider-key-row">
+            <input class="provider-key-input" id="keyClaude" type="password" placeholder="sk-ant-…  (API key)" oninput="saveProviderKey('claude',this.value)">
+            <button class="provider-select-btn" onclick="event.stopPropagation();selectProvider('claude')">Use</button>
+          </div>
+        </div>
+
+        <!-- OpenAI -->
+        <div class="provider-card" id="providerOpenai" onclick="selectProvider('openai')">
+          <div class="provider-card-header">
+            <div class="provider-icon" style="background:rgba(16,163,127,.15);">🟢</div>
+            <div>
+              <div class="provider-name">OpenAI GPT-4o</div>
+              <div class="provider-model">gpt-4o</div>
+            </div>
+            <span class="provider-badge badge-cloud">CLOUD</span>
+          </div>
+          <div class="provider-key-row">
+            <input class="provider-key-input" id="keyOpenai" type="password" placeholder="sk-…  (API key)" oninput="saveProviderKey('openai',this.value)">
+            <button class="provider-select-btn" onclick="event.stopPropagation();selectProvider('openai')">Use</button>
+          </div>
+        </div>
+
+        <!-- Ollama -->
+        <div class="provider-card" id="providerOllama" onclick="selectProvider('ollama')">
+          <div class="provider-card-header">
+            <div class="provider-icon" style="background:rgba(52,211,153,.12);">🦙</div>
+            <div>
+              <div class="provider-name">Ollama (Local)</div>
+              <div class="provider-model" id="ollamaModelLabel">llama3.2:latest</div>
+            </div>
+            <span class="provider-badge badge-local">LOCAL</span>
+          </div>
+          <div class="provider-key-row" style="flex-direction:column;gap:5px;">
+            <input class="provider-key-input" id="ollamaUrl" type="text" value="http://localhost:11434" placeholder="http://localhost:11434" oninput="saveProviderKey('ollama_url',this.value)" style="width:100%">
+            <div style="display:flex;gap:5px;">
+              <input class="provider-key-input" id="ollamaModel" type="text" value="llama3.2:latest" placeholder="model name" oninput="saveOllamaModel(this.value)" style="flex:1">
+              <button class="provider-select-btn" onclick="event.stopPropagation();selectProvider('ollama')">Use</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-section-title" style="margin-top:8px;">Context</div>
+        <div style="font-size:12px;color:var(--text3);line-height:1.6;padding:0 2px;">
+          The AI always receives your <strong style="color:var(--text2)">current ABC score</strong> as context, so you can ask questions like "What key is this in?" or "Add a repeat at bar 4".
+        </div>
+        <div style="margin-top:8px;display:flex;gap:6px;align-items:center;">
+          <input type="checkbox" id="includeScoreCtx" checked style="accent-color:var(--accent)">
+          <label for="includeScoreCtx" style="font-size:12px;color:var(--text2);cursor:pointer;">Send score as context</label>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;margin-top:4px;">
+          <input type="checkbox" id="autoInsert" style="accent-color:var(--accent)">
+          <label for="autoInsert" style="font-size:12px;color:var(--text2);cursor:pointer;">Auto-insert AI-generated ABC into editor</label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PLAYER ════════════════════════════════════════════════════ -->
+<footer class="player">
+  <div class="player-controls">
+    <button class="play-btn" onclick="playMusic()" title="Play (Space)">▶</button>
+    <button class="stop-btn" onclick="stopMusic()" title="Stop">■</button>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span class="status-text" id="statusText">Ready</span>
+  </div>
+
+  <div class="player-spacer"></div>
+
+  <div class="tempo-group">
+    <span class="tempo-label" id="tempoLabel">♩ = 120 bpm</span>
+    <input id="tempo" type="range" min="40" max="240" value="120" title="Tempo">
+  </div>
+
+  <div style="display:flex;gap:6px;align-items:center;margin-left:8px;">
+    <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono)">Vol</span>
+    <input id="volume" type="range" min="0" max="100" value="80" style="width:80px;" title="Volume">
+  </div>
+</footer>
+</div><!-- app-shell -->
+
+<!-- ═══ TOAST CONTAINER ═══════════════════════════════════════════ -->
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ═══ SHORTCUTS MODAL ═══════════════════════════════════════════ -->
+<div class="modal-backdrop" id="shortcutsModal" onclick="closeModal('shortcutsModal')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeModal('shortcutsModal')">✕</button>
+    <div class="modal-title">Keyboard Shortcuts</div>
+    <div class="key-grid">
+      <div class="key-item"><kbd>Ctrl S</kbd><span>Save</span></div>
+      <div class="key-item"><kbd>Space</kbd><span>Play/Stop</span></div>
+      <div class="key-item"><kbd>Ctrl E</kbd><span>Export</span></div>
+      <div class="key-item"><kbd>Ctrl F</kbd><span>Format</span></div>
+      <div class="key-item"><kbd>Ctrl Z</kbd><span>Undo</span></div>
+      <div class="key-item"><kbd>Ctrl Y</kbd><span>Redo</span></div>
+      <div class="key-item"><kbd>Ctrl /</kbd><span>Comment</span></div>
+      <div class="key-item"><kbd>F11</kbd><span>Fullscreen</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ABC REFERENCE MODAL ═══════════════════════════════════════ -->
+<div class="modal-backdrop" id="abcRefModal" onclick="closeModal('abcRefModal')">
+  <div class="modal" style="width:540px;" onclick="event.stopPropagation()">
+    <button class="modal-close" onclick="closeModal('abcRefModal')">✕</button>
+    <div class="modal-title">ABC Notation Reference</div>
+    <div class="ref-section">
+      <h3>Headers</h3>
+      <table class="ref-table">
+        <tr><td>X:n</td><td>Tune number (required first)</td></tr>
+        <tr><td>T:title</td><td>Title of the tune</td></tr>
+        <tr><td>M:4/4</td><td>Time signature</td></tr>
+        <tr><td>L:1/8</td><td>Default note length</td></tr>
+        <tr><td>Q:1/4=120</td><td>Tempo</td></tr>
+        <tr><td>K:C</td><td>Key (C, G, D, Am, Dm…)</td></tr>
+        <tr><td>C:name</td><td>Composer</td></tr>
+      </table>
+    </div>
+    <div class="ref-section">
+      <h3>Notes & Rests</h3>
+      <table class="ref-table">
+        <tr><td>C D E F G A B</td><td>Middle octave notes</td></tr>
+        <tr><td>c d e f g a b</td><td>Upper octave</td></tr>
+        <tr><td>C, D,</td><td>Lower octave (comma = down)</td></tr>
+        <tr><td>C2 G4</td><td>Note length multiplier</td></tr>
+        <tr><td>C/2 or C&lt;</td><td>Half length</td></tr>
+        <tr><td>z</td><td>Rest</td></tr>
+        <tr><td>^C _E =F</td><td>Sharp, flat, natural</td></tr>
+      </table>
+    </div>
+    <div class="ref-section">
+      <h3>Structure</h3>
+      <table class="ref-table">
+        <tr><td>|</td><td>Bar line</td></tr>
+        <tr><td>||</td><td>Double bar</td></tr>
+        <tr><td>|:</td><td>Start repeat</td></tr>
+        <tr><td>:|</td><td>End repeat</td></tr>
+        <tr><td>(3 ABC</td><td>Triplet</td></tr>
+        <tr><td>(AB)</td><td>Slur / tie</td></tr>
+        <tr><td>"Am"A</td><td>Chord symbol above note</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ─── SAMPLES ──────────────────────────────────────────────────── */
+const samples = {
+c_major: `X:1
+T:C Major Scale
+C:Exercise
+M:4/4
+L:1/8
+Q:1/4=100
+K:C
+C D E F G A B c | c B A G F E D C |`,
+
+chromatic: `X:1
+T:Chromatic Scale
+M:4/4
+L:1/8
+Q:1/4=80
+K:C
+C ^C D ^D E F ^F G ^G A ^A B | c _B _A _G F _E _D C2 |`,
+
+arpeggios: `X:1
+T:C Major Arpeggios
+M:4/4
+L:1/8
+Q:1/4=100
+K:C
+(CEG) c (cGE) C | (DFA) d (dAF) D | (EGB) e (eBG) E | (FAc) f (fcA) F |`,
+
+pentatonic: `X:1
+T:Pentatonic Scale
+M:4/4
+L:1/8
+Q:1/4=100
+K:C
+C D E G A c A G | E D C4 z2 |`,
+
+twinkle: `X:1
+T:Twinkle Twinkle Little Star
+C:Traditional
+M:4/4
+L:1/8
+Q:1/4=100
+K:C
+C C G G A A G2 | F F E E D D C2 |
+G G F F E E D2 | G G F F E E D2 |
+C C G G A A G2 | F F E E D D C2 |`,
+
+ode_to_joy: `X:1
+T:Ode to Joy
+C:Ludwig van Beethoven
+M:4/4
+L:1/8
+Q:1/4=116
+K:C
+E E F G | G F E D | C C D E | E3/2 D/ D2 |
+E E F G | G F E D | C C D E | D3/2 C/ C2 |
+D D E C | D E/2F/2 E C | D E/2F/2 E D | C D G2 |
+E E F G | G F E D | C C D E | D3/2 C/ C2 |`,
+
+fur_elise: `X:1
+T:Für Elise (Theme)
+C:Ludwig van Beethoven
+M:3/8
+L:1/16
+Q:3/8=60
+K:Am
+e ^d | e ^d e B d c | A4 C E | A4 B E | ^G4 E ^G |
+B4 e ^d | e ^d e B d c | A4 C E | A4 B E | c4 B A |`,
+
+minuet_g: `X:1
+T:Minuet in G
+C:J.S. Bach
+M:3/4
+L:1/8
+Q:1/4=120
+K:G
+D2 | G2 A2 B2 | c4 Bc | d2 c2 B2 | A4 GF |
+E2 F2 G2 | A4 AB | c2 B2 A2 | G4 D2 |
+B2 c2 d2 | e4 de | f2 e2 d2 | c2 B2 A2 |
+B2 c2 d2 | g4 fg | a2 g2 f2 | g4 |`,
+
+irish_jig: `X:1
+T:The Irish Washerwoman
+C:Traditional Irish
+M:6/8
+L:1/8
+Q:3/8=120
+K:G
+D | G2G GAB | ABA ABd | edd gdd | edB dBA |
+G2G GAB | ABA ABd | edd gdB | G3 G2 :|
+d | edd gdd | edB dBA | GAB dBG | ABA A2d |
+edd gdd | edB dBA | GAB dBG | G3 G2 :|`,
+
+scarborough: `X:1
+T:Scarborough Fair
+C:Traditional English
+M:3/4
+L:1/8
+Q:1/4=80
+K:Amin
+A3 | c3 d c | B4 G | A3 G A | B4 d |
+e3 d e | g3 e d | e3 c d | e4 e |
+d3 c B | c4 A | G3 A G | E4 D |
+E3 F G | A3 G A | c3 B A | A6 |`,
+
+greensleeves: `X:1
+T:Greensleeves
+C:Traditional English
+M:3/4
+L:1/8
+Q:1/4=92
+K:Amin
+A2 | c3 d c2 | B4 G2 | A3 B A2 | ^G4 E2 |
+^G3 A G2 | F4 D2 | F3 G F2 | E6 |
+E3 F E2 | D4 D2 | D3 E D2 | C4 A,2 |
+^G,3 A, B,2 | E4 E2 | E3 ^D E2 | A6 |`,
+
+danny_boy: `X:1
+T:Danny Boy (Londonderry Air)
+C:Traditional Irish
+M:4/4
+L:1/8
+Q:1/4=72
+K:F
+A2 | d4 cd ef | d4 cd e2 | f4 gf ed | c6 A2 |
+d4 cd ef | d4 fg a2 | a6 gf | e6 A2 |
+d4 ef g2 | a4 ag fe | d4 cd ef | g6 f2 |
+e4 de fg | a4 g2 e2 | f3 e d2 cd | d6 |`,
+
+sakura: `X:1
+T:Sakura Sakura
+C:Traditional Japanese
+M:4/4
+L:1/8
+Q:1/4=80
+K:D
+A B d e | d B A4 | A B d e | d B A4 |
+e e d2 e2 d2 | B B A2 B4 | e e d2 e d B A | d6 z2 |`,
+
+havah: `X:1
+T:Hava Nagila
+C:Traditional Jewish/Israeli
+M:4/4
+L:1/8
+Q:1/4=100
+K:Emin
+B2 | e4 e2 e^d | e4 B2 B2 | B2 c2 B2 A2 | G4 G2 B2 |
+e4 e2 e^d | e4 B2 B2 | ^d2 B2 G2 E2 | B8 |`,
+
+amazing_grace: `X:1
+T:Amazing Grace
+C:John Newton (1779)
+M:3/4
+L:1/8
+Q:1/4=80
+K:G
+D2 | G4 B2 | G4 B2 | d6 | B4 G2 |
+E4 G2 | G4 E2 | D6 | D4 G2 |
+G4 B2 | G4 B2 | d6 | d4 B2 |
+B4 d2 | e4 d2 | B6 | G4 |`,
+};
+
+/* ─── THEME ────────────────────────────────────────────────────── */
+function colorizeScore() {
+  const style = getComputedStyle(document.documentElement);
+  const bg  = (style.getPropertyValue('--score-bg')  || '#ffffff').trim();
+  const ink = (style.getPropertyValue('--score-ink') || '#000000').trim();
+  const scoreEl = document.getElementById('score');
+  if (!scoreEl) return;
+
+  // Container background + padding
+  scoreEl.style.background = bg;
+  scoreEl.style.borderRadius = '10px';
+  scoreEl.style.padding = '20px 16px 24px';
+   scoreEl.style.height = '100%';
+  
+
+  // Set SVG-level color so un-attributed children inherit ink
+  scoreEl.querySelectorAll('svg').forEach(svg => {
+    svg.style.color = ink;
+    svg.setAttribute('color', ink);
+  });
+
+  // Paint every drawn element. ABCJS uses paths with NO fill attr for noteheads
+  // — the browser default is black, but we must be explicit for theme recoloring.
+  const drawn = scoreEl.querySelectorAll('path, line, polyline, polygon, ellipse, circle');
+  drawn.forEach(el => {
+    const fill   = el.getAttribute('fill');
+    const stroke = el.getAttribute('stroke');
+    // Paint fill: skip explicit 'none', paint everything else (including missing attr)
+    if (fill !== 'none') el.setAttribute('fill', ink);
+    // Paint stroke: skip explicit 'none', paint everything else
+    if (stroke !== 'none') el.setAttribute('stroke', ink);
+  });
+
+  // Rects: paint all except white/transparent backgrounds
+  scoreEl.querySelectorAll('rect').forEach(el => {
+    const fill = el.getAttribute('fill');
+    const isWhiteBg = !fill || fill === 'none' || fill === 'white'
+      || fill === '#fff' || fill === '#ffffff' || fill === 'transparent';
+    if (!isWhiteBg) el.setAttribute('fill', ink);
+  });
+
+  // Text labels (tempo, title, etc)
+  scoreEl.querySelectorAll('text, tspan').forEach(el => {
+    el.setAttribute('fill', ink);
+    el.style.fill = ink;
+  });
+
+  // Wipe any inline style fill/stroke that may override attributes
+  scoreEl.querySelectorAll('[style]').forEach(el => {
+    let s = el.style.cssText;
+    if (s.includes('fill') && el.style.fill && el.style.fill !== 'none') {
+      el.style.fill = ink;
+    }
+    if (s.includes('stroke') && el.style.stroke && el.style.stroke !== 'none') {
+      el.style.stroke = ink;
+    }
+  });
+}
+const themeSelect = document.getElementById('themeSelect');
+themeSelect.onchange = () => {
+  document.documentElement.setAttribute('data-theme', themeSelect.value);
+  localStorage.setItem('abc_theme', themeSelect.value);
+  applyMonacoTheme(themeSelect.value);
+  // Re-colorize score for new theme after CSS vars update
+  requestAnimationFrame(() => colorizeScore());
+};
+
+function applyMonacoTheme(theme) {
+  if (!editor) return;
+  const darkThemes = ['obsidian','midnight','forest'];
+  if (darkThemes.includes(theme)) {
+    monaco.editor.setTheme('abc-dark');
+  } else {
+    monaco.editor.setTheme('abc-light');
+  }
+}
+
+const savedTheme = localStorage.getItem('abc_theme') || 'obsidian';
+document.documentElement.setAttribute('data-theme', savedTheme);
+themeSelect.value = savedTheme;
+
+/* ─── SPLIT ────────────────────────────────────────────────────── */
+Split(['#editorPane','#scorePane'], {
+  sizes: [50, 50],
+  minSize: 200,
+  gutterSize: 5,
+  cursor: 'col-resize',
+});
+
+/* ─── MONACO ───────────────────────────────────────────────────── */
+let editor;
+
+require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+
+require(['vs/editor/editor.main'], () => {
+
+  // Custom dark theme
+  monaco.editor.defineTheme('abc-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'keyword', foreground: 'a78bfa', fontStyle: 'bold' },
+      { token: 'string', foreground: '34d399' },
+      { token: 'number', foreground: 'fbbf24' },
+      { token: 'type', foreground: '60a5fa' },
+      { token: 'variable', foreground: 'e879f9' },
+      { token: 'comment', foreground: '6b7280' },
+      { token: 'delimiter', foreground: '94a3b8' },
+    ],
+    colors: {
+      'editor.background': '#0a0c10',
+      'editor.foreground': '#e8eaf0',
+      'editor.lineHighlightBackground': '#1a1e28',
+      'editorLineNumber.foreground': '#3a4055',
+      'editorCursor.foreground': '#7c6af7',
+      'editor.selectionBackground': '#7c6af740',
+    },
+  });
+
+  // Custom light theme
+  monaco.editor.defineTheme('abc-light', {
+    base: 'vs',
+    inherit: true,
+    rules: [
+      { token: 'keyword', foreground: '8b4513', fontStyle: 'bold' },
+      { token: 'string', foreground: '166534' },
+      { token: 'number', foreground: 'b45309' },
+      { token: 'type', foreground: '1e40af' },
+      { token: 'variable', foreground: '9d174d' },
+      { token: 'comment', foreground: '9ca3af' },
+      { token: 'delimiter', foreground: '64748b' },
+    ],
+    colors: {
+      'editor.background': '#faf6ec',
+      'editor.foreground': '#2c1a0e',
+      'editor.lineHighlightBackground': '#f0e8d4',
+    },
+  });
+
+  monaco.languages.register({ id: 'abc' });
+
+  monaco.languages.setMonarchTokensProvider('abc', {
+    tokenizer: {
+      root: [
+        [/^X:.*/, 'keyword'],
+        [/^T:.*/, 'string'],
+        [/^M:.*/, 'number'],
+        [/^L:.*/, 'number'],
+        [/^Q:.*/, 'number'],
+        [/^K:.*/, 'type'],
+        [/^C:.*/, 'string'],
+        [/^[A-Za-z]:.*/, 'variable'],
+        [/[A-Ga-g]/, 'variable'],
+        [/z/, 'comment'],
+        [/\|/, 'delimiter'],
+        [/[(){}]/, 'delimiter'],
+        [/["'].*?["']/, 'string'],
+        [/!.*?!/, 'number'],
+      ],
+    },
+  });
+
+  monaco.languages.registerCompletionItemProvider('abc', {
+    provideCompletionItems: () => ({
+      suggestions: [
+        { label: 'New Song Header', kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: 'X:1\nT:${1:Title}\nC:${2:Composer}\nM:${3:4/4}\nL:1/8\nQ:1/4=${4:120}\nK:${5:C}\n',
+          insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet },
+        { label: 'K:', insertText: 'K:C', documentation: 'Key signature' },
+        { label: 'M:', insertText: 'M:4/4', documentation: 'Time signature' },
+        { label: 'T:', insertText: 'T:Title' },
+        { label: 'Q:', insertText: 'Q:1/4=120', documentation: 'Tempo' },
+        { label: 'L:', insertText: 'L:1/8', documentation: 'Default note length' },
+        ...Object.entries(samples).map(([k,v]) => ({
+          label: `Sample: ${k}`,
+          kind: monaco.languages.CompletionItemKind.Snippet,
+          insertText: v,
+        })),
+      ],
+    }),
+  });
+
+  const darkThemes = ['obsidian','midnight','forest'];
+  const monacoTheme = darkThemes.includes(savedTheme) ? 'abc-dark' : 'abc-light';
+
+  editor = monaco.editor.create(document.getElementById('editor'), {
+    value: localStorage.getItem('abc_score') || samples.twinkle,
+    language: 'abc',
+    theme: monacoTheme,
+    automaticLayout: true,
+    minimap: { enabled: false },
+    fontSize: 14,
+    fontFamily: "'JetBrains Mono', monospace",
+    lineHeight: 22,
+    padding: { top: 12 },
+    scrollBeyondLastLine: false,
+    wordWrap: 'on',
+    renderLineHighlight: 'line',
+    smoothScrolling: true,
+    cursorBlinking: 'smooth',
+    cursorSmoothCaretAnimation: 'on',
+  });
+
+  editor.onDidChangeModelContent(() => renderScore());
+
+  // Keyboard shortcuts in editor
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, saveABC);
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyE, exportABC);
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyF, () => { formatABC(); return null; });
+
+  renderScore();
+  buildRefPane();
+});
+
+/* ─── RENDER SCORE ─────────────────────────────────────────────── */
+function renderScore() {
+  if (!editor) return;
+  const abc = editor.getValue();
+  try {
+    ABCJS.renderAbc('score', abc, { responsive: 'resize' });
+    // rAF ensures ABCJS has finished all SVG mutations before we recolor
+    requestAnimationFrame(() => colorizeScore());
+    // Update score meta
+    const titleMatch = abc.match(/^T:(.*)/m);
+    const keyMatch = abc.match(/^K:(.*)/m);
+    const meterMatch = abc.match(/^M:(.*)/m);
+    document.getElementById('scoreTitle').textContent = titleMatch ? titleMatch[1].trim() : 'Score Preview';
+    const meta = [keyMatch ? 'Key: ' + keyMatch[1].trim() : '', meterMatch ? meterMatch[1].trim() : ''].filter(Boolean).join(' · ');
+    document.getElementById('scoreMeta').textContent = meta || '—';
+  } catch(e) {
+    // silent parse errors
+  }
+}
+
+/* ─── PLAYBACK ─────────────────────────────────────────────────── */
+let synth = null;
+let isPlaying = false;
+
+async function playMusic() {
+  if (!editor) return;
+  stopMusic();
+  const abc = editor.getValue();
+  const tempo = parseInt(document.getElementById('tempo').value);
+  const volume = parseInt(document.getElementById('volume').value) / 100;
+
+  // Patch tempo into abc
+  const abcWithTempo = abc.replace(/Q:.*\n/,'') + `\nQ:1/4=${tempo}\n`;
+
+  try {
+    setStatus('loading');
+    const visualObj = ABCJS.renderAbc('score', abcWithTempo)[0];
+    requestAnimationFrame(() => colorizeScore());
+    synth = new ABCJS.synth.CreateSynth();
+    await synth.init({ visualObj, options: { volume } });
+    await synth.prime();
+    synth.start();
+    isPlaying = true;
+    setStatus('playing');
+  } catch(e) {
+    setStatus('error');
+    showToast('Playback failed: ' + e.message, 'error');
+  }
+}
+
+function stopMusic() {
+  if (synth) { try { synth.stop(); } catch(e) {} synth = null; }
+  isPlaying = false;
+  setStatus('ready');
+}
+
+function setStatus(state) {
+  const dot = document.getElementById('statusDot');
+  const txt = document.getElementById('statusText');
+  dot.className = 'status-dot';
+  if (state === 'playing') { dot.classList.add('playing'); txt.textContent = 'Playing…'; }
+  else if (state === 'loading') { txt.textContent = 'Loading…'; }
+  else if (state === 'error') { txt.textContent = 'Error'; dot.style.background = 'var(--red)'; }
+  else { txt.textContent = 'Ready'; }
+}
+
+/* ─── TOOLBAR INSERT ───────────────────────────────────────────── */
+function insertSnippet(text) {
+  if (!editor) return;
+  const sel = editor.getSelection();
+  editor.executeEdits('', [{
+    range: sel,
+    text: text,
+    forceMoveMarkers: true,
+  }]);
+  editor.focus();
+}
+
+/* ─── SAMPLES ──────────────────────────────────────────────────── */
+document.getElementById('sampleSelect').onchange = function() {
+  if (samples[this.value]) {
+    editor.setValue(samples[this.value]);
+    showToast('Loaded: ' + this.options[this.selectedIndex].text, 'info');
+    this.value = '';
+  }
+};
+
+/* ─── TEMPO & VOLUME ───────────────────────────────────────────── */
+document.getElementById('tempo').oninput = function() {
+  document.getElementById('tempoLabel').textContent = `♩ = ${this.value} bpm`;
+};
+
+/* ─── SPACEBAR PLAY/STOP ───────────────────────────────────────── */
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && e.target === document.body) {
+    e.preventDefault();
+    isPlaying ? stopMusic() : playMusic();
+  }
+});
+
+/* ─── FORMAT ───────────────────────────────────────────────────── */
+function formatABC() {
+  if (!editor) return;
+  const lines = editor.getValue().split('\n');
+  const out = [];
+  let inBody = false;
+  lines.forEach(ln => {
+    const trimmed = ln.trim();
+    if (!trimmed) { if (inBody) out.push(''); return; }
+    if (/^[A-Za-z]:/.test(trimmed)) { inBody = true; out.push(trimmed); }
+    else { out.push(trimmed); }
+  });
+  editor.setValue(out.join('\n'));
+  showToast('Formatted!', 'success');
+}
+
+/* ─── SAVE / EXPORT ────────────────────────────────────────────── */
+function saveABC() {
+  if (!editor) return;
+  localStorage.setItem('abc_score', editor.getValue());
+  showToast('Saved to browser storage', 'success');
+}
+
+function exportABC() {
+  if (!editor) return;
+  const titleMatch = editor.getValue().match(/^T:(.*)/m);
+  const filename = titleMatch ? titleMatch[1].trim().replace(/[^a-z0-9]/gi,'_') + '.abc' : 'music.abc';
+  const blob = new Blob([editor.getValue()], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+  showToast('Exported: ' + filename, 'success');
+}
+
+/* ─── TOAST ────────────────────────────────────────────────────── */
+function showToast(msg, type = 'info') {
+  const c = document.getElementById('toastContainer');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  const icons = { success: '✓', error: '✕', info: 'ℹ' };
+  t.innerHTML = `<span>${icons[type]||'ℹ'}</span> ${msg}`;
+  c.appendChild(t);
+  requestAnimationFrame(() => { requestAnimationFrame(() => t.classList.add('show')); });
+  setTimeout(() => {
+    t.classList.remove('show');
+    setTimeout(() => t.remove(), 300);
+  }, 3000);
+}
+
+/* ─── MODALS ───────────────────────────────────────────────────── */
+function showShortcuts() { document.getElementById('shortcutsModal').classList.add('open'); }
+function showAbcRef() { document.getElementById('abcRefModal').classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal-backdrop.open').forEach(m => m.classList.remove('open')); });
+
+/* ─── REF PANE ─────────────────────────────────────────────────── */
+let refVisible = false;
+function toggleRefPane() {
+  refVisible = !refVisible;
+  document.getElementById('editor').style.display = refVisible ? 'none' : 'block';
+  document.getElementById('refPane').style.display = refVisible ? 'block' : 'none';
+  document.getElementById('tabEditor').classList.toggle('active', !refVisible);
+  document.getElementById('tabRef').classList.toggle('active', refVisible);
+  if (!refVisible && editor) editor.layout();
+}
+
+function buildRefPane() {
+  const pane = document.getElementById('refPane');
+  pane.style.fontFamily = 'var(--font-ui)';
+  pane.style.color = 'var(--text2)';
+  pane.style.background = 'var(--bg)';
+  pane.innerHTML = `
+    <h2 style="font-family:var(--font-display);font-size:22px;color:var(--text);margin-bottom:16px;">ABC Notation Reference</h2>
+    <div class="ref-section"><h3>Required Headers (must come first)</h3>
+    <table class="ref-table">
+      <tr><td>X:1</td><td>Index number — always required as first line</td></tr>
+      <tr><td>T:My Song</td><td>Title of the tune</td></tr>
+      <tr><td>M:4/4</td><td>Meter (time signature). Common: 4/4, 3/4, 6/8, 2/4</td></tr>
+      <tr><td>L:1/8</td><td>Default note length. 1/8 = eighth notes by default</td></tr>
+      <tr><td>Q:1/4=120</td><td>Tempo: quarter note = 120 bpm</td></tr>
+      <tr><td>K:C</td><td>Key signature (must be last header before body)</td></tr>
+    </table></div>
+    <div class="ref-section"><h3>Optional Headers</h3>
+    <table class="ref-table">
+      <tr><td>C:Beethoven</td><td>Composer name</td></tr>
+      <tr><td>Z:arranger</td><td>Transcription/arranger credit</td></tr>
+      <tr><td>N:notes</td><td>Notes / annotations</td></tr>
+      <tr><td>R:jig</td><td>Rhythm type (jig, reel, waltz…)</td></tr>
+      <tr><td>S:source</td><td>Source of the tune</td></tr>
+    </table></div>
+    <div class="ref-section"><h3>Notes</h3>
+    <table class="ref-table">
+      <tr><td>C D E F G A B</td><td>Middle octave (C4–B4)</td></tr>
+      <tr><td>c d e f g a b</td><td>Upper octave (C5–B5)</td></tr>
+      <tr><td>C, (comma)</td><td>One octave down</td></tr>
+      <tr><td>c' (apostrophe)</td><td>One octave up</td></tr>
+      <tr><td>^C</td><td>Sharp (C♯)</td></tr>
+      <tr><td>_E</td><td>Flat (E♭)</td></tr>
+      <tr><td>=F</td><td>Natural (F♮)</td></tr>
+    </table></div>
+    <div class="ref-section"><h3>Note Lengths (when L:1/8)</h3>
+    <table class="ref-table">
+      <tr><td>C</td><td>1/8 (eighth note — default)</td></tr>
+      <tr><td>C2</td><td>2/8 = 1/4 (quarter note)</td></tr>
+      <tr><td>C4</td><td>4/8 = 1/2 (half note)</td></tr>
+      <tr><td>C8</td><td>8/8 = 1 (whole note)</td></tr>
+      <tr><td>C3/2 or C3&gt;</td><td>Dotted note (3/16)</td></tr>
+      <tr><td>C/2 or C&lt;</td><td>1/16 (half of default)</td></tr>
+    </table></div>
+    <div class="ref-section"><h3>Bar Lines & Structure</h3>
+    <table class="ref-table">
+      <tr><td>|</td><td>Bar line</td></tr>
+      <tr><td>||</td><td>Double bar (section end)</td></tr>
+      <tr><td>|]</td><td>Final bar</td></tr>
+      <tr><td>|:</td><td>Start repeat</td></tr>
+      <tr><td>:|</td><td>End repeat</td></tr>
+      <tr><td>|1 … |2</td><td>First/second endings</td></tr>
+    </table></div>
+    <div class="ref-section"><h3>Rhythmic Groupings</h3>
+    <table class="ref-table">
+      <tr><td>(3 A B C</td><td>Triplet</td></tr>
+      <tr><td>(2 A B</td><td>Duplet</td></tr>
+      <tr><td>(A B)</td><td>Slur across notes</td></tr>
+      <tr><td>A-B</td><td>Tie (same pitch)</td></tr>
+      <tr><td>A>B</td><td>Broken rhythm (dotted)</td></tr>
+      <tr><td>A<B</td><td>Reverse broken rhythm</td></tr>
+    </table></div>
+    <div class="ref-section"><h3>Chords & Decorations</h3>
+    <table class="ref-table">
+      <tr><td>[CEG]</td><td>Chord: play C, E, G together</td></tr>
+      <tr><td>"Am"A</td><td>Chord symbol above note</td></tr>
+      <tr><td>!trill!</td><td>Trill decoration</td></tr>
+      <tr><td>!staccato!</td><td>Staccato dot</td></tr>
+      <tr><td>!fermata!</td><td>Fermata (hold)</td></tr>
+      <tr><td>!accent!</td><td>Accent mark</td></tr>
+      <tr><td>!p! !f! !ff!</td><td>Dynamic markings</td></tr>
+    </table></div>
+  `;
+}
+
+/* ─── TAB BAR CLICK ────────────────────────────────────────────── */
+document.getElementById('tabEditor').onclick = () => {
+  if (refVisible) toggleRefPane();
+};
+
+/* ═══════════════════════════════════════════════════════════════
+   AI SIDEBAR
+═══════════════════════════════════════════════════════════════ */
+
+/* ─── State ─────────────────────────────────────────────────── */
+let aiOpen = false;
+let aiActiveTab = 'chat';
+let aiProvider = localStorage.getItem('ai_provider') || null;
+let aiChatHistory = []; // [{role,content}]
+let aiThinking = false;
+
+/* ─── Sidebar toggle ─────────────────────────────────────────── */
+function toggleAISidebar() {
+  aiOpen = !aiOpen;
+  const sidebar = document.getElementById('aiSidebar');
+  sidebar.classList.toggle('open', aiOpen);
+  const btn = document.getElementById('aiToggleBtn');
+  btn.style.borderColor = aiOpen ? 'var(--accent)' : '';
+  btn.style.color = aiOpen ? 'var(--accent2)' : '';
+  if (aiOpen) updateProviderUI();
+}
+
+function switchAITab(tab) {
+  aiActiveTab = tab;
+  document.getElementById('aiChatPanel').classList.toggle('visible', tab === 'chat');
+  document.getElementById('aiSettingsPanel').classList.toggle('visible', tab === 'settings');
+  document.getElementById('aiTabChat').classList.toggle('active', tab === 'chat');
+  document.getElementById('aiTabSettings').classList.toggle('active', tab === 'settings');
+}
+
+/* ─── Provider selection & persistence ──────────────────────── */
+function selectProvider(id) {
+  aiProvider = id;
+  localStorage.setItem('ai_provider', id);
+  updateProviderUI();
+  // Switch to chat after selecting
+  switchAITab('chat');
+  addSystemMsg(`Switched to ${providerDisplayName(id)} ✓`);
+}
+
+function providerDisplayName(id) {
+  return { claude: 'Claude (Anthropic)', openai: 'OpenAI GPT-4o', ollama: 'Ollama (local)' }[id] || id;
+}
+
+function saveProviderKey(key, val) {
+  localStorage.setItem('ai_key_' + key, val);
+}
+
+function saveOllamaModel(val) {
+  localStorage.setItem('ai_key_ollama_model', val);
+  document.getElementById('ollamaModelLabel').textContent = val || 'llama3.2:latest';
+}
+
+function updateProviderUI() {
+  // Cards
+  ['claude','openai','ollama'].forEach(id => {
+    document.getElementById('provider' + id.charAt(0).toUpperCase() + id.slice(1))
+      .classList.toggle('active', aiProvider === id);
+  });
+  // Restore saved keys
+  const kc = localStorage.getItem('ai_key_claude') || '';
+  const ko = localStorage.getItem('ai_key_openai') || '';
+  const ku = localStorage.getItem('ai_key_ollama_url') || 'http://localhost:11434';
+  const km = localStorage.getItem('ai_key_ollama_model') || 'llama3.2:latest';
+  if (kc) document.getElementById('keyClaude').value = kc;
+  if (ko) document.getElementById('keyOpenai').value = ko;
+  document.getElementById('ollamaUrl').value = ku;
+  document.getElementById('ollamaModel').value = km;
+  document.getElementById('ollamaModelLabel').textContent = km;
+  // Badge
+  const dot = document.getElementById('aiProviderDot');
+  const lbl = document.getElementById('aiProviderLabel');
+  if (aiProvider) {
+    dot.classList.add('connected');
+    lbl.textContent = providerDisplayName(aiProvider);
+  } else {
+    dot.classList.remove('connected');
+    lbl.textContent = 'No provider — go to Settings';
+  }
+}
+
+/* ─── Chat ────────────────────────────────────────────────────── */
+function addMsg(role, content) {
+  const el = document.createElement('div');
+  el.className = `ai-msg ${role}`;
+  // Simple markdown: **bold**, `code`, ```block```
+  let html = content
+    .replace(/```([\s\S]*?)```/g, '<pre>$1</pre>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br>');
+  el.innerHTML = html;
+  document.getElementById('aiMessages').appendChild(el);
+  scrollChat();
+
+  // Auto-insert ABC if enabled and role is assistant
+  if (role === 'assistant' && document.getElementById('autoInsert')?.checked) {
+    const abcMatch = content.match(/```(?:abc)?\n?(X:[\s\S]+?)```/i);
+    if (abcMatch && editor) {
+      editor.setValue(abcMatch[1].trim());
+      addSystemMsg('✦ ABC inserted into editor');
+    }
+  }
+  return el;
+}
+
+function addSystemMsg(txt) {
+  const el = document.createElement('div');
+  el.className = 'ai-msg system';
+  el.textContent = txt;
+  document.getElementById('aiMessages').appendChild(el);
+  scrollChat();
+}
+
+function showThinking() {
+  const el = document.createElement('div');
+  el.className = 'ai-thinking';
+  el.id = 'aiThinkingEl';
+  el.innerHTML = '<span></span><span></span><span></span>';
+  document.getElementById('aiMessages').appendChild(el);
+  scrollChat();
+}
+
+function hideThinking() {
+  document.getElementById('aiThinkingEl')?.remove();
+}
+
+function scrollChat() {
+  const m = document.getElementById('aiMessages');
+  m.scrollTop = m.scrollHeight;
+}
+
+function quickPrompt(text) {
+  document.getElementById('aiInput').value = text;
+  sendAIMessage();
+}
+
+async function sendAIMessage() {
+  if (aiThinking) return;
+  const input = document.getElementById('aiInput');
+  const text = input.value.trim();
+  if (!text) return;
+
+  if (!aiProvider) {
+    addSystemMsg('⚠ Please select an AI provider in Settings first.');
+    switchAITab('settings');
+    return;
+  }
+
+  input.value = '';
+  input.style.height = 'auto';
+
+  addMsg('user', text);
+  aiChatHistory.push({ role: 'user', content: text });
+
+  aiThinking = true;
+  document.getElementById('aiSendBtn').disabled = true;
+  showThinking();
+
+  try {
+    const reply = await callAI(text);
+    hideThinking();
+    addMsg('assistant', reply);
+    aiChatHistory.push({ role: 'assistant', content: reply });
+  } catch(e) {
+    hideThinking();
+    addSystemMsg('⚠ Error: ' + e.message);
+  } finally {
+    aiThinking = false;
+    document.getElementById('aiSendBtn').disabled = false;
+  }
+}
+
+/* ─── AI API Dispatch ─────────────────────────────────────────── */
+async function callAI(userMsg) {
+  const scoreCtx = document.getElementById('includeScoreCtx')?.checked && editor
+    ? `\n\nCurrent ABC score in editor:\n\`\`\`abc\n${editor.getValue()}\n\`\`\``
+    : '';
+
+  const systemPrompt = `You are an expert music assistant specializing in ABC notation, music theory, and composition. You help users write, analyze, and improve music scores written in ABC notation format.
+
+When providing ABC notation examples, always wrap them in \`\`\`abc code fences.
+Be concise and practical. When analyzing scores, be specific about measures and notes.${scoreCtx}`;
+
+  // Build messages (keep last 10 turns for context)
+  const history = aiChatHistory.slice(-10);
+  const messages = [...history.slice(0,-1), { role: 'user', content: userMsg }];
+
+  if (aiProvider === 'claude') {
+    return await callClaude(systemPrompt, messages);
+  } else if (aiProvider === 'openai') {
+    return await callOpenAI(systemPrompt, messages);
+  } else if (aiProvider === 'ollama') {
+    return await callOllama(systemPrompt, messages);
+  }
+  throw new Error('Unknown provider');
+}
+
+async function callClaude(system, messages) {
+  const key = localStorage.getItem('ai_key_claude') || '';
+  if (!key) throw new Error('No Claude API key set. Add it in AI Settings.');
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 1024,
+      system,
+      messages,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return data.content?.[0]?.text || '(no response)';
+}
+
+async function callOpenAI(system, messages) {
+  const key = localStorage.getItem('ai_key_openai') || '';
+  if (!key) throw new Error('No OpenAI API key set. Add it in AI Settings.');
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+    body: JSON.stringify({
+      model: 'gpt-4o',
+      max_tokens: 1024,
+      messages: [{ role: 'system', content: system }, ...messages],
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || '(no response)';
+}
+
+async function callOllama(system, messages) {
+  const url = (localStorage.getItem('ai_key_ollama_url') || 'http://localhost:11434').replace(/\/$/, '');
+  const model = localStorage.getItem('ai_key_ollama_model') || 'llama3.2:latest';
+  const res = await fetch(`${url}/api/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model,
+      stream: false,
+      messages: [{ role: 'system', content: system }, ...messages],
+    }),
+  });
+  if (!res.ok) throw new Error(`Ollama HTTP ${res.status} — is Ollama running?`);
+  const data = await res.json();
+  return data.message?.content || '(no response)';
+}
+
+/* ─── Init ────────────────────────────────────────────────────── */
+updateProviderUI();
+
+</script>
+</body>
+</html>
