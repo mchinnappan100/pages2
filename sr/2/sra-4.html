@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Screen + Camera Recorder</title>
+
+<style>
+body{
+background:#111;
+color:white;
+font-family:system-ui;
+}
+
+#controls{
+margin:20px;
+}
+
+button{
+padding:10px 18px;
+margin-right:10px;
+font-size:16px;
+}
+
+#preview{
+position:fixed;
+bottom:20px;
+right:20px;
+width:200px;
+border-radius:12px;
+border:3px solid #00aaff;
+box-shadow:0 6px 16px rgba(0,0,0,.5);
+}
+
+#timer{
+position:fixed;
+top:20px;
+right:20px;
+background:red;
+padding:6px 12px;
+border-radius:6px;
+font-weight:bold;
+}
+</style>
+</head>
+
+<body>
+
+<div id="controls">
+<button id="start">Start Recording</button>
+<button id="stop">Stop</button>
+<a id="download"></a>
+</div>
+
+<!-- visible preview -->
+<video id="preview" autoplay muted playsinline></video>
+
+<script>
+
+const startBtn = document.getElementById("start");
+const stopBtn = document.getElementById("stop");
+const previewVideo = document.getElementById("preview");
+const download = document.getElementById("download");
+
+let screenStream;
+let camStream;
+let micStream;
+let recorder;
+
+let chunks=[];
+
+const canvas=document.createElement("canvas");
+const ctx=canvas.getContext("2d");
+
+const screenVideo=document.createElement("video");
+screenVideo.muted=true;
+screenVideo.playsInline=true;
+
+const recordCamVideo=document.createElement("video");
+recordCamVideo.muted=true;
+recordCamVideo.playsInline=true;
+
+let drawId;
+
+let seconds=0;
+let timerInterval;
+
+function startTimer(){
+
+const timer=document.createElement("div");
+timer.id="timer";
+document.body.appendChild(timer);
+
+timerInterval=setInterval(()=>{
+seconds++;
+
+const m=Math.floor(seconds/60);
+const s=seconds%60;
+
+timer.innerText=
+"● REC "+
+String(m).padStart(2,"0")+":"+
+String(s).padStart(2,"0");
+
+},1000);
+}
+
+function stopTimer(){
+clearInterval(timerInterval);
+document.getElementById("timer")?.remove();
+seconds=0;
+}
+
+async function startRecording(){
+
+startBtn.disabled=true;
+
+camStream = await navigator.mediaDevices.getUserMedia({
+video:true
+});
+
+previewVideo.srcObject = camStream;
+recordCamVideo.srcObject = camStream;
+
+await previewVideo.play();
+await recordCamVideo.play();
+
+screenStream = await navigator.mediaDevices.getDisplayMedia({
+video:true
+});
+
+screenVideo.srcObject=screenStream;
+await screenVideo.play();
+
+micStream = await navigator.mediaDevices.getUserMedia({
+audio:true
+});
+
+const track=screenStream.getVideoTracks()[0];
+const settings=track.getSettings();
+
+canvas.width=settings.width || 1920;
+canvas.height=settings.height || 1080;
+
+draw();
+
+const canvasStream=canvas.captureStream(30);
+
+micStream.getAudioTracks().forEach(t=>{
+canvasStream.addTrack(t);
+});
+
+recorder=new MediaRecorder(canvasStream,{
+mimeType:"video/webm;codecs=vp9,opus"
+});
+
+recorder.start(200);
+
+recorder.ondataavailable=e=>{
+if(e.data.size>0) chunks.push(e.data);
+};
+
+recorder.onstop=()=>{
+
+const blob=new Blob(chunks,{type:"video/webm"});
+const url=URL.createObjectURL(blob);
+
+download.href=url;
+download.download="recording.webm";
+download.click();
+
+chunks=[];
+};
+
+track.onended=stopRecording;
+
+startTimer();
+}
+
+function draw(){
+
+ctx.drawImage(screenVideo,0,0,canvas.width,canvas.height);
+
+if(recordCamVideo.readyState>=2){
+
+const size=200;
+const x=canvas.width-size-40;
+const y=canvas.height-size-40;
+
+ctx.beginPath();
+ctx.arc(x+size/2,y+size/2,size/2,0,Math.PI*2);
+ctx.clip();
+
+ctx.drawImage(recordCamVideo,x,y,size,size);
+
+ctx.restore();
+}
+
+drawId=requestAnimationFrame(draw);
+}
+
+function stopRecording(){
+
+stopTimer();
+
+cancelAnimationFrame(drawId);
+
+recorder?.stop();
+
+screenStream?.getTracks().forEach(t=>t.stop());
+camStream?.getTracks().forEach(t=>t.stop());
+micStream?.getTracks().forEach(t=>t.stop());
+
+startBtn.disabled=false;
+}
+
+startBtn.onclick=startRecording;
+stopBtn.onclick=stopRecording;
+
+</script>
+
+</body>
+</html>

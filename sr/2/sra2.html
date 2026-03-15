@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/css/bootstrap.min.css" 
+          integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2" crossorigin="anonymous">
+    <title>Screen Recorder + Camera Overlay</title>
+    <link rel="stylesheet" href="../pb/css/pb.css">
+
+    <style>
+        #webcam-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            border: 3px solid #007bff;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+            transition: all 0.3s;
+        }
+        #webcam {
+            width: 240px;
+            height: 180px;
+            object-fit: cover;
+            display: block;
+        }
+        #webcam-container.hidden {
+            display: none;
+        }
+        #controls {
+            margin: 15px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        #toggle-camera {
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="controls" class="row align-items-center">
+    <button type="button" class="btn btn-primary btn-lg" id="start">Start Recording (Screen + Mic + Camera)</button>
+    <button type="button" class="btn btn-secondary" id="toggle-camera">📷 Camera On (Preview)</button>
+    <a id="download" style="display: none;"></a>
+</div>
+
+<label for="toggle">❔ Help / Info</label>
+<input type="checkbox" id="toggle">
+
+<aside>
+    <p>Filename via query: <pre>?f=myvideo</pre> → saves as myvideo.webm</p>
+    <p>📹 Camera appears as overlay in final video + live preview.</p>
+    <p>🔊 Use headset to avoid echo. System audio may be captured if you select it.</p>
+    <ul>
+        <li><a class="btn btn-light btn-sm" href="../media-convert.html">Convert .webm → mp4/gif?</a></li>
+        <li>Mac permission tip: <img height="160" src="img/sr-perm.png" alt="Mac screen recording permission"/></li>
+    </ul>
+</aside>
+
+<!-- Live preview only -->
+<div id="webcam-container" class="hidden">
+    <video id="webcam" autoplay playsinline muted></video>
+</div>
+
+<!-- Hidden composite canvas for recording -->
+<canvas id="composite-canvas" style="display: none;"></canvas>
+
+<script>
+// === sra.js - Screen + Webcam Overlay Recording ===
+// Updated: Mohan-style with canvas compositing for PiP in output
+
+// Query param handling ?f=filename
+const params = new URLSearchParams(location.search);
+const filename = (params.get('f') || 'screen_with_camera') + '.webm';
+
+const downloadLink = document.getElementById('download');
+
+// Elements
+const startBtn       = document.getElementById('start');
+const toggleCamBtn   = document.getElementById('toggle-camera');
+const previewVideo   = document.getElementById('webcam');
+const previewCont    = document.getElementById('webcam-container');
+const canvas         = document.getElementById('composite-canvas');
+const ctx            = canvas.getContext('2d');
+
+// State
+let mediaRecorder   = null;
+let screenStream    = null;
+let micStream       = null;
+let cameraStream    = null;
+let screenVideoEl   = null;
+let cameraVideoEl   = null;
+let animFrame       = null;
+let isRecording     = false;
+let cameraActive    = false;
+
+// ── Persistent video elements for efficient drawing ──
+function createVideoForStream(stream) {
+    const vid = document.createElement('video');
+    vid.srcObject = stream;
+    vid.muted = true;
+    vid.playsInline = true;
+    vid.autoplay = true;
+    // Ensure it plays (some browsers need explicit play)
+    vid.play().catch(e => console.warn("Auto-play failed:", e));
+    return vid;
+}
+
+// ── Camera toggle (preview only until recording) ──
+async function enableCamera(forPreview = true) {
+    if (cameraActive) return;
+    try {
+        cameraStream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: "user" }, // front camera
+            audio: false
+        });
+        cameraActive = true;
+
+        if (forPreview) {
+            previewVideo.srcObject = cameraStream;
+            previewCont.classList.remove('hidden');
+        }
+
+        toggleCamBtn.textContent = '📷 Camera Off';
+        toggleCamBtn.classList.replace('btn-secondary', 'btn-danger');
+
+        // Prepare persistent video element for compositing
+        cameraVideoEl = createVideoForStream(cameraStream);
+    } catch (err) {
+        alert("Camera access denied or unavailable: " + err.message);
+        console.error(err);
+    }
+}
+
+function disableCamera() {
+    if (!cameraActive) return;
+    if (cameraStream) {
+        cameraStream.getTracks().forEach(t => t.stop());
+        cameraStream = null;
+    }
+    previewVideo.srcObject = null;
+    previewCont.classList.add('hidden');
+    toggleCamBtn.textContent = '📷 Camera On';
+    toggleCamBtn.classList.replace('btn-danger', 'btn-secondary');
+    cameraActive = false;
+    cameraVideoEl = null;
+}
+
+toggleCamBtn.addEventListener('click', () => {
+    if (cameraActive) {
+        disableCamera();
+    } else {
+        enableCamera(true);
+    }
+});
+
+// ── Composite drawing ──
+function drawFrame() {
+    if (!screenVideoEl || !canvas.width) return;
+
+    // Draw screen full size
+    ctx.drawImage(screenVideoEl, 0, 0, canvas.width, canvas.height);
+
+    // Draw camera PiP if active
+    if (cameraActive && cameraVideoEl && cameraVideoEl.videoWidth > 0) {
+        const pipWidth  = canvas.width * 0.25;
+        const pipHeight = (pipWidth / cameraVideoEl.videoWidth) * cameraVideoEl.videoHeight;
+        const x = canvas.width - pipWidth - 30;
+        const y = canvas.height - pipHeight - 30;
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,0.6)';
+        ctx.shadowBlur = 12;
+        ctx.drawImage(cameraVideoEl, x, y, pipWidth, pipHeight);
+        ctx.restore();
+    }
+
+    animFrame = requestAnimationFrame(drawFrame);
+}
+
+// ── Start everything ──
+async function startRecording() {
+    if (isRecording) return;
+    isRecording = true;
+    startBtn.disabled = true;
+    startBtn.textContent = 'Recording...';
+
+    try {
+        // 1. Screen + possible system audio
+        screenStream = await navigator.mediaDevices.getDisplayMedia({
+            video: { cursor: "always" },
+            audio: { echoCancellation: true, noiseSuppression: true }
+        });
+
+        // 2. Microphone
+        micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        // 3. Camera (enable if not already)
+        if (!cameraActive) await enableCamera(false); // no preview needed, but for recording
+
+        // Set canvas to screen dimensions
+        const videoTrack = screenStream.getVideoTracks()[0];
+        const settings = videoTrack.getSettings();
+        canvas.width  = settings.width  || 1280;
+        canvas.height = settings.height || 720;
+
+        // Create persistent video for screen
+        screenVideoEl = createVideoForStream(screenStream);
+
+        // Start drawing
+        drawFrame();
+
+        // 4. Canvas video stream @30fps
+        const canvasStream = canvas.captureStream(30);
+
+        // 5. Combine: canvas video + all audio tracks
+        const audioTracks = [
+            ...(screenStream.getAudioTracks() || []),
+            ...(micStream?.getAudioTracks() || [])
+        ];
+
+        const finalStream = new MediaStream([
+            ...canvasStream.getVideoTracks(),
+            ...audioTracks
+        ]);
+
+        // Handle early stop (user ends screen share)
+        screenStream.getTracks().forEach(t => {
+            t.addEventListener('ended', stopRecording);
+        });
+
+        // 6. Record
+        const chunks = [];
+        mediaRecorder = new MediaRecorder(finalStream, { mimeType: 'video/webm;codecs=vp9,opus' });
+
+        mediaRecorder.ondataavailable = e => {
+            if (e.data.size > 0) chunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = () => {
+            const blob = new Blob(chunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            downloadLink.href = url;
+            downloadLink.download = filename;
+            downloadLink.click();
+            URL.revokeObjectURL(url);
+            cleanup();
+        };
+
+        mediaRecorder.start(1000); // 1s chunks
+
+    } catch (err) {
+        alert("Failed to start: " + err.message);
+        console.error(err);
+        cleanup();
+    }
+}
+
+function stopRecording() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+    }
+    startBtn.disabled = false;
+    startBtn.textContent = 'Start Recording (Screen + Mic + Camera)';
+    isRecording = false;
+}
+
+function cleanup() {
+    cancelAnimationFrame(animFrame);
+    [screenStream, micStream, cameraStream].forEach(s => {
+        if (s) s.getTracks().forEach(t => t.stop());
+    });
+    screenStream = micStream = cameraStream = null;
+    screenVideoEl = cameraVideoEl = null;
+    canvas.width = canvas.height = 0;
+    stopRecording(); // ensure UI reset
+}
+
+// Events
+startBtn.addEventListener('click', startRecording);
+
+// Optional: could add stop button, but screen stop usually ends it
+
+</script>
+</body>
+</html>
