@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CollabPad | Real-time Sync</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+        }
+        function toggleTheme() {
+            document.documentElement.classList.toggle('dark');
+        }
+    </script>
+    <style>
+        /* Smooth transition for theme switching */
+        body { transition: background-color 0.3s ease, color 0.3s ease; }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 min-h-screen flex flex-col">
+
+    <nav class="p-4 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-white dark:bg-slate-950 shadow-sm">
+        <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full bg-indigo-500 animate-pulse"></div>
+            <h1 class="text-xl font-bold tracking-tight">CollabPad</h1>
+        </div>
+        
+        <div class="flex items-center gap-3">
+            <div id="status" class="text-[10px] uppercase font-bold px-2 py-1 rounded bg-slate-200 dark:bg-slate-800 text-slate-500">
+                Initializing...
+            </div>
+            <button onclick="toggleTheme()" class="p-2 rounded-full hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors">
+                <span class="dark:hidden">🌙</span>
+                <span class="hidden dark:inline">☀️</span>
+            </button>
+        </div>
+    </nav>
+
+    <main class="flex-1 flex flex-col p-4 md:p-8 max-w-5xl mx-auto w-full gap-4">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-2">
+            <div>
+                <h2 class="text-sm font-medium text-slate-500 dark:text-slate-400">Collaboration Room</h2>
+                <code id="room-id" class="text-indigo-600 dark:text-indigo-400 font-mono font-bold"></code>
+            </div>
+            <button id="copy-btn" onclick="copyLink(event)" class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-500/20">
+                Copy Share Link
+            </button>
+        </div>
+
+        <div class="relative flex-1 flex flex-col">
+            <textarea id="editor" 
+                class="flex-1 w-full p-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-indigo-500 focus:outline-none shadow-xl font-mono text-lg leading-relaxed resize-none transition-all"
+                placeholder="Start typing... everything is synced in real-time!"></textarea>
+            
+            <div class="absolute bottom-4 right-4 text-[10px] text-slate-400 pointer-events-none uppercase tracking-widest">
+                CRDT Sync Active
+            </div>
+        </div>
+    </main>
+
+    <!-- Load Yjs libraries at the end of body -->
+    <script src="https://cdn.jsdelivr.net/npm/yjs@13.6.10/dist/yjs.min.js"></script>
+    
+    <script>
+        // Initialize CollabPad with localStorage-based sync
+        function initCollabPad() {
+            try {
+                // Check if Y is available
+                if (typeof Y === 'undefined') {
+                    throw new Error('Yjs library not loaded');
+                }
+
+                // 1. Manage the Room Identity
+                const urlParams = new URLSearchParams(window.location.search);
+                let roomName = urlParams.get('room');
+                
+                if (!roomName) {
+                    roomName = 'collab-' + Math.random().toString(36).substring(7);
+                    const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname + '?room=' + roomName;
+                    window.history.replaceState({path: newUrl}, '', newUrl);
+                }
+                document.getElementById('room-id').innerText = roomName;
+
+                // 2. Initialize Yjs Shared Document
+                const ydoc = new Y.Doc();
+                const textArea = document.getElementById('editor');
+                const statusEl = document.getElementById('status');
+                const storageKey = 'collabpad-' + roomName;
+                
+                // Load from localStorage
+                const savedData = localStorage.getItem(storageKey);
+                if (savedData) {
+                    try {
+                        Y.applyUpdate(ydoc, new Uint8Array(JSON.parse(savedData)));
+                    } catch (e) {
+                        console.warn('Could not restore from storage:', e);
+                    }
+                }
+                
+                const ytext = ydoc.getText('shared-textarea');
+
+                // 3. Document -> UI (Listen for changes from others)
+                ytext.observe(() => {
+                    const currentContent = ytext.toString();
+                    if (textArea.value !== currentContent) {
+                        const start = textArea.selectionStart;
+                        const end = textArea.selectionEnd;
+                        textArea.value = currentContent;
+                        textArea.setSelectionRange(start, end);
+                    }
+                });
+
+                // 4. UI -> Document (Send your changes to others)
+                textArea.addEventListener('input', () => {
+                    ydoc.transact(() => {
+                        const currentVal = textArea.value;
+                        ytext.delete(0, ytext.length);
+                        ytext.insert(0, currentVal);
+                    });
+                    
+                    // Save to localStorage
+                    const update = Y.encodeStateAsUpdate(ydoc);
+                    localStorage.setItem(storageKey, JSON.stringify(Array.from(update)));
+                });
+
+                // 5. Connection Status UI
+                statusEl.innerText = '● Live';
+                statusEl.className = 'text-[10px] uppercase font-bold px-2 py-1 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+
+                // Global Helper for Copy Link
+                window.copyLink = (evt) => {
+                    evt.preventDefault();
+                    navigator.clipboard.writeText(window.location.href).then(() => {
+                        const btn = document.getElementById('copy-btn');
+                        const originalText = btn.innerText;
+                        btn.innerText = 'Copied!';
+                        btn.disabled = true;
+                        setTimeout(() => {
+                            btn.innerText = originalText;
+                            btn.disabled = false;
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('Failed to copy:', err);
+                        alert('Failed to copy link to clipboard');
+                    });
+                };
+
+                console.log('CollabPad initialized successfully for room:', roomName);
+                
+            } catch (error) {
+                console.error('CollabPad initialization error:', error);
+                const statusEl = document.getElementById('status');
+                if (statusEl) {
+                    statusEl.innerText = 'Error';
+                    statusEl.className = 'text-[10px] uppercase font-bold px-2 py-1 rounded bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+                }
+            }
+        }
+
+        // Run after DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initCollabPad);
+        } else {
+            initCollabPad();
+        }
+    </script>
+</body>
+</html>
