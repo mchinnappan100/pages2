@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Cycle Builder</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' };
+  </script>
+  <style>
+    #canvas { min-height: 600px; }
+  </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+
+<div class="flex h-screen">
+
+  <!-- LEFT PANEL -->
+  <div class="w-1/3 p-4 border-r border-gray-300 dark:border-gray-700 overflow-y-auto">
+    <h2 class="text-xl font-bold mb-4">Wizard</h2>
+
+    <input id="title" class="w-full p-2 mb-2 bg-white dark:bg-gray-800" placeholder="Cycle Title" />
+
+    <div id="steps"></div>
+
+    <button onclick="addStep()" class="bg-blue-500 text-white px-3 py-1 mt-2">+ Add Step</button>
+
+    <div class="mt-4 space-y-2">
+      <button onclick="saveJSON()" class="bg-green-600 text-white px-3 py-1">Download JSON</button>
+      <button onclick="downloadSVG()" class="bg-purple-600 text-white px-3 py-1">Download SVG</button>
+      <button onclick="downloadPNG()" class="bg-pink-600 text-white px-3 py-1">Download PNG</button>
+      <button onclick="toggleTheme()" class="bg-gray-700 text-white px-3 py-1">Toggle Theme</button>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="flex-1 p-4 overflow-auto">
+    <svg id="canvas" class="w-full h-full"></svg>
+  </div>
+
+</div>
+
+<script>
+let data = {
+  title: "",
+  steps: []
+};
+
+function addStep(name = "") {
+  const idx = data.steps.length;
+  data.steps.push({ name: name || `Step ${idx+1}` });
+
+  const container = document.getElementById('steps');
+  const input = document.createElement('input');
+  input.className = "w-full p-2 mb-2 bg-white dark:bg-gray-800";
+  input.value = data.steps[idx].name;
+
+  input.oninput = (e) => {
+    data.steps[idx].name = e.target.value;
+    draw();
+  };
+
+  container.appendChild(input);
+  draw();
+}
+
+function draw() {
+  const svg = document.getElementById('canvas');
+  svg.innerHTML = "";
+
+  const width = svg.clientWidth;
+  const height = svg.clientHeight;
+
+  const cx = width / 2;
+  const cy = height / 2;
+  const radius = Math.min(width, height) / 3;
+
+  const steps = data.steps;
+  const angleStep = (2 * Math.PI) / steps.length;
+
+  steps.forEach((step, i) => {
+    const angle = i * angleStep;
+    const x = cx + radius * Math.cos(angle);
+    const y = cy + radius * Math.sin(angle);
+
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", x);
+    circle.setAttribute("cy", y);
+    circle.setAttribute("r", 40);
+    circle.setAttribute("fill", "#3b82f6");
+
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", x);
+    text.setAttribute("y", y);
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("dominant-baseline", "middle");
+    text.setAttribute("fill", "white");
+    text.textContent = step.name;
+
+    svg.appendChild(circle);
+    svg.appendChild(text);
+
+    // Draw arrow line
+    if (i > 0) {
+      const prevAngle = (i-1) * angleStep;
+      const px = cx + radius * Math.cos(prevAngle);
+      const py = cy + radius * Math.sin(prevAngle);
+
+      const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      line.setAttribute("x1", px);
+      line.setAttribute("y1", py);
+      line.setAttribute("x2", x);
+      line.setAttribute("y2", y);
+      line.setAttribute("stroke", "#999");
+
+      svg.appendChild(line);
+    }
+  });
+}
+
+function saveJSON() {
+  data.title = document.getElementById('title').value;
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'cycle.json';
+  a.click();
+}
+
+function downloadSVG() {
+  const svg = document.getElementById('canvas');
+  const blob = new Blob([svg.outerHTML], { type: 'image/svg+xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'diagram.svg';
+  a.click();
+}
+
+function downloadPNG() {
+  const svg = document.getElementById('canvas');
+  const xml = new XMLSerializer().serializeToString(svg);
+  const img = new Image();
+
+  img.onload = function() {
+    const canvas = document.createElement('canvas');
+    canvas.width = svg.clientWidth;
+    canvas.height = svg.clientHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+
+    const a = document.createElement('a');
+    a.download = 'diagram.png';
+    a.href = canvas.toDataURL();
+    a.click();
+  };
+
+  img.src = 'data:image/svg+xml;base64,' + btoa(xml);
+}
+
+function toggleTheme() {
+  document.documentElement.classList.toggle('dark');
+}
+
+// Init
+addStep("Ideate");
+addStep("Setup");
+addStep("Configure");
+addStep("Test");
+addStep("Deploy");
+addStep("Monitor");
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Infographic Generator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' };
+  </script>
+  <style>
+    #canvas {
+      min-height: 700px;
+      background: radial-gradient(circle at center, #1f2937 0%, #111827 100%);
+    }
+    .step-input {
+      transition: all 0.2s ease;
+    }
+    .step-input:focus {
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+    }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+  <div class="flex h-screen overflow-hidden">
+    <!-- LEFT PANEL -->
+    <div class="w-96 bg-gray-900 border-r border-gray-700 flex flex-col">
+      <!-- Header -->
+      <div class="p-4 border-b border-gray-700 flex items-center justify-between">
+        <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+          Infographic Generator
+        </h1>
+        <button onclick="toggleTheme()" 
+                class="p-2 hover:bg-gray-800 rounded-lg transition-colors">
+          <span id="theme-icon">☀️</span>
+        </button>
+      </div>
+
+      <div class="p-4 flex-1 overflow-y-auto">
+        <div class="mb-6">
+          <label class="block text-sm font-medium text-gray-400 mb-1">Infographic Title</label>
+          <input id="title" 
+                 class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-500 text-lg"
+                 placeholder="Enter infographic title..." 
+                 oninput="updateTitle()" />
+        </div>
+
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-lg font-semibold">Steps</h2>
+          <button onclick="addStep()" 
+                  class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl text-sm font-medium transition-colors">
+            <span>+</span> Add Step
+          </button>
+        </div>
+
+        <div id="steps" class="space-y-3"></div>
+      </div>
+
+      <!-- Bottom Actions -->
+      <div class="p-4 border-t border-gray-700 bg-gray-950">
+        <div class="grid grid-cols-2 gap-3">
+          <button onclick="loadJSON()" 
+                  class="bg-gray-800 hover:bg-gray-700 py-3 rounded-2xl font-medium transition-colors">
+            📂 Load JSON
+          </button>
+          <button onclick="saveJSON()" 
+                  class="bg-green-600 hover:bg-green-700 py-3 rounded-2xl font-medium transition-colors">
+            💾 Download JSON
+          </button>
+        </div>
+        <div class="grid grid-cols-3 gap-3 mt-3">
+          <button onclick="downloadSVG()" 
+                  class="bg-purple-600 hover:bg-purple-700 py-3 rounded-2xl text-sm font-medium transition-colors">
+            SVG
+          </button>
+          <button onclick="downloadPNG()" 
+                  class="bg-pink-600 hover:bg-pink-700 py-3 rounded-2xl text-sm font-medium transition-colors">
+            PNG
+          </button>
+          <button onclick="clearAll()" 
+                  class="bg-red-600/80 hover:bg-red-700 py-3 rounded-2xl text-sm font-medium transition-colors">
+            Clear
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="flex-1 flex flex-col">
+      <div class="p-4 border-b border-gray-700 bg-gray-900 flex justify-between items-center">
+        <div class="text-sm text-gray-400">Live Preview • Circular Cycle</div>
+        <div id="step-count" class="text-sm text-gray-500">0 steps</div>
+      </div>
+      <div class="flex-1 p-8 bg-gray-950 overflow-auto flex items-center justify-center">
+        <svg id="canvas" class="w-full max-w-[900px] h-auto shadow-2xl rounded-3xl"></svg>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ====================== DATA ======================
+let data = {
+  title: "My Agent Cycle",
+  steps: []
+};
+
+// ====================== UPDATE TITLE LIVE ======================
+function updateTitle() {
+  data.title = document.getElementById('title').value.trim();
+  draw();                    // ← This was missing before
+}
+
+// ====================== ADD STEP ======================
+function addStep(name = "") {
+  const idx = data.steps.length;
+  const stepName = name || `Step ${idx + 1}`;
+  data.steps.push({ name: stepName });
+  renderSteps();
+  draw();
+}
+
+// ====================== RENDER STEPS ======================
+function renderSteps() {
+  const container = document.getElementById('steps');
+  container.innerHTML = '';
+
+  data.steps.forEach((step, i) => {
+    const div = document.createElement('div');
+    div.className = "flex gap-2 items-center group";
+    
+    div.innerHTML = `
+      <div class="flex-1">
+        <input type="text" 
+               class="step-input w-full bg-gray-800 border border-gray-700 rounded-2xl px-4 py-3 focus:outline-none focus:border-blue-500"
+               value="${step.name}" />
+      </div>
+      <button onclick="moveStepUp(${i})" class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl transition-colors ${i === 0 ? 'opacity-30 pointer-events-none' : ''}">↑</button>
+      <button onclick="moveStepDown(${i})" class="w-9 h-9 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl transition-colors ${i === data.steps.length-1 ? 'opacity-30 pointer-events-none' : ''}">↓</button>
+      <button onclick="deleteStep(${i})" class="w-9 h-9 flex items-center justify-center text-red-400 hover:text-red-500 hover:bg-gray-800 rounded-xl transition-colors">✕</button>
+    `;
+
+    const input = div.querySelector('input');
+    input.oninput = (e) => {
+      data.steps[i].name = e.target.value;
+      draw();
+    };
+
+    container.appendChild(div);
+  });
+
+  document.getElementById('step-count').textContent = `${data.steps.length} steps`;
+}
+
+// ====================== STEP CONTROLS ======================
+function moveStepUp(i) {
+  if (i <= 0) return;
+  [data.steps[i], data.steps[i-1]] = [data.steps[i-1], data.steps[i]];
+  renderSteps();
+  draw();
+}
+
+function moveStepDown(i) {
+  if (i >= data.steps.length - 1) return;
+  [data.steps[i], data.steps[i+1]] = [data.steps[i+1], data.steps[i]];
+  renderSteps();
+  draw();
+}
+
+function deleteStep(i) {
+  if (confirm("Delete this step?")) {
+    data.steps.splice(i, 1);
+    renderSteps();
+    draw();
+  }
+}
+
+// ====================== DRAW DIAGRAM ======================
+function draw() {
+  const svg = document.getElementById('canvas');
+  svg.innerHTML = "";
+  
+  const width = 900;
+  const height = 700;
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("width", width);
+  svg.setAttribute("height", height);
+
+  const cx = width / 2;
+  const cy = height / 2;
+  const radius = 220;
+  const steps = data.steps;
+  
+  if (steps.length === 0) {
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", cx);
+    text.setAttribute("y", cy);
+    text.setAttribute("text-anchor", "middle");
+    text.setAttribute("fill", "#6b7280");
+    text.setAttribute("font-size", "24");
+    text.textContent = "Add steps to begin";
+    svg.appendChild(text);
+    return;
+  }
+
+  const angleStep = (2 * Math.PI) / steps.length;
+
+  // Connections
+  steps.forEach((_, i) => {
+    if (steps.length < 2) return;
+    const angle1 = i * angleStep - Math.PI / 2;
+    const angle2 = ((i + 1) % steps.length) * angleStep - Math.PI / 2;
+    
+    const x1 = cx + radius * Math.cos(angle1);
+    const y1 = cy + radius * Math.sin(angle1);
+    const x2 = cx + radius * Math.cos(angle2);
+    const y2 = cy + radius * Math.sin(angle2);
+
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", x1); line.setAttribute("y1", y1);
+    line.setAttribute("x2", x2); line.setAttribute("y2", y2);
+    line.setAttribute("stroke", "#4b5563");
+    line.setAttribute("stroke-width", "6");
+    line.setAttribute("stroke-linecap", "round");
+    svg.appendChild(line);
+  });
+
+  // Nodes
+  steps.forEach((step, i) => {
+    const angle = i * angleStep - Math.PI / 2;
+    const x = cx + radius * Math.cos(angle);
+    const y = cy + radius * Math.sin(angle);
+
+    // Glow
+    const glow = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    glow.setAttribute("cx", x); glow.setAttribute("cy", y);
+    glow.setAttribute("r", "52"); glow.setAttribute("fill", "none");
+    glow.setAttribute("stroke", "#3b82f6"); glow.setAttribute("stroke-width", "12");
+    glow.setAttribute("opacity", "0.15");
+    svg.appendChild(glow);
+
+    // Circle
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", x); circle.setAttribute("cy", y);
+    circle.setAttribute("r", "48"); circle.setAttribute("fill", "#1e40af");
+    circle.setAttribute("stroke", "#60a5fa"); circle.setAttribute("stroke-width", "6");
+    svg.appendChild(circle);
+
+    // Number badge
+    const numCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    numCircle.setAttribute("cx", x - 32); numCircle.setAttribute("cy", y - 32);
+    numCircle.setAttribute("r", "14"); numCircle.setAttribute("fill", "#eab308");
+    svg.appendChild(numCircle);
+
+    const numText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    numText.setAttribute("x", x - 32); numText.setAttribute("y", y - 28);
+    numText.setAttribute("text-anchor", "middle"); numText.setAttribute("fill", "#000");
+    numText.setAttribute("font-size", "13"); numText.setAttribute("font-weight", "bold");
+    numText.textContent = (i + 1);
+    svg.appendChild(numText);
+
+    // Step name
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", x); text.setAttribute("y", y + 75);
+    text.setAttribute("text-anchor", "middle"); text.setAttribute("fill", "#e5e7eb");
+    text.setAttribute("font-size", "17"); text.setAttribute("font-weight", "500");
+    text.textContent = step.name;
+    svg.appendChild(text);
+  });
+
+  // Center Title (NOW UPDATES LIVE!)
+  if (data.title) {
+    const title = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    title.setAttribute("x", cx);
+    title.setAttribute("y", cy + 8);
+    title.setAttribute("text-anchor", "middle");
+    title.setAttribute("fill", "#f3e8ff");
+    title.setAttribute("font-size", "28");
+    title.setAttribute("font-weight", "700");
+    title.textContent = data.title;
+    svg.appendChild(title);
+  }
+}
+
+// ====================== FILE OPERATIONS ======================
+function saveJSON() {
+  data.title = document.getElementById('title').value.trim() || "My Infographic";
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${data.title.toLowerCase().replace(/\s+/g, '-')}.json`;
+  a.click();
+}
+
+function loadJSON() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const loaded = JSON.parse(event.target.result);
+        data.title = loaded.title || "My Agent Cycle";
+        data.steps = Array.isArray(loaded.steps) ? loaded.steps : [];
+        
+        document.getElementById('title').value = data.title;
+        renderSteps();
+        draw();
+      } catch (err) {
+        alert("Invalid JSON file");
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function downloadSVG() { /* same as before */ 
+  const svg = document.getElementById('canvas');
+  const blob = new Blob([svg.outerHTML], { type: 'image/svg+xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'infographic.svg';
+  a.click();
+}
+
+function downloadPNG() {
+  const svg = document.getElementById('canvas');
+  const xml = new XMLSerializer().serializeToString(svg);
+  const img = new Image();
+  img.onload = function() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 900; canvas.height = 700;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    const a = document.createElement('a');
+    a.download = 'infographic.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  };
+  img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(xml)));
+}
+
+function clearAll() {
+  if (confirm("Clear everything?")) {
+    data = { title: "", steps: [] };
+    document.getElementById('title').value = "";
+    renderSteps();
+    draw();
+  }
+}
+
+function toggleTheme() {
+  document.documentElement.classList.toggle('dark');
+  document.getElementById('theme-icon').textContent = 
+    document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
+}
+
+// ====================== INIT ======================
+function init() {
+  document.getElementById('title').value = data.title;
+  
+  data.steps = [
+    { name: "Ideate" },
+    { name: "Research" },
+    { name: "Design" },
+    { name: "Build" },
+    { name: "Test" },
+    { name: "Deploy" }
+  ];
+  
+  renderSteps();
+  draw();
+}
+
+init();
+</script>
+</body>
+</html>
