@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diff Editor — Metadata Compare</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+<style>
+  :root {
+    --bg: #0f0f11;
+    --bg2: #18181c;
+    --bg3: #1e1e24;
+    --bg4: #252530;
+    --border: rgba(255,255,255,0.08);
+    --border2: rgba(255,255,255,0.14);
+    --text: #e8e8f0;
+    --text2: #9090a8;
+    --text3: #5a5a72;
+    --accent: #7c6af7;
+    --accent2: #5a48d4;
+    --accent-glow: rgba(124,106,247,0.18);
+    --green: #34d399;
+    --green-bg: rgba(52,211,153,0.1);
+    --amber: #fbbf24;
+    --amber-bg: rgba(251,191,36,0.1);
+    --red: #f87171;
+    --red-bg: rgba(248,113,113,0.1);
+    --blue: #60a5fa;
+    --blue-bg: rgba(96,165,250,0.1);
+    --radius: 10px;
+    --radius-sm: 6px;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --toolbar-h: 56px;
+  }
+  [data-theme="light"] {
+    --bg: #f4f3f8;
+    --bg2: #ffffff;
+    --bg3: #f8f7fc;
+    --bg4: #eeecf7;
+    --border: rgba(0,0,0,0.08);
+    --border2: rgba(0,0,0,0.14);
+    --text: #18181c;
+    --text2: #5a5a72;
+    --text3: #9090a8;
+    --accent: #5a48d4;
+    --accent2: #7c6af7;
+    --accent-glow: rgba(90,72,212,0.12);
+    --green: #059669;
+    --green-bg: rgba(5,150,105,0.08);
+    --amber: #d97706;
+    --amber-bg: rgba(217,119,6,0.08);
+    --red: #dc2626;
+    --red-bg: rgba(220,38,38,0.08);
+    --blue: #2563eb;
+    --blue-bg: rgba(37,99,235,0.08);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    font-family: var(--font-display);
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  /* ── Layout ── */
+  .app {
+    display: grid;
+    grid-template-rows: var(--toolbar-h) 1fr;
+    height: 100vh;
+  }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    z-index: 10;
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 8px;
+  }
+  .brand-icon {
+    width: 28px; height: 28px;
+    background: var(--accent);
+    border-radius: var(--radius-sm);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .brand-icon svg { width: 16px; height: 16px; fill: white; }
+  .brand-name {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+    color: var(--text);
+  }
+  .brand-name span { color: var(--accent); }
+
+  .divider { width: 1px; height: 24px; background: var(--border2); flex-shrink: 0; }
+
+  /* pill group */
+  .pill-group {
+    display: flex;
+    align-items: center;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .pill {
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 5px;
+    border: none;
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .pill:hover { color: var(--text); background: var(--bg4); }
+  .pill.active {
+    background: var(--accent);
+    color: white;
+  }
+
+  .tb-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text3);
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* icon buttons */
+  .icon-btn {
+    width: 32px; height: 32px;
+    display: flex; align-items: center; justify-content: center;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    color: var(--text2);
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .icon-btn:hover { background: var(--bg4); color: var(--text); border-color: var(--border2); }
+  .icon-btn svg { width: 15px; height: 15px; }
+
+  .spacer { flex: 1; }
+
+  /* select */
+  select.lang-select {
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 28px 4px 10px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239090a8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+  }
+  select.lang-select:focus { outline: none; border-color: var(--accent); }
+
+  /* ── Upload zone ── */
+  .upload-panel {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    padding: 24px;
+    place-items: start stretch;
+  }
+
+  .drop-zone {
+    border: 1.5px dashed var(--border2);
+    border-radius: var(--radius);
+    background: var(--bg2);
+    padding: 28px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+  }
+  .drop-zone input[type="file"] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer;
+  }
+  .drop-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: var(--bg4);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .drop-icon svg { width: 20px; height: 20px; stroke: var(--text2); fill: none; }
+  .drop-label { font-size: 14px; font-weight: 600; color: var(--text); }
+  .drop-sub { font-size: 12px; color: var(--text2); }
+  .file-badge {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    background: var(--green-bg);
+    border: 1px solid rgba(52,211,153,0.25);
+    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--green);
+    max-width: 100%;
+    overflow: hidden;
+  }
+  .file-badge svg { width: 12px; height: 12px; stroke: currentColor; fill: none; flex-shrink: 0; }
+  .file-badge span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-badge.visible { display: flex; }
+
+  /* ── Editor area ── */
+  .editor-area {
+    display: none;
+    flex-direction: column;
+    height: calc(100vh - var(--toolbar-h));
+    overflow: hidden;
+  }
+  .editor-area.visible { display: flex; }
+
+  .upload-panel-area {
+    height: calc(100vh - var(--toolbar-h));
+    overflow-y: auto;
+  }
+  .upload-panel-area.hidden { display: none; }
+
+  .editor-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .editor-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .editor-file-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text2);
+    border-right: 1px solid var(--border);
+  }
+  .editor-file-label:last-child { border-right: none; }
+  .file-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .file-dot.a { background: var(--red); }
+  .file-dot.b { background: var(--green); }
+
+  #monaco-container {
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* ── Status bar ── */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 14px;
+    height: 26px;
+    background: var(--accent);
+    flex-shrink: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: white;
+  }
+  .stat { display: flex; align-items: center; gap: 5px; opacity: 0.9; }
+  .stat-dot { width: 6px; height: 6px; border-radius: 50%; background: white; opacity: 0.7; }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed;
+    bottom: 36px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 10px 16px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    transition: transform 0.3s cubic-bezier(.22,1,.36,1);
+    z-index: 100;
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* ── Diff mode badge ── */
+  .mode-badge {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.4px;
+    background: var(--accent-glow);
+    border: 1px solid rgba(124,106,247,0.25);
+    color: var(--accent);
+  }
+
+  .btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border2);
+    background: var(--bg3);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover { background: var(--bg4); border-color: var(--accent); color: var(--accent); }
+  .btn svg { width: 13px; height: 13px; stroke: currentColor; fill: none; }
+  .btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+  .btn.primary:hover { background: var(--accent2); border-color: var(--accent2); color: white; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- TOOLBAR -->
+  <div class="toolbar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 16 16"><path d="M2 2h5v5H2zM9 2h5v5H9zM2 9h5v5H2zM9 9h5v5H9z" opacity=".6"/><path d="M5.5 5.5L10.5 10.5M10.5 5.5L5.5 10.5" stroke="white" stroke-width="1.4" stroke-linecap="round"/></svg>
+      </div>
+      <span class="brand-name">diff<span>forge</span></span>
+    </div>
+
+    <div class="divider"></div>
+
+    <span class="tb-label">Mode</span>
+    <div class="pill-group" id="diffModeGroup">
+      <button class="pill active" data-mode="inline">Inline</button>
+      <button class="pill" data-mode="side">Split</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <span class="tb-label">Diff</span>
+    <div class="pill-group" id="diffTypeGroup">
+      <button class="pill active" data-type="semantic">Semantic</button>
+      <button class="pill" data-type="whitespace">Whitespace</button>
+    </div>
+
+    <div class="divider"></div>
+
+    <span class="tb-label">Language</span>
+    <select class="lang-select" id="langSelect">
+      <option value="xml">XML</option>
+      <option value="json">JSON</option>
+      <option value="apex">Apex</option>
+      <option value="javascript">JavaScript</option>
+      <option value="html">HTML</option>
+      <option value="css">CSS</option>
+      <option value="plaintext">Plain Text</option>
+    </select>
+
+    <div class="spacer"></div>
+
+    <!-- Format -->
+    <button class="btn" id="formatBtn" title="Format both files">
+      <svg viewBox="0 0 16 16" stroke-width="1.4"><path d="M2 4h12M2 8h8M2 12h10" stroke-linecap="round"/></svg>
+      Format
+    </button>
+
+    <!-- Download A -->
+    <button class="btn" id="downloadA" title="Download File A">
+      <svg viewBox="0 0 16 16" stroke-width="1.4"><path d="M8 2v8M5 7l3 3 3-3" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 13h10" stroke-linecap="round"/></svg>
+      Save A
+    </button>
+
+    <!-- Download B -->
+    <button class="btn" id="downloadB" title="Download File B">
+      <svg viewBox="0 0 16 16" stroke-width="1.4"><path d="M8 2v8M5 7l3 3 3-3" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 13h10" stroke-linecap="round"/></svg>
+      Save B
+    </button>
+
+    <div class="divider"></div>
+
+    <!-- Theme toggle -->
+    <button class="icon-btn" id="themeToggle" title="Toggle theme">
+      <svg viewBox="0 0 16 16" stroke-width="1.4" fill="none">
+        <path id="themeIcon" d="M8 3V1M8 15v-2M3 8H1M15 8h-2M4.2 4.2L2.8 2.8M13.2 13.2l-1.4-1.4M4.2 11.8l-1.4 1.4M13.2 2.8l-1.4 1.4M11 8a3 3 0 11-6 0 3 3 0 016 0z" stroke="currentColor" stroke-linecap="round"/>
+      </svg>
+    </button>
+
+    <!-- Reset -->
+    <button class="icon-btn" id="resetBtn" title="Reset / load new files">
+      <svg viewBox="0 0 16 16" stroke-width="1.4" fill="none"><path d="M3 8a5 5 0 105-5H5" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 4.5V8H2" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div style="position:relative;flex:1;overflow:hidden">
+
+    <!-- UPLOAD PANEL -->
+    <div class="upload-panel-area" id="uploadPanel">
+      <div class="upload-panel">
+
+        <!-- File A -->
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <div class="file-dot a"></div>
+            <span style="font-size:14px;font-weight:700;color:var(--text)">Original File</span>
+            <span style="font-size:12px;color:var(--text3)">— File A</span>
+          </div>
+          <div class="drop-zone" id="dropA">
+            <input type="file" id="fileInputA" accept=".xml,.json,.apex,.cls,.trigger,.js,.html,.css,.txt,.meta,.yaml,.yml,.page,.component,.object,.field,.layout,.profile,.permissionset,.flow,.workflow">
+            <div class="drop-icon">
+              <svg viewBox="0 0 24 24" stroke-width="1.5"><path d="M12 16V8M9 11l3-3 3 3" stroke-linecap="round" stroke-linejoin="round"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+            </div>
+            <div class="drop-label">Drop File A here</div>
+            <div class="drop-sub">or click to browse</div>
+            <div class="file-badge" id="badgeA">
+              <svg viewBox="0 0 12 12" stroke-width="1.5"><path d="M2 6l2.5 2.5L10 3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span id="nameA">file.xml</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- File B -->
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <div class="file-dot b"></div>
+            <span style="font-size:14px;font-weight:700;color:var(--text)">Modified File</span>
+            <span style="font-size:12px;color:var(--text3)">— File B</span>
+          </div>
+          <div class="drop-zone" id="dropB">
+            <input type="file" id="fileInputB" accept=".xml,.json,.apex,.cls,.trigger,.js,.html,.css,.txt,.meta,.yaml,.yml,.page,.component,.object,.field,.layout,.profile,.permissionset,.flow,.workflow">
+            <div class="drop-icon">
+              <svg viewBox="0 0 24 24" stroke-width="1.5"><path d="M12 16V8M9 11l3-3 3 3" stroke-linecap="round" stroke-linejoin="round"/><rect x="3" y="3" width="18" height="18" rx="3"/></svg>
+            </div>
+            <div class="drop-label">Drop File B here</div>
+            <div class="drop-sub">or click to browse</div>
+            <div class="file-badge" id="badgeB">
+              <svg viewBox="0 0 12 12" stroke-width="1.5"><path d="M2 6l2.5 2.5L10 3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              <span id="nameB">file.xml</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Info cards -->
+      <div style="padding:0 24px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px;">Supported Formats</div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.7">XML · JSON · Apex · JavaScript · HTML · CSS · Plain Text · Salesforce Metadata</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px;">Diff Options</div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.7">Semantic diff ignores trivial whitespace. Whitespace mode shows all character-level changes.</div>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;">
+          <div style="font-size:11px;font-weight:600;color:var(--text3);letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px;">Smart Format</div>
+          <div style="font-size:13px;color:var(--text2);line-height:1.7">Auto-format XML and JSON with consistent indentation before comparing.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- EDITOR AREA -->
+    <div class="editor-area" id="editorArea">
+
+      <div class="editor-toolbar">
+        <div class="mode-badge" id="modeBadge">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="var(--accent)"><circle cx="5" cy="5" r="4"/></svg>
+          Semantic · Inline
+        </div>
+        <div class="spacer"></div>
+        <div id="diffStats" style="display:flex;gap:10px;font-size:12px;font-weight:500;">
+          <span style="color:var(--green)">+<span id="insCount">0</span> added</span>
+          <span style="color:var(--red)">−<span id="delCount">0</span> removed</span>
+        </div>
+      </div>
+
+      <div class="editor-header" id="editorHeader">
+        <div class="editor-file-label">
+          <div class="file-dot a"></div>
+          <span id="labelA">file-a.xml</span>
+        </div>
+        <div class="editor-file-label">
+          <div class="file-dot b"></div>
+          <span id="labelB">file-b.xml</span>
+        </div>
+      </div>
+
+      <div id="monaco-container"></div>
+
+      <div class="status-bar">
+        <span class="stat"><span class="stat-dot"></span><span id="langStatus">XML</span></span>
+        <span class="stat"><span class="stat-dot"></span><span id="sizeStatus">0 B / 0 B</span></span>
+        <span class="stat"><span class="stat-dot"></span><span id="lineStatus">0 / 0 lines</span></span>
+        <div style="flex:1"></div>
+        <span style="opacity:.7">Monaco Editor · DiffForge</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const state = {
+  contentA: '',
+  contentB: '',
+  fileNameA: 'file-a.xml',
+  fileNameB: 'file-b.xml',
+  lang: 'xml',
+  diffMode: 'inline',
+  diffType: 'semantic',
+  theme: 'dark',
+  diffEditor: null,
+  modelsCreated: false
+};
+
+// ── Theme ────────────────────────────────────────
+function applyTheme() {
+  document.documentElement.setAttribute('data-theme', state.theme);
+  const icon = document.getElementById('themeIcon');
+  if (state.theme === 'light') {
+    icon.setAttribute('d', 'M12 3C9 3 6.5 5.5 6.5 8.5S9 14 12 14c3 0 5.5-2.5 5.5-5.5A5.5 5.5 0 0012 3z');
+  } else {
+    icon.setAttribute('d', 'M8 3V1M8 15v-2M3 8H1M15 8h-2M4.2 4.2L2.8 2.8M13.2 13.2l-1.4-1.4M4.2 11.8l-1.4 1.4M13.2 2.8l-1.4 1.4M11 8a3 3 0 11-6 0 3 3 0 016 0z');
+  }
+  if (state.diffEditor) {
+    monaco.editor.setTheme(state.theme === 'dark' ? 'df-dark' : 'df-light');
+  }
+}
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  state.theme = state.theme === 'dark' ? 'light' : 'dark';
+  applyTheme();
+});
+
+// ── File size helper ──────────────────────────────
+function fmtSize(s) {
+  const b = new Blob([s]).size;
+  return b < 1024 ? b + ' B' : (b / 1024).toFixed(1) + ' KB';
+}
+
+// ── Detect language from filename ────────────────
+function detectLang(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const map = {
+    xml: 'xml', meta: 'xml', object: 'xml', field: 'xml', layout: 'xml',
+    profile: 'xml', permissionset: 'xml', flow: 'xml', workflow: 'xml',
+    page: 'xml', component: 'xml', app: 'xml',
+    json: 'json',
+    apex: 'apex', cls: 'apex', trigger: 'apex',
+    js: 'javascript',
+    html: 'html', htm: 'html',
+    css: 'css',
+  };
+  return map[ext] || 'plaintext';
+}
+
+// ── Format code ──────────────────────────────────
+function formatXML(src) {
+  try {
+    let formatted = '', indent = 0;
+    const tab = '  ';
+    src.replace(/>\s*</g, '>\n<').split('\n').forEach(node => {
+      const n = node.trim();
+      if (!n) return;
+      if (n.startsWith('</')) { indent--; }
+      formatted += tab.repeat(Math.max(0, indent)) + n + '\n';
+      if (!n.startsWith('</') && !n.endsWith('/>') && !n.includes('</') && n.startsWith('<') && !n.startsWith('<?') && !n.startsWith('<!')) {
+        indent++;
+      }
+    });
+    return formatted.trim();
+  } catch { return src; }
+}
+
+function formatJSON(src) {
+  try { return JSON.stringify(JSON.parse(src), null, 2); }
+  catch { return src; }
+}
+
+function formatContent(content, lang) {
+  if (lang === 'xml') return formatXML(content);
+  if (lang === 'json') return formatJSON(content);
+  return content;
+}
+
+// ── Toast ─────────────────────────────────────────
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+// ── Count diff changes ────────────────────────────
+function updateDiffStats() {
+  if (!state.diffEditor) return;
+  const changes = state.diffEditor.getLineChanges();
+  if (!changes) return;
+  let ins = 0, del = 0;
+  changes.forEach(c => {
+    if (c.modifiedEndLineNumber >= c.modifiedStartLineNumber)
+      ins += c.modifiedEndLineNumber - c.modifiedStartLineNumber + 1;
+    if (c.originalEndLineNumber >= c.originalStartLineNumber)
+      del += c.originalEndLineNumber - c.originalStartLineNumber + 1;
+  });
+  document.getElementById('insCount').textContent = ins;
+  document.getElementById('delCount').textContent = del;
+}
+
+// ── Update mode badge ─────────────────────────────
+function updateModeBadge() {
+  const typeLabel = state.diffType === 'semantic' ? 'Semantic' : 'Whitespace';
+  const modeLabel = state.diffMode === 'inline' ? 'Inline' : 'Split';
+  document.getElementById('modeBadge').innerHTML = `
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="var(--accent)"><circle cx="5" cy="5" r="4"/></svg>
+    ${typeLabel} · ${modeLabel}
+  `;
+}
+
+// ── Update status bar ─────────────────────────────
+function updateStatus() {
+  document.getElementById('langStatus').textContent = state.lang.toUpperCase();
+  document.getElementById('sizeStatus').textContent = fmtSize(state.contentA) + ' / ' + fmtSize(state.contentB);
+  const la = state.contentA.split('\n').length;
+  const lb = state.contentB.split('\n').length;
+  document.getElementById('lineStatus').textContent = la + ' / ' + lb + ' lines';
+}
+
+// ── Monaco setup ──────────────────────────────────
+require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+require(['vs/editor/editor.main'], function() {
+
+  monaco.editor.defineTheme('df-dark', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: 'tag', foreground: '7c6af7' },
+      { token: 'attribute.name', foreground: '60a5fa' },
+      { token: 'attribute.value', foreground: '34d399' },
+      { token: 'string', foreground: '34d399' },
+      { token: 'number', foreground: 'fbbf24' },
+      { token: 'keyword', foreground: 'f472b6' },
+    ],
+    colors: {
+      'editor.background': '#18181c',
+      'editor.foreground': '#e8e8f0',
+      'editor.lineHighlightBackground': '#1e1e24',
+      'editorLineNumber.foreground': '#3a3a4a',
+      'editorLineNumber.activeForeground': '#7c6af7',
+      'editor.selectionBackground': '#7c6af730',
+      'diffEditor.insertedTextBackground': '#34d39920',
+      'diffEditor.removedTextBackground': '#f8717120',
+      'diffEditor.insertedLineBackground': '#34d39910',
+      'diffEditor.removedLineBackground': '#f8717110',
+      'diffEditorGutter.insertedLineBackground': '#34d39930',
+      'diffEditorGutter.removedLineBackground': '#f8717130',
+      'scrollbarSlider.background': '#3a3a4a60',
+      'editorWidget.background': '#18181c',
+      'editorSuggestWidget.background': '#18181c',
+      'minimap.background': '#14141800',
+    }
+  });
+
+  monaco.editor.defineTheme('df-light', {
+    base: 'vs',
+    inherit: true,
+    rules: [
+      { token: 'tag', foreground: '5a48d4' },
+      { token: 'attribute.name', foreground: '2563eb' },
+      { token: 'attribute.value', foreground: '059669' },
+      { token: 'string', foreground: '059669' },
+      { token: 'number', foreground: 'd97706' },
+    ],
+    colors: {
+      'editor.background': '#ffffff',
+      'editor.foreground': '#18181c',
+      'editorLineNumber.foreground': '#b4b4c8',
+      'editorLineNumber.activeForeground': '#5a48d4',
+      'editor.selectionBackground': '#5a48d430',
+      'diffEditor.insertedTextBackground': '#05966920',
+      'diffEditor.removedTextBackground': '#dc262620',
+      'diffEditor.insertedLineBackground': '#05966910',
+      'diffEditor.removedLineBackground': '#dc262610',
+      'diffEditorGutter.insertedLineBackground': '#05966930',
+      'diffEditorGutter.removedLineBackground': '#dc262630',
+    }
+  });
+
+  // Create editor
+  state.diffEditor = monaco.editor.createDiffEditor(document.getElementById('monaco-container'), {
+    theme: 'df-dark',
+    renderSideBySide: false,
+    ignoreTrimWhitespace: true,
+    enableSplitViewResizing: true,
+    originalEditable: true,
+    modifiedEditable: true,
+    fontSize: 13,
+    fontFamily: "'JetBrains Mono', monospace",
+    fontLigatures: true,
+    lineHeight: 21,
+    scrollBeyondLastLine: false,
+    minimap: { enabled: true, scale: 1 },
+    renderOverviewRuler: true,
+    scrollbar: { vertical: 'auto', horizontal: 'auto' },
+    padding: { top: 12, bottom: 12 },
+    diffWordWrap: 'on',
+    wordWrap: 'off',
+  });
+
+  function setModels() {
+    const orig = monaco.editor.createModel(state.contentA, state.lang);
+    const mod = monaco.editor.createModel(state.contentB, state.lang);
+    state.diffEditor.setModel({ original: orig, modified: mod });
+    state.modelsCreated = true;
+    setTimeout(() => {
+      updateDiffStats();
+      updateStatus();
+    }, 400);
+  }
+
+  // Expose for later
+  window._setModels = setModels;
+  window._monaco = monaco;
+
+  // If files already loaded before monaco was ready
+  if (state.contentA !== '' && state.contentB !== '') {
+    setModels();
+    showEditorArea();
+  }
+
+  // Listen for diff changes
+  state.diffEditor.onDidUpdateDiff(() => updateDiffStats());
+
+  // Resize observer
+  const ro = new ResizeObserver(() => state.diffEditor.layout());
+  ro.observe(document.getElementById('monaco-container'));
+});
+
+// ── Show editor ───────────────────────────────────
+function showEditorArea() {
+  document.getElementById('uploadPanel').classList.add('hidden');
+  document.getElementById('editorArea').classList.add('visible');
+  document.getElementById('labelA').textContent = state.fileNameA;
+  document.getElementById('labelB').textContent = state.fileNameB;
+  // show split header only in side-by-side
+  document.getElementById('editorHeader').style.display = state.diffMode === 'side' ? 'grid' : 'none';
+  updateModeBadge();
+  updateStatus();
+}
+
+// ── File reading ──────────────────────────────────
+function readFile(file, which) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const content = e.target.result;
+    const lang = detectLang(file.name);
+    if (which === 'A') {
+      state.contentA = content;
+      state.fileNameA = file.name;
+      state.lang = lang;
+      document.getElementById('langSelect').value = lang in { xml:1,json:1,javascript:1,html:1,css:1,plaintext:1 } ? lang : 'xml';
+      document.getElementById('nameA').textContent = file.name;
+      document.getElementById('badgeA').classList.add('visible');
+    } else {
+      state.contentB = content;
+      state.fileNameB = file.name;
+      document.getElementById('nameB').textContent = file.name;
+      document.getElementById('badgeB').classList.add('visible');
+    }
+
+    if (state.contentA !== '' && state.contentB !== '') {
+      if (window._setModels) {
+        window._setModels();
+        showEditorArea();
+      }
+    }
+  };
+  reader.readAsText(file);
+}
+
+// File inputs
+document.getElementById('fileInputA').addEventListener('change', e => {
+  if (e.target.files[0]) readFile(e.target.files[0], 'A');
+});
+document.getElementById('fileInputB').addEventListener('change', e => {
+  if (e.target.files[0]) readFile(e.target.files[0], 'B');
+});
+
+// Drag-drop
+['A','B'].forEach(which => {
+  const zone = document.getElementById('drop' + which);
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) readFile(file, which);
+  });
+});
+
+// ── Pill group logic ──────────────────────────────
+function activatePill(groupId, value, stateProp) {
+  document.querySelectorAll('#' + groupId + ' .pill').forEach(p => {
+    p.classList.toggle('active', p.dataset[stateProp === 'diffMode' ? 'mode' : 'type'] === value);
+  });
+}
+
+document.getElementById('diffModeGroup').addEventListener('click', e => {
+  const pill = e.target.closest('.pill');
+  if (!pill) return;
+  state.diffMode = pill.dataset.mode;
+  activatePill('diffModeGroup', state.diffMode, 'diffMode');
+  if (state.diffEditor) {
+    state.diffEditor.updateOptions({ renderSideBySide: state.diffMode === 'side' });
+    document.getElementById('editorHeader').style.display = state.diffMode === 'side' ? 'grid' : 'none';
+  }
+  updateModeBadge();
+  showToast(state.diffMode === 'side' ? 'Split view enabled' : 'Inline view enabled');
+});
+
+document.getElementById('diffTypeGroup').addEventListener('click', e => {
+  const pill = e.target.closest('.pill');
+  if (!pill) return;
+  state.diffType = pill.dataset.type;
+  activatePill('diffTypeGroup', state.diffType, 'diffType');
+  const ignore = state.diffType === 'semantic';
+  if (state.diffEditor) state.diffEditor.updateOptions({ ignoreTrimWhitespace: ignore });
+  updateModeBadge();
+  showToast(state.diffType === 'semantic' ? 'Semantic diff: whitespace ignored' : 'Whitespace diff: all changes shown');
+});
+
+// ── Language select ───────────────────────────────
+document.getElementById('langSelect').addEventListener('change', e => {
+  state.lang = e.target.value;
+  if (state.diffEditor && state.modelsCreated) {
+    const m = state.diffEditor.getModel();
+    if (m) {
+      window._monaco.editor.setModelLanguage(m.original, state.lang);
+      window._monaco.editor.setModelLanguage(m.modified, state.lang);
+    }
+  }
+  updateStatus();
+  showToast('Language: ' + state.lang.toUpperCase());
+});
+
+// ── Format ────────────────────────────────────────
+document.getElementById('formatBtn').addEventListener('click', () => {
+  if (!state.diffEditor || !state.modelsCreated) return showToast('Load both files first');
+  const m = state.diffEditor.getModel();
+  if (!m) return;
+  const fA = formatContent(m.original.getValue(), state.lang);
+  const fB = formatContent(m.modified.getValue(), state.lang);
+  m.original.setValue(fA);
+  m.modified.setValue(fB);
+  state.contentA = fA;
+  state.contentB = fB;
+  updateStatus();
+  showToast('Both files formatted');
+});
+
+// ── Download ──────────────────────────────────────
+function downloadContent(content, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content], { type: 'text/plain' }));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+document.getElementById('downloadA').addEventListener('click', () => {
+  if (!state.diffEditor || !state.modelsCreated) return showToast('Load both files first');
+  const content = state.diffEditor.getModel()?.original.getValue() || state.contentA;
+  downloadContent(content, state.fileNameA);
+  showToast('Downloaded: ' + state.fileNameA);
+});
+
+document.getElementById('downloadB').addEventListener('click', () => {
+  if (!state.diffEditor || !state.modelsCreated) return showToast('Load both files first');
+  const content = state.diffEditor.getModel()?.modified.getValue() || state.contentB;
+  downloadContent(content, state.fileNameB);
+  showToast('Downloaded: ' + state.fileNameB);
+});
+
+// ── Reset ─────────────────────────────────────────
+document.getElementById('resetBtn').addEventListener('click', () => {
+  state.contentA = ''; state.contentB = '';
+  state.fileNameA = 'file-a.xml'; state.fileNameB = 'file-b.xml';
+  state.modelsCreated = false;
+  document.getElementById('fileInputA').value = '';
+  document.getElementById('fileInputB').value = '';
+  document.getElementById('badgeA').classList.remove('visible');
+  document.getElementById('badgeB').classList.remove('visible');
+  document.getElementById('editorArea').classList.remove('visible');
+  document.getElementById('uploadPanel').classList.remove('hidden');
+  if (state.diffEditor) state.diffEditor.setModel(null);
+  showToast('Reset — load new files');
+});
+</script>
+</body>
+</html>
