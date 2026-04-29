@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Load Plan Converter</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+
+  <!-- Monaco -->
+  <script src="https://unpkg.com/monaco-editor@0.45.0/min/vs/loader.js"></script>
+
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #container { height: 100vh; display: flex; }
+    .pane { height: 100%; }
+    .divider {
+      width: 6px;
+      cursor: col-resize;
+      background: linear-gradient(to right, transparent, #888, transparent);
+      transition: background 0.2s;
+    }
+    .divider:hover {
+      background: linear-gradient(to right, transparent, #38bdf8, transparent);
+    }
+  </style>
+</head>
+
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+
+<!-- Header -->
+<div class="p-3 flex gap-3 items-center border-b border-gray-300 dark:border-gray-700">
+  <input type="file" id="fileInput" class="text-sm" />
+  
+  <button onclick="convert()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+    Convert
+  </button>
+
+  <button onclick="download('input')" class="px-3 py-2 bg-gray-500 text-white rounded">
+    Download Input
+  </button>
+
+  <button onclick="download('output')" class="px-3 py-2 bg-green-600 text-white rounded">
+    Download Output
+  </button>
+
+  <button onclick="toggleTheme()" class="ml-auto px-3 py-2 bg-purple-600 text-white rounded">
+    Toggle Theme
+  </button>
+</div>
+
+<!-- Editors -->
+<div id="container">
+  <div id="left" class="pane w-1/2"></div>
+  <div id="divider" class="divider"></div>
+  <div id="right" class="pane w-1/2"></div>
+</div>
+
+<script>
+let inputEditor, outputEditor;
+
+// ------------------------
+// Monaco Init
+// ------------------------
+require.config({ paths: { vs: 'https://unpkg.com/monaco-editor@0.45.0/min/vs' } });
+
+require(['vs/editor/editor.main'], function () {
+
+  inputEditor = monaco.editor.create(document.getElementById('left'), {
+    value: '{}',
+    language: 'json',
+    theme: 'vs-dark',
+    automaticLayout: true
+  });
+
+  outputEditor = monaco.editor.create(document.getElementById('right'), {
+    value: '{}',
+    language: 'json',
+    theme: 'vs-dark',
+    automaticLayout: true
+  });
+
+});
+
+// ------------------------
+// File Upload
+// ------------------------
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    inputEditor.setValue(evt.target.result);
+  };
+  reader.readAsText(file);
+});
+
+// ------------------------
+// Converter Logic
+// ------------------------
+
+const SYSTEM_RELATIONSHIPS = ['CreatedBy','LastModifiedBy','Owner'];
+
+function convertToGlobalKey(field) {
+  return field.replace(/(\w+)\.(\w+)/g, (m, rel) => {
+    if (SYSTEM_RELATIONSHIPS.includes(rel)) return m;
+    return `${rel}.Global_Key__c`;
+  });
+}
+
+function extractFields(query) {
+  const match = query.match(/SELECT (.+?) FROM/i);
+  if (!match) return [];
+  return match[1].split(',').map(f => f.trim());
+}
+
+function buildQuery(obj, fields) {
+  return `SELECT ${[...new Set(fields)].join(',')} FROM ${obj}`;
+}
+
+function transform(obj) {
+
+  const fields = extractFields(obj.query || '');
+
+  const gk = [];
+  const v1 = [];
+
+  fields.forEach(f => {
+    if (f.includes('.')) {
+      const c = convertToGlobalKey(f);
+      gk.push(c);
+      v1.push(c);
+    } else {
+      v1.push(f);
+      if (f !== 'Name') gk.push(f);
+    }
+  });
+
+  if (!gk.includes('Global_Key__c')) gk.unshift('Global_Key__c');
+
+  return {
+    object: obj.object,
+    compositeKeys: ['Global_Key__c'],
+    compositeKeys_v1: obj.compositeKeys || [],
+    query: buildQuery(obj.object, gk),
+    query_v1: buildQuery(obj.object, v1),
+    fieldMappings: transformMappings(obj.fieldMappings)
+  };
+}
+
+function transformMappings(m = {}) {
+  const out = { Global_Key__c: 'Global_Key__c' };
+
+  for (let k in m) {
+    const v = m[k];
+
+    if (v && v.lookup) {
+      out[k] = {
+        lookup: {
+          object: v.lookup.object,
+          key: 'Global_Key__c',
+          field: convertToGlobalKey(v.lookup.field)
+        }
+      };
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
+// ------------------------
+// Convert Button
+// ------------------------
+function convert() {
+  try {
+    const input = JSON.parse(inputEditor.getValue());
+    const arr = Array.isArray(input) ? input : [input];
+
+    const result = arr.map(transform);
+
+    outputEditor.setValue(JSON.stringify(result, null, 2));
+
+  } catch (e) {
+    alert('Invalid JSON');
+  }
+}
+
+// ------------------------
+// Download
+// ------------------------
+function download(type) {
+  const data = type === 'input' ? inputEditor.getValue() : outputEditor.getValue();
+  const blob = new Blob([data], { type: 'application/json' });
+  const a = document.createElement('a');
+
+  a.href = URL.createObjectURL(blob);
+  a.download = type + '.json';
+  a.click();
+}
+
+// ------------------------
+// Theme Toggle
+// ------------------------
+function toggleTheme() {
+  document.documentElement.classList.toggle('dark');
+  const theme = document.documentElement.classList.contains('dark') ? 'vs-dark' : 'vs';
+  monaco.editor.setTheme(theme);
+}
+
+// ------------------------
+// Splitter
+// ------------------------
+const divider = document.getElementById('divider');
+let isDragging = false;
+
+divider.addEventListener('mousedown', () => isDragging = true);
+document.addEventListener('mouseup', () => isDragging = false);
+
+document.addEventListener('mousemove', (e) => {
+  if (!isDragging) return;
+
+  const percent = (e.clientX / window.innerWidth) * 100;
+
+  document.getElementById('left').style.width = percent + '%';
+  document.getElementById('right').style.width = (100 - percent) + '%';
+});
+</script>
+
+</body>
+</html>
