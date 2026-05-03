@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Salesforce Data Migration — Global_Key__c</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&family=Lato:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy:   #060f1e;
+    --deep:   #0a1a2e;
+    --blue:   #1557b0;
+    --sky:    #1e90d6;
+    --mint:   #00c9a7;
+    --amber:  #e8820c;
+    --purple: #8b5cf6;
+    --white:  #f0f5fa;
+    --gray:   #7a90a8;
+    --code:   #a8d4ff;
+    --border: rgba(30,144,214,0.25);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Lato', sans-serif;
+    background: #020810;
+    color: var(--white);
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    user-select: none;
+  }
+
+  /* ── Slide container ── */
+  #deck {
+    width: 100%; height: 100%;
+    position: relative;
+  }
+
+  .slide {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    padding: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.45s ease, transform 0.45s ease;
+    transform: translateX(40px);
+    overflow: hidden;
+  }
+  .slide.active {
+    opacity: 1; pointer-events: all; transform: translateX(0);
+  }
+  .slide.out {
+    opacity: 0; transform: translateX(-40px);
+  }
+
+  /* ── Progress bar ── */
+  #progress-bar {
+    position: fixed; top: 0; left: 0; height: 3px;
+    background: linear-gradient(90deg, var(--mint), var(--sky));
+    transition: width 0.4s ease;
+    z-index: 100;
+  }
+
+  /* ── Nav ── */
+  #nav {
+    position: fixed; bottom: 24px; right: 28px;
+    display: flex; gap: 10px; align-items: center; z-index: 100;
+  }
+  #nav button {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--border);
+    color: var(--white); width: 40px; height: 40px;
+    border-radius: 8px; font-size: 18px;
+    cursor: pointer; backdrop-filter: blur(6px);
+    transition: background 0.2s, border-color 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #nav button:hover { background: rgba(30,144,214,0.2); border-color: var(--sky); }
+
+  #slide-counter {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--gray);
+    min-width: 48px; text-align: center;
+  }
+
+  /* ── Slide header bar ── */
+  .slide-header {
+    background: var(--deep);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 48px;
+    flex-shrink: 0;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .slide-header .section-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--mint);
+    border: 1px solid var(--mint);
+    padding: 2px 7px; border-radius: 3px;
+    letter-spacing: 0.08em;
+  }
+  .slide-header h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 18px; font-weight: 700;
+    color: var(--white); letter-spacing: 0.01em;
+  }
+
+  /* ── Slide body ── */
+  .slide-body {
+    flex: 1; padding: 32px 48px;
+    display: flex; flex-direction: column; gap: 18px;
+    overflow: hidden;
+  }
+
+  /* ─────────────────────────────────────────
+     SLIDE 1 — TITLE
+  ───────────────────────────────────────── */
+  #s1 {
+    background: var(--navy);
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0 80px;
+  }
+  #s1::before {
+    content: '';
+    position: absolute;
+    top: -120px; right: -120px;
+    width: 600px; height: 600px;
+    background: radial-gradient(circle, rgba(0,201,167,0.12) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  #s1::after {
+    content: '';
+    position: absolute;
+    bottom: -80px; left: 60px;
+    width: 400px; height: 400px;
+    background: radial-gradient(circle, rgba(21,87,176,0.15) 0%, transparent 65%);
+    pointer-events: none;
+  }
+  .title-eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--mint);
+    letter-spacing: 0.15em; text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .title-main {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(32px, 5vw, 58px);
+    font-weight: 800; line-height: 1.1;
+    color: var(--white);
+    margin-bottom: 12px;
+  }
+  .title-main span { color: var(--mint); }
+  .title-sub {
+    font-size: 16px; color: var(--gray);
+    font-weight: 300; margin-bottom: 40px;
+    max-width: 600px; line-height: 1.6;
+  }
+  .tool-pills {
+    display: flex; flex-wrap: wrap; gap: 10px;
+    margin-bottom: 16px;
+  }
+  .pill {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; padding: 5px 12px;
+    border: 1px solid rgba(30,144,214,0.4);
+    border-radius: 4px; color: var(--sky);
+    background: rgba(30,144,214,0.07);
+  }
+  .pill.mint { border-color: rgba(0,201,167,0.4); color: var(--mint); background: rgba(0,201,167,0.07); }
+
+  /* ─────────────────────────────────────────
+     AGENDA
+  ───────────────────────────────────────── */
+  .agenda-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px; flex: 1;
+  }
+  .agenda-item {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 8px; padding: 18px 16px;
+    display: flex; flex-direction: column; gap: 6px;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .agenda-item:hover { border-color: var(--sky); background: rgba(30,144,214,0.06); }
+  .agenda-num {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--mint); letter-spacing: 0.1em;
+  }
+  .agenda-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px; font-weight: 700; color: var(--white);
+  }
+  .agenda-desc { font-size: 11px; color: var(--gray); line-height: 1.5; }
+
+  /* ─────────────────────────────────────────
+     OVERVIEW (two-column)
+  ───────────────────────────────────────── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; flex: 1; }
+  .col-card {
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .col-card-header {
+    padding: 12px 18px;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px; font-weight: 700;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .col-card-header.danger { background: rgba(220,60,60,0.15); color: #f87171; border-bottom: 1px solid rgba(220,60,60,0.25); }
+  .col-card-header.success { background: rgba(0,201,167,0.12); color: var(--mint); border-bottom: 1px solid rgba(0,201,167,0.25); }
+  .col-card-body { padding: 16px 18px; flex: 1; display: flex; flex-direction: column; gap: 10px; }
+  .check-row {
+    display: flex; gap: 10px; align-items: flex-start;
+    font-size: 12.5px; line-height: 1.5;
+  }
+  .check-row .icon { flex-shrink: 0; margin-top: 1px; font-size: 13px; }
+  .check-row.neg .icon { color: #f87171; }
+  .check-row.pos .icon { color: var(--mint); }
+  .check-row .text { color: #c0ccd8; }
+
+  /* ─────────────────────────────────────────
+     ERD
+  ───────────────────────────────────────── */
+  .erd-wrap {
+    display: flex; flex-direction: column; gap: 16px; flex: 1;
+  }
+  .erd-diagram {
+    display: flex; align-items: center; justify-content: center;
+    gap: 0; flex: 1; position: relative;
+  }
+  .erd-entity {
+    background: var(--deep);
+    border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+    min-width: 190px;
+  }
+  .erd-entity-header {
+    padding: 9px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+  .erd-entity-header.sky { background: rgba(30,144,214,0.2); color: var(--sky); }
+  .erd-entity-header.mint { background: rgba(0,201,167,0.15); color: var(--mint); }
+  .erd-entity-header.amber { background: rgba(232,130,12,0.15); color: var(--amber); }
+  .erd-field {
+    padding: 5px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px; color: var(--code);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .erd-field .tag { font-size: 9px; opacity: 0.7; margin-left: 4px; }
+  .erd-field.key { color: var(--mint); }
+  .erd-field.fk  { color: var(--amber); }
+  .erd-arrow {
+    display: flex; align-items: center; padding: 0 12px;
+    flex-direction: column; gap: 4px;
+  }
+  .erd-arrow-line {
+    display: flex; align-items: center; gap: 0;
+  }
+  .erd-line { width: 40px; height: 2px; background: var(--border); }
+  .erd-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sky); }
+  .erd-label { font-size: 9px; color: var(--gray); font-style: italic; }
+
+  .erd-data {
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--border);
+    border-radius: 8px; padding: 12px 16px;
+  }
+  .erd-data-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--mint); margin-bottom: 8px;
+    letter-spacing: 0.08em;
+  }
+  .erd-data pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--code); line-height: 1.7;
+    white-space: pre-wrap;
+  }
+
+  /* ─────────────────────────────────────────
+     TOOLCHAIN
+  ───────────────────────────────────────── */
+  .tool-list { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .tool-row {
+    display: grid; grid-template-columns: 32px 2.6fr 1fr 3fr;
+    gap: 0; align-items: stretch;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .tool-row:hover { border-color: var(--sky); }
+  .tool-num {
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; font-weight: 700; color: var(--white);
+  }
+  .tool-pkg {
+    padding: 12px 16px; display: flex; flex-direction: column;
+    justify-content: center; gap: 3px;
+    border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+  }
+  .tool-pkg-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px; font-weight: 600; color: var(--white);
+  }
+  .tool-pkg-npm {
+    font-size: 10px; color: var(--gray);
+  }
+  .tool-role {
+    padding: 12px 14px; display: flex; align-items: center;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.03em;
+    border-right: 1px solid var(--border);
+  }
+  .tool-desc {
+    padding: 12px 16px; display: flex; align-items: center;
+    font-size: 11px; color: var(--gray); line-height: 1.5;
+  }
+
+  /* ─────────────────────────────────────────
+     CODE SLIDE
+  ───────────────────────────────────────── */
+  .code-layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 18px; flex: 1; }
+  .code-block {
+    background: #050e1a;
+    border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .code-topbar {
+    padding: 8px 14px; background: #071527;
+    border-bottom: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--mint);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .code-dots { display: flex; gap: 5px; }
+  .code-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .code-dot.r { background: #e96055; }
+  .code-dot.y { background: #f2c147; }
+  .code-dot.g { background: #4caf7d; }
+  .code-block pre {
+    flex: 1; padding: 16px 18px; overflow: auto;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; line-height: 1.75;
+    color: var(--code); white-space: pre;
+  }
+  .code-block pre .k { color: #79b8ff; }
+  .code-block pre .s { color: #a8d8a8; }
+  .code-block pre .c { color: #e67e22; }
+  .code-block pre .m { color: var(--mint); }
+
+  .callout-list { display: flex; flex-direction: column; gap: 12px; }
+  .callout {
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  .callout-head {
+    padding: 8px 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+  .callout-head.sky { background: rgba(30,144,214,0.15); color: var(--sky); }
+  .callout-head.amber { background: rgba(232,130,12,0.12); color: var(--amber); }
+  .callout-head.mint { background: rgba(0,201,167,0.12); color: var(--mint); }
+  .callout-head.purple { background: rgba(139,92,246,0.12); color: var(--purple); }
+  .callout-body { padding: 10px 14px; font-size: 11px; color: var(--gray); line-height: 1.55; }
+
+  /* ─────────────────────────────────────────
+     WORKFLOW (SMT)
+  ───────────────────────────────────────── */
+  .workflow { display: flex; flex-direction: column; gap: 14px; flex: 1; }
+  .wf-step {
+    display: grid; grid-template-columns: 44px 180px 1fr;
+    gap: 0; align-items: stretch;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    background: rgba(255,255,255,0.02);
+  }
+  .wf-num {
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 800;
+    color: var(--white);
+  }
+  .wf-title {
+    padding: 12px 16px; border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    display: flex; align-items: center;
+    font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
+    color: var(--white);
+  }
+  .wf-detail { padding: 12px 16px; display: flex; align-items: center; font-size: 11.5px; color: var(--gray); line-height: 1.55; }
+  .wf-cmd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; color: var(--code);
+    background: rgba(0,0,0,0.3); border-radius: 3px;
+    padding: 2px 6px; display: inline-block; margin-top: 4px;
+  }
+
+  /* ─────────────────────────────────────────
+     COMPARE
+  ───────────────────────────────────────── */
+  .compare-section { flex: 1; display: flex; flex-direction: column; gap: 14px; }
+  .compare-cmd-block {
+    background: #050e1a; border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 18px;
+  }
+  .compare-cmd-block pre {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--code); line-height: 1.8;
+  }
+  .compare-cmd-block pre .prompt { color: var(--mint); }
+  .compare-cards {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; flex: 1;
+  }
+  .cmp-card {
+    background: rgba(255,255,255,0.025); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+    display: flex; flex-direction: column;
+  }
+  .cmp-card-head {
+    padding: 10px 14px; background: rgba(30,144,214,0.12);
+    border-bottom: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--sky); font-weight: 600;
+  }
+  .cmp-card-body { padding: 12px 14px; flex: 1; font-size: 11px; color: var(--gray); line-height: 1.55; }
+  .cmp-status {
+    margin: 8px 14px 12px; padding: 5px 10px;
+    background: rgba(0,201,167,0.1); border: 1px solid rgba(0,201,167,0.3);
+    border-radius: 4px; font-size: 10.5px; font-weight: 600; color: var(--mint);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ─────────────────────────────────────────
+     SETUP
+  ───────────────────────────────────────── */
+  .setup-steps { flex: 1; display: flex; flex-direction: column; gap: 9px; }
+  .setup-step {
+    display: grid; grid-template-columns: 90px 220px 1fr;
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    background: rgba(255,255,255,0.02);
+    transition: border-color 0.2s;
+  }
+  .setup-step:hover { border-color: var(--mint); }
+  .setup-badge {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 8px; gap: 2px;
+    border-right: 1px solid var(--border);
+  }
+  .setup-badge .step-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; color: var(--mint); letter-spacing: 0.1em;
+  }
+  .setup-badge .step-n {
+    font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; color: var(--white);
+  }
+  .setup-title {
+    padding: 10px 14px; display: flex; flex-direction: column; justify-content: center;
+    gap: 3px; border-right: 1px solid var(--border);
+  }
+  .setup-title-text {
+    font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; color: var(--white);
+  }
+  .setup-title-note { font-size: 10px; color: var(--gray); font-style: italic; }
+  .setup-cmd-wrap { padding: 8px 14px; display: flex; align-items: center; }
+  .setup-cmd {
+    font-family: 'JetBrains Mono', monospace; font-size: 10.5px;
+    color: var(--code); background: rgba(0,0,0,0.3); border-radius: 4px;
+    padding: 6px 12px;
+  }
+
+  /* ─────────────────────────────────────────
+     SUMMARY
+  ───────────────────────────────────────── */
+  #s10 { background: var(--navy); }
+  #s10::before {
+    content: '';
+    position: absolute; top: -60px; right: -60px;
+    width: 500px; height: 500px;
+    background: radial-gradient(circle, rgba(0,201,167,0.1) 0%, transparent 60%);
+    pointer-events: none;
+  }
+  .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex: 1; }
+  .summary-item {
+    background: rgba(255,255,255,0.025);
+    border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px;
+    display: flex; gap: 14px; align-items: flex-start;
+  }
+  .summary-icon { font-size: 20px; flex-shrink: 0; line-height: 1; }
+  .summary-content { display: flex; flex-direction: column; gap: 4px; }
+  .summary-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; color: var(--mint); }
+  .summary-text { font-size: 11px; color: var(--gray); line-height: 1.55; }
+  .summary-footer {
+    padding: 12px 16px; background: rgba(255,255,255,0.02);
+    border: 1px solid var(--border); border-radius: 8px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--gray);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .summary-footer a { color: var(--sky); text-decoration: none; }
+  .summary-footer a:hover { color: var(--mint); }
+
+</style>
+</head>
+<body>
+<div id="progress-bar"></div>
+
+<div id="deck">
+
+  <!-- ══ SLIDE 1 – TITLE ══ -->
+  <div class="slide active" id="s1">
+    <div class="title-eyebrow">Salesforce Migration Tool · Load Plan JSON · Global Key Strategy</div>
+    <div class="title-main">Data Migration with<br><span>Global_Key__c</span></div>
+    <div class="title-sub">How to use an External ID field as a stable cross-org key for reliable, repeatable Salesforce data migration using the SMT toolchain.</div>
+    <div class="tool-pills">
+      <span class="pill">sf-schema-builder</span>
+      <span class="pill">sf-load-sequencer-ui</span>
+      <span class="pill">sf-load-plan-generator</span>
+      <span class="pill">sf-utils-cli</span>
+      <span class="pill mint">smt-studio</span>
+      <span class="pill">sf-data-util</span>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 2 – AGENDA ══ -->
+  <div class="slide" id="s2">
+    <div class="slide-header">
+      <span class="section-num">00</span>
+      <h2>Agenda</h2>
+    </div>
+    <div class="slide-body">
+      <div class="agenda-grid">
+        <div class="agenda-item">
+          <span class="agenda-num">01 — OVERVIEW</span>
+          <div class="agenda-title">Why Global_Key__c?</div>
+          <div class="agenda-desc">The problem with standard IDs across orgs and how an External ID solves it.</div>
+        </div>
+        <div class="agenda-item">
+          <span class="agenda-num">02 — USE CASE</span>
+          <div class="agenda-title">ERD & Sample Data</div>
+          <div class="agenda-desc">Vehicle, Manufacturer, and VehicleCustomer object relationships with CSV data.</div>
+        </div>
+        <div class="agenda-item">
+          <span class="agenda-num">03 — TOOLCHAIN</span>
+          <div class="agenda-title">6 npm Packages</div>
+          <div class="agenda-desc">End-to-end workflow covering schema, sequencing, planning, upload, and migration.</div>
+        </div>
+        <div class="agenda-item">
+          <span class="agenda-num">04 — LOAD PLAN</span>
+          <div class="agenda-title">JSON Structure</div>
+          <div class="agenda-desc">compositeKeys, SOQL queries, fieldMappings, and nested lookup resolution.</div>
+        </div>
+        <div class="agenda-item">
+          <span class="agenda-num">05 — SMT STUDIO</span>
+          <div class="agenda-title">Migration Workflow</div>
+          <div class="agenda-desc">Connect orgs → load plan → generate CSV → start migration → handle updates.</div>
+        </div>
+        <div class="agenda-item">
+          <span class="agenda-num">06 — VERIFY</span>
+          <div class="agenda-title">Compare & Validate</div>
+          <div class="agenda-desc">sf-data-util compare for post-migration source/target parity checks.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 3 – OVERVIEW ══ -->
+  <div class="slide" id="s3">
+    <div class="slide-header">
+      <span class="section-num">01</span>
+      <h2>Overview — Why Global_Key__c?</h2>
+    </div>
+    <div class="slide-body">
+      <div class="two-col">
+        <div class="col-card">
+          <div class="col-card-header danger">✗ &nbsp;The Problem</div>
+          <div class="col-card-body">
+            <div class="check-row neg"><span class="icon">✗</span><span class="text">Salesforce record IDs differ between every org — they can never be used cross-org</span></div>
+            <div class="check-row neg"><span class="icon">✗</span><span class="text"><code>Name</code> is not always unique and may change over time</span></div>
+            <div class="check-row neg"><span class="icon">✗</span><span class="text">Lookup relationships break on upsert without a stable key</span></div>
+            <div class="check-row neg"><span class="icon">✗</span><span class="text">No built-in cross-org identifier in standard Salesforce objects</span></div>
+            <div class="check-row neg"><span class="icon">✗</span><span class="text">Manual ID mapping is error-prone and doesn't scale</span></div>
+          </div>
+        </div>
+        <div class="col-card">
+          <div class="col-card-header success">✓ &nbsp;The Solution: Global_Key__c</div>
+          <div class="col-card-body">
+            <div class="check-row pos"><span class="icon">✓</span><span class="text">Custom External ID field added to every object in the data model</span></div>
+            <div class="check-row pos"><span class="icon">✓</span><span class="text">Human-readable keys: <code>MFG-001</code>, <code>CUST-002</code>, <code>VEH-004</code></span></div>
+            <div class="check-row pos"><span class="icon">✓</span><span class="text">Identical values in source and target org — stable anchor point</span></div>
+            <div class="check-row pos"><span class="icon">✓</span><span class="text">Used as <code>compositeKey</code> in Load Plan JSON for upsert decisions</span></div>
+            <div class="check-row pos"><span class="icon">✓</span><span class="text">Enables lookup resolution across parent-child relationships</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 4 – ERD ══ -->
+  <div class="slide" id="s4">
+    <div class="slide-header">
+      <span class="section-num">02</span>
+      <h2>Use Case — Entity Relationship Diagram</h2>
+    </div>
+    <div class="slide-body">
+      <div class="erd-wrap">
+        <div class="erd-diagram">
+          <div class="erd-entity">
+            <div class="erd-entity-header sky">Manufacturer__c</div>
+            <div class="erd-field">Id</div>
+            <div class="erd-field">Name</div>
+            <div class="erd-field key">Global_Key__c 🔑 <span class="tag">[External ID]</span></div>
+            <div class="erd-field">Country__c</div>
+          </div>
+          <div class="erd-arrow">
+            <div class="erd-arrow-line">
+              <div class="erd-dot"></div>
+              <div class="erd-line"></div>
+              <div class="erd-dot"></div>
+            </div>
+            <div class="erd-label">manufactures 1–∞</div>
+          </div>
+          <div class="erd-entity">
+            <div class="erd-entity-header amber">Vehicle__c</div>
+            <div class="erd-field">Id</div>
+            <div class="erd-field">Name</div>
+            <div class="erd-field key">Global_Key__c 🔑 <span class="tag">[External ID]</span></div>
+            <div class="erd-field">Model__c</div>
+            <div class="erd-field fk">Manufacturer__c → <span class="tag">[lookup]</span></div>
+            <div class="erd-field fk">VehicleCustomer__c → <span class="tag">[lookup]</span></div>
+          </div>
+          <div class="erd-arrow">
+            <div class="erd-arrow-line">
+              <div class="erd-dot"></div>
+              <div class="erd-line"></div>
+              <div class="erd-dot"></div>
+            </div>
+            <div class="erd-label">owns 1–∞</div>
+          </div>
+          <div class="erd-entity">
+            <div class="erd-entity-header mint">VehicleCustomer__c</div>
+            <div class="erd-field">Id</div>
+            <div class="erd-field">Name</div>
+            <div class="erd-field key">Global_Key__c 🔑 <span class="tag">[External ID]</span></div>
+            <div class="erd-field">Email__c</div>
+          </div>
+        </div>
+        <div class="erd-data">
+          <div class="erd-data-title">▸ SAMPLE CSV DATA</div>
+          <pre>Manufacturer:  MFG-001, Tesla, USA  ·  MFG-002, Toyota, Japan  ·  MFG-003, Ford, USA
+Customer:      CUST-001, John Doe  ·  CUST-002, Jane Smith  ·  CUST-003, Bob Lee
+Vehicle:       VEH-001, Tesla Model S → MFG-001, CUST-001  ·  VEH-003, Toyota Camry → MFG-002, CUST-003</pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 5 – TOOLCHAIN ══ -->
+  <div class="slide" id="s5">
+    <div class="slide-header">
+      <span class="section-num">03</span>
+      <h2>The Toolchain — npm Packages</h2>
+    </div>
+    <div class="slide-body">
+      <div class="tool-list">
+        <div class="tool-row">
+          <div class="tool-num" style="background:rgba(30,144,214,0.15);">1</div>
+          <div class="tool-pkg"><div class="tool-pkg-name">sf-schema-builder</div><div class="tool-pkg-npm">npmjs.com/package/sf-schema-builder</div></div>
+          <div class="tool-role" style="color:var(--sky);">Schema Setup</div>
+          <div class="tool-desc">Build and deploy the data model (objects, fields, relationships) from source to target org via SFDX project retrieve/deploy.</div>
+        </div>
+        <div class="tool-row">
+          <div class="tool-num" style="background:rgba(0,201,167,0.1);">2</div>
+          <div class="tool-pkg"><div class="tool-pkg-name">sf-load-sequencer-ui</div><div class="tool-pkg-npm">npmjs.com/package/sf-load-sequencer-ui</div></div>
+          <div class="tool-role" style="color:var(--mint);">Load Order</div>
+          <div class="tool-desc">Determines the correct object loading sequence to respect parent-child dependencies and avoid foreign key constraint errors.</div>
+        </div>
+        <div class="tool-row">
+          <div class="tool-num" style="background:rgba(232,130,12,0.1);">3</div>
+          <div class="tool-pkg"><div class="tool-pkg-name">sf-load-plan-generator</div><div class="tool-pkg-npm">npmjs.com/package/sf-load-plan-generator</div></div>
+          <div class="tool-role" style="color:var(--amber);">Plan Generation</div>
+          <div class="tool-desc">Generates Load Plan JSON files per object — compositeKeys, SOQL queries, and fieldMappings including nested lookup definitions.</div>
+        </div>
+        <div class="tool-row">
+          <div class="tool-num" style="background:rgba(139,92,246,0.1);">4</div>
+          <div class="tool-pkg"><div class="tool-pkg-name">sf-utils-cli</div><div class="tool-pkg-npm">npmjs.com/package/sf-utils-cli</div></div>
+          <div class="tool-role" style="color:var(--purple);">Data Upload</div>
+          <div class="tool-desc">Uses Bulk API 2.0 to upload source CSV data files into the source Salesforce org at scale.</div>
+        </div>
+        <div class="tool-row">
+          <div class="tool-num" style="background:rgba(21,87,176,0.2);">5</div>
+          <div class="tool-pkg"><div class="tool-pkg-name">smt-studio</div><div class="tool-pkg-npm">npmjs.com/package/smt-studio</div></div>
+          <div class="tool-role" style="color:#60a5fa;">Migration</div>
+          <div class="tool-desc">Reads the full Load Plan JSON and orchestrates end-to-end migration — connecting orgs, extracting data, resolving lookups, and upserting records.</div>
+        </div>
+        <div class="tool-row">
+          <div class="tool-num" style="background:rgba(0,201,167,0.07);">6</div>
+          <div class="tool-pkg"><div class="tool-pkg-name">sf-data-util</div><div class="tool-pkg-npm">npmjs.com/package/sf-data-util</div></div>
+          <div class="tool-role" style="color:var(--mint);">Verification</div>
+          <div class="tool-desc">Compares source and target org data using the Load Plan. Flags mismatches for each object after migration completes.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 6 – LOAD PLAN JSON ══ -->
+  <div class="slide" id="s6">
+    <div class="slide-header">
+      <span class="section-num">04</span>
+      <h2>Load Plan JSON — Structure & Lookup Resolution</h2>
+    </div>
+    <div class="slide-body">
+      <div class="code-layout">
+        <div class="code-block">
+          <div class="code-topbar">
+            <div class="code-dots"><div class="code-dot r"></div><div class="code-dot y"></div><div class="code-dot g"></div></div>
+            load-plan.json — Vehicle__c entry
+          </div>
+          <pre><span class="k">{</span>
+  <span class="m">"object"</span>: <span class="s">"Vehicle__c"</span>,
+
+  <span class="m">"compositeKeys"</span>: [
+    <span class="s">"Global_Key__c"</span>
+  ],
+
+  <span class="m">"query"</span>: <span class="s">"SELECT
+    Global_Key__c, Name, Model__c,
+    Manufacturer__r.Global_Key__c,
+    VehicleCustomer__r.Global_Key__c
+    FROM Vehicle__c"</span>,
+
+  <span class="m">"fieldMappings"</span>: <span class="k">{</span>
+    <span class="s">"Global_Key__c"</span>: <span class="s">"Global_Key__c"</span>,
+    <span class="s">"Name"</span>:          <span class="s">"Name"</span>,
+    <span class="s">"Model__c"</span>:      <span class="s">"Model__c"</span>,
+
+    <span class="c">"Manufacturer__c"</span>: <span class="k">{</span>
+      <span class="m">"lookup"</span>: <span class="k">{</span>
+        <span class="s">"object"</span>: <span class="s">"Manufacturer__c"</span>,
+        <span class="s">"key"</span>:    <span class="s">"Global_Key__c"</span>,
+        <span class="s">"field"</span>:  <span class="s">"Manufacturer__r.Global_Key__c"</span>
+      <span class="k">}</span>
+    <span class="k">}</span>,
+
+    <span class="c">"VehicleCustomer__c"</span>: <span class="k">{</span>
+      <span class="m">"lookup"</span>: <span class="k">{</span>
+        <span class="s">"object"</span>: <span class="s">"VehicleCustomer__c"</span>,
+        <span class="s">"key"</span>:    <span class="s">"Global_Key__c"</span>,
+        <span class="s">"field"</span>:  <span class="s">"VehicleCustomer__r.Global_Key__c"</span>
+      <span class="k">}</span>
+    <span class="k">}</span>
+  <span class="k">}</span>
+<span class="k">}</span></pre>
+        </div>
+        <div class="callout-list">
+          <div class="callout">
+            <div class="callout-head sky">compositeKeys</div>
+            <div class="callout-body">Defines the External ID field used to determine insert vs. upsert. SMT checks if a record with this key already exists in the target org before deciding the operation.</div>
+          </div>
+          <div class="callout">
+            <div class="callout-head amber">query (SOQL)</div>
+            <div class="callout-body">Fetches all required fields from the source org including relationship traversal via dot notation — <code>Manufacturer__r.Global_Key__c</code> — to pull the parent's key.</div>
+          </div>
+          <div class="callout">
+            <div class="callout-head mint">lookup (nested)</div>
+            <div class="callout-body">Resolves the foreign key by finding the matching record in the target org using <code>Global_Key__c</code> as the join key. Replaces the raw ID with the correct target ID.</div>
+          </div>
+          <div class="callout">
+            <div class="callout-head purple">Object order matters</div>
+            <div class="callout-body">Manufacturer__c and VehicleCustomer__c must be loaded <em>before</em> Vehicle__c. Use <code>sf-load-sequencer-ui</code> to determine the correct array order.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 7 – SMT WORKFLOW ══ -->
+  <div class="slide" id="s7">
+    <div class="slide-header">
+      <span class="section-num">05</span>
+      <h2>SMT Studio — Migration Workflow</h2>
+    </div>
+    <div class="slide-body">
+      <div class="workflow">
+        <div class="wf-step">
+          <div class="wf-num" style="background:rgba(30,144,214,0.2);">1</div>
+          <div class="wf-title" style="border-left-color:var(--sky);">Connect Orgs</div>
+          <div class="wf-detail">Add credentials for source org (e.g. <code>af102</code>) and target org (e.g. <code>af200</code>) in SMT Studio's connection manager. Both orgs must have identical schema deployed.</div>
+        </div>
+        <div class="wf-step">
+          <div class="wf-num" style="background:rgba(0,201,167,0.12);">2</div>
+          <div class="wf-title" style="border-left-color:var(--mint);">Load Load Plan JSON</div>
+          <div class="wf-detail">Import the array of object configurations. SMT reads <code>compositeKeys</code>, SOQL queries, and <code>fieldMappings</code>. Objects are processed in array order.</div>
+        </div>
+        <div class="wf-step">
+          <div class="wf-num" style="background:rgba(232,130,12,0.1);">3</div>
+          <div class="wf-title" style="border-left-color:var(--amber);">Generate CSV Only</div>
+          <div class="wf-detail">Run <strong>"Generate CSV Only"</strong> first to preview the extracted data from the source org. Inspect field values and lookups before committing to migration.</div>
+        </div>
+        <div class="wf-step">
+          <div class="wf-num" style="background:rgba(21,87,176,0.2);">4</div>
+          <div class="wf-title" style="border-left-color:#60a5fa;">Start Migration</div>
+          <div class="wf-detail">SMT performs <strong>UPSERT</strong> on each object in sequence. First run <strong>inserts</strong> new records into the target org. Lookup fields are resolved using <code>Global_Key__c</code> on each parent.</div>
+        </div>
+        <div class="wf-step">
+          <div class="wf-num" style="background:rgba(139,92,246,0.1);">5</div>
+          <div class="wf-title" style="border-left-color:var(--purple);">Handle Updates</div>
+          <div class="wf-detail">After modifying records in the source org, re-run SMT. It detects existing <code>Global_Key__c</code> values and issues <strong>UPDATE</strong> operations on matched records in the target.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 8 – COMPARE ══ -->
+  <div class="slide" id="s8">
+    <div class="slide-header">
+      <span class="section-num">05</span>
+      <h2>Compare &amp; Verify — sf-data-util</h2>
+    </div>
+    <div class="slide-body">
+      <div class="compare-section">
+        <div class="compare-cmd-block">
+          <pre><span class="prompt">$</span> sf-data-util compare -s af102 -t af200 -l load-plan-vehicle.json -o Vehicle__c
+<span class="prompt">$</span> sf-data-util compare -s af102 -t af200 -l load-plan-vehicle.json -o VehicleCustomer__c
+<span class="prompt">$</span> sf-data-util compare -s af102 -t af200 -l load-plan-vehicle.json -o Manufacturer__c</pre>
+        </div>
+        <div class="compare-cards">
+          <div class="cmp-card">
+            <div class="cmp-card-head">Vehicle__c</div>
+            <div class="cmp-card-body">Records compared by <code>Global_Key__c</code> between af102 and af200. Differences in <code>Model__c</code>, Manufacturer lookup, and Customer lookup fields are flagged.</div>
+            <div class="cmp-status">✓ In Sync</div>
+          </div>
+          <div class="cmp-card">
+            <div class="cmp-card-head">VehicleCustomer__c</div>
+            <div class="cmp-card-body"><code>Email__c</code> updates detected and confirmed in target org after re-migration. The update flow verifies field-level changes per record.</div>
+            <div class="cmp-status">✓ Updated</div>
+          </div>
+          <div class="cmp-card">
+            <div class="cmp-card-head">Manufacturer__c</div>
+            <div class="cmp-card-body"><code>Country__c</code> and <code>Name</code> validated across both orgs. <code>Global_Key__c</code> uniqueness confirmed on both source and target.</div>
+            <div class="cmp-status">✓ Verified</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 9 – SETUP ══ -->
+  <div class="slide" id="s9">
+    <div class="slide-header">
+      <span class="section-num">SETUP</span>
+      <h2>Step-by-Step Setup</h2>
+    </div>
+    <div class="slide-body">
+      <div class="setup-steps">
+        <div class="setup-step">
+          <div class="setup-badge"><span class="step-label">STEP</span><span class="step-n">1</span></div>
+          <div class="setup-title"><div class="setup-title-text">Create SFDX Project</div><div class="setup-title-note">Scaffolds the project structure</div></div>
+          <div class="setup-cmd-wrap"><code class="setup-cmd">sf project generate -n projectName</code></div>
+        </div>
+        <div class="setup-step">
+          <div class="setup-badge"><span class="step-label">STEP</span><span class="step-n">2</span></div>
+          <div class="setup-title"><div class="setup-title-text">Retrieve Source Metadata</div><div class="setup-title-note">Pull objects & fields from af102</div></div>
+          <div class="setup-cmd-wrap"><code class="setup-cmd">sf project retrieve start -o sourceOrg -x package.xml -w 20</code></div>
+        </div>
+        <div class="setup-step">
+          <div class="setup-badge"><span class="step-label">STEP</span><span class="step-n">3</span></div>
+          <div class="setup-title"><div class="setup-title-text">Deploy to Target Org</div><div class="setup-title-note">Mirror schema into af200</div></div>
+          <div class="setup-cmd-wrap"><code class="setup-cmd">sf project deploy start -o targetOrg -x package.xml -w 20</code></div>
+        </div>
+        <div class="setup-step">
+          <div class="setup-badge"><span class="step-label">STEP</span><span class="step-n">4</span></div>
+          <div class="setup-title"><div class="setup-title-text">Populate Source Data</div><div class="setup-title-note">Bulk API 2.0 CSV upload</div></div>
+          <div class="setup-cmd-wrap"><code class="setup-cmd">sf-utils-cli  →  Bulk API 2.0  →  Upload CSV files</code></div>
+        </div>
+        <div class="setup-step">
+          <div class="setup-badge"><span class="step-label">STEP</span><span class="step-n">5</span></div>
+          <div class="setup-title"><div class="setup-title-text">Run SMT Migration</div><div class="setup-title-note">Load plan → Start Migration</div></div>
+          <div class="setup-cmd-wrap"><code class="setup-cmd">smt-studio  →  Load load-plan.json  →  Start Migration</code></div>
+        </div>
+        <div class="setup-step">
+          <div class="setup-badge"><span class="step-label">STEP</span><span class="step-n">6</span></div>
+          <div class="setup-title"><div class="setup-title-text">Compare & Verify</div><div class="setup-title-note">Validate source/target parity</div></div>
+          <div class="setup-cmd-wrap"><code class="setup-cmd">sf-data-util compare -s af102 -t af200 -l load-plan.json -o Object__c</code></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SLIDE 10 – SUMMARY ══ -->
+  <div class="slide" id="s10">
+    <div class="slide-header" style="background:rgba(6,15,30,0.8);border-color:rgba(0,201,167,0.2);">
+      <span class="section-num" style="border-color:var(--mint);color:var(--mint);">✓</span>
+      <h2>Key Takeaways</h2>
+    </div>
+    <div class="slide-body">
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-icon">🔑</div>
+          <div class="summary-content">
+            <div class="summary-title">Global_Key__c as External ID</div>
+            <div class="summary-text">A stable, human-readable field (e.g. <code>MFG-001</code>) that uniquely identifies records across any Salesforce org — the foundation of the entire migration strategy.</div>
+          </div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-icon">📋</div>
+          <div class="summary-content">
+            <div class="summary-title">Declarative Load Plan JSON</div>
+            <div class="summary-text">A single JSON array defines object order, SOQL queries, field mappings, and nested lookup resolution. Fully version-controllable and repeatable.</div>
+          </div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-icon">🔧</div>
+          <div class="summary-content">
+            <div class="summary-title">6-Tool Workflow</div>
+            <div class="summary-text">schema-builder → load-sequencer → plan-generator → sf-utils → smt-studio → sf-data-util covers the complete lifecycle from schema setup to verification.</div>
+          </div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-icon">🔄</div>
+          <div class="summary-content">
+            <div class="summary-title">Insert &amp; Update Handled</div>
+            <div class="summary-text">SMT automatically issues INSERT on first run and UPDATE on subsequent runs by detecting existing <code>Global_Key__c</code> values via upsert logic.</div>
+          </div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-icon">✅</div>
+          <div class="summary-content">
+            <div class="summary-title">Compare to Close the Loop</div>
+            <div class="summary-text"><code>sf-data-util compare</code> validates source/target parity per object after migration, surfacing any field-level mismatches before sign-off.</div>
+          </div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-icon">🔗</div>
+          <div class="summary-content">
+            <div class="summary-title">Lookup Resolution</div>
+            <div class="summary-text">Nested <code>lookup</code> definitions in the Load Plan resolve parent references using <code>Global_Key__c</code>, eliminating the need for manual ID translation.</div>
+          </div>
+        </div>
+      </div>
+      <div class="summary-footer">
+        📖 &nbsp;Full documentation:
+        <a href="https://github.com/mchinnappan100/load-plan-docs-globalkey" target="_blank">github.com/mchinnappan100/load-plan-docs-globalkey</a>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /deck -->
+
+<!-- Nav -->
+<div id="nav">
+  <button id="btn-prev" title="Previous (←)">‹</button>
+  <span id="slide-counter">1 / 10</span>
+  <button id="btn-next" title="Next (→)">›</button>
+</div>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('.slide'));
+  const total = slides.length;
+  let current = 0;
+
+  const bar = document.getElementById('progress-bar');
+  const counter = document.getElementById('slide-counter');
+
+  function go(idx) {
+    if (idx < 0 || idx >= total) return;
+    slides[current].classList.remove('active');
+    slides[current].classList.add('out');
+    setTimeout(() => slides[current].classList.remove('out'), 450);
+    current = idx;
+    slides[current].classList.add('active');
+    bar.style.width = ((current + 1) / total * 100) + '%';
+    counter.textContent = (current + 1) + ' / ' + total;
+  }
+
+  document.getElementById('btn-next').addEventListener('click', () => go(current + 1));
+  document.getElementById('btn-prev').addEventListener('click', () => go(current - 1));
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') go(current + 1);
+    if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')                    go(current - 1);
+  });
+
+  // Init progress bar
+  bar.style.width = (1 / total * 100) + '%';
+</script>
+</body>
+</html>
