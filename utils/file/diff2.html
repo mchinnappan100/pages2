@@ -146,26 +146,6 @@
       color: white; font-size: 10px; font-weight: 700;
       padding: 2px 7px; border-radius: 4px; letter-spacing: 0.06em;
     }
-
-    .json-badge {
-      display: inline-flex; align-items: center; gap: 4px;
-      background: linear-gradient(135deg,#d97706,#b45309);
-      color: white; font-size: 10px; font-weight: 700;
-      padding: 2px 7px; border-radius: 4px; letter-spacing: 0.06em;
-    }
-
-    /* ── JSON Semantic Diff container (reuses xd-* classes) ── */
-    #jsonDiffContainer {
-      font-family: 'Fira Mono', 'Cascadia Code', monospace;
-      font-size: 13px;
-      overflow-y: auto;
-      height: 100%;
-      padding: 16px;
-      background: #0f1117;
-      border-radius: 0 0 12px 12px;
-      border: 1px solid rgba(55,65,81,0.5);
-      border-top: none;
-    }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
 </head>
@@ -191,9 +171,6 @@
         <button id="modeText" class="mode-btn active" onclick="setDiffMode('text')" title="Standard text diff">Text</button>
         <button id="modeXml"  class="mode-btn"        onclick="setDiffMode('xml')"  title="XML semantic diff">
           <span class="xml-badge">XML</span> Semantic
-        </button>
-        <button id="modeJson" class="mode-btn"        onclick="setDiffMode('json')" title="JSON semantic diff">
-          <span class="json-badge">JSON</span> Semantic
         </button>
       </div>
 
@@ -320,23 +297,6 @@
       <div id="xmlDiffContainer" class="flex-1"></div>
     </div>
 
-    <!-- JSON Semantic Diff View -->
-    <div id="jsonDiffView" class="hidden w-full h-full animate-in flex flex-col">
-      <div class="flex justify-between items-center p-3 bg-gray-800/50 rounded-t-xl border border-b-0 border-gray-700/50">
-        <div class="flex items-center gap-2">
-          <span class="json-badge">JSON</span>
-          <span class="text-sm font-medium">Semantic Diff</span>
-          <span class="text-xs text-gray-500 ml-2">— deep key-by-key structural comparison</span>
-        </div>
-        <button onclick="exitDiffView()" class="px-3 py-1.5 bg-gray-600/80 hover:bg-gray-500 rounded-lg text-xs font-medium transition-all">
-          <svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"/>
-          </svg>Back to Edit
-        </button>
-      </div>
-      <div id="jsonDiffContainer" class="flex-1"></div>
-    </div>
-
   </main>
 
   <!-- FOOTER -->
@@ -362,10 +322,6 @@
         <span class="xml-badge">XML</span> Semantic Diff
       </span>
       <span>•</span>
-      <span class="flex items-center gap-1">
-        <span class="json-badge">JSON</span> Semantic Diff
-      </span>
-      <span>•</span>
       <span class="text-gray-500">MC - FileDiff Pro</span>
     </div>
   </footer>
@@ -380,133 +336,19 @@
     let currentDiffMode = 'text'; // 'text' | 'xml'
 
     /* ─────────────────────────────────────────────
-       Sample XML files
-    ───────────────────────────────────────────── */
-    const SAMPLE_LEFT = `<?xml version="1.0" encoding="UTF-8"?>
-<customer>
-    <id>1001</id>
-    <name>
-        <first>John</first>
-        <last>Doe</last>
-    </name>
-    <contact>
-        <email>john.doe@example.com</email>
-        <phone>+1-555-1234</phone>
-    </contact>
-    <address country="USA">
-        <city>New York</city>
-        <zip>10001</zip>
-    </address>
-</customer>`;
-
-    const SAMPLE_RIGHT = `<?xml version="1.0" encoding="UTF-8"?>
-<customer>
-    <contact>
-        <phone>+1-555-1234</phone>
-        <email>john.doe@example.com</email>
-    </contact>
-    <address country="USA">
-        <zip>10001</zip>
-        <city>New York</city>
-    </address>
-    <name>
-        <last>Doe</last>
-        <first>John</first>
-    </name>
-    <id>
-        1001
-    </id>
-</customer>`;
-
-    const SAMPLE_JSON_LEFT = ` {
-  "id": 101,
-  "name": {
-    "first": "Alice",
-    "last": "Smith"
-  },
-  "skills": [
-    "JavaScript",
-    "Python",
-    "SQL"
-  ],
-  "active": true,
-  "contact": {
-    "email": "alice.smith@example.com",
-    "phone": "+1-555-9876"
-  }
-}`;
-
-    const SAMPLE_JSON_RIGHT = `{
-  "contact": {
-    "phone": "+1-555-9876",
-    "email": "alice.smith@example.com"
-  },
-  "active": true,
-  "skills": [
-    "JavaScript",
-    "Python",
-    "SQL"
-  ],
-  "name": {
-    "last": "Smith",
-    "first": "Alice"
-  },
-  "id": 101
-}
-  `;
-
-    /* ─────────────────────────────────────────────
        Monaco init
     ───────────────────────────────────────────── */
     require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
     require(["vs/editor/editor.main"], function() {
       editorLeft = monaco.editor.create(document.getElementById('leftEditor'), {
-        value: SAMPLE_LEFT,
-        language: "xml",
-        theme: "vs-dark",
-        automaticLayout: true,
-        fontSize: 13,
-        minimap: { enabled: true },
-        wordWrap: 'on',
-        lineNumbers: 'on',
-        renderWhitespace: 'selection',
-        scrollBeyondLastLine: false,
-        folding: true,
-        foldingStrategy: 'indentation',
-        bracketPairColorization: { enabled: true },
+        value: "", language: "plaintext", theme: "vs-dark", automaticLayout: true
       });
-
       editorRight = monaco.editor.create(document.getElementById('rightEditor'), {
-        value: SAMPLE_RIGHT,
-        language: "xml",
-        theme: "vs-dark",
-        automaticLayout: true,
-        fontSize: 13,
-        minimap: { enabled: true },
-        wordWrap: 'on',
-        lineNumbers: 'on',
-        renderWhitespace: 'selection',
-        scrollBeyondLastLine: false,
-        folding: true,
-        foldingStrategy: 'indentation',
-        bracketPairColorization: { enabled: true },
+        value: "", language: "plaintext", theme: "vs-dark", automaticLayout: true
       });
-
       diffEditor = monaco.editor.createDiffEditor(document.getElementById('diffEditor'), {
-        theme: "vs-dark",
-        automaticLayout: true,
-        fontSize: 13,
-        renderSideBySide: true,
-        ignoreTrimWhitespace: false,
-        originalEditable: false,
+        theme: "vs-dark", automaticLayout: true,
       });
-
-      // Set default mode to XML Semantic on startup
-      setDiffMode('xml');
-      document.getElementById('leftFilename').textContent = 'customer-original.xml';
-      document.getElementById('rightFilename').textContent = 'customer-modified.xml';
-      filenameLeft = 'customer-original.xml';
-      filenameRight = 'customer-modified.xml';
     });
 
     /* ─────────────────────────────────────────────
@@ -515,30 +357,7 @@
     function setDiffMode(mode) {
       currentDiffMode = mode;
       document.getElementById('modeText').classList.toggle('active', mode === 'text');
-      document.getElementById('modeXml').classList.toggle('active',  mode === 'xml');
-      document.getElementById('modeJson').classList.toggle('active', mode === 'json');
-
-      if (!window._userLoadedFiles) {
-        if (mode === 'json') {
-          editorLeft.setValue(SAMPLE_JSON_LEFT);
-          editorRight.setValue(SAMPLE_JSON_RIGHT);
-          monaco.editor.setModelLanguage(editorLeft.getModel(),  'json');
-          monaco.editor.setModelLanguage(editorRight.getModel(), 'json');
-          document.getElementById('leftFilename').textContent  = 'user-original.json';
-          document.getElementById('rightFilename').textContent = 'user-modified.json';
-          filenameLeft  = 'user-original.json';
-          filenameRight = 'user-modified.json';
-        } else if (mode === 'xml') {
-          editorLeft.setValue(SAMPLE_LEFT);
-          editorRight.setValue(SAMPLE_RIGHT);
-          monaco.editor.setModelLanguage(editorLeft.getModel(),  'xml');
-          monaco.editor.setModelLanguage(editorRight.getModel(), 'xml');
-          document.getElementById('leftFilename').textContent  = 'customer-original.xml';
-          document.getElementById('rightFilename').textContent = 'customer-modified.xml';
-          filenameLeft  = 'customer-original.xml';
-          filenameRight = 'customer-modified.xml';
-        }
-      }
+      document.getElementById('modeXml').classList.toggle('active', mode === 'xml');
     }
 
     /* ─────────────────────────────────────────────
@@ -547,8 +366,6 @@
     document.getElementById('compareBtn').addEventListener('click', () => {
       if (currentDiffMode === 'xml') {
         runXmlSemanticDiff();
-      } else if (currentDiffMode === 'json') {
-        runJsonSemanticDiff();
       } else {
         runTextDiff();
       }
@@ -557,7 +374,6 @@
     function runTextDiff() {
       document.getElementById('editors').classList.add('hidden');
       document.getElementById('xmlDiffView').classList.add('hidden');
-      document.getElementById('jsonDiffView').classList.add('hidden');
       document.getElementById('diffContainer').classList.remove('hidden');
       const leftModel  = editorLeft.getModel();
       const rightModel = editorRight.getModel();
@@ -569,7 +385,6 @@
       document.getElementById('editors').classList.remove('hidden');
       document.getElementById('diffContainer').classList.add('hidden');
       document.getElementById('xmlDiffView').classList.add('hidden');
-      document.getElementById('jsonDiffView').classList.add('hidden');
     }
 
     /* ─────────────────────────────────────────────
@@ -616,7 +431,6 @@
     function showDiffPanel() {
       document.getElementById('editors').classList.add('hidden');
       document.getElementById('diffContainer').classList.add('hidden');
-      document.getElementById('jsonDiffView').classList.add('hidden');
       document.getElementById('xmlDiffView').classList.remove('hidden');
     }
 
@@ -768,25 +582,19 @@
         </div>`;
 
       for (const c of changes) {
-        const isAttr = c.path.includes('/@');
-        const isText = c.path.includes('/text()');
-        // For attrs/text use plain escaped values; for full elements use XML highlighting
-        const fmtRight = val => (isAttr || isText) ? `<span style="font-style:italic">${escHtml(String(val))}</span>` : `<code style="display:block;margin-top:6px;white-space:pre-wrap;word-break:break-all">${highlightXml(String(val))}</code>`;
-        const fmtLeft  = val => (isAttr || isText) ? `<span style="font-style:italic">${escHtml(String(val))}</span>` : `<code style="display:block;margin-top:6px;white-space:pre-wrap;word-break:break-all">${highlightXml(String(val))}</code>`;
-
         if (c.type === 'added') {
           html += `
             <div class="xd-section xd-added">
               <div class="xd-path">${escHtml(c.path)}</div>
               <span class="xd-label xd-label-add">ADDED</span>
-              ${fmtRight(c.right)}
+              <span>${escHtml(String(c.right))}</span>
             </div>`;
         } else if (c.type === 'removed') {
           html += `
             <div class="xd-section xd-removed">
               <div class="xd-path">${escHtml(c.path)}</div>
               <span class="xd-label xd-label-del">REMOVED</span>
-              ${fmtLeft(c.left)}
+              <span>${escHtml(String(c.left))}</span>
             </div>`;
         } else if (c.type === 'changed') {
           html += `
@@ -803,189 +611,12 @@
       container.innerHTML = html;
     }
 
-    /* ─────────────────────────────────────────────
-       JSON Semantic Diff Engine
-    ───────────────────────────────────────────── */
-    function runJsonSemanticDiff() {
-      const leftText  = editorLeft.getValue();
-      const rightText = editorRight.getValue();
-      if (!leftText.trim() && !rightText.trim()) {
-        showToast('Both editors are empty', 'error'); return;
-      }
-      let leftObj, rightObj;
-      try { leftObj  = JSON.parse(leftText);  } catch(e) {
-        showDiffPanelJson(`<div class="xd-error">⚠️ JSON Parse Error (Original):<br>${escHtml(e.message)}</div>`); return;
-      }
-      try { rightObj = JSON.parse(rightText); } catch(e) {
-        showDiffPanelJson(`<div class="xd-error">⚠️ JSON Parse Error (Modified):<br>${escHtml(e.message)}</div>`); return;
-      }
-      const changes = [];
-      diffJson(leftObj, rightObj, '$', changes);
-      renderJsonDiff(changes);
-      showDiffPanelJson();
-      showToast(`JSON semantic diff: ${changes.length} change(s)`, changes.length ? 'success' : 'info');
-    }
-
-    function showDiffPanelJson(errorHtml) {
-      document.getElementById('editors').classList.add('hidden');
-      document.getElementById('diffContainer').classList.add('hidden');
-      document.getElementById('xmlDiffView').classList.add('hidden');
-      document.getElementById('jsonDiffView').classList.remove('hidden');
-      if (errorHtml) document.getElementById('jsonDiffContainer').innerHTML = errorHtml;
-    }
-
-    function diffJson(left, right, path, changes) {
-      const lType = jsonType(left);
-      const rType = jsonType(right);
-
-      // Type changed — treat as replaced
-      if (lType !== rType) {
-        changes.push({ type:'changed', path, left, right });
-        return;
-      }
-
-      if (lType === 'object') {
-        const allKeys = new Set([...Object.keys(left), ...Object.keys(right)]);
-        for (const key of allKeys) {
-          const childPath = `${path}.${key}`;
-          if (!(key in left)) {
-            changes.push({ type:'added',   path: childPath, left: undefined, right: right[key] });
-          } else if (!(key in right)) {
-            changes.push({ type:'removed', path: childPath, left: left[key],  right: undefined });
-          } else {
-            diffJson(left[key], right[key], childPath, changes);
-          }
-        }
-      } else if (lType === 'array') {
-        const maxLen = Math.max(left.length, right.length);
-        for (let i = 0; i < maxLen; i++) {
-          const childPath = `${path}[${i}]`;
-          if (i >= left.length) {
-            changes.push({ type:'added',   path: childPath, left: undefined, right: right[i] });
-          } else if (i >= right.length) {
-            changes.push({ type:'removed', path: childPath, left: left[i],  right: undefined });
-          } else {
-            diffJson(left[i], right[i], childPath, changes);
-          }
-        }
-      } else {
-        // Primitives
-        if (left !== right) {
-          changes.push({ type:'changed', path, left, right });
-        }
-      }
-    }
-
-    function jsonType(v) {
-      if (v === null) return 'null';
-      if (Array.isArray(v)) return 'array';
-      return typeof v; // 'object', 'string', 'number', 'boolean'
-    }
-
-    function renderJsonDiff(changes) {
-      const container = document.getElementById('jsonDiffContainer');
-      if (changes.length === 0) {
-        container.innerHTML = `
-          <div style="text-align:center;padding:40px;color:#6b7280;">
-            <div style="font-size:48px;margin-bottom:12px;">✅</div>
-            <div style="font-size:16px;color:#d1d5db;font-weight:600;">JSON documents are semantically identical</div>
-            <div style="font-size:12px;margin-top:6px;">No structural or value differences found</div>
-          </div>`;
-        return;
-      }
-
-      const added   = changes.filter(c => c.type === 'added').length;
-      const removed = changes.filter(c => c.type === 'removed').length;
-      const changed = changes.filter(c => c.type === 'changed').length;
-
-      let html = `
-        <div class="xd-summary">
-          <div class="xd-summary-item"><div class="xd-dot" style="background:#22c55e"></div><b style="color:#86efac">${added}</b>&nbsp;added</div>
-          <div class="xd-summary-item"><div class="xd-dot" style="background:#ef4444"></div><b style="color:#fca5a5">${removed}</b>&nbsp;removed</div>
-          <div class="xd-summary-item"><div class="xd-dot" style="background:#f59e0b"></div><b style="color:#fde68a">${changed}</b>&nbsp;changed</div>
-          <div class="xd-summary-item" style="margin-left:auto;color:#6b7280">${changes.length} total change(s)</div>
-        </div>`;
-
-      for (const c of changes) {
-        const isComplex = v => v !== null && typeof v === 'object';
-        const fmtVal = v => {
-          if (v === undefined) return '<em style="color:#6b7280">undefined</em>';
-          if (isComplex(v)) return `<code style="display:block;margin-top:6px;white-space:pre-wrap;word-break:break-all;font-size:12px">${highlightJson(JSON.stringify(v, null, 2))}</code>`;
-          return `<span style="font-style:italic">${highlightJson(JSON.stringify(v))}</span>`;
-        };
-
-        if (c.type === 'added') {
-          html += `<div class="xd-section xd-added">
-            <div class="xd-path">${escHtml(c.path)}</div>
-            <span class="xd-label xd-label-add">ADDED</span>${fmtVal(c.right)}
-          </div>`;
-        } else if (c.type === 'removed') {
-          html += `<div class="xd-section xd-removed">
-            <div class="xd-path">${escHtml(c.path)}</div>
-            <span class="xd-label xd-label-del">REMOVED</span>${fmtVal(c.left)}
-          </div>`;
-        } else if (c.type === 'changed') {
-          html += `<div class="xd-section xd-changed">
-            <div class="xd-path">${escHtml(c.path)}</div>
-            <span class="xd-label xd-label-change">CHANGED</span>
-            ${fmtVal(c.left)}
-            <span style="color:#9ca3af;margin:0 8px;font-size:16px">→</span>
-            ${fmtVal(c.right)}
-          </div>`;
-        }
-      }
-      container.innerHTML = html;
-    }
-
-    /* JSON syntax highlighter for diff display */
-    function highlightJson(str) {
-      let s = escHtml(String(str));
-      // String values (after colon) and string keys
-      s = s.replace(/(&quot;)((?:[^&]|&amp;|&lt;|&gt;)*)(&quot;)(\s*:)/g,
-        '<span style="color:#9cdcfe">$1$2$3</span><span style="color:#d4d4d4">$4</span>');
-      s = s.replace(/:\s*(&quot;)((?:[^&]|&amp;|&lt;|&gt;)*)(&quot;)/g,
-        ': <span style="color:#ce9178">$1$2$3</span>');
-      // Standalone string values (array items)
-      s = s.replace(/^(\s*)(&quot;)((?:[^&]|&amp;)*)(&quot;)(\s*,?)$/gm,
-        '$1<span style="color:#ce9178">$2$3$4</span>$5');
-      // Numbers
-      s = s.replace(/:\s*(-?\d+\.?\d*)/g, ': <span style="color:#b5cea8">$1</span>');
-      // Booleans & null
-      s = s.replace(/:\s*(true|false|null)/g, ': <span style="color:#569cd6">$1</span>');
-      // Brackets
-      s = s.replace(/([{}\[\]])/g, '<span style="color:#ffd700">$1</span>');
-      return s;
-    }
-
     function escHtml(str) {
       return String(str)
         .replace(/&/g,'&amp;')
         .replace(/</g,'&lt;')
         .replace(/>/g,'&gt;')
         .replace(/"/g,'&quot;');
-    }
-
-    /* Simple XML syntax highlighter for diff display */
-    function highlightXml(str) {
-      let s = escHtml(String(str));
-      // Processing instructions
-      s = s.replace(/(&lt;\?)([a-zA-Z]+)(.*?)(\?&gt;)/g,
-        '<span style="color:#608b4e">$1$2$3$4</span>');
-      // Attributes: name="value"
-      s = s.replace(/\s([\w:-]+)=((?:&quot;)[^&]*(?:&quot;))/g,
-        ' <span style="color:#9cdcfe">$1</span>=<span style="color:#ce9178">$2</span>');
-      // Closing tags </tag>
-      s = s.replace(/(&lt;\/)([\w:.-]+)(&gt;)/g,
-        '<span style="color:#808080">$1</span><span style="color:#4ec9b0">$2</span><span style="color:#808080">$3</span>');
-      // Self-closing tags <tag/>
-      s = s.replace(/(&lt;)([\w:.-]+)([^&]*?)(\/&gt;)/g,
-        '<span style="color:#808080">$1</span><span style="color:#4ec9b0">$2</span>$3<span style="color:#808080">$4</span>');
-      // Opening tags <tag
-      s = s.replace(/(&lt;)([\w:.-]+)/g,
-        '<span style="color:#808080">$1</span><span style="color:#4ec9b0">$2</span>');
-      // Remaining >
-      s = s.replace(/(&gt;)/g, '<span style="color:#808080">$1</span>');
-      return s;
     }
 
     /* ─────────────────────────────────────────────
@@ -1026,28 +657,24 @@
           filenameLeft = file.name;
           document.getElementById('leftFilename').textContent = file.name;
           setLanguage(editorLeft, file.name);
-          autoDetectMode(file.name);
+          autoDetectXmlMode(file.name);
         } else {
           editorRight.setValue(ev.target.result);
           filenameRight = file.name;
           document.getElementById('rightFilename').textContent = file.name;
           setLanguage(editorRight, file.name);
-          autoDetectMode(file.name);
+          autoDetectXmlMode(file.name);
         }
         showToast(`Loaded ${file.name}`, 'success');
       };
       reader.readAsText(file);
     }
 
-    function autoDetectMode(filename) {
+    function autoDetectXmlMode(filename) {
       const ext = filename.split('.').pop().toLowerCase();
-      window._userLoadedFiles = true;
       if (ext === 'xml' || ext === 'xsd' || ext === 'xsl' || ext === 'xslt' || ext === 'pom' || ext === 'svg') {
         setDiffMode('xml');
-        showToast('XML file detected — switched to XML Semantic mode', 'info');
-      } else if (ext === 'json') {
-        setDiffMode('json');
-        showToast('JSON file detected — switched to JSON Semantic mode', 'info');
+        showToast('XML file detected — switched to Semantic mode', 'info');
       }
     }
 
@@ -1113,13 +740,13 @@
             filenameLeft = file.name;
             document.getElementById('leftFilename').textContent = file.name;
             setLanguage(editorLeft, file.name);
-            autoDetectMode(file.name);
+            autoDetectXmlMode(file.name);
           } else {
             editorRight.setValue(ev.target.result);
             filenameRight = file.name;
             document.getElementById('rightFilename').textContent = file.name;
             setLanguage(editorRight, file.name);
-            autoDetectMode(file.name);
+            autoDetectXmlMode(file.name);
           }
           showToast(`Dropped ${file.name}`, 'success');
         };
