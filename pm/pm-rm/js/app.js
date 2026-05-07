@@ -8,7 +8,8 @@ let state = {
   ctxRow: null,
   editRowId: null,
   selectedStatus: 'Pending',
-  charts: {}
+  charts: {},
+  releaseName: 'My Project'
 };
 
 const DEFAULT_SECTIONS = [
@@ -849,6 +850,7 @@ function clearImportError() {
   // Set badge text if parameter exists
   if (releaseParam) {
     releaseBadge.textContent = releaseParam;
+    state.releaseName = releaseParam;
   }
 
   // Function to get current badge value
