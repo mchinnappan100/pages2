@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Metadata Error Analyzer</title>
+
+  <link rel="icon" type="image/x-icon"
+        href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+   <!-- PapaParse -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+ <!-- Monaco Editor -->
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class'
+    }
+  </script>
+
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+    }
+
+    #editor {
+      height: 420px;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .table-scroll::-webkit-scrollbar {
+      height: 10px;
+      width: 10px;
+    }
+
+    .table-scroll::-webkit-scrollbar-thumb {
+      background: #6b7280;
+      border-radius: 999px;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-100 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-all duration-300">
+
+  <!-- Header -->
+  <header class="border-b border-gray-300 dark:border-gray-800 bg-white dark:bg-gray-900">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-3xl font-bold tracking-tight">
+          Metadata Error Analyzer
+        </h1>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          Paste Salesforce deployment errors → Convert to CSV → Analyze in table
+        </p>
+      </div>
+
+      <button
+        id="themeToggle"
+        class="px-4 py-2 rounded-xl bg-gray-200 dark:bg-gray-800 hover:scale-105 transition"
+      >
+        🌙 Toggle Theme
+      </button>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="max-w-7xl mx-auto px-6 py-6">
+
+    <!-- Controls -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+      <!-- Editor Panel -->
+      <section class="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-5 border border-gray-200 dark:border-gray-800">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-xl font-semibold">
+            Input Text
+          </h2>
+
+          <button
+            id="loadSampleBtn"
+            class="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition"
+          >
+            Load Sample
+          </button>
+        </div>
+
+        <div id="editor"></div>
+
+        <div class="flex gap-3 mt-5">
+          <button
+            id="parseBtn"
+            class="px-5 py-3 rounded-xl bg-green-600 text-white font-medium hover:bg-green-700 transition"
+          >
+            Parse & Generate Table
+          </button>
+
+          <button
+            id="clearBtn"
+            class="px-5 py-3 rounded-xl bg-red-600 text-white font-medium hover:bg-red-700 transition"
+          >
+            Clear
+          </button>
+        </div>
+      </section>
+
+      <!-- Stats -->
+      <section class="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-5 border border-gray-200 dark:border-gray-800">
+
+        <h2 class="text-xl font-semibold mb-4">
+          Summary
+        </h2>
+
+        <div class="grid grid-cols-2 gap-4">
+
+          <div class="p-5 rounded-2xl bg-blue-100 dark:bg-blue-950">
+            <div class="text-sm text-blue-700 dark:text-blue-300">
+              Total Records
+            </div>
+            <div id="totalRecords" class="text-3xl font-bold mt-2">
+              0
+            </div>
+          </div>
+
+          <div class="p-5 rounded-2xl bg-purple-100 dark:bg-purple-950">
+            <div class="text-sm text-purple-700 dark:text-purple-300">
+              Unique Types
+            </div>
+            <div id="uniqueTypes" class="text-3xl font-bold mt-2">
+              0
+            </div>
+          </div>
+
+        </div>
+
+        <div class="mt-6">
+          <h3 class="font-semibold mb-2">
+            Export
+          </h3>
+
+          <button
+            id="exportBtn"
+            class="px-5 py-3 rounded-xl bg-cyan-600 text-white hover:bg-cyan-700 transition disabled:opacity-50"
+            disabled
+          >
+            Export CSV
+          </button>
+        </div>
+
+      </section>
+
+    </div>
+
+    <!-- Search -->
+    <section class="mt-8">
+      <div class="bg-white dark:bg-gray-900 rounded-2xl shadow-xl p-5 border border-gray-200 dark:border-gray-800">
+
+        <div class="flex flex-col lg:flex-row gap-4 lg:items-center lg:justify-between mb-5">
+
+          <h2 class="text-2xl font-semibold">
+            Data Table
+          </h2>
+
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Search..."
+            class="px-4 py-3 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-950 w-full lg:w-96"
+          />
+
+        </div>
+
+        <!-- Table -->
+        <div class="table-scroll overflow-auto rounded-xl border border-gray-200 dark:border-gray-800">
+
+          <table class="min-w-full text-sm">
+            <thead class="bg-gray-200 dark:bg-gray-800 sticky top-0">
+              <tr>
+                <th class="sortable px-4 py-3 text-left cursor-pointer" data-key="apiName">
+                  API Name ⬍
+                </th>
+
+                <th class="sortable px-4 py-3 text-left cursor-pointer" data-key="type">
+                  Type ⬍
+                </th>
+
+                <th class="sortable px-4 py-3 text-left cursor-pointer" data-key="line">
+                  Line ⬍
+                </th>
+
+                <th class="sortable px-4 py-3 text-left cursor-pointer" data-key="column">
+                  Column ⬍
+                </th>
+
+                <th class="px-4 py-3 text-left">
+                  Error Message
+                </th>
+              </tr>
+            </thead>
+
+            <tbody id="tableBody"></tbody>
+          </table>
+
+        </div>
+
+        <!-- Pagination -->
+        <div class="flex items-center justify-between mt-5">
+
+          <div id="pageInfo" class="text-sm text-gray-500">
+            Page 1
+          </div>
+
+          <div class="flex gap-2">
+            <button
+              id="prevBtn"
+              class="px-4 py-2 rounded-lg bg-gray-300 dark:bg-gray-700"
+            >
+              Prev
+            </button>
+
+            <button
+              id="nextBtn"
+              class="px-4 py-2 rounded-lg bg-gray-300 dark:bg-gray-700"
+            >
+              Next
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <script>
+
+    // ----------------------------
+    // Monaco Editor
+    // ----------------------------
+
+    let editor;
+
+    require.config({
+      paths: {
+        vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs'
+      }
+    });
+
+    require(['vs/editor/editor.main'], function () {
+
+      editor = monaco.editor.create(document.getElementById('editor'), {
+        value: '',
+        language: 'plaintext',
+        theme: 'vs-dark',
+        fontSize: 14,
+        minimap: {
+          enabled: true
+        },
+        automaticLayout: true
+      });
+
+    });
+
+    // ----------------------------
+    // Theme
+    // ----------------------------
+
+    const themeToggle = document.getElementById('themeToggle');
+
+    themeToggle.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+
+      const isDark = document.documentElement.classList.contains('dark');
+
+      monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs');
+
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+    });
+
+    if (localStorage.getItem('theme') === 'light') {
+      document.documentElement.classList.remove('dark');
+    }
+
+    // ----------------------------
+    // Sample Data
+    // ----------------------------
+
+    const sampleText = `API Name
+Type
+Line
+Column
+Error Message
+ABnExperimentActionEnum		0	0	An object 'ABnExperimentActionEnum' of type ApexClass was named in package.xml, but was not found in zipped directory
+AIFieldRecommendation		0	0	An object 'AIFieldRecommendation' of type ApexClass was named in package.xml, but was not found in zipped directory
+AIFieldRecommendationCollection		0	0	An object 'AIFieldRecommendationCollection' of type ApexClass was named in package.xml, but was not found in zipped directory
+AIFieldRecommendationValue		0	0	An object 'AIFieldRecommendationValue' of type ApexClass was named in package.xml, but was not found in zipped directory`;
+
+    document.getElementById('loadSampleBtn')
+      .addEventListener('click', () => {
+        editor.setValue(sampleText);
+      });
+
+    // ----------------------------
+    // Data State
+    // ----------------------------
+
+    let allData = [];
+    let filteredData = [];
+
+    let currentPage = 1;
+    const rowsPerPage = 8;
+
+    let currentSort = {
+      key: null,
+      asc: true
+    };
+
+    // ----------------------------
+    // Parse Data
+    // ----------------------------
+
+    function parseInput(text) {
+
+      const lines = text
+        .split('\n')
+        .map(l => l.trim())
+        .filter(Boolean);
+
+      if (lines.length <= 5) {
+        return [];
+      }
+
+      const dataLines = lines.slice(5);
+
+      return dataLines.map(line => {
+
+        const parts = line.split('\t');
+
+        return {
+          apiName: parts[0] || '',
+          type: parts[1] || '',
+          line: parts[2] || '',
+          column: parts[3] || '',
+          errorMessage: parts.slice(4).join(' ') || ''
+        };
+
+      });
+
+    }
+
+    // ----------------------------
+    // Render Table
+    // ----------------------------
+
+    function renderTable() {
+
+      const tbody = document.getElementById('tableBody');
+
+      tbody.innerHTML = '';
+
+      const start = (currentPage - 1) * rowsPerPage;
+      const end = start + rowsPerPage;
+
+      const pageData = filteredData.slice(start, end);
+
+      pageData.forEach(row => {
+
+        const tr = document.createElement('tr');
+
+        tr.className =
+          'border-b border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800';
+
+        tr.innerHTML = `
+          <td class="px-4 py-3 font-medium">${row.apiName}</td>
+          <td class="px-4 py-3">${row.type}</td>
+          <td class="px-4 py-3">${row.line}</td>
+          <td class="px-4 py-3">${row.column}</td>
+          <td class="px-4 py-3">${row.errorMessage}</td>
+        `;
+
+        tbody.appendChild(tr);
+
+      });
+
+      document.getElementById('pageInfo').innerText =
+        `Page ${currentPage} of ${Math.ceil(filteredData.length / rowsPerPage) || 1}`;
+
+    }
+
+    // ----------------------------
+    // Pagination
+    // ----------------------------
+
+    document.getElementById('prevBtn')
+      .addEventListener('click', () => {
+
+        if (currentPage > 1) {
+          currentPage--;
+          renderTable();
+        }
+
+      });
+
+    document.getElementById('nextBtn')
+      .addEventListener('click', () => {
+
+        const maxPage = Math.ceil(filteredData.length / rowsPerPage);
+
+        if (currentPage < maxPage) {
+          currentPage++;
+          renderTable();
+        }
+
+      });
+
+    // ----------------------------
+    // Sorting
+    // ----------------------------
+
+    document.querySelectorAll('.sortable')
+      .forEach(header => {
+
+        header.addEventListener('click', () => {
+
+          const key = header.dataset.key;
+
+          if (currentSort.key === key) {
+            currentSort.asc = !currentSort.asc;
+          } else {
+            currentSort.key = key;
+            currentSort.asc = true;
+          }
+
+          filteredData.sort((a, b) => {
+
+            let valA = a[key];
+            let valB = b[key];
+
+            if (!isNaN(valA) && !isNaN(valB)) {
+              valA = Number(valA);
+              valB = Number(valB);
+            }
+
+            if (valA < valB) {
+              return currentSort.asc ? -1 : 1;
+            }
+
+            if (valA > valB) {
+              return currentSort.asc ? 1 : -1;
+            }
+
+            return 0;
+
+          });
+
+          renderTable();
+
+        });
+
+      });
+
+    // ----------------------------
+    // Search
+    // ----------------------------
+
+    document.getElementById('searchInput')
+      .addEventListener('input', (e) => {
+
+        const term = e.target.value.toLowerCase();
+
+        filteredData = allData.filter(row =>
+          Object.values(row)
+            .join(' ')
+            .toLowerCase()
+            .includes(term)
+        );
+
+        currentPage = 1;
+
+        renderTable();
+
+      });
+
+    // ----------------------------
+    // Parse Button
+    // ----------------------------
+
+    document.getElementById('parseBtn')
+      .addEventListener('click', () => {
+
+        const text = editor.getValue();
+
+        allData = parseInput(text);
+
+        filteredData = [...allData];
+
+        currentPage = 1;
+
+        renderTable();
+
+        document.getElementById('totalRecords').innerText =
+          allData.length;
+
+        const uniqueTypes =
+          new Set(allData.map(r => r.type)).size;
+
+        document.getElementById('uniqueTypes').innerText =
+          uniqueTypes;
+
+        document.getElementById('exportBtn').disabled =
+          allData.length === 0;
+
+      });
+
+    // ----------------------------
+    // Export CSV
+    // ----------------------------
+
+    document.getElementById('exportBtn')
+      .addEventListener('click', () => {
+
+        const csv = Papa.unparse(filteredData);
+
+        const blob = new Blob([csv], {
+          type: 'text/csv;charset=utf-8;'
+        });
+
+        const link = document.createElement('a');
+
+        const url = URL.createObjectURL(blob);
+
+        link.setAttribute('href', url);
+
+        link.setAttribute(
+          'download',
+          'metadata-errors.csv'
+        );
+
+        document.body.appendChild(link);
+
+        link.click();
+
+        document.body.removeChild(link);
+
+      });
+
+    // ----------------------------
+    // Clear
+    // ----------------------------
+
+    document.getElementById('clearBtn')
+      .addEventListener('click', () => {
+
+        editor.setValue('');
+
+        allData = [];
+        filteredData = [];
+
+        renderTable();
+
+        document.getElementById('totalRecords').innerText = '0';
+        document.getElementById('uniqueTypes').innerText = '0';
+
+      });
+
+  </script>
+
+</body>
+</html>
