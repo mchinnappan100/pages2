@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FileDiff Pro - Modern File Comparison</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+  <script>tailwind.config = { darkMode: 'class' };</script>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #container { height: calc(100vh - 140px); }
+    #editors, #diffEditor { height: 100%; }
+
+    @keyframes slideIn {
+      from { opacity:0; transform:translateY(-10px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .animate-in { animation: slideIn 0.3s ease-out; }
+
+    .drop-zone { transition: all 0.2s ease; }
+    .drop-zone.drag-over { background-color:rgba(59,130,246,.1); border-color:rgb(59,130,246); }
+
+    .tooltip { position:relative; }
+    .tooltip:hover::after {
+      content:attr(data-tooltip);
+      position:absolute; bottom:100%; left:50%;
+      transform:translateX(-50%);
+      padding:4px 8px; background:rgba(0,0,0,.9);
+      color:#fff; font-size:12px; white-space:nowrap;
+      border-radius:4px; margin-bottom:4px; z-index:1000;
+    }
+
+    /* ── shared semantic diff panel styles ── */
+    .sem-container {
+      font-family:'Fira Mono','Cascadia Code',monospace;
+      font-size:13px; overflow-y:auto; height:100%; padding:16px;
+      background:#0f1117; border-radius:0 0 12px 12px;
+      border:1px solid rgba(55,65,81,.5); border-top:none;
+    }
+    .xd-section { margin-bottom:6px; }
+    .xd-added   { background:rgba(34,197,94,.12);  border-left:3px solid #22c55e; padding:4px 10px; border-radius:0 4px 4px 0; color:#86efac; }
+    .xd-removed { background:rgba(239,68,68,.12);  border-left:3px solid #ef4444; padding:4px 10px; border-radius:0 4px 4px 0; color:#fca5a5; }
+    .xd-changed { background:rgba(251,191,36,.10); border-left:3px solid #f59e0b; padding:4px 10px; border-radius:0 4px 4px 0; color:#fde68a; }
+    .xd-path    { font-size:11px; opacity:.6; margin-bottom:2px; }
+    .xd-label   { display:inline-block; font-size:10px; font-weight:700; padding:1px 6px; border-radius:3px; margin-right:6px; letter-spacing:.05em; }
+    .xd-label-add    { background:#166534; color:#86efac; }
+    .xd-label-del    { background:#7f1d1d; color:#fca5a5; }
+    .xd-label-change { background:#78350f; color:#fde68a; }
+    .xd-summary { display:flex; gap:12px; flex-wrap:wrap; padding:10px 14px; background:rgba(255,255,255,.04); border-radius:8px; margin-bottom:14px; border:1px solid rgba(255,255,255,.07); font-size:12px; }
+    .xd-summary-item { display:flex; align-items:center; gap:5px; }
+    .xd-dot { width:8px; height:8px; border-radius:50%; }
+    .xd-error { color:#f87171; padding:20px; text-align:center; font-size:14px; }
+
+    /* ── mode buttons ── */
+    .mode-btn { padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; transition:all .15s; border:1px solid transparent; }
+    .mode-btn.active { background:linear-gradient(135deg,#3b82f6,#8b5cf6); color:#fff; }
+    .mode-btn:not(.active) { background:rgba(255,255,255,.06); color:#9ca3af; border-color:rgba(255,255,255,.1); }
+    .mode-btn:not(.active):hover { background:rgba(255,255,255,.1); color:#d1d5db; }
+
+    /* ── badges ── */
+    .xml-badge  { display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.06em; }
+    .json-badge { display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#d97706,#b45309);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.06em; }
+    .git-badge  { display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg,#f97316,#dc2626);color:#fff;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;letter-spacing:.06em; }
+
+    /* ── Git Diff View ── */
+    #gitDiffOuter { display:flex; height:100%; gap:0; }
+
+    /* file tree sidebar */
+    #gitFileTree {
+      width:240px; min-width:180px; flex-shrink:0;
+      background:#0d1117; border-right:1px solid rgba(55,65,81,.5);
+      border-radius:0 0 0 12px; overflow-y:auto; padding:8px 0;
+    }
+    .gt-file-item {
+      padding:6px 14px; cursor:pointer; font-size:12px;
+      font-family:'Fira Mono',monospace; border-left:3px solid transparent;
+      transition:all .15s; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+      display:flex; align-items:center; justify-content:space-between; gap:6px;
+    }
+    .gt-file-item:hover { background:rgba(255,255,255,.05); }
+    .gt-file-item.active { background:rgba(59,130,246,.15); border-left-color:#3b82f6; color:#93c5fd; }
+    .gt-file-stat { font-size:10px; white-space:nowrap; flex-shrink:0; }
+    .gt-stat-add  { color:#22c55e; }
+    .gt-stat-del  { color:#ef4444; }
+
+    /* diff body */
+    #gitDiffBody {
+      flex:1; overflow-y:auto; background:#0f1117;
+      border-radius:0 0 12px 0;
+      border:1px solid rgba(55,65,81,.5); border-left:none; border-top:none;
+    }
+
+    .gd-file-header {
+      position:sticky; top:0; z-index:10;
+      background:#161b22; border-bottom:1px solid rgba(55,65,81,.5);
+      padding:8px 16px; font-family:'Fira Mono',monospace; font-size:12px;
+      display:flex; align-items:center; gap:10px; color:#8b949e;
+    }
+    .gd-file-header .gd-fname { color:#e6edf3; font-weight:600; }
+
+    .gd-hunk-header {
+      background:#1f2937; color:#6b7280;
+      font-family:'Fira Mono',monospace; font-size:12px;
+      padding:3px 16px; border-top:1px solid rgba(55,65,81,.4);
+      border-bottom:1px solid rgba(55,65,81,.4);
+    }
+    .gd-hunk-header span { color:#60a5fa; }
+
+    .gd-line {
+      display:flex; font-family:'Fira Mono',monospace; font-size:12px;
+      line-height:1.6; min-height:22px;
+    }
+    .gd-line-nums { display:flex; flex-shrink:0; }
+    .gd-ln { width:44px; text-align:right; padding:0 8px; color:#3d444d; user-select:none; background:#0d1117; border-right:1px solid rgba(55,65,81,.3); font-size:11px; }
+    .gd-line-content { flex:1; padding:0 16px; white-space:pre-wrap; word-break:break-all; }
+
+    .gd-line.add  { background:rgba(34,197,94,.10); }
+    .gd-line.add  .gd-ln   { background:rgba(34,197,94,.08); color:#4ade80; }
+    .gd-line.add  .gd-sign { color:#4ade80; }
+    .gd-line.del  { background:rgba(239,68,68,.10); }
+    .gd-line.del  .gd-ln   { background:rgba(239,68,68,.08); color:#f87171; }
+    .gd-line.del  .gd-sign { color:#f87171; }
+    .gd-line.ctx  .gd-sign { color:#3d444d; }
+
+    .gd-sign { width:18px; flex-shrink:0; padding-left:2px; }
+
+    /* git paste panel */
+    #gitPastePanel {
+      display:flex; flex-direction:column; height:100%;
+      background:#0f1117; border-radius:12px;
+      border:1px solid rgba(55,65,81,.5); overflow:hidden;
+    }
+    #gitPasteHeader {
+      padding:12px 16px; background:#161b22;
+      border-bottom:1px solid rgba(55,65,81,.5);
+      display:flex; align-items:center; justify-content:space-between;
+    }
+    #gitPasteArea {
+      flex:1; resize:none; background:#0d1117; color:#e6edf3;
+      font-family:'Fira Mono',monospace; font-size:13px;
+      border:none; outline:none; padding:16px;
+      line-height:1.6;
+    }
+    #gitPasteArea::placeholder { color:#3d444d; }
+    #gitPasteFooter {
+      padding:10px 16px; background:#161b22;
+      border-top:1px solid rgba(55,65,81,.5);
+      display:flex; align-items:center; gap:10px;
+    }
+
+    .git-cmd-chip {
+      display:inline-block; background:#1f2937; color:#60a5fa;
+      font-family:'Fira Mono',monospace; font-size:11px;
+      padding:2px 8px; border-radius:4px; border:1px solid rgba(96,165,250,.3);
+      cursor:pointer; transition:all .15s;
+    }
+    .git-cmd-chip:hover { background:#374151; }
+
+    /* summary bar */
+    #gitSummaryBar {
+      padding:8px 16px; background:#161b22;
+      border-bottom:1px solid rgba(55,65,81,.5);
+      display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+      font-size:12px;
+    }
+    .gs-pill { padding:2px 8px; border-radius:10px; font-size:11px; font-weight:600; }
+    .gs-pill-add { background:rgba(34,197,94,.15); color:#4ade80; }
+    .gs-pill-del { background:rgba(239,68,68,.15); color:#f87171; }
+    .gs-pill-file { background:rgba(59,130,246,.15); color:#93c5fd; }
+
+    .git-diff-view { display:flex; flex-direction:column; height:100%; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+</head>
+<body class="bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 text-gray-200 flex flex-col h-screen">
+
+<!-- HEADER -->
+<header class="sticky top-0 bg-gray-800/80 backdrop-blur-lg border-b border-gray-700/50 p-3 flex justify-between items-center z-50 shadow-lg">
+  <div class="flex items-center gap-3">
+    <div class="w-9 h-9 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
+      <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+    </div>
+    <div>
+      <h1 class="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">FileDiff Pro</h1>
+      <p class="text-xs text-gray-500">Advanced File Comparison</p>
+    </div>
+  </div>
+
+  <div class="flex gap-2 items-center flex-wrap justify-end">
+    <!-- Mode selector -->
+    <div class="flex items-center gap-1 bg-gray-900/60 rounded-lg p-1 border border-gray-700/50">
+      <span class="text-xs text-gray-500 px-1">Mode:</span>
+      <button id="modeText" class="mode-btn" onclick="setDiffMode('text')">Text</button>
+      <button id="modeXml"  class="mode-btn" onclick="setDiffMode('xml')"><span class="xml-badge">XML</span>&nbsp;Semantic</button>
+      <button id="modeJson" class="mode-btn" onclick="setDiffMode('json')"><span class="json-badge">JSON</span>&nbsp;Semantic</button>
+      <button id="modeGit"  class="mode-btn active" onclick="setDiffMode('git')">
+        <span class="git-badge">GIT</span>&nbsp;Diff
+      </button>
+    </div>
+
+    <button id="compareBtn" class="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 rounded-lg font-medium transition-all transform hover:scale-105 shadow-lg">
+      <span class="flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+        </svg>
+        Compare
+      </span>
+    </button>
+    <button id="toggleTheme" class="px-3 py-2 bg-gray-700/50 hover:bg-gray-600/50 rounded-lg transition-all">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+      </svg>
+    </button>
+    <button id="clearAll" class="px-3 py-2 bg-red-600/80 hover:bg-red-500 rounded-lg transition-all">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main id="container" class="flex-1 w-full p-4 overflow-hidden">
+
+  <!-- ── PANEL: Side-by-side editors ── -->
+  <div id="editors" class="hidden grid grid-cols-1 lg:grid-cols-2 gap-4 w-full h-full animate-in">
+    <div class="flex flex-col h-full bg-gray-800/50 rounded-xl border border-gray-700/50 overflow-hidden shadow-xl drop-zone" id="leftDropZone">
+      <div class="flex justify-between items-center p-3 bg-gradient-to-r from-gray-800 to-gray-700/50 border-b border-gray-700/50">
+        <div class="flex items-center gap-2">
+          <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+          <span class="text-sm font-medium">Original</span>
+          <span id="leftFilename" class="text-xs text-gray-400 italic"></span>
+        </div>
+        <div class="flex gap-2">
+          <input type="file" id="leftFile" class="hidden"/>
+          <button onclick="document.getElementById('leftFile').click()" class="px-3 py-1.5 bg-blue-600/80 hover:bg-blue-500 rounded-lg text-xs font-medium transition-all">Upload</button>
+          <button onclick="downloadFile('left')" class="px-3 py-1.5 bg-gray-600/80 hover:bg-gray-500 rounded-lg text-xs font-medium transition-all">Download</button>
+          <button onclick="copyToClipboard('left')" class="px-3 py-1.5 bg-gray-600/80 hover:bg-gray-500 rounded-lg text-xs font-medium transition-all">Copy</button>
+        </div>
+      </div>
+      <div id="leftEditor" class="flex-1"></div>
+    </div>
+    <div class="flex flex-col h-full bg-gray-800/50 rounded-xl border border-gray-700/50 overflow-hidden shadow-xl drop-zone" id="rightDropZone">
+      <div class="flex justify-between items-center p-3 bg-gradient-to-r from-gray-700/50 to-gray-800 border-b border-gray-700/50">
+        <div class="flex items-center gap-2">
+          <div class="w-2 h-2 bg-purple-500 rounded-full animate-pulse"></div>
+          <span class="text-sm font-medium">Modified</span>
+          <span id="rightFilename" class="text-xs text-gray-400 italic"></span>
+        </div>
+        <div class="flex gap-2">
+          <input type="file" id="rightFile" class="hidden"/>
+          <button onclick="document.getElementById('rightFile').click()" class="px-3 py-1.5 bg-blue-600/80 hover:bg-blue-500 rounded-lg text-xs font-medium transition-all">Upload</button>
+          <button onclick="downloadFile('right')" class="px-3 py-1.5 bg-gray-600/80 hover:bg-gray-500 rounded-lg text-xs font-medium transition-all">Download</button>
+          <button onclick="copyToClipboard('right')" class="px-3 py-1.5 bg-gray-600/80 hover:bg-gray-500 rounded-lg text-xs font-medium transition-all">Copy</button>
+        </div>
+      </div>
+      <div id="rightEditor" class="flex-1"></div>
+    </div>
+  </div>
+
+  <!-- ── PANEL: Monaco Text Diff ── -->
+  <div id="diffContainer" class="hidden w-full h-full animate-in">
+    <div class="flex justify-between items-center p-3 bg-gray-800/50 rounded-t-xl border border-b-0 border-gray-700/50">
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+        </svg>
+        <span class="text-sm font-medium">Text Diff View</span>
+      </div>
+      <button onclick="exitDiffView()" class="px-3 py-1.5 bg-gray-600/80 hover:bg-gray-500 rounded-lg text-xs font-medium transition-all">← Back to Edit</button>
+    </div>
+    <div id="diffEditor" class="rounded-b-xl border border-gray-700/50 overflow-hidden shadow-xl"></div>
+  </div>
+
+  <!-- ── PANEL: XML Semantic Diff ── -->
+  <div id="xmlDiffView" class="hidden w-full h-full animate-in" style="display:none;flex-direction:column">
+    <div class="flex justify-between items-center p-3 bg-gray-800/50 rounded-t-xl border border-b-0 border-gray-700/50">
+      <div class="flex items-center gap-2">
+        <span class="xml-badge">XML</span>
+        <span class="text-sm font-medium">Semantic Diff</span>
+        <span class="text-xs text-gray-500 ml-2">— structural element-level comparison</span>
+      </div>
+      <button onclick="exitToEditors()" class="px-3 py-1.5 bg-gray-600/80 hover:bg-gray-500 rounded-lg text-xs font-medium transition-all">← Back to Edit</button>
+    </div>
+    <div id="xmlDiffContainer" class="sem-container" style="flex:1"></div>
+  </div>
+
+  <!-- ── PANEL: JSON Semantic Diff ── -->
+  <div id="jsonDiffView" class="hidden w-full h-full animate-in" style="display:none;flex-direction:column">
+    <div class="flex justify-between items-center p-3 bg-gray-800/50 rounded-t-xl border border-b-0 border-gray-700/50">
+      <div class="flex items-center gap-2">
+        <span class="json-badge">JSON</span>
+        <span class="text-sm font-medium">Semantic Diff</span>
+        <span class="text-xs text-gray-500 ml-2">— deep key-by-key structural comparison</span>
+      </div>
+      <button onclick="exitToEditors()" class="px-3 py-1.5 bg-gray-600/80 hover:bg-gray-500 rounded-lg text-xs font-medium transition-all">← Back to Edit</button>
+    </div>
+    <div id="jsonDiffContainer" class="sem-container" style="flex:1"></div>
+  </div>
+
+  <!-- ── PANEL: Git Diff ── -->
+  <div id="gitView" class="w-full h-full git-diff-view" style="display:none">
+    <!-- Paste input panel (shown before parse) -->
+    <div id="gitPastePanel">
+      <div id="gitPasteHeader">
+        <div class="flex items-center gap-2">
+          <span class="git-badge">GIT</span>
+          <span class="text-sm font-medium">Paste git diff output</span>
+        </div>
+        <div class="flex items-center gap-2 text-xs text-gray-500">
+          Run in your terminal, then paste here:
+          <span class="git-cmd-chip" onclick="insertSample()">Load sample</span>
+        </div>
+      </div>
+      <div class="px-4 py-2 bg-gray-900/40 border-b border-gray-700/40 flex flex-wrap gap-2 text-xs text-gray-400">
+        <span>Common commands:</span>
+        <code class="git-cmd-chip" onclick="setGitHint(this)">git diff</code>
+        <code class="git-cmd-chip" onclick="setGitHint(this)">git diff HEAD~1</code>
+        <code class="git-cmd-chip" onclick="setGitHint(this)">git diff main..feature</code>
+        <code class="git-cmd-chip" onclick="setGitHint(this)">git show HEAD</code>
+        <code class="git-cmd-chip" onclick="setGitHint(this)">git diff --staged</code>
+        <code class="git-cmd-chip" onclick="setGitHint(this)">git stash show -p</code>
+      </div>
+      <textarea id="gitPasteArea" placeholder="Paste the output of  git diff  (or any unified diff) here…
+
+Example:
+diff --git a/src/app.js b/src/app.js
+index 83db48f..f7355a1 100644
+--- a/src/app.js
++++ b/src/app.js
+@@ -1,5 +1,6 @@
+ const express = require('express');
+-const port = 3000;
++const port = process.env.PORT || 3000;
++const debug = false;
+ app.listen(port);"></textarea>
+      <div id="gitPasteFooter">
+        <button onclick="parseAndRenderGitDiff()" class="px-5 py-2 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-500 hover:to-red-500 rounded-lg text-sm font-semibold transition-all transform hover:scale-105 shadow-lg flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+          Render Diff
+        </button>
+        <span class="text-xs text-gray-500">Supports unified diff format from git, svn, patch files…</span>
+      </div>
+    </div>
+
+    <!-- Rendered diff result (hidden until parsed) -->
+    <div id="gitRendered" class="hidden flex-col h-full">
+      <div id="gitSummaryBar">
+        <span class="git-badge">GIT</span>
+        <span id="gsSummary" class="text-gray-400 text-xs"></span>
+        <span id="gsFiles"  class="gs-pill gs-pill-file"></span>
+        <span id="gsAdded" class="gs-pill gs-pill-add"></span>
+        <span id="gsDeleted" class="gs-pill gs-pill-del"></span>
+        <button onclick="resetGitView()" class="ml-auto px-3 py-1 bg-gray-700/60 hover:bg-gray-600 rounded-lg text-xs font-medium transition-all">← Paste new diff</button>
+      </div>
+      <div id="gitDiffOuter" class="flex-1 overflow-hidden">
+        <div id="gitFileTree"></div>
+        <div id="gitDiffBody"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- FOOTER -->
+<footer class="sticky bottom-0 bg-gray-800/80 backdrop-blur-lg border-t border-gray-700/50 p-2 text-center shadow-lg">
+  <div class="flex justify-center items-center gap-3 text-xs text-gray-500 flex-wrap">
+    <span>Advanced Monaco Editor</span><span>•</span>
+    <span>Syntax Highlighting</span><span>•</span>
+    <span>Drag &amp; Drop</span><span>•</span>
+    <span class="flex items-center gap-1"><span class="xml-badge">XML</span> Semantic</span><span>•</span>
+    <span class="flex items-center gap-1"><span class="json-badge">JSON</span> Semantic</span><span>•</span>
+    <span class="flex items-center gap-1"><span class="git-badge">GIT</span> Diff Viewer</span><span>•</span>
+    <span class="text-gray-600">MC - FileDiff Pro</span>
+  </div>
+</footer>
+
+<script>
+/* ═══════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════ */
+let editorLeft, editorRight, diffEditor;
+let filenameLeft  = 'left.txt';
+let filenameRight = 'right.txt';
+let currentDiffMode = 'git';
+
+/* ═══════════════════════════════════════════════
+   SAMPLE DATA
+═══════════════════════════════════════════════ */
+const SAMPLE_XML_LEFT = `<?xml version="1.0" encoding="UTF-8"?>
+<customer>
+    <id>1001</id>
+    <name><first>John</first><last>Doe</last></name>
+    <contact>
+        <email>john.doe@example.com</email>
+        <phone>+1-555-1234</phone>
+    </contact>
+    <address country="USA"><city>New York</city><zip>10001</zip></address>
+</customer>`;
+
+const SAMPLE_XML_RIGHT = `<?xml version="1.0" encoding="UTF-8"?>
+<customer>
+    <contact>
+        <phone>+1-555-1234</phone>
+        <email>john.doe@example.com</email>
+    </contact>
+    <address country="USA"><zip>10001</zip><city>New York</city></address>
+    <name><last>Doe</last><first>John</first></name>
+    <id>1001</id>
+</customer>`;
+
+const SAMPLE_JSON_LEFT = ` {
+  "id": 101,
+  "name": {
+    "first": "Alice",
+    "last": "Smith"
+  },
+  "skills": [
+    "JavaScript",
+    "Python",
+    "SQL"
+  ],
+  "active": true,
+  "contact": {
+    "email": "alice.smith@example.com",
+    "phone": "+1-555-9876"
+  }
+}`;
+
+const SAMPLE_JSON_RIGHT = `{
+  "contact": {
+    "phone": "+1-555-9876",
+    "email": "alice.smith@example.com"
+  },
+  "active": true,
+  "skills": [
+    "JavaScript",
+    "Python",
+    "SQL"
+  ],
+  "name": {
+    "last": "Smith",
+    "first": "Alice"
+  },
+  "id": 101
+}
+  `;
+
+const SAMPLE_GIT_DIFF = `diff --git a/src/auth/login.js b/src/auth/login.js
+index 4a3f921..b8d1e43 100644
+--- a/src/auth/login.js
++++ b/src/auth/login.js
+@@ -1,12 +1,14 @@
+ const bcrypt = require('bcrypt');
+ const jwt = require('jsonwebtoken');
++const rateLimit = require('express-rate-limit');
+ 
+ async function login(req, res) {
+   const { username, password } = req.body;
+-  const user = await User.findOne({ username });
++  const user = await User.findOne({ username: username.toLowerCase() });
+   if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+ 
+-  const valid = bcrypt.compareSync(password, user.password);
++  const valid = await bcrypt.compare(password, user.password);
+   if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
+ 
++  await user.updateLastLogin();
+   const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '24h' });
+   res.json({ token });
+ }
+diff --git a/src/auth/middleware.js b/src/auth/middleware.js
+index 9c2e1a0..3f7b8c5 100644
+--- a/src/auth/middleware.js
++++ b/src/auth/middleware.js
+@@ -3,10 +3,15 @@
+ const jwt = require('jsonwebtoken');
+ 
+ function authMiddleware(req, res, next) {
+-  const token = req.headers['authorization'];
+-  if (!token) return res.status(403).json({ error: 'No token' });
++  const header = req.headers['authorization'];
++  if (!header) return res.status(403).json({ error: 'No token provided' });
++
++  const token = header.startsWith('Bearer ') ? header.slice(7) : header;
++
+   try {
+     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+     req.user = decoded;
++    req.user.isAdmin = decoded.role === 'admin';
+     next();
+   } catch (e) {
+-    res.status(401).json({ error: 'Invalid token' });
++    const msg = e.name === 'TokenExpiredError' ? 'Token expired' : 'Invalid token';
++    res.status(401).json({ error: msg });
+   }
+ }
+diff --git a/package.json b/package.json
+index 1234abc..5678def 100644
+--- a/package.json
++++ b/package.json
+@@ -8,7 +8,8 @@
+     "bcrypt": "^5.1.0",
+     "express": "^4.18.2",
+-    "jsonwebtoken": "^9.0.0"
++    "jsonwebtoken": "^9.0.0",
++    "express-rate-limit": "^7.1.5"
+   },
+   "devDependencies": {
+     "jest": "^29.0.0"
+diff --git a/README.md b/README.md
+index aabbcc0..ddeeff1 100644
+--- a/README.md
++++ b/README.md
+@@ -1,6 +1,10 @@
+ # Auth Service
+ 
+-A simple JWT authentication service.
++A production-ready JWT authentication service with rate limiting.
+ 
+ ## Setup
++
++### Environment Variables
++- \`JWT_SECRET\` - Secret key for signing tokens
++- \`PORT\` - Server port (default: 3000)
+`;
+
+/* ═══════════════════════════════════════════════
+   MONACO INIT
+═══════════════════════════════════════════════ */
+require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+require(['vs/editor/editor.main'], function () {
+  const commonOpts = {
+    theme:'vs-dark', automaticLayout:true, fontSize:13,
+    minimap:{ enabled:true }, wordWrap:'on', lineNumbers:'on',
+    scrollBeyondLastLine:false, folding:true,
+    bracketPairColorization:{ enabled:true },
+  };
+  editorLeft  = monaco.editor.create(document.getElementById('leftEditor'),  { ...commonOpts, value:'', language:'plaintext' });
+  editorRight = monaco.editor.create(document.getElementById('rightEditor'), { ...commonOpts, value:'', language:'plaintext' });
+  diffEditor  = monaco.editor.createDiffEditor(document.getElementById('diffEditor'), {
+    ...commonOpts, renderSideBySide:true, ignoreTrimWhitespace:false,
+  });
+  // Start in git mode - load sample into paste area
+  document.getElementById('gitPasteArea').value = SAMPLE_GIT_DIFF;
+});
+
+/* ═══════════════════════════════════════════════
+   MODE MANAGEMENT
+═══════════════════════════════════════════════ */
+function setDiffMode(mode) {
+  currentDiffMode = mode;
+  ['text','xml','json','git'].forEach(m =>
+    document.getElementById('mode'+m.charAt(0).toUpperCase()+m.slice(1))
+      .classList.toggle('active', m === mode)
+  );
+
+  hideAllPanels();
+  if (mode === 'git') {
+    showGitPastePanel();
+  } else {
+    showPanel('editors', 'grid');
+    if (!window._userLoadedFiles) {
+      if (mode === 'xml') {
+        loadEditors(SAMPLE_XML_LEFT, SAMPLE_XML_RIGHT, 'xml', 'customer-original.xml', 'customer-modified.xml');
+      } else if (mode === 'json') {
+        loadEditors(SAMPLE_JSON_LEFT, SAMPLE_JSON_RIGHT, 'json', 'user-original.json', 'user-modified.json');
+      }
+      // Text mode: leave editors as-is, don't clear content
+    }
+  }
+}
+
+function loadEditors(left, right, lang, fnLeft, fnRight) {
+  // If Monaco isn't ready yet, retry after a short delay
+  if (!editorLeft || !editorRight) {
+    setTimeout(() => loadEditors(left, right, lang, fnLeft, fnRight), 150);
+    return;
+  }
+  editorLeft.setValue(left);
+  editorRight.setValue(right);
+  monaco.editor.setModelLanguage(editorLeft.getModel(),  lang);
+  monaco.editor.setModelLanguage(editorRight.getModel(), lang);
+  document.getElementById('leftFilename').textContent  = fnLeft;
+  document.getElementById('rightFilename').textContent = fnRight;
+  filenameLeft  = fnLeft  || 'left.txt';
+  filenameRight = fnRight || 'right.txt';
+}
+
+function hideAllPanels() {
+  ['editors','diffContainer','xmlDiffView','jsonDiffView','gitView'].forEach(id => {
+    const el = document.getElementById(id);
+    el.style.display = 'none';
+  });
+}
+
+function showPanel(id, displayType) {
+  document.getElementById(id).style.display = displayType || 'block';
+}
+
+function showGitPastePanel() {
+  showPanel('gitView', 'flex');
+  document.getElementById('gitPastePanel').style.display  = 'flex';
+  document.getElementById('gitRendered').style.display    = 'none';
+}
+
+function exitToEditors() {
+  hideAllPanels();
+  showPanel('editors', 'grid');
+}
+
+function exitDiffView() { exitToEditors(); }
+
+/* ═══════════════════════════════════════════════
+   COMPARE BUTTON
+═══════════════════════════════════════════════ */
+document.getElementById('compareBtn').addEventListener('click', () => {
+  if (currentDiffMode === 'git')  return parseAndRenderGitDiff();
+  if (currentDiffMode === 'xml')  return runXmlSemanticDiff();
+  if (currentDiffMode === 'json') return runJsonSemanticDiff();
+  runTextDiff();
+});
+
+function runTextDiff() {
+  hideAllPanels();
+  showPanel('diffContainer', 'block');
+  diffEditor.setModel({ original: editorLeft.getModel(), modified: editorRight.getModel() });
+  showToast('Text diff ready', 'success');
+}
+
+/* ═══════════════════════════════════════════════
+   GIT DIFF ENGINE
+═══════════════════════════════════════════════ */
+function insertSample() {
+  document.getElementById('gitPasteArea').value = SAMPLE_GIT_DIFF;
+}
+
+function setGitHint(el) {
+  // Just show the command in a toast — user runs it themselves
+  showToast('Run:  ' + el.textContent + '  then paste the output', 'info');
+}
+
+function resetGitView() {
+  document.getElementById('gitRendered').style.display   = 'none';
+  document.getElementById('gitPastePanel').style.display = 'flex';
+}
+
+function parseAndRenderGitDiff() {
+  const raw = document.getElementById('gitPasteArea').value.trim();
+  if (!raw) { showToast('Paste a git diff first', 'error'); return; }
+
+  const files = parseUnifiedDiff(raw);
+  if (!files.length) { showToast('No valid unified diff found', 'error'); return; }
+
+  renderGitDiff(files);
+
+  document.getElementById('gitPastePanel').style.display = 'none';
+  const rendered = document.getElementById('gitRendered');
+  rendered.style.display = 'flex';
+
+  // Select first file
+  selectGitFile(0);
+  showToast(`Parsed ${files.length} file(s)`, 'success');
+}
+
+/* ── Unified diff parser ── */
+function parseUnifiedDiff(raw) {
+  const lines  = raw.split('\n');
+  const files  = [];
+  let cur      = null;
+  let curHunk  = null;
+  let oldLine  = 0;
+  let newLine  = 0;
+
+  for (const line of lines) {
+    // New file diff
+    if (line.startsWith('diff --git ')) {
+      if (cur) files.push(cur);
+      cur = { header: line, oldPath:'', newPath:'', hunks:[], totalAdd:0, totalDel:0 };
+      curHunk = null;
+      continue;
+    }
+    if (!cur) {
+      // Headerless unified diff (non-git)
+      if (line.startsWith('--- ')) {
+        cur = { header:'', oldPath: line.slice(4).split('\t')[0], newPath:'', hunks:[], totalAdd:0, totalDel:0 };
+        continue;
+      }
+    }
+    if (!cur) continue;
+
+    if (line.startsWith('--- ')) { cur.oldPath = line.slice(4).replace(/^a\//, '').split('\t')[0]; continue; }
+    if (line.startsWith('+++ ')) { cur.newPath = line.slice(4).replace(/^b\//, '').split('\t')[0]; continue; }
+
+    // Hunk header  @@ -l,s +l,s @@ optional context
+    const hunkMatch = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)/);
+    if (hunkMatch) {
+      oldLine = parseInt(hunkMatch[1]);
+      newLine = parseInt(hunkMatch[2]);
+      curHunk = { header: line, context: hunkMatch[3].trim(), lines:[] };
+      cur.hunks.push(curHunk);
+      continue;
+    }
+
+    if (!curHunk) continue;
+
+    if (line.startsWith('+')) {
+      curHunk.lines.push({ type:'add', content: line.slice(1), newNo: newLine++, oldNo: null });
+      cur.totalAdd++;
+    } else if (line.startsWith('-')) {
+      curHunk.lines.push({ type:'del', content: line.slice(1), oldNo: oldLine++, newNo: null });
+      cur.totalDel++;
+    } else if (line.startsWith('\\')) {
+      // "\ No newline at end of file" — skip
+    } else {
+      const content = line.startsWith(' ') ? line.slice(1) : line;
+      curHunk.lines.push({ type:'ctx', content, oldNo: oldLine++, newNo: newLine++ });
+    }
+  }
+  if (cur) files.push(cur);
+  return files.filter(f => f.hunks.length > 0);
+}
+
+/* ── Renderer ── */
+let _parsedFiles = [];
+
+function renderGitDiff(files) {
+  _parsedFiles = files;
+
+  // Summary bar
+  const totalAdd  = files.reduce((s,f) => s + f.totalAdd, 0);
+  const totalDel  = files.reduce((s,f) => s + f.totalDel, 0);
+  document.getElementById('gsSummary').textContent = ``;
+  document.getElementById('gsFiles').textContent   = `${files.length} file${files.length>1?'s':''}`;
+  document.getElementById('gsAdded').textContent   = `+${totalAdd}`;
+  document.getElementById('gsDeleted').textContent = `−${totalDel}`;
+
+  // File tree
+  const tree = document.getElementById('gitFileTree');
+  tree.innerHTML = files.map((f,i) => {
+    const name = (f.newPath || f.oldPath || 'unknown').split('/').pop();
+    const full = f.newPath || f.oldPath || '';
+    const addStr = f.totalAdd ? `<span class="gt-stat-add">+${f.totalAdd}</span>` : '';
+    const delStr = f.totalDel ? `<span class="gt-stat-del"> -${f.totalDel}</span>` : '';
+    return `<div class="gt-file-item" id="gtf-${i}" onclick="selectGitFile(${i})" title="${escHtml(full)}">
+      <span style="overflow:hidden;text-overflow:ellipsis;color:#c9d1d9">${escHtml(name)}</span>
+      <span class="gt-file-stat">${addStr}${delStr}</span>
+    </div>`;
+  }).join('');
+}
+
+function selectGitFile(idx) {
+  // Highlight selected
+  _parsedFiles.forEach((_,i) => {
+    const el = document.getElementById('gtf-'+i);
+    if (el) el.classList.toggle('active', i === idx);
+  });
+
+  const file = _parsedFiles[idx];
+  const body = document.getElementById('gitDiffBody');
+
+  const oldName = file.oldPath || 'a/unknown';
+  const newName = file.newPath || 'b/unknown';
+  const isNew  = oldName === '/dev/null';
+  const isDel  = newName === '/dev/null';
+
+  let html = `<div class="gd-file-header">
+    <svg style="width:14px;height:14px;flex-shrink:0" fill="none" stroke="#6b7280" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+    </svg>
+    <span class="gd-fname">${escHtml(newName || oldName)}</span>
+    ${isNew ? '<span class="gs-pill gs-pill-add" style="font-size:10px">NEW FILE</span>' : ''}
+    ${isDel ? '<span class="gs-pill gs-pill-del" style="font-size:10px">DELETED</span>' : ''}
+    <span style="margin-left:auto;font-size:11px">
+      <span style="color:#4ade80">+${file.totalAdd}</span>
+      <span style="color:#6b7280;margin:0 4px">/</span>
+      <span style="color:#f87171">-${file.totalDel}</span>
+    </span>
+  </div>`;
+
+  for (const hunk of file.hunks) {
+    html += `<div class="gd-hunk-header">
+      <span>${escHtml(hunk.header.match(/@@[^@@]+@@/)?.[0] || hunk.header)}</span>
+      ${hunk.context ? `<span style="color:#8b949e;margin-left:8px">${escHtml(hunk.context)}</span>` : ''}
+    </div>`;
+
+    for (const ln of hunk.lines) {
+      const sign = ln.type === 'add' ? '+' : ln.type === 'del' ? '-' : ' ';
+      const oldN = ln.oldNo !== null ? ln.oldNo : '';
+      const newN = ln.newNo !== null ? ln.newNo : '';
+      html += `<div class="gd-line ${ln.type}">
+        <div class="gd-line-nums">
+          <span class="gd-ln">${oldN}</span>
+          <span class="gd-ln">${newN}</span>
+        </div>
+        <span class="gd-sign">${sign}</span>
+        <span class="gd-line-content">${escHtml(ln.content)}</span>
+      </div>`;
+    }
+  }
+
+  body.innerHTML = html;
+  body.scrollTop = 0;
+}
+
+/* ═══════════════════════════════════════════════
+   XML SEMANTIC DIFF
+═══════════════════════════════════════════════ */
+function runXmlSemanticDiff() {
+  const lt = editorLeft.getValue(), rt = editorRight.getValue();
+  if (!lt.trim() && !rt.trim()) { showToast('Both editors are empty', 'error'); return; }
+
+  let ldoc, rdoc;
+  try { ldoc = new DOMParser().parseFromString(lt, 'application/xml'); rdoc = new DOMParser().parseFromString(rt, 'application/xml'); }
+  catch(e) { showToast('XML parse error', 'error'); return; }
+
+  const le = ldoc.querySelector('parsererror'), re = rdoc.querySelector('parsererror');
+  if (le || re) {
+    showSemPanel('xml', `<div class="xd-error">⚠️ XML Parse Error<br>${le ? escHtml(le.textContent.substring(0,200)) : ''}${re ? escHtml(re.textContent.substring(0,200)) : ''}</div>`);
+    return;
+  }
+  const changes = [];
+  diffNodes(ldoc.documentElement, rdoc.documentElement, '', changes);
+  renderSemDiff('xmlDiffContainer', changes, 'xml');
+  showSemPanel('xml');
+  showToast(`XML diff: ${changes.length} change(s)`, changes.length ? 'success' : 'info');
+}
+
+function diffNodes(left, right, path, changes) {
+  if (!left && !right) return;
+  const nodePath = path + '/' + (left||right).nodeName;
+  if (left && right) {
+    const la = getAttrs(left), ra = getAttrs(right);
+    for (const k of new Set([...Object.keys(la),...Object.keys(ra)])) {
+      if (!(k in la))       changes.push({ type:'added',   path: nodePath+'/@'+k, left:null,   right:ra[k] });
+      else if (!(k in ra))  changes.push({ type:'removed', path: nodePath+'/@'+k, left:la[k],  right:null  });
+      else if (la[k]!==ra[k]) changes.push({ type:'changed', path: nodePath+'/@'+k, left:la[k], right:ra[k] });
+    }
+    const lt = getDirectText(left), rt = getDirectText(right);
+    if (lt !== rt) {
+      if (!lt) changes.push({ type:'added',   path:nodePath+'/text()', left:null, right:rt });
+      else if (!rt) changes.push({ type:'removed', path:nodePath+'/text()', left:lt, right:null });
+      else changes.push({ type:'changed', path:nodePath+'/text()', left:lt, right:rt });
+    }
+    const lc = groupByTag(getElementChildren(left)), rc = groupByTag(getElementChildren(right));
+    for (const tag of new Set([...Object.keys(lc),...Object.keys(rc)])) {
+      const la2=lc[tag]||[], ra2=rc[tag]||[];
+      for (let i=0;i<Math.max(la2.length,ra2.length);i++) {
+        const ip = la2.length>1||ra2.length>1 ? `[${i+1}]` : '';
+        if (!la2[i]) collectAdded(ra2[i],  path+'/'+nodePath.split('/').pop()+'/'+tag+ip, changes);
+        else if (!ra2[i]) collectRemoved(la2[i], path+'/'+nodePath.split('/').pop()+'/'+tag+ip, changes);
+        else diffNodes(la2[i], ra2[i], path+'/'+nodePath.split('/').pop(), changes);
+      }
+    }
+  } else if (!left) collectAdded(right,  path, changes);
+  else               collectRemoved(left, path, changes);
+}
+const collectAdded   = (n,p,c) => c.push({ type:'added',   path:p+'/'+n.nodeName, left:null, right:serializeNode(n) });
+const collectRemoved = (n,p,c) => c.push({ type:'removed', path:p+'/'+n.nodeName, left:serializeNode(n), right:null });
+const getAttrs = n => { const o={}; if(n.attributes) for(const a of n.attributes) o[a.name]=a.value; return o; };
+const getDirectText = n => Array.from(n.childNodes).filter(c=>c.nodeType===3).map(c=>c.nodeValue.trim()).join('');
+const getElementChildren = n => Array.from(n.childNodes).filter(n=>n.nodeType===1);
+const groupByTag = nodes => { const g={}; for(const n of nodes){ if(!g[n.nodeName])g[n.nodeName]=[]; g[n.nodeName].push(n); } return g; };
+function serializeNode(n) { let x=new XMLSerializer().serializeToString(n).replace(/ xmlns(?::[a-z]+)?="[^"]*"/g,''); return x.length>300?x.substring(0,300)+'…':x; }
+
+/* ═══════════════════════════════════════════════
+   JSON SEMANTIC DIFF
+═══════════════════════════════════════════════ */
+function runJsonSemanticDiff() {
+  const lt = editorLeft.getValue(), rt = editorRight.getValue();
+  if (!lt.trim() && !rt.trim()) { showToast('Both editors are empty','error'); return; }
+  let lobj, robj;
+  try { lobj = JSON.parse(lt); } catch(e) { showSemPanel('json',`<div class="xd-error">⚠️ JSON Parse Error (Original):<br>${escHtml(e.message)}</div>`); return; }
+  try { robj = JSON.parse(rt); } catch(e) { showSemPanel('json',`<div class="xd-error">⚠️ JSON Parse Error (Modified):<br>${escHtml(e.message)}</div>`); return; }
+  const changes = [];
+  diffJson(lobj, robj, '$', changes);
+  renderSemDiff('jsonDiffContainer', changes, 'json');
+  showSemPanel('json');
+  showToast(`JSON diff: ${changes.length} change(s)`, changes.length?'success':'info');
+}
+
+function diffJson(left, right, path, changes) {
+  const lt = jsonType(left), rt = jsonType(right);
+  if (lt !== rt) { changes.push({type:'changed',path,left,right}); return; }
+  if (lt==='object') {
+    for (const k of new Set([...Object.keys(left),...Object.keys(right)])) {
+      const cp = `${path}.${k}`;
+      if (!(k in left))       changes.push({type:'added',   path:cp, left:undefined, right:right[k]});
+      else if (!(k in right)) changes.push({type:'removed', path:cp, left:left[k],   right:undefined});
+      else diffJson(left[k], right[k], cp, changes);
+    }
+  } else if (lt==='array') {
+    for (let i=0;i<Math.max(left.length,right.length);i++) {
+      const cp = `${path}[${i}]`;
+      if (i>=left.length)  changes.push({type:'added',   path:cp, left:undefined, right:right[i]});
+      else if (i>=right.length) changes.push({type:'removed', path:cp, left:left[i], right:undefined});
+      else diffJson(left[i], right[i], cp, changes);
+    }
+  } else if (left !== right) changes.push({type:'changed', path, left, right});
+}
+const jsonType = v => v===null ? 'null' : Array.isArray(v) ? 'array' : typeof v;
+
+/* ═══════════════════════════════════════════════
+   SHARED SEMANTIC DIFF RENDERER
+═══════════════════════════════════════════════ */
+function showSemPanel(type, errorHtml) {
+  hideAllPanels();
+  const view = document.getElementById(type+'DiffView');
+  view.style.display = 'flex';
+  if (errorHtml) document.getElementById(type+'DiffContainer').innerHTML = errorHtml;
+}
+
+function renderSemDiff(containerId, changes, type) {
+  const container = document.getElementById(containerId);
+  if (!changes.length) {
+    container.innerHTML = `<div style="text-align:center;padding:40px;color:#6b7280;">
+      <div style="font-size:48px;margin-bottom:12px">✅</div>
+      <div style="font-size:16px;color:#d1d5db;font-weight:600">${type.toUpperCase()} documents are semantically identical</div>
+      <div style="font-size:12px;margin-top:6px">No structural differences found</div>
+    </div>`; return;
+  }
+  const added = changes.filter(c=>c.type==='added').length;
+  const removed = changes.filter(c=>c.type==='removed').length;
+  const changed = changes.filter(c=>c.type==='changed').length;
+
+  let html = `<div class="xd-summary">
+    <div class="xd-summary-item"><div class="xd-dot" style="background:#22c55e"></div><b style="color:#86efac">${added}</b>&nbsp;added</div>
+    <div class="xd-summary-item"><div class="xd-dot" style="background:#ef4444"></div><b style="color:#fca5a5">${removed}</b>&nbsp;removed</div>
+    <div class="xd-summary-item"><div class="xd-dot" style="background:#f59e0b"></div><b style="color:#fde68a">${changed}</b>&nbsp;changed</div>
+    <div class="xd-summary-item" style="margin-left:auto;color:#6b7280">${changes.length} total</div>
+  </div>`;
+
+  const fmtXml  = v => `<code style="display:block;margin-top:6px;white-space:pre-wrap;word-break:break-all">${highlightXml(String(v))}</code>`;
+  const fmtJson = v => {
+    if (v===undefined) return '<em style="color:#6b7280">undefined</em>';
+    const s = JSON.stringify(v, null, 2);
+    if (typeof v === 'object' && v !== null)
+      return `<code style="display:block;margin-top:6px;white-space:pre-wrap;font-size:12px">${highlightJson(s)}</code>`;
+    return `<span style="font-style:italic">${highlightJson(s)}</span>`;
+  };
+  const fmt = (v, t) => t==='xml' ? fmtXml(v) : fmtJson(v);
+  const isLeafXml = path => path.includes('/@') || path.includes('/text()');
+
+  for (const c of changes) {
+    const leaf = type==='xml' && isLeafXml(c.path);
+    const fmtV = v => leaf ? `<span style="font-style:italic">${escHtml(String(v))}</span>` : fmt(v, type);
+
+    if (c.type==='added') html += `<div class="xd-section xd-added"><div class="xd-path">${escHtml(c.path)}</div><span class="xd-label xd-label-add">ADDED</span>${fmtV(c.right)}</div>`;
+    else if (c.type==='removed') html += `<div class="xd-section xd-removed"><div class="xd-path">${escHtml(c.path)}</div><span class="xd-label xd-label-del">REMOVED</span>${fmtV(c.left)}</div>`;
+    else html += `<div class="xd-section xd-changed"><div class="xd-path">${escHtml(c.path)}</div><span class="xd-label xd-label-change">CHANGED</span>${fmtV(c.left)}<span style="color:#9ca3af;margin:0 8px;font-size:16px">→</span>${fmtV(c.right)}</div>`;
+  }
+  container.innerHTML = html;
+}
+
+/* ═══════════════════════════════════════════════
+   SYNTAX HIGHLIGHTERS
+═══════════════════════════════════════════════ */
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function highlightXml(str) {
+  let s = escHtml(str);
+  s = s.replace(/(&lt;\?)([a-zA-Z]+)(.*?)(\?&gt;)/g,'<span style="color:#608b4e">$1$2$3$4</span>');
+  s = s.replace(/\s([\w:-]+)=((?:&quot;)[^&]*(?:&quot;))/g,' <span style="color:#9cdcfe">$1</span>=<span style="color:#ce9178">$2</span>');
+  s = s.replace(/(&lt;\/)([\w:.-]+)(&gt;)/g,'<span style="color:#808080">$1</span><span style="color:#4ec9b0">$2</span><span style="color:#808080">$3</span>');
+  s = s.replace(/(&lt;)([\w:.-]+)([^&]*?)(\/&gt;)/g,'<span style="color:#808080">$1</span><span style="color:#4ec9b0">$2</span>$3<span style="color:#808080">$4</span>');
+  s = s.replace(/(&lt;)([\w:.-]+)/g,'<span style="color:#808080">$1</span><span style="color:#4ec9b0">$2</span>');
+  s = s.replace(/(&gt;)/g,'<span style="color:#808080">$1</span>');
+  return s;
+}
+function highlightJson(str) {
+  let s = escHtml(str);
+  s = s.replace(/(&quot;)((?:[^&]|&amp;|&lt;|&gt;)*)(&quot;)(\s*:)/g,'<span style="color:#9cdcfe">$1$2$3</span><span style="color:#d4d4d4">$4</span>');
+  s = s.replace(/:\s*(&quot;)((?:[^&]|&amp;|&lt;|&gt;)*)(&quot;)/g,': <span style="color:#ce9178">$1$2$3</span>');
+  s = s.replace(/:\s*(-?\d+\.?\d*)/g,': <span style="color:#b5cea8">$1</span>');
+  s = s.replace(/:\s*(true|false|null)/g,': <span style="color:#569cd6">$1</span>');
+  s = s.replace(/([{}\[\]])/g,'<span style="color:#ffd700">$1</span>');
+  return s;
+}
+
+/* ═══════════════════════════════════════════════
+   MISC CONTROLS
+═══════════════════════════════════════════════ */
+document.getElementById('clearAll').addEventListener('click', () => {
+  if (!confirm('Clear all content?')) return;
+  if (editorLeft) { editorLeft.setValue(''); editorRight.setValue(''); }
+  document.getElementById('gitPasteArea').value = '';
+  filenameLeft = 'left.txt'; filenameRight = 'right.txt';
+  document.getElementById('leftFilename').textContent = '';
+  document.getElementById('rightFilename').textContent = '';
+  window._userLoadedFiles = false;
+  hideAllPanels();
+  setDiffMode(currentDiffMode);
+  showToast('Cleared', 'info');
+});
+
+document.getElementById('toggleTheme').addEventListener('click', () => {
+  const dark = document.documentElement.classList.toggle('dark');
+  if (editorLeft) monaco.editor.setTheme(dark ? 'vs-dark' : 'vs');
+});
+
+document.getElementById('leftFile').addEventListener('change',  e => handleFileInput(e,'left'));
+document.getElementById('rightFile').addEventListener('change', e => handleFileInput(e,'right'));
+
+function handleFileInput(e, which) {
+  const file = e.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    window._userLoadedFiles = true;
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (which==='left')  { editorLeft.setValue(ev.target.result);  filenameLeft=file.name;  document.getElementById('leftFilename').textContent=file.name;  }
+    else                 { editorRight.setValue(ev.target.result);  filenameRight=file.name; document.getElementById('rightFilename').textContent=file.name; }
+    const langMap = { js:'javascript',json:'json',py:'python',html:'html',css:'css',xml:'xml',xsd:'xml',xsl:'xml',svg:'xml',pom:'xml',java:'java',cpp:'cpp',c:'cpp',h:'cpp',ts:'typescript',md:'markdown',sql:'sql' };
+    const lang = langMap[ext] || 'plaintext';
+    monaco.editor.setModelLanguage((which==='left'?editorLeft:editorRight).getModel(), lang);
+    // Auto-switch mode
+    if (ext==='xml'||ext==='xsd'||ext==='xsl'||ext==='pom') { currentDiffMode='xml'; updateModeButtons(); }
+    else if (ext==='json') { currentDiffMode='json'; updateModeButtons(); }
+    showToast(`Loaded ${file.name}`, 'success');
+  };
+  reader.readAsText(file);
+}
+
+function updateModeButtons() {
+  ['text','xml','json','git'].forEach(m =>
+    document.getElementById('mode'+m.charAt(0).toUpperCase()+m.slice(1)).classList.toggle('active', m===currentDiffMode)
+  );
+}
+
+async function copyToClipboard(which) {
+  try {
+    await navigator.clipboard.writeText(which==='left'?editorLeft.getValue():editorRight.getValue());
+    showToast('Copied!','success');
+  } catch { showToast('Failed to copy','error'); }
+}
+
+function downloadFile(which) {
+  const text = which==='left'?editorLeft.getValue():editorRight.getValue();
+  const name = which==='left'?filenameLeft:filenameRight;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text],{type:'text/plain'}));
+  a.download = name; a.click();
+  showToast(`Downloaded ${name}`, 'success');
+}
+
+function showToast(msg, type='info') {
+  const colors = {success:'bg-green-600',error:'bg-red-600',info:'bg-blue-600'};
+  const el = document.createElement('div');
+  el.textContent = msg;
+  el.className = `fixed right-6 bottom-20 ${colors[type]} text-white px-4 py-3 rounded-lg shadow-2xl z-50 animate-in text-sm`;
+  document.body.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateY(10px)'; el.style.transition='all .3s'; setTimeout(()=>el.remove(),300); },2500);
+}
+
+/* ── Drag & Drop ── */
+['leftDropZone','rightDropZone'].forEach(id => {
+  const zone = document.getElementById(id), which = id.includes('left')?'left':'right';
+  zone.addEventListener('dragover', e=>{ e.preventDefault(); zone.classList.add('drag-over'); });
+  zone.addEventListener('dragleave', ()=>zone.classList.remove('drag-over'));
+  zone.addEventListener('drop', e=>{ e.preventDefault(); zone.classList.remove('drag-over');
+    const file=e.dataTransfer.files[0]; if(!file) return;
+    new FileReader().onload = ev => handleFileInput({ target:{ files:[file] } }, which);
+    // Actually trigger properly:
+    const fr=new FileReader(); fr.onload=ev=>{
+      window._userLoadedFiles=true;
+      if(which==='left'){editorLeft.setValue(ev.target.result);filenameLeft=file.name;document.getElementById('leftFilename').textContent=file.name;}
+      else{editorRight.setValue(ev.target.result);filenameRight=file.name;document.getElementById('rightFilename').textContent=file.name;}
+      showToast(`Dropped ${file.name}`,'success');
+    }; fr.readAsText(file);
+  });
+});
+
+/* ── Init: show git paste panel ── */
+hideAllPanels();
+showGitPastePanel();
+</script>
+</body>
+</html>
