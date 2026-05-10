@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git Architecture — Knowledge Quiz</title>
+<link rel="icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,500;0,700;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:#f4f1eb; --bg-card:#ffffff; --text:#1a1612; --muted:#7a7268;
+    --accent1:#c84b2f; --accent2:#2d5f8a; --accent3:#3a7d52; --accent4:#8a5c2d;
+    --border:rgba(26,22,18,0.1);
+    --blue-bg:#eef4f9; --blue:#2d5f8a;
+    --green-bg:#eef6f1; --green:#3a7d52;
+    --red-bg:#fdf0ec; --red:#c84b2f;
+    --amber-bg:#fef8ef; --amber:#8a5c2d;
+    --purple-bg:#f5eef8; --purple:#7a52a0;
+    --gold-bg:#fff8e8; --gold:#b89030;
+  }
+  html { scroll-behavior: smooth; }
+  body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; font-size:15px; line-height:1.7; min-height:100vh; }
+
+  /* NAV */
+  nav { position:sticky; top:0; background:rgba(244,241,235,0.92); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); z-index:100; display:flex; align-items:center; justify-content:space-between; padding:0 2.5rem; height:60px; }
+  .nav-brand { font-family:'Fraunces',serif; font-size:1.25rem; font-weight:700; color:var(--text); letter-spacing:-0.02em; display:flex; align-items:center; gap:8px; text-decoration:none; }
+  .nav-logo { width:28px; height:28px; background:var(--accent3); border-radius:6px; display:flex; align-items:center; justify-content:center; color:white; font-size:0.85rem; font-weight:600; }
+  .nav-right { display:flex; align-items:center; gap:1rem; }
+  .nav-link { text-decoration:none; color:var(--muted); font-size:0.78rem; font-weight:500; padding:5px 11px; border-radius:20px; transition:all 0.2s; letter-spacing:0.03em; text-transform:uppercase; }
+  .nav-link:hover { color:var(--text); background:var(--border); }
+  .score-pill { display:flex; align-items:center; gap:6px; background:var(--bg-card); border:1px solid var(--border); border-radius:20px; padding:5px 14px; font-size:0.8rem; font-weight:500; }
+  .score-pill .dot { width:8px; height:8px; border-radius:50%; background:var(--accent3); }
+
+  /* HERO */
+  .hero { max-width:1100px; margin:0 auto; padding:4rem 2.5rem 2.5rem; display:grid; grid-template-columns:1fr 1fr; gap:3rem; align-items:center; }
+  .hero-eyebrow { font-size:0.75rem; font-weight:500; text-transform:uppercase; letter-spacing:0.12em; color:var(--accent3); margin-bottom:1rem; }
+  .hero h1 { font-family:'Fraunces',serif; font-size:clamp(2.2rem,3.5vw,3.4rem); font-weight:700; line-height:1.05; letter-spacing:-0.03em; }
+  .hero h1 em { font-style:italic; color:var(--accent3); }
+  .hero-desc { margin-top:1.25rem; color:var(--muted); font-size:0.95rem; line-height:1.75; }
+  .hero-meta { display:flex; flex-wrap:wrap; gap:8px; margin-top:1.5rem; }
+  .hero-tag { display:inline-block; padding:5px 13px; border-radius:100px; font-size:0.75rem; font-weight:500; border:1.5px solid; }
+  .tag-green  { background:var(--green-bg); color:var(--green); border-color:var(--green); }
+  .tag-blue   { background:var(--blue-bg); color:var(--blue); border-color:var(--blue); }
+  .tag-amber  { background:var(--amber-bg); color:var(--amber); border-color:var(--amber); }
+  .tag-red    { background:var(--red-bg); color:var(--red); border-color:var(--red); }
+  .tag-purple { background:var(--purple-bg); color:var(--purple); border-color:var(--purple); }
+
+  .hero-stats { display:flex; flex-direction:column; gap:12px; }
+  .stat-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .stat-card { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:1.25rem; }
+  .stat-card .num { font-family:'Fraunces',serif; font-size:2rem; font-weight:700; line-height:1; }
+  .stat-card .lbl { font-size:0.78rem; color:var(--muted); margin-top:4px; }
+  .stat-card.accent { background:var(--accent3); border-color:var(--accent3); }
+  .stat-card.accent .num, .stat-card.accent .lbl { color:white; }
+
+  /* FILTER */
+  .filter-bar { max-width:1100px; margin:0 auto; padding:0 2.5rem 2rem; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .filter-label { font-size:0.78rem; color:var(--muted); font-weight:500; text-transform:uppercase; letter-spacing:0.08em; margin-right:4px; }
+  .filter-btn { border:1.5px solid var(--border); background:var(--bg-card); border-radius:100px; padding:6px 16px; font-size:0.78rem; font-weight:500; cursor:pointer; transition:all 0.2s; color:var(--muted); font-family:'DM Sans',sans-serif; }
+  .filter-btn:hover { border-color:var(--text); color:var(--text); }
+  .filter-btn.active-all    { background:var(--text); color:var(--bg); border-color:var(--text); }
+  .filter-btn.active-objects{ background:var(--green-bg); color:var(--green); border-color:var(--green); }
+  .filter-btn.active-trees  { background:var(--blue-bg); color:var(--blue); border-color:var(--blue); }
+  .filter-btn.active-branch { background:var(--amber-bg); color:var(--amber); border-color:var(--amber); }
+  .filter-btn.active-remote { background:var(--purple-bg); color:var(--purple); border-color:var(--purple); }
+  .filter-btn.active-merge  { background:var(--red-bg); color:var(--red); border-color:var(--red); }
+  .filter-btn.active-internals { background:var(--gold-bg); color:var(--gold); border-color:var(--gold); }
+
+  .divider { max-width:1100px; margin:0 auto; padding:0 2.5rem; border:none; border-top:1px solid var(--border); }
+
+  /* QUIZ WRAP */
+  .quiz-wrap { max-width:1100px; margin:0 auto; padding:2.5rem; display:grid; grid-template-columns:1fr 340px; gap:2rem; align-items:start; }
+  .questions-col { display:flex; flex-direction:column; gap:20px; }
+
+  /* QUESTION CARDS */
+  .q-card { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:1.75rem; position:relative; overflow:hidden; transition:transform 0.2s; }
+  .q-card:hover { transform:translateY(-1px); }
+  .q-card-top { position:absolute; top:0; left:0; right:0; height:3px; border-radius:16px 16px 0 0; }
+  .qt-objects   { background:var(--green); }
+  .qt-trees     { background:var(--blue); }
+  .qt-branch    { background:var(--amber); }
+  .qt-remote    { background:var(--purple); }
+  .qt-merge     { background:var(--red); }
+  .qt-internals { background:var(--gold); }
+
+  .q-meta { display:flex; align-items:center; gap:8px; margin-bottom:0.85rem; flex-wrap:wrap; }
+  .q-num  { font-family:'Fraunces',serif; font-size:0.85rem; font-weight:700; color:var(--muted); }
+  .q-badge { font-size:0.68rem; font-weight:500; padding:3px 10px; border-radius:100px; text-transform:uppercase; letter-spacing:0.06em; }
+  .qb-objects   { background:var(--green-bg); color:var(--green); }
+  .qb-trees     { background:var(--blue-bg); color:var(--blue); }
+  .qb-branch    { background:var(--amber-bg); color:var(--amber); }
+  .qb-remote    { background:var(--purple-bg); color:var(--purple); }
+  .qb-merge     { background:var(--red-bg); color:var(--red); }
+  .qb-internals { background:var(--gold-bg); color:var(--gold); }
+
+  .q-text { font-family:'Fraunces',serif; font-size:1rem; font-weight:500; line-height:1.45; color:var(--text); margin-bottom:1.1rem; letter-spacing:-0.01em; }
+  .q-code { font-family:'Courier New',monospace; font-size:0.8rem; background:#f7f4ee; border:1px solid var(--border); border-radius:8px; padding:0.75rem 1rem; line-height:1.65; margin-bottom:1rem; white-space:pre; overflow-x:auto; color:#3a3530; }
+
+  /* MCQ OPTIONS */
+  .q-options { display:flex; flex-direction:column; gap:8px; }
+  .q-option { display:flex; align-items:flex-start; gap:10px; padding:10px 14px; border-radius:10px; border:1.5px solid var(--border); cursor:pointer; transition:all 0.18s; background:var(--bg); font-size:0.85rem; color:var(--text); line-height:1.45; }
+  .q-option:hover { border-color:var(--muted); background:#f0ede6; }
+  .q-option.selected { border-color:var(--blue); background:var(--blue-bg); }
+  .q-option.correct  { border-color:var(--green); background:var(--green-bg); }
+  .q-option.wrong    { border-color:var(--red); background:var(--red-bg); }
+  .opt-letter { min-width:22px; height:22px; border-radius:6px; background:var(--border); display:flex; align-items:center; justify-content:center; font-size:0.72rem; font-weight:500; color:var(--muted); flex-shrink:0; margin-top:1px; transition:all 0.18s; }
+  .q-option.selected .opt-letter { background:var(--blue); color:white; }
+  .q-option.correct  .opt-letter { background:var(--green); color:white; }
+  .q-option.wrong    .opt-letter { background:var(--red); color:white; }
+
+  /* TRUE/FALSE */
+  .tf-row { display:flex; gap:10px; }
+  .tf-btn { flex:1; padding:10px; border-radius:10px; border:1.5px solid var(--border); cursor:pointer; background:var(--bg); font-family:'DM Sans',sans-serif; font-size:0.85rem; font-weight:500; color:var(--muted); transition:all 0.18s; text-align:center; }
+  .tf-btn:hover { border-color:var(--muted); color:var(--text); }
+  .tf-btn.selected { border-color:var(--blue); background:var(--blue-bg); color:var(--blue); }
+  .tf-btn.correct  { border-color:var(--green); background:var(--green-bg); color:var(--green); }
+  .tf-btn.wrong    { border-color:var(--red); background:var(--red-bg); color:var(--red); }
+
+  /* SHORT ANSWER */
+  .q-textarea { width:100%; border:1.5px solid var(--border); border-radius:10px; padding:12px 14px; font-family:'DM Sans',sans-serif; font-size:0.85rem; background:var(--bg); color:var(--text); resize:vertical; min-height:80px; transition:border-color 0.2s; line-height:1.6; }
+  .q-textarea:focus { outline:none; border-color:var(--blue); }
+
+  /* FILL BLANK */
+  .fill-blank-wrap { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-size:0.9rem; line-height:2.2; }
+  .fill-blank-wrap .blank-input { border:none; border-bottom:2px solid var(--blue); background:transparent; font-family:'Courier New',monospace; font-size:0.9rem; color:var(--text); padding:2px 6px; min-width:160px; outline:none; transition:border-color 0.2s; }
+  .fill-blank-wrap .blank-input:focus { border-color:var(--green); }
+  .fill-blank-wrap .blank-input.correct-input { border-color:var(--green); color:var(--green); }
+  .fill-blank-wrap .blank-input.wrong-input { border-color:var(--red); color:var(--red); }
+
+  /* FEEDBACK */
+  .q-feedback { display:none; margin-top:1rem; padding:10px 14px; border-radius:8px; font-size:0.82rem; line-height:1.55; }
+  .q-feedback.show { display:block; }
+  .fb-correct { background:var(--green-bg); color:var(--green); border-left:3px solid var(--green); }
+  .fb-wrong   { background:var(--red-bg); color:var(--red); border-left:3px solid var(--red); }
+  .fb-neutral { background:var(--blue-bg); color:var(--blue); border-left:3px solid var(--blue); }
+  .fb-code    { font-family:'Courier New',monospace; font-size:0.78rem; background:rgba(255,255,255,0.6); border-radius:6px; padding:0.5rem 0.75rem; margin-top:0.5rem; white-space:pre; overflow-x:auto; line-height:1.6; display:block; }
+
+  /* SECTION DIVIDER */
+  .q-section-header { display:flex; align-items:center; gap:12px; padding:1rem 0 0.5rem; }
+  .q-section-line   { flex:1; height:1px; background:var(--border); }
+  .q-section-label  { font-size:0.72rem; font-weight:500; text-transform:uppercase; letter-spacing:0.1em; color:var(--muted); white-space:nowrap; }
+
+  /* SIDEBAR */
+  .sidebar { position:sticky; top:76px; display:flex; flex-direction:column; gap:16px; }
+  .side-card { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:1.5rem; }
+  .side-title { font-family:'Fraunces',serif; font-size:1rem; font-weight:700; color:var(--text); margin-bottom:1rem; letter-spacing:-0.01em; }
+
+  .progress-track { background:var(--bg); border-radius:100px; height:8px; overflow:hidden; margin-bottom:0.6rem; }
+  .progress-fill  { height:100%; background:var(--accent3); border-radius:100px; transition:width 0.4s ease; }
+  .progress-label { font-size:0.78rem; color:var(--muted); display:flex; justify-content:space-between; }
+
+  .score-row { display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border); font-size:0.82rem; }
+  .score-row:last-child { border-bottom:none; }
+  .score-row .s-label { color:var(--muted); }
+  .score-row .s-val   { font-weight:500; }
+
+  .big-score { text-align:center; padding:1rem 0; }
+  .big-score .num { font-family:'Fraunces',serif; font-size:3.5rem; font-weight:700; color:var(--accent3); line-height:1; }
+  .big-score .den { font-size:1.2rem; color:var(--muted); }
+  .big-score .grade { font-size:0.8rem; font-weight:500; margin-top:6px; padding:4px 14px; border-radius:100px; display:inline-block; }
+
+  .answer-map { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; }
+  .am-dot { width:100%; aspect-ratio:1; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:500; cursor:pointer; background:var(--bg); color:var(--muted); border:1px solid var(--border); transition:all 0.15s; text-decoration:none; }
+  .am-dot:hover { border-color:var(--muted); }
+  .am-dot.ans-correct  { background:var(--green-bg); color:var(--green); border-color:var(--green); }
+  .am-dot.ans-wrong    { background:var(--red-bg); color:var(--red); border-color:var(--red); }
+  .am-dot.ans-partial  { background:var(--amber-bg); color:var(--amber); border-color:var(--amber); }
+  .am-dot.ans-answered { background:var(--blue-bg); color:var(--blue); border-color:var(--blue); }
+
+  /* BUTTONS */
+  .btn { width:100%; padding:11px 0; border-radius:10px; border:none; font-family:'DM Sans',sans-serif; font-size:0.85rem; font-weight:500; cursor:pointer; transition:all 0.2s; margin-bottom:8px; }
+  .btn-primary   { background:var(--text); color:var(--bg); }
+  .btn-primary:hover { background:#2e2926; }
+  .btn-secondary { background:var(--bg-card); color:var(--text); border:1px solid var(--border); }
+  .btn-secondary:hover { background:var(--bg); }
+  .btn-green  { background:var(--accent3); color:white; }
+  .btn-green:hover { background:#2d6440; }
+  .btn-accent { background:var(--accent2); color:white; }
+  .btn-accent:hover { background:#245177; }
+
+  /* SUBMIT BAR */
+  .submit-bar { max-width:1100px; margin:0 auto; padding:1.5rem 2.5rem 3rem; display:flex; gap:12px; flex-wrap:wrap; }
+  .submit-bar .btn { width:auto; padding:11px 28px; margin-bottom:0; }
+
+  /* HISTORY */
+  .history-item { display:flex; justify-content:space-between; align-items:center; padding:8px 0; border-bottom:1px solid var(--border); font-size:0.8rem; }
+  .history-item:last-child { border-bottom:none; }
+  .h-date { color:var(--muted); } .h-score { font-weight:500; }
+
+  /* MODAL */
+  .modal-overlay { display:none; position:fixed; inset:0; background:rgba(26,22,18,0.55); z-index:200; align-items:center; justify-content:center; }
+  .modal-overlay.open { display:flex; }
+  .modal { background:var(--bg-card); border-radius:20px; padding:2.5rem; max-width:540px; width:90%; text-align:center; border:1px solid var(--border); }
+  .modal h2 { font-family:'Fraunces',serif; font-size:1.8rem; font-weight:700; margin-bottom:0.5rem; }
+  .modal-score-big { font-family:'Fraunces',serif; font-size:4rem; font-weight:700; color:var(--accent3); line-height:1; margin-bottom:0.25rem; }
+  .modal-grade { font-size:0.85rem; color:var(--muted); margin-bottom:1.5rem; }
+  .modal-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:1.5rem; }
+  .modal-stat { background:var(--bg); border-radius:10px; padding:0.85rem; }
+  .modal-stat .ms-num { font-family:'Fraunces',serif; font-size:1.5rem; font-weight:700; }
+  .modal-stat .ms-lbl { font-size:0.75rem; color:var(--muted); margin-top:2px; }
+  .modal-btns { display:flex; gap:10px; }
+  .modal-btns .btn { margin-bottom:0; }
+
+  footer { border-top:1px solid var(--border); padding:2rem 2.5rem; max-width:1100px; margin:0 auto; display:flex; align-items:center; justify-content:space-between; }
+  footer p { font-size:0.8rem; color:var(--muted); }
+  .footer-logo { font-family:'Fraunces',serif; font-size:1rem; font-weight:700; color:var(--muted); }
+
+  @media(max-width:820px){
+    .hero { grid-template-columns:1fr; padding:3rem 1.25rem 2rem; }
+    .hero-stats { display:none; }
+    .quiz-wrap { grid-template-columns:1fr; padding:1.5rem 1.25rem; }
+    .sidebar { position:static; }
+    nav { padding:0 1.25rem; }
+    .filter-bar,.submit-bar { padding:1rem 1.25rem; }
+    footer { flex-direction:column; gap:1rem; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="git-architecture.html" class="nav-brand">
+    <div class="nav-logo">G</div>
+    Git Arch Quiz
+  </a>
+  <div class="nav-right">
+    <a href="git-architecture.html" class="nav-link">← Architecture</a>
+    <a href="git-guide.html" class="nav-link">Guide</a>
+    <div class="score-pill">
+      <div class="dot"></div>
+      <span id="nav-score-label">0 / 30 answered</span>
+    </div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div>
+    <p class="hero-eyebrow">Architecture Assessment</p>
+    <h1>Test Your<br><em>Git Architecture</em><br>Knowledge</h1>
+    <p class="hero-desc">30 questions spanning the object model, three-tree architecture, branching internals, remote sync, merge strategies, and Git internals. Answers auto-saved — download results anytime.</p>
+    <div class="hero-meta">
+      <span class="hero-tag tag-green">5 Object Model</span>
+      <span class="hero-tag tag-blue">5 Three Trees</span>
+      <span class="hero-tag tag-amber">5 Branching</span>
+      <span class="hero-tag tag-purple">5 Remote Sync</span>
+      <span class="hero-tag tag-red">5 Merge &amp; Rebase</span>
+      <span class="hero-tag" style="background:var(--gold-bg);color:var(--gold);border-color:var(--gold)">5 Internals</span>
+    </div>
+  </div>
+  <div class="hero-stats">
+    <div class="stat-row">
+      <div class="stat-card accent"><div class="num">30</div><div class="lbl">Total questions</div></div>
+      <div class="stat-card"><div class="num" id="hero-answered">0</div><div class="lbl">Answered so far</div></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-card"><div class="num" id="hero-score">—</div><div class="lbl">Current score</div></div>
+      <div class="stat-card"><div class="num" id="hero-sessions">0</div><div class="lbl">Past attempts</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- FILTER -->
+<div class="filter-bar">
+  <span class="filter-label">Filter:</span>
+  <button class="filter-btn active-all" onclick="filterQ('all',this)">All</button>
+  <button class="filter-btn" onclick="filterQ('objects',this)">Object Model</button>
+  <button class="filter-btn" onclick="filterQ('trees',this)">Three Trees</button>
+  <button class="filter-btn" onclick="filterQ('branch',this)">Branching</button>
+  <button class="filter-btn" onclick="filterQ('remote',this)">Remote Sync</button>
+  <button class="filter-btn" onclick="filterQ('merge',this)">Merge &amp; Rebase</button>
+  <button class="filter-btn" onclick="filterQ('internals',this)">Internals</button>
+</div>
+
+<hr class="divider">
+
+<!-- QUIZ -->
+<div class="quiz-wrap">
+  <div class="questions-col" id="questions-col"></div>
+
+  <aside class="sidebar">
+    <div class="side-card">
+      <div class="side-title">Progress</div>
+      <div class="progress-track"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+      <div class="progress-label"><span id="prog-done">0 answered</span><span id="prog-pct">0%</span></div>
+    </div>
+    <div class="side-card">
+      <div class="side-title">Live Score</div>
+      <div class="big-score">
+        <div><span class="num" id="score-num">0</span><span class="den"> / <span id="score-den">?</span></span></div>
+        <div class="grade" id="score-grade" style="background:var(--blue-bg);color:var(--blue)">Not started</div>
+      </div>
+      <div class="score-row"><span class="s-label">✅ Correct</span><span class="s-val" id="s-correct">0</span></div>
+      <div class="score-row"><span class="s-label">❌ Wrong</span><span class="s-val" id="s-wrong">0</span></div>
+      <div class="score-row"><span class="s-label">✏️ Open answers</span><span class="s-val" id="s-open">0</span></div>
+      <div class="score-row"><span class="s-label">⬜ Unanswered</span><span class="s-val" id="s-unanswered">30</span></div>
+    </div>
+    <div class="side-card">
+      <div class="side-title">Answer Map</div>
+      <div class="answer-map" id="answer-map"></div>
+    </div>
+    <div class="side-card">
+      <div class="side-title">Actions</div>
+      <button class="btn btn-primary" onclick="submitQuiz()">Submit &amp; Score</button>
+      <button class="btn btn-green"  onclick="downloadAnswers()">⬇ Download Answers</button>
+      <button class="btn btn-accent" onclick="downloadCSV()">⬇ Export CSV</button>
+      <button class="btn btn-secondary" onclick="resetQuiz()">↺ Reset Quiz</button>
+    </div>
+    <div class="side-card">
+      <div class="side-title">Past Attempts</div>
+      <div id="history-list"><p style="font-size:0.82rem;color:var(--muted)">No previous attempts yet.</p></div>
+    </div>
+  </aside>
+</div>
+
+<div class="submit-bar">
+  <button class="btn btn-primary" onclick="submitQuiz()">Submit &amp; Score All</button>
+  <button class="btn btn-green"  onclick="downloadAnswers()">⬇ Download Answers</button>
+  <button class="btn btn-accent" onclick="downloadCSV()">⬇ Export CSV</button>
+  <button class="btn btn-secondary" onclick="resetQuiz()">↺ Reset</button>
+</div>
+
+<!-- MODAL -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2 id="modal-emoji">🎉 Result</h2>
+    <div class="modal-score-big" id="modal-pct">—</div>
+    <div class="modal-grade" id="modal-grade">—</div>
+    <div class="modal-grid">
+      <div class="modal-stat"><div class="ms-num" id="m-correct">0</div><div class="ms-lbl">Correct</div></div>
+      <div class="modal-stat"><div class="ms-num" id="m-wrong">0</div><div class="ms-lbl">Wrong</div></div>
+      <div class="modal-stat"><div class="ms-num" id="m-open">0</div><div class="ms-lbl">Open answers</div></div>
+      <div class="modal-stat"><div class="ms-num" id="m-skip">0</div><div class="ms-lbl">Skipped</div></div>
+    </div>
+    <p id="modal-msg" style="color:var(--muted);font-size:0.9rem;margin-bottom:1.5rem"></p>
+    <div class="modal-btns">
+      <button class="btn btn-primary" onclick="closeModal()">View Results</button>
+      <button class="btn btn-green" onclick="downloadAnswers();closeModal()">Download Answers</button>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <div class="footer-logo">Git Arch Quiz</div>
+  <p>Scores auto-saved · <a href="git-architecture.html" style="color:var(--accent3);text-decoration:none">← Git Architecture</a> · <a href="git-guide.html" style="color:var(--accent3);text-decoration:none">Git Guide</a></p>
+</footer>
+
+<script>
+// ─── QUESTION BANK ──────────────────────────────────────────────────────────
+const QUESTIONS = [
+
+  // ── OBJECT MODEL (5) ──
+  {id:1, level:'objects', type:'mcq',
+   text:'How many fundamental object types exist in Git\'s content-addressable store?',
+   options:['2 — commits and branches','3 — blobs, commits, and refs','4 — blobs, trees, commits, and tags','5 — blobs, trees, commits, tags, and packfiles'],
+   answer:2,
+   explanation:'Git has exactly four object types: blobs (file content), trees (directory structure), commits (snapshot pointer + metadata), and tags (annotated pointers). Refs and packfiles are not object types.'},
+
+  {id:2, level:'objects', type:'tf',
+   text:'Two different files with identical content will produce the same blob SHA hash in Git.',
+   answer:true,
+   explanation:'Correct. Git is content-addressable — the SHA hash is computed from the object\'s type + size + content. Identical content always hashes identically, so Git never stores the same bytes twice.'},
+
+  {id:3, level:'objects', type:'mcq',
+   text:'What does a Git "tree" object represent?',
+   options:['A visual diagram of the commit graph','A compressed snapshot of the entire repository','A directory — it lists blob and sub-tree entries with their filenames and permissions','A branch pointer to the latest commit'],
+   answer:2,
+   explanation:'A tree object is exactly like a directory listing: it contains entries of the form "mode type SHA filename". Each entry points to either a blob (file) or another tree (subdirectory).'},
+
+  {id:4, level:'objects', type:'mcq',
+   text:'A commit object contains a pointer to which object that represents the full project snapshot?',
+   options:['A blob object with all files concatenated','A tree object representing the root directory','A ref object pointing to HEAD','Another commit object representing the working directory'],
+   answer:1,
+   explanation:'Every commit object contains exactly one "tree" field that points to the root tree of the project at that moment. From the root tree, Git can reconstruct the entire directory structure.'},
+
+  {id:5, level:'objects', type:'short',
+   text:'Explain what a Git "ref" is and how it relates to branches and tags. Why is creating a new branch so fast in Git?',
+   sampleAnswer:'A ref is simply a named pointer to a commit SHA — a file in .git/refs/ containing a 40-character hash. A branch like "main" is a ref that automatically moves forward to point at the latest commit. A tag is a fixed ref that never moves. Creating a new branch is instantaneous because Git only writes a tiny 41-byte file with a SHA hash — no data is copied.',
+   explanation:'This explains why Git branching is so cheap compared to other VCS systems. The heaviness of branching in SVN (copying the whole tree) vs. Git (write 41 bytes) is a fundamental architectural difference.'},
+
+  // ── THREE TREES (5) ──
+  {id:6, level:'trees', type:'mcq',
+   text:'What is the correct name for the second of Git\'s three trees, often called the "staging area"?',
+   options:['The cache','The buffer zone','The Index','.git/stage'],
+   answer:2,
+   explanation:'Git\'s staging area is officially called the Index, stored as a binary file at .git/index. The terms "staging area", "index", and "cache" are used interchangeably in Git documentation.'},
+
+  {id:7, level:'trees', type:'tf',
+   text:'"git add" moves content from the Repository into the Working Directory.',
+   answer:false,
+   explanation:'False. git add moves content from the Working Directory into the Staging Area (Index). The flow is: Working Directory → (git add) → Staging Area → (git commit) → Repository. The reverse is git restore/checkout.'},
+
+  {id:8, level:'trees', type:'mcq',
+   text:'Which command shows only the differences between the Staging Area and the last commit (i.e., what will be in the next commit)?',
+   options:['git diff','git diff HEAD','git diff --staged','git status --diff'],
+   answer:2,
+   explanation:'"git diff" shows unstaged changes (Working Directory vs Staging Area). "git diff --staged" (or "--cached") shows staged changes (Staging Area vs last commit) — exactly what the next commit will contain.'},
+
+  {id:9, level:'trees', type:'mcq',
+   text:'You have staged a file and want to unstage it (move it back to Working Directory) without losing your edits. Which command is correct?',
+   options:['git reset --hard <file>','git checkout -- <file>','git restore --staged <file>','git revert <file>'],
+   answer:2,
+   explanation:'"git restore --staged <file>" moves the file from Staging back to the Working Directory, keeping your edits intact. "git reset --hard" would discard both staged and working directory changes.'},
+
+  {id:10, level:'trees', type:'short',
+   text:'Describe the precise three-step journey a file change takes from your editor to the Git repository, naming the three trees involved.',
+   sampleAnswer:'Step 1: You edit a file in the Working Directory (your local filesystem). Step 2: You run "git add <file>" which writes a blob object and stages the file — copying a reference into the Staging Area (Index). Step 3: You run "git commit" which creates a new tree object and commit object, permanently recording the staged snapshot in the Repository (.git/objects/). The staged index is cleared after the commit.',
+   explanation:'Understanding the three trees is the foundation for understanding every Git command. Every command either reads from or writes to one or more of these three areas.'},
+
+  // ── BRANCHING (5) ──
+  {id:11, level:'branch', type:'mcq',
+   text:'How large is a typical Git branch pointer file stored in .git/refs/heads/?',
+   options:['Several megabytes — it contains a copy of all files on that branch','41 bytes — it contains the 40-character SHA of the branch\'s latest commit plus a newline','1 KB — it contains metadata about the branch','Variable — it depends on how many commits are on the branch'],
+   answer:1,
+   explanation:'A Git branch is literally a 41-byte file: 40 hex characters (the SHA-1 of the latest commit) plus a newline. This is why creating or deleting a branch is instant and free — no data copying occurs.'},
+
+  {id:12, level:'branch', type:'tf',
+   text:'HEAD is a special ref that always points directly to the latest commit SHA.',
+   answer:false,
+   explanation:'HEAD usually points to a branch name (e.g. "ref: refs/heads/main"), not directly to a commit SHA. When it points directly to a SHA (after git checkout <SHA>), Git calls this a "detached HEAD" state.'},
+
+  {id:13, level:'branch', type:'mcq',
+   text:'What is a "detached HEAD" state in Git?',
+   options:['A corrupted repository where HEAD is missing','When HEAD points directly to a commit SHA rather than a branch name','When two branches have the same name','When the last commit was deleted'],
+   answer:1,
+   explanation:'Detached HEAD occurs when you checkout a specific commit (git checkout a1b2c3d) or tag rather than a branch. In this state, new commits won\'t be tracked by any branch unless you create one.'},
+
+  {id:14, level:'branch', type:'mcq',
+   text:'In Git\'s DAG (Directed Acyclic Graph), which direction do the commit parent pointers point?',
+   options:['Forward — each commit points to its children','Backward — each commit points to its parent(s)','Both directions — Git maintains bidirectional links','No direction — commits are stored in a flat list'],
+   answer:1,
+   explanation:'Git commits point backward to their parent(s). This is why it\'s called a DAG — you can traverse history by following parent pointers, but each commit was created after its parent. Branch pointers point forward to the newest commit.'},
+
+  {id:15, level:'branch', type:'short',
+   text:'What files and directories would you find inside .git/ and what is the purpose of each? Name at least five.',
+   sampleAnswer:'HEAD — points to current branch. index — the staging area (binary). config — repo settings, remote URLs. objects/ — all blob/tree/commit/tag objects stored as compressed files. refs/heads/ — branch pointers (each file = SHA). refs/remotes/ — remote-tracking branch pointers. logs/HEAD — the reflog (every HEAD movement). hooks/ — lifecycle scripts (pre-commit, commit-msg, pre-push).',
+   explanation:'Understanding .git/ structure demystifies Git completely. Every git command is ultimately reading from or writing to files in this directory.'},
+
+  // ── REMOTE SYNC (5) ──
+  {id:16, level:'remote', type:'mcq',
+   text:'What is "origin/main" in a local Git repository?',
+   options:['The main branch on the remote server','A local read-only pointer that mirrors the state of main on the remote at the last fetch','A real branch you can commit to directly','An alias for the remote server URL'],
+   answer:1,
+   explanation:'"origin/main" is a remote-tracking branch — a local read-only snapshot of where the remote\'s main branch was the last time you ran git fetch. It lives in .git/refs/remotes/origin/ and only moves when you fetch.'},
+
+  {id:17, level:'remote', type:'tf',
+   text:'"git fetch" automatically merges the downloaded changes into your current working branch.',
+   answer:false,
+   explanation:'False. git fetch only downloads new objects and updates remote-tracking branches (like origin/main). It never touches your local branches or working directory. git pull = git fetch + git merge (or rebase).'},
+
+  {id:18, level:'remote', type:'mcq',
+   text:'Why is it called a "bare" repository and when would you use one?',
+   options:['A repository with no commits yet','A repository without a working directory — just .git/ contents — used as a shared central server','A repository with all files deleted','A repository stored in compressed format only'],
+   answer:1,
+   explanation:'A bare repo has no working tree — it\'s essentially just the .git/ directory contents exposed at the root. You\'d create one with "git init --bare". GitHub, GitLab, and Bitbucket host bare repositories because nobody directly edits files on the server.'},
+
+  {id:19, level:'remote', type:'mcq',
+   text:'Which protocol does Git use when you clone with a URL like "git@github.com:org/repo.git"?',
+   options:['HTTPS','FTP','SSH','Git native protocol (port 9418)'],
+   answer:2,
+   explanation:'The "git@" prefix indicates SSH protocol. Git supports: SSH (git@), HTTPS (https://), Git protocol (git://), and local file paths. SSH is the most common for authenticated access.'},
+
+  {id:20, level:'remote', type:'short',
+   text:'Explain the exact sequence of network operations that happen when you run "git push origin main". What data is transferred and how does Git minimize the transfer size?',
+   sampleAnswer:'1. Git connects to the remote (SSH or HTTPS). 2. A "reference discovery" handshake occurs — Git asks the remote what commits it already has. 3. Git computes the "missing" objects (commits, trees, blobs the remote lacks). 4. Git builds a minimal packfile containing only those missing objects, using delta compression. 5. The packfile is streamed to the remote. 6. The remote unpacks it and moves its branch pointer. Only the delta of new objects is transferred — not the full repository.',
+   explanation:'This is the "smart" HTTP/SSH protocol. The key insight is that Git never re-sends objects the remote already has, and delta compression in the packfile makes transfers extremely efficient.'},
+
+  // ── MERGE & REBASE (5) ──
+  {id:21, level:'merge', type:'mcq',
+   text:'A fast-forward merge is possible only when:',
+   options:['The feature branch has more commits than main','The target branch has not diverged — main is a direct ancestor of the feature branch tip','Both branches have the same number of commits','There are no merge conflicts'],
+   answer:1,
+   explanation:'Fast-forward is possible when the target branch\'s HEAD is a direct ancestor of the branch being merged. Git can simply move the pointer forward along the existing commit chain without creating a new merge commit.'},
+
+  {id:22, level:'merge', type:'tf',
+   text:'A squash merge preserves the individual feature branch commits in the target branch\'s history.',
+   answer:false,
+   explanation:'False. A squash merge collapses all commits from the feature branch into a single staged change, which you then commit manually. The target branch gets one clean commit with no trace of the individual feature commits.'},
+
+  {id:23, level:'merge', type:'mcq',
+   text:'What happens to commit SHAs during a git rebase?',
+   options:['They are preserved — rebase doesn\'t change existing commits','They are incrementally numbered','New commit objects are created with new SHAs — the content may be identical but the parent pointer changes','Only merge commit SHAs change'],
+   answer:2,
+   explanation:'Rebase creates brand-new commit objects. Even if the content diff is identical, each replayed commit gets a new SHA because its parent pointer is different. This is why rebasing shared branches breaks other developers\' clones.'},
+
+  {id:24, level:'merge', type:'mcq',
+   text:'What does "git cherry-pick a1b2c3d" do?',
+   options:['Creates a branch starting at that commit','Reverts the changes in that commit','Applies the diff of that specific commit as a new commit on the current branch','Merges the entire branch containing that commit'],
+   answer:2,
+   explanation:'Cherry-pick extracts the diff introduced by the specified commit and applies it as a new commit on the current branch. The new commit has a different SHA even if the content is identical. Useful for backporting hotfixes.'},
+
+  {id:25, level:'merge', type:'short',
+   text:'Compare "git merge --no-ff" with "git merge" (fast-forward). When and why would a team enforce --no-ff on their integration branch?',
+   sampleAnswer:'"git merge" uses fast-forward when possible — main pointer just moves forward, no merge commit. "git merge --no-ff" always creates a merge commit even when FF is possible. Teams enforce --no-ff so they can see in git log exactly when a feature was integrated — the merge commit acts as a clear boundary. It makes "git log --graph" more readable and allows easy reverting of an entire feature by reverting the single merge commit.',
+   explanation:'--no-ff is enforced on integration branches in many enterprise workflows so the history explicitly shows feature boundaries, making auditing and reversion much easier.'},
+
+  // ── INTERNALS (5) ──
+  {id:26, level:'internals', type:'mcq',
+   text:'What is the Git reflog and where is it stored?',
+   options:['A remote server log of all push events, stored on GitHub','A local record of every movement of HEAD and branch pointers, stored in .git/logs/','A file listing all commits sorted by author','A log of all git config changes'],
+   answer:1,
+   explanation:'The reflog is stored locally in .git/logs/ (notably .git/logs/HEAD). It records every time HEAD moved — commits, checkouts, resets, rebases. Entries expire after 90 days by default, giving you a ~3-month window to recover "lost" commits.'},
+
+  {id:27, level:'internals', type:'tf',
+   text:'Git hooks stored in .git/hooks/ are automatically committed and pushed to the remote repository when you push.',
+   answer:false,
+   explanation:'False. The .git/ directory is never version-controlled or pushed. Hooks are local-only. To share hooks across a team, use tools like Husky (npm) which stores hooks in a .husky/ directory that IS committed to the repo.'},
+
+  {id:28, level:'internals', type:'mcq',
+   text:'What is delta compression in Git packfiles?',
+   options:['Compressing each object individually with gzip','Storing only the differences (deltas) between similar objects rather than full copies of each','Removing old commits to reduce repo size','Encrypting objects for secure storage'],
+   answer:1,
+   explanation:'When packing objects, Git finds similar blobs (like different versions of the same file) and stores a "base" object plus a set of binary deltas to reconstruct the others. This dramatically reduces storage and transfer size for repos with many file versions.'},
+
+  {id:29, level:'internals', type:'mcq',
+   text:'What does "git bisect" use to find a bug-introducing commit efficiently?',
+   options:['Linear scan — checks every commit one by one','Binary search — eliminates half the remaining commits with each test','Random sampling — tests commits at random','Blame analysis — checks who wrote the most lines'],
+   answer:1,
+   explanation:'git bisect uses binary search. Given N commits between "good" and "bad", it takes only ceil(log₂(N)) steps. For 1000 commits that\'s ~10 steps. You mark each midpoint as "good" or "bad" and Git automatically checks out the next midpoint.'},
+
+  {id:30, level:'internals', type:'short',
+   text:'What is a Git "packfile" (.pack), what triggers its creation, and what two files make up a packfile on disk?',
+   sampleAnswer:'A packfile is a single compressed binary file that bundles many Git objects together using delta compression. It is triggered automatically by "git gc" (garbage collection), by "git push" (to minimize transfer), and by "git clone". On disk a packfile consists of two files: the .pack file (the binary data) and the .idx (index) file which provides fast random access lookup by SHA hash without reading the entire .pack file.',
+   explanation:'Packfiles are how Git stays efficient at scale. Without them, a repo with millions of commits would have millions of tiny files in objects/ — hugely inefficient for filesystems. The .idx file means Git can look up any object in O(log N) time.'},
+];
+
+// ─── STATE ──────────────────────────────────────────────────────────────────
+const SK = 'git_arch_quiz_state', HK = 'git_arch_quiz_history';
+let state = {};
+const loadState   = () => { try { const s=localStorage.getItem(SK); if(s) state=JSON.parse(s); } catch(e){} };
+const saveState   = () => { try { localStorage.setItem(SK, JSON.stringify(state)); } catch(e){} };
+const loadHistory = () => { try { const h=localStorage.getItem(HK); return h?JSON.parse(h):[]; } catch(e){ return []; } };
+const saveHistory = e  => { try { const h=loadHistory(); h.unshift(e); if(h.length>10)h.pop(); localStorage.setItem(HK,JSON.stringify(h)); } catch(e){} };
+
+// ─── META ────────────────────────────────────────────────────────────────────
+const META = {
+  objects:  { label:'Object Model', badge:'qb-objects',  bar:'qt-objects',   section:'Object Model' },
+  trees:    { label:'Three Trees',  badge:'qb-trees',    bar:'qt-trees',     section:'Three-Tree Architecture' },
+  branch:   { label:'Branching',    badge:'qb-branch',   bar:'qt-branch',    section:'Branching & HEAD' },
+  remote:   { label:'Remote Sync',  badge:'qb-remote',   bar:'qt-remote',    section:'Remote Sync' },
+  merge:    { label:'Merge/Rebase', badge:'qb-merge',    bar:'qt-merge',     section:'Merge & Rebase' },
+  internals:{ label:'Internals',    badge:'qb-internals',bar:'qt-internals', section:'Reflog, Hooks & Packfiles' },
+};
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+function renderAll(filter) {
+  const col = document.getElementById('questions-col');
+  const map = document.getElementById('answer-map');
+  col.innerHTML = map.innerHTML = '';
+  let lastLevel = null;
+
+  QUESTIONS.filter(q => !filter || filter === 'all' || q.level === filter).forEach(q => {
+    const m = META[q.level];
+    if (q.level !== lastLevel) {
+      const hdr = document.createElement('div');
+      hdr.className = 'q-section-header';
+      hdr.innerHTML = `<div class="q-section-line"></div><span class="q-section-label">${m.section}</span><div class="q-section-line"></div>`;
+      col.appendChild(hdr);
+      lastLevel = q.level;
+    }
+
+    let inputHTML = '';
+    if (q.type === 'mcq') {
+      inputHTML = `<div class="q-options">${q.options.map((o,i) => `
+        <div class="q-option" data-qid="${q.id}" data-idx="${i}" onclick="selectMCQ(${q.id},${i})">
+          <div class="opt-letter">${String.fromCharCode(65+i)}</div><span>${o}</span>
+        </div>`).join('')}</div>`;
+    } else if (q.type === 'tf') {
+      inputHTML = `<div class="tf-row">
+        <button class="tf-btn" data-qid="${q.id}" data-val="true"  onclick="selectTF(${q.id},true)">✓ True</button>
+        <button class="tf-btn" data-qid="${q.id}" data-val="false" onclick="selectTF(${q.id},false)">✗ False</button>
+      </div>`;
+    } else {
+      inputHTML = `<textarea class="q-textarea" id="ta-${q.id}" placeholder="Type your answer here…" oninput="recordOpen(${q.id},this.value)" rows="3"></textarea>`;
+    }
+
+    const codeHTML = q.code ? `<div class="q-code">${q.code}</div>` : '';
+    const card = document.createElement('div');
+    card.className = 'q-card'; card.id = `q-${q.id}`;
+    card.innerHTML = `
+      <div class="q-card-top ${m.bar}"></div>
+      <div class="q-meta">
+        <span class="q-num">Q${String(q.id).padStart(2,'0')}</span>
+        <span class="q-badge ${m.badge}">${m.label}</span>
+        <span class="q-badge" style="background:var(--bg);color:var(--muted);border:1px solid var(--border);font-size:0.65rem">
+          ${q.type==='mcq'?'MCQ':q.type==='tf'?'True/False':'Short Answer'}
+        </span>
+      </div>
+      <div class="q-text">${q.text}</div>
+      ${codeHTML}${inputHTML}
+      <div class="q-feedback" id="fb-${q.id}"></div>`;
+    col.appendChild(card);
+
+    const dot = document.createElement('a');
+    dot.href = `#q-${q.id}`; dot.className = 'am-dot'; dot.id = `dot-${q.id}`;
+    dot.title = `Q${q.id}`; dot.textContent = q.id;
+    map.appendChild(dot);
+  });
+  restoreState();
+}
+
+function restoreState() {
+  Object.entries(state).forEach(([id, s]) => {
+    const q = QUESTIONS.find(q => q.id === +id); if (!q) return;
+    if (q.type === 'mcq') {
+      document.querySelectorAll(`.q-option[data-qid="${id}"]`).forEach(el => el.classList.remove('selected'));
+      const opt = document.querySelector(`.q-option[data-qid="${id}"][data-idx="${s.answer}"]`);
+      if (opt) opt.classList.add('selected');
+    } else if (q.type === 'tf') {
+      document.querySelectorAll(`.tf-btn[data-qid="${id}"]`).forEach(el => el.classList.remove('selected'));
+      const btn = document.querySelector(`.tf-btn[data-qid="${id}"][data-val="${s.answer}"]`);
+      if (btn) btn.classList.add('selected');
+    } else {
+      const ta = document.getElementById(`ta-${id}`); if (ta && s.text) ta.value = s.text;
+    }
+    if (s.submitted) applyFeedback(q, s);
+    updateDot(+id);
+  });
+  updateStats();
+}
+
+// ─── INTERACTIONS ─────────────────────────────────────────────────────────────
+function selectMCQ(qid, idx) {
+  if (state[qid]?.submitted) return;
+  document.querySelectorAll(`.q-option[data-qid="${qid}"]`).forEach(el => el.classList.remove('selected'));
+  document.querySelector(`.q-option[data-qid="${qid}"][data-idx="${idx}"]`).classList.add('selected');
+  state[qid] = { answer: idx, submitted: false };
+  saveState(); updateStats(); updateDot(qid);
+}
+
+function selectTF(qid, val) {
+  if (state[qid]?.submitted) return;
+  document.querySelectorAll(`.tf-btn[data-qid="${qid}"]`).forEach(el => el.classList.remove('selected'));
+  document.querySelector(`.tf-btn[data-qid="${qid}"][data-val="${val}"]`).classList.add('selected');
+  state[qid] = { answer: val, submitted: false };
+  saveState(); updateStats(); updateDot(qid);
+}
+
+function recordOpen(qid, val) {
+  if (!state[qid]) state[qid] = {};
+  state[qid].text = val; state[qid].submitted = false;
+  saveState(); updateStats(); updateDot(qid);
+}
+
+function applyFeedback(q, s) {
+  const fb = document.getElementById(`fb-${q.id}`); if (!fb) return;
+  if (q.type === 'mcq') {
+    document.querySelectorAll(`.q-option[data-qid="${q.id}"]`).forEach(el => {
+      el.classList.remove('selected','correct','wrong');
+      const idx = +el.dataset.idx;
+      if (idx === q.answer) el.classList.add('correct');
+      else if (idx === s.answer && idx !== q.answer) el.classList.add('wrong');
+    });
+    const ok = s.answer === q.answer;
+    fb.className = `q-feedback show ${ok ? 'fb-correct' : 'fb-wrong'}`;
+    fb.innerHTML = `<strong>${ok ? '✅ Correct!' : '❌ Incorrect'}</strong> ${q.explanation}`;
+  } else if (q.type === 'tf') {
+    const ans = s.answer === true || s.answer === 'true';
+    const ok  = ans === q.answer;
+    document.querySelectorAll(`.tf-btn[data-qid="${q.id}"]`).forEach(el => {
+      el.classList.remove('selected','correct','wrong');
+      const v = el.dataset.val === 'true';
+      if (v === q.answer) el.classList.add('correct');
+      if (v !== q.answer && v === ans) el.classList.add('wrong');
+    });
+    fb.className = `q-feedback show ${ok ? 'fb-correct' : 'fb-wrong'}`;
+    fb.innerHTML = `<strong>${ok ? '✅ Correct!' : '❌ Incorrect'}</strong> The answer is <strong>${q.answer ? 'True' : 'False'}</strong>. ${q.explanation}`;
+  } else {
+    fb.className = 'q-feedback show fb-neutral';
+    fb.innerHTML = `<strong>✏️ Sample answer:</strong> ${q.sampleAnswer}<br><br><em style="font-size:0.8rem">${q.explanation}</em>`;
+  }
+}
+
+// ─── SUBMIT ──────────────────────────────────────────────────────────────────
+function submitQuiz() {
+  let correct = 0, wrong = 0, open = 0, skip = 0;
+  QUESTIONS.forEach(q => {
+    const s = state[q.id];
+    if (!s) { skip++; return; }
+    if (!s.submitted) s.submitted = true;
+    applyFeedback(q, s); updateDot(q.id);
+    if (q.type === 'short') { if (s.text?.trim()) open++; else skip++; }
+    else {
+      const ans = s.answer === true || s.answer === 'true' ? true
+                : s.answer === false || s.answer === 'false' ? false
+                : s.answer;
+      if (ans === q.answer) { correct++; s.correct = true; }
+      else { wrong++; s.correct = false; }
+    }
+  });
+  saveState();
+  const pct = Math.round(correct / QUESTIONS.length * 100);
+  const { emoji, gradeText, msg } = getGrade(correct, QUESTIONS.length);
+  saveHistory({ date: new Date().toLocaleDateString(), score: `${correct}/${QUESTIONS.length}`, pct: `${pct}%` });
+  renderHistory(); updateStats();
+  ['m-correct','m-wrong','m-open','m-skip'].forEach((id,i) =>
+    document.getElementById(id).textContent = [correct,wrong,open,skip][i]);
+  document.getElementById('modal-pct').textContent  = pct + '%';
+  document.getElementById('modal-emoji').textContent = emoji + ' Your Score';
+  document.getElementById('modal-grade').textContent = gradeText;
+  document.getElementById('modal-msg').textContent   = msg;
+  document.getElementById('modal').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+function getGrade(c, t) {
+  const p = c / t;
+  if (p >= 0.9) return { emoji:'🏆', gradeText:'Git Architect — Expert!', msg:'Outstanding! You have deep mastery of Git\'s internal architecture.' };
+  if (p >= 0.75) return { emoji:'🎉', gradeText:'Proficient — Well done!', msg:'Great result. Review the sections you missed and you\'ll reach expert level.' };
+  if (p >= 0.5) return { emoji:'📚', gradeText:'Developing — Keep going!', msg:'Good effort! Revisit the Git Architecture diagrams for the topics you missed.' };
+  return { emoji:'💪', gradeText:'Beginner — Keep practicing', msg:'Study the Git Architecture page and return for another attempt!' };
+}
+
+// ─── STATS ────────────────────────────────────────────────────────────────────
+function updateStats() {
+  let answered = 0, correct = 0, wrong = 0, open = 0;
+  QUESTIONS.forEach(q => {
+    const s = state[q.id]; if (!s) return;
+    const hasAns = q.type === 'short' ? (s.text?.trim()) : s.answer !== undefined;
+    if (hasAns) answered++;
+    if (s.submitted) {
+      if (q.type === 'short') open++;
+      else if (s.correct) correct++;
+      else wrong++;
+    }
+  });
+  const total = QUESTIONS.length, pct = Math.round(answered / total * 100);
+  document.getElementById('prog-fill').style.width = pct + '%';
+  document.getElementById('prog-done').textContent = answered + ' answered';
+  document.getElementById('prog-pct').textContent  = pct + '%';
+  document.getElementById('nav-score-label').textContent = `${answered} / ${total} answered`;
+  document.getElementById('hero-answered').textContent   = answered;
+  const graded = correct + wrong;
+  document.getElementById('score-num').textContent = correct;
+  document.getElementById('score-den').textContent = graded > 0 ? graded : '?';
+  document.getElementById('hero-score').textContent = graded > 0 ? Math.round(correct / graded * 100) + '%' : '—';
+  document.getElementById('s-correct').textContent    = correct;
+  document.getElementById('s-wrong').textContent      = wrong;
+  document.getElementById('s-open').textContent       = open;
+  document.getElementById('s-unanswered').textContent = total - answered;
+  const g = document.getElementById('score-grade');
+  if (!graded) { g.textContent = 'Not graded yet'; g.style.cssText = 'background:var(--blue-bg);color:var(--blue)'; }
+  else { g.textContent = getGrade(correct, graded).gradeText; g.style.cssText = 'background:var(--green-bg);color:var(--green)'; }
+}
+
+function updateDot(qid) {
+  const s = state[qid], q = QUESTIONS.find(q => q.id === qid);
+  const dot = document.getElementById(`dot-${qid}`); if (!dot) return;
+  dot.className = 'am-dot'; if (!s) return;
+  if (s.submitted) {
+    if (q.type === 'short') dot.classList.add('ans-partial');
+    else if (s.correct)     dot.classList.add('ans-correct');
+    else                    dot.classList.add('ans-wrong');
+  } else {
+    const has = q.type === 'short' ? s.text?.trim() : s.answer !== undefined;
+    if (has) dot.classList.add('ans-answered');
+  }
+}
+
+function renderHistory() {
+  const h = loadHistory(); document.getElementById('hero-sessions').textContent = h.length;
+  const el = document.getElementById('history-list');
+  el.innerHTML = h.length
+    ? h.map(e => `<div class="history-item"><span class="h-date">${e.date}</span><span class="h-score">${e.score} (${e.pct})</span></div>`).join('')
+    : '<p style="font-size:0.82rem;color:var(--muted)">No previous attempts yet.</p>';
+}
+
+function filterQ(level, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => { b.className = 'filter-btn'; });
+  btn.classList.add(level === 'all' ? 'active-all' : `active-${level}`);
+  renderAll(level);
+}
+
+function resetQuiz() {
+  if (!confirm('Reset all answers? Your history will be kept.')) return;
+  state = {}; saveState(); renderAll('all');
+  document.querySelectorAll('.filter-btn').forEach((b, i) => { b.className = 'filter-btn'; if (i===0) b.classList.add('active-all'); });
+}
+
+// ─── DOWNLOADS ────────────────────────────────────────────────────────────────
+function downloadAnswers() {
+  const colorMap = {
+    objects:'#eef6f1,#3a7d52', trees:'#eef4f9,#2d5f8a',
+    branch:'#fef8ef,#8a5c2d', remote:'#f5eef8,#7a52a0',
+    merge:'#fdf0ec,#c84b2f', internals:'#fff8e8,#b89030'
+  };
+  const rows = QUESTIONS.map(q => {
+    const s = state[q.id], m = META[q.level];
+    let userAns = '(not answered)', correctAns = '', status = '⬜ Not answered';
+    if (q.type === 'mcq') {
+      correctAns = q.options[q.answer];
+      if (s && s.answer !== undefined) { userAns = q.options[s.answer]; status = s.answer === q.answer ? '✅ Correct' : '❌ Wrong'; }
+    } else if (q.type === 'tf') {
+      correctAns = q.answer ? 'True' : 'False';
+      if (s && s.answer !== undefined) { const a = s.answer===true||s.answer==='true'; userAns = a?'True':'False'; status = a===q.answer?'✅ Correct':'❌ Wrong'; }
+    } else {
+      correctAns = q.sampleAnswer;
+      if (s?.text?.trim()) { userAns = s.text.trim(); status = '✏️ Open Answer'; }
+    }
+    const [bg, fg] = colorMap[q.level].split(',');
+    return `<tr>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8e4dc;color:#7a7268;font-weight:600">${q.id}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8e4dc"><span style="font-size:0.75rem;padding:2px 8px;border-radius:100px;background:${bg};color:${fg}">${m.label}</span></td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8e4dc">${q.text}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8e4dc">${userAns}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8e4dc;color:#3a7d52">${correctAns}</td>
+      <td style="padding:10px 12px;border-bottom:1px solid #e8e4dc;white-space:nowrap">${status}</td>
+    </tr>`;
+  }).join('');
+  const correct = QUESTIONS.filter(q => state[q.id]?.correct).length;
+  const wrong   = QUESTIONS.filter(q => state[q.id]?.correct === false).length;
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Git Arch Quiz — Answers</title>
+<style>body{font-family:'Segoe UI',sans-serif;background:#f4f1eb;color:#1a1612;margin:0;padding:40px}h1{font-size:2rem;font-weight:700;margin-bottom:4px}.sub{color:#7a7268;margin-bottom:2rem;font-size:.9rem}.summary{display:flex;gap:16px;margin-bottom:2rem;flex-wrap:wrap}.sc{background:white;border:1px solid rgba(26,22,18,.1);border-radius:12px;padding:16px 24px;min-width:120px}.sc .n{font-size:1.8rem;font-weight:700;line-height:1}.sc .l{font-size:.75rem;color:#7a7268;margin-top:4px}table{width:100%;border-collapse:collapse;background:white;border-radius:12px;overflow:hidden;box-shadow:0 1px 4px rgba(0,0,0,.04)}thead th{background:#f8f6f2;padding:10px 12px;text-align:left;font-size:.75rem;text-transform:uppercase;letter-spacing:.06em;color:#7a7268;border-bottom:1px solid #e8e4dc}@media print{body{background:white;padding:20px}}</style>
+</head><body>
+<h1>Git Architecture Quiz — Answers</h1>
+<div class="sub">Generated ${new Date().toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
+<div class="summary">
+  <div class="sc"><div class="n">${QUESTIONS.length}</div><div class="l">Total</div></div>
+  <div class="sc"><div class="n" style="color:#3a7d52">${correct}</div><div class="l">Correct</div></div>
+  <div class="sc"><div class="n" style="color:#c84b2f">${wrong}</div><div class="l">Wrong</div></div>
+  <div class="sc"><div class="n" style="color:#c84b2f">${Math.round(correct/(correct+wrong||1)*100)}%</div><div class="l">Score</div></div>
+</div>
+<table><thead><tr><th>#</th><th>Topic</th><th>Question</th><th>Your Answer</th><th>Correct / Sample</th><th>Result</th></tr></thead>
+<tbody>${rows}</tbody></table>
+<br><p style="font-size:.8rem;color:#7a7268">Open answers are self-assessed — compare against the sample answer provided.</p>
+</body></html>`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+  a.download = `git-arch-quiz-answers-${new Date().toISOString().slice(0,10)}.html`; a.click();
+}
+
+function downloadCSV() {
+  const header = ['Q#','Topic','Type','Question','Your Answer','Correct Answer','Result'];
+  const rows = QUESTIONS.map(q => {
+    const s = state[q.id], m = META[q.level];
+    let userAns = '', correctAns = '', status = 'Not answered';
+    if (q.type === 'mcq') {
+      correctAns = q.options[q.answer];
+      if (s?.answer !== undefined) { userAns = q.options[s.answer]; status = s.answer===q.answer?'Correct':'Wrong'; }
+    } else if (q.type === 'tf') {
+      correctAns = q.answer ? 'True' : 'False';
+      if (s?.answer !== undefined) { const a=s.answer===true||s.answer==='true'; userAns=a?'True':'False'; status=a===q.answer?'Correct':'Wrong'; }
+    } else {
+      correctAns = q.sampleAnswer;
+      if (s?.text) { userAns = s.text.trim(); status = 'Open Answer'; }
+    }
+    const esc = v => `"${String(v).replace(/"/g,'""')}"`;
+    return [q.id, m.label, q.type==='mcq'?'MCQ':q.type==='tf'?'True/False':'Short Answer',
+            q.text, userAns, correctAns, status].map(esc).join(',');
+  });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([[header.join(','), ...rows].join('\n')], { type: 'text/csv' }));
+  a.download = `git-arch-quiz-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+loadState(); renderAll('all'); renderHistory(); updateStats();
+</script>
+</body>
+</html>
