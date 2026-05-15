@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Salesforce Release Management with Copado</title>
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root {
+    --navy: #0D1B3E;
+    --navy-mid: #112244;
+    --blue: #1A3A7C;
+    --accent: #2E9BDA;
+    --accent-l: #5EB8F0;
+    --mint: #00C9A7;
+    --muted: #8BA4C8;
+    --card: #162040;
+    --card-lt: #1C2D56;
+    --gray: #D1DCF0;
+    --off-white: #E8EDF5;
+  }
+  [data-theme="light"] {
+    --navy: #F0F4FF;
+    --navy-mid: #E8EDF8;
+    --blue: #CADCFC;
+    --accent: #1A6BAF;
+    --accent-l: #1A5A9A;
+    --mint: #007A66;
+    --muted: #4A6080;
+    --card: #FFFFFF;
+    --card-lt: #EEF3FF;
+    --gray: #2A3A5A;
+    --off-white: #1A2540;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; }
+  body { background: var(--navy); color: var(--off-white); transition: background 0.3s, color 0.3s; }
+
+  /* ── LAYOUT ── */
+  .app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; padding: 10px 20px; background: var(--navy-mid); border-bottom: 1px solid var(--blue); flex-shrink: 0; gap: 12px; flex-wrap: wrap; }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .topbar-right { display: flex; align-items: center; gap: 8px; }
+  .logo { font-size: 14px; font-weight: 700; color: var(--accent); letter-spacing: 0.5px; }
+  .slide-counter { font-size: 13px; color: var(--muted); min-width: 60px; }
+
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* ── SIDEBAR ── */
+  .sidebar { width: 200px; flex-shrink: 0; background: var(--navy-mid); border-right: 1px solid var(--blue); overflow-y: auto; display: flex; flex-direction: column; }
+  .sidebar-inner { padding: 10px 8px; display: flex; flex-direction: column; gap: 4px; }
+  .thumb { border: 2px solid transparent; border-radius: 8px; overflow: hidden; cursor: pointer; transition: border-color 0.15s, opacity 0.15s; opacity: 0.7; }
+  .thumb:hover { opacity: 1; border-color: var(--accent-l); }
+  .thumb.active { border-color: var(--accent); opacity: 1; }
+  .thumb-inner { aspect-ratio: 16/9; background: var(--card); padding: 6px; display: flex; flex-direction: column; justify-content: flex-start; overflow: hidden; position: relative; }
+  .thumb-num { font-size: 8px; color: var(--muted); position: absolute; top: 4px; right: 5px; }
+  .thumb-title { font-size: 7px; font-weight: 700; color: var(--accent); margin-bottom: 2px; line-height: 1.2; }
+  .thumb-bar { height: 2px; width: 24px; background: var(--accent); border-radius: 1px; margin-bottom: 3px; }
+  .thumb-line { height: 3px; border-radius: 1px; background: var(--blue); margin-bottom: 2px; }
+
+  /* ── CANVAS ── */
+  .canvas-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .slide-viewport { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; overflow: hidden; background: #0A0F1E; }
+  [data-theme="light"] .slide-viewport { background: #C8D0E0; }
+  .slide-frame { width: 100%; max-width: 960px; aspect-ratio: 16/9; background: var(--navy); border-radius: 10px; overflow: hidden; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.5); flex-shrink: 0; }
+
+  /* ── SLIDE CONTENT ── */
+  .slide { position: absolute; inset: 0; padding: 32px 44px; display: flex; flex-direction: column; transition: opacity 0.25s; }
+  .slide-tag { font-size: 10px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 6px; }
+  .slide-title { font-size: clamp(18px, 2.5vw, 26px); font-weight: 800; color: #fff; line-height: 1.2; margin-bottom: 4px; }
+  .slide-subtitle { font-size: clamp(10px, 1.2vw, 13px); color: var(--muted); margin-bottom: 18px; }
+  .accent-bar { width: 40px; height: 3px; background: var(--accent); border-radius: 2px; margin-bottom: 14px; }
+  .slide-body { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .slide-grid { display: grid; gap: 10px; flex: 1; }
+  .g2 { grid-template-columns: 1fr 1fr; }
+  .g3 { grid-template-columns: 1fr 1fr 1fr; }
+  .g4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .g2x2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+  .card { background: var(--card); border: 1px solid var(--blue); border-radius: 8px; padding: 12px 14px; position: relative; overflow: hidden; display: flex; flex-direction: column; }
+  .card-accent { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--accent); border-radius: 8px 0 0 8px; }
+  .card-accent-mint { background: var(--mint); }
+  .card-accent-top { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--accent); border-radius: 8px 8px 0 0; }
+  .card h3 { font-size: clamp(10px, 1.2vw, 13px); font-weight: 700; color: var(--accent-l); margin-bottom: 4px; }
+  .card p, .card li { font-size: clamp(8px, 1vw, 11px); color: var(--off-white); line-height: 1.5; }
+  .card ul { padding-left: 14px; display: flex; flex-direction: column; gap: 2px; }
+  .card-stat { font-size: clamp(22px, 3.5vw, 42px); font-weight: 800; color: var(--accent); font-family: Georgia, serif; text-align: center; }
+  .card-stat.mint { color: var(--mint); }
+  .card-label { font-size: clamp(8px, 1vw, 11px); color: var(--muted); text-align: center; }
+  .badge { display: inline-block; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; padding: 3px 8px; border-radius: 4px; text-transform: uppercase; }
+  .badge-accent { background: rgba(46,155,218,0.15); color: var(--accent); }
+  .badge-mint { background: rgba(0,201,167,0.15); color: var(--mint); }
+  .badge-red { background: rgba(231,76,60,0.15); color: #E74C3C; }
+  .step-row { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--blue); }
+  .step-row:last-child { border-bottom: none; }
+  .step-dot { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--navy); margin-top: 1px; }
+  .step-dot.mint { background: var(--mint); }
+
+  /* ── TITLE SLIDE ── */
+  .title-slide { background: var(--navy); position: relative; overflow: hidden; }
+  .title-stripe { position: absolute; left: 0; top: 0; bottom: 0; width: 8px; background: var(--accent); }
+  .title-band { position: absolute; left: 0; right: 0; bottom: 0; height: 22%; background: var(--blue); }
+  .title-content { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 40px 60px 40px 44px; }
+  .title-tag { font-size: 10px; letter-spacing: 3px; color: var(--muted); text-transform: uppercase; margin-bottom: 12px; }
+  .title-main { font-size: clamp(22px, 3.5vw, 40px); font-weight: 800; color: #fff; font-family: Georgia, serif; line-height: 1.15; margin-bottom: 10px; }
+  .title-sub { font-size: clamp(14px, 2vw, 20px); color: var(--accent-l); margin-bottom: 8px; }
+  .title-desc { font-size: clamp(10px, 1.3vw, 13px); color: var(--muted); font-style: italic; }
+  .title-footer { position: absolute; bottom: 14px; left: 44px; right: 44px; font-size: 9px; color: var(--muted); letter-spacing: 2px; }
+
+  /* ── PIPELINE SVG ── */
+  .pipeline-wrap { display: flex; align-items: center; justify-content: center; gap: 0; flex: 1; }
+  .pipe-node { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .pipe-box { padding: 8px 10px; border-radius: 7px; font-size: clamp(9px, 1.1vw, 11px); font-weight: 700; color: #fff; text-align: center; min-width: 70px; }
+  .pipe-arrow { color: var(--accent-l); font-size: 18px; flex-shrink: 0; align-self: center; margin: 0 2px; }
+
+  /* ── CLOSING SLIDE ── */
+  .closing-pillars { display: flex; gap: 10px; margin-top: 14px; }
+  .pillar { flex: 1; border-radius: 8px; padding: 12px 8px; text-align: center; font-size: clamp(9px, 1.1vw, 12px); font-weight: 700; }
+
+  /* ── BOTTOM NAV ── */
+  .bottombar { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 10px 20px; background: var(--navy-mid); border-top: 1px solid var(--blue); flex-shrink: 0; }
+  .nav-btn { background: var(--card); border: 1px solid var(--blue); border-radius: 6px; color: var(--off-white); padding: 6px 18px; font-size: 13px; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+  .nav-btn:hover { background: var(--card-lt); border-color: var(--accent); }
+  .nav-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .progress-bar { flex: 1; max-width: 320px; height: 3px; background: var(--blue); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width 0.3s; }
+
+  /* ── TOOLBAR BUTTONS ── */
+  .tb-btn { background: var(--card); border: 1px solid var(--blue); border-radius: 6px; color: var(--off-white); padding: 5px 12px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: background 0.15s; white-space: nowrap; }
+  .tb-btn:hover { background: var(--card-lt); border-color: var(--accent); color: var(--accent); }
+  .tb-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  /* ── MODAL ── */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.75); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: var(--navy-mid); border: 1px solid var(--blue); border-radius: 12px; padding: 24px; width: 90%; max-width: 640px; max-height: 80vh; display: flex; flex-direction: column; gap: 12px; }
+  .modal h2 { font-size: 16px; font-weight: 700; color: var(--accent); }
+  .modal textarea { width: 100%; flex: 1; min-height: 340px; background: var(--card); border: 1px solid var(--blue); border-radius: 6px; color: var(--off-white); font-family: 'Courier New', monospace; font-size: 12px; padding: 12px; resize: vertical; }
+  .modal-btns { display: flex; gap: 8px; justify-content: flex-end; }
+  .btn-primary { background: var(--accent); border: none; border-radius: 6px; color: #fff; padding: 8px 20px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .btn-primary:hover { background: var(--accent-l); }
+  .btn-secondary { background: transparent; border: 1px solid var(--blue); border-radius: 6px; color: var(--muted); padding: 8px 16px; font-size: 13px; cursor: pointer; }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── SCROLLBAR ── */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--blue); border-radius: 3px; }
+
+  /* ── ANTI-PATTERN CARDS ── */
+  .anti-card { background: var(--card); border: 1px solid rgba(231,76,60,0.3); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 3px; }
+  .anti-title { font-size: clamp(9px, 1.1vw, 11px); font-weight: 700; color: #E74C3C; display: flex; align-items: center; gap: 5px; }
+  .anti-desc { font-size: clamp(7px, 0.9vw, 10px); color: var(--muted); line-height: 1.4; }
+
+  /* ── COMPLIANCE FRAMEWORKS ── */
+  .fw-row { display: flex; gap: 8px; margin-top: auto; flex-wrap: wrap; }
+  .fw-badge { background: var(--card-lt); border: 1px solid var(--accent); border-radius: 6px; padding: 5px 12px; font-size: 10px; font-weight: 700; color: var(--accent-l); }
+
+  /* ── SCHEDULE ROWS ── */
+  .sched-row { display: flex; border-radius: 8px; overflow: hidden; border: 1px solid var(--blue); }
+  .sched-day { min-width: 120px; padding: 10px 14px; font-size: clamp(10px, 1.2vw, 13px); font-weight: 800; display: flex; align-items: center; justify-content: center; color: var(--navy); flex-shrink: 0; }
+  .sched-content { flex: 1; padding: 8px 14px; background: var(--card); display: flex; flex-direction: column; justify-content: center; }
+  .sched-type { font-size: clamp(10px, 1.2vw, 12px); font-weight: 700; color: var(--off-white); }
+  .sched-desc { font-size: clamp(8px, 0.95vw, 10px); color: var(--muted); margin-top: 2px; }
+
+  /* ── GOLDEN RULES ── */
+  .rule-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(26,58,124,0.5); }
+  .rule-item:last-child { border-bottom: none; }
+  .rule-num { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: var(--navy); flex-shrink: 0; }
+  .rule-num.mint { background: var(--mint); }
+  .rule-text { font-size: clamp(8px, 1vw, 11px); color: var(--off-white); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <!-- TOP BAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="logo">● COPADO DECK</div>
+      <div class="slide-counter" id="counter">1 / 16</div>
+    </div>
+    <div class="topbar-right">
+      <button class="tb-btn" onclick="toggleTheme()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        Theme
+      </button>
+      <button class="tb-btn" onclick="downloadMarkdown()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Export MD
+      </button>
+      <button class="tb-btn" onclick="openLoadModal()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17,8 12,3 7,8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Load MD
+      </button>
+      <button class="tb-btn" onclick="enterFullscreen()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        Fullscreen
+      </button>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+      <div class="sidebar-inner" id="thumbs"></div>
+    </div>
+
+    <!-- SLIDE CANVAS -->
+    <div class="canvas-area">
+      <div class="slide-viewport">
+        <div class="slide-frame" id="slideFrame">
+          <div id="slideContent"></div>
+        </div>
+      </div>
+
+      <!-- BOTTOM NAV -->
+      <div class="bottombar">
+        <button class="nav-btn" id="prevBtn" onclick="navigate(-1)">← Prev</button>
+        <div class="progress-bar"><div class="progress-fill" id="progress"></div></div>
+        <button class="nav-btn" id="nextBtn" onclick="navigate(1)">Next →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOAD MODAL -->
+<div class="modal-overlay" id="loadModal" style="display:none">
+  <div class="modal">
+    <h2>Load Markdown Slides</h2>
+    <p style="font-size:12px;color:var(--muted)">Paste markdown content below. Use <code style="color:var(--accent)">---</code> as slide separators and <code style="color:var(--accent)"># Title</code> for slide headings.</p>
+    <textarea id="mdInput" placeholder="# Slide Title&#10;&#10;Content here...&#10;&#10;---&#10;&#10;# Next Slide"></textarea>
+    <div class="modal-btns">
+      <button class="btn-secondary" onclick="closeLoadModal()">Cancel</button>
+      <button class="btn-primary" onclick="loadMarkdown()">Load Slides</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// SLIDE DATA — structured slides
+// ═══════════════════════════════════════════════════════════
+const SLIDES = [
+
+// 0: TITLE
+{ type: 'title', tag: 'Enterprise DevOps', title: 'Salesforce Release\nManagement', sub: 'Best Practices with Copado', desc: 'End-to-end governance, automation, and compliance for the Salesforce platform' },
+
+// 1: WHY COPADO
+{ type: 'cards6', tag: 'Overview', title: 'Why Copado?', subtitle: 'The Salesforce-native DevOps platform built for enterprise scale',
+  items: [
+    { icon: '⚡', title: 'Salesforce-Native', body: 'Built on the platform itself — integrated with the metadata model, no external infrastructure needed.' },
+    { icon: '🔄', title: 'Story-Driven CI/CD', body: 'Automated pipelines tied to user stories enforce traceability from requirement to production.' },
+    { icon: '🛡️', title: 'Compliance & Audit', body: 'Full chain of custody: who deployed what, when, with what approvals. Essential for SOX & HIPAA.' },
+    { icon: '🧠', title: 'Intelligent Merge', body: 'Smart conflict detection prevents metadata collisions and environment drift before they happen.' },
+    { icon: '🚦', title: 'Quality Gates', body: 'Configurable thresholds enforce coverage, PMD scores, and security scans before any promotion.' },
+    { icon: '📊', title: 'Release Governance', body: 'Approval workflows, freeze windows, and deployment scheduling for predictable releases.' },
+  ]
+},
+
+// 2: RELEASE LIFECYCLE
+{ type: 'lifecycle', tag: 'Core Process', title: 'Copado Release Lifecycle', subtitle: 'Eight-stage flow from story creation through back promotion',
+  steps: [
+    { label: 'User Story Created', desc: 'Every change begins with a traceable user story linked to a Jira/ADO requirement.' },
+    { label: 'Feature Branch', desc: 'Copado auto-creates a short-lived Git branch scoped to the story.' },
+    { label: 'Development', desc: 'Developers retrieve, edit, and commit metadata via SFDX or the Copado IDE.' },
+    { label: 'Commit & Validate', desc: 'Each commit triggers metadata validation and dependency checks automatically.' },
+    { label: 'QA Promotion', desc: 'Story is promoted through a validated pipeline step to the QA environment.' },
+    { label: 'UAT Approval', desc: 'Business stakeholders approve via automated notification and review workflows.' },
+    { label: 'Production Deploy', desc: 'Automated deployment with rollback capability and full audit logging.' },
+    { label: 'Back Promotion', desc: 'Metadata is synced back down the pipeline to prevent environment drift.' },
+  ]
+},
+
+// 3: STORY-DRIVEN DEV
+{ type: 'story', tag: 'Foundation', title: 'Story-Driven Development', subtitle: 'One user story = one branch = one independent deployment unit' },
+
+// 4: ENVIRONMENT PIPELINE
+{ type: 'pipeline', tag: 'Infrastructure', title: 'Environment Pipeline Design', subtitle: 'Promotion-gated linear path from Dev to Production with enforced controls',
+  envs: [
+    { name: 'Dev', color: '#2E9BDA' },
+    { name: 'Integration', color: '#1A3A7C' },
+    { name: 'QA', color: '#1A3A7C' },
+    { name: 'UAT', color: '#1A3A7C' },
+    { name: 'Staging', color: '#1A3A7C' },
+    { name: 'Production', color: '#00C9A7' },
+  ],
+  rules: [
+    { title: 'Promotion Validation', items: ['Every promotion requires CI validation pass', 'Metadata dependencies checked automatically', 'Apex test suite executed on target org', 'No bypass — exceptions require documented approval'] },
+    { title: 'Controlled Approvals', items: ['QA → UAT requires QA lead sign-off', 'UAT → Production requires business owner approval', 'Approval timestamps recorded for audit', 'SLA tracking for approval turnaround'] },
+    { title: 'No Manual Deployments', items: ['All production changes flow through Copado', 'Change Sets and Workbench blocked by policy', 'Emergency hotfixes use dedicated fast-track pipeline', 'Manual deployment events trigger audit alerts'] },
+  ]
+},
+
+// 5: CI VALIDATION
+{ type: 'ci', tag: 'Automation', title: 'Continuous Integration Validation', subtitle: 'Automated quality checks triggered on every commit',
+  stages: [
+    { title: 'Metadata Retrieval', desc: 'Copado retrieves the full metadata delta from the feature branch and resolves component dependencies before any validation begins.' },
+    { title: 'Static Code Analysis', desc: 'PMD runs against all Apex classes and triggers. Violations above the configured severity threshold immediately block the pipeline.' },
+    { title: 'Apex Test Execution', desc: 'Targeted and full regression test suites execute against a scratch org or sandbox. 85%+ coverage is required; test failures are blocking.' },
+    { title: 'Deployment Simulation', desc: 'A check-only deployment validates that all metadata can be deployed to the target org without committing any changes.' },
+    { title: 'Dependency Validation', desc: 'Copado maps metadata dependencies and flags any missing or conflicting components that would cause a deployment failure.' },
+    { title: 'Approval Gate', desc: 'On all green gates, the story is auto-promoted to the next stage or held for human approval per pipeline configuration.' },
+  ]
+},
+
+// 6: QUALITY GATES
+{ type: 'gates', tag: 'Quality', title: 'Quality Gates', subtitle: 'Automated enforcement of deployment standards — deployment blocked if thresholds not met',
+  gates: [
+    { icon: '📐', name: 'PMD Score', threshold: '< 3 critical violations', accent: true },
+    { icon: '🧪', name: 'Apex Coverage', threshold: '≥ 85% code coverage', accent: false },
+    { icon: '🔒', name: 'Security Scan', threshold: 'Zero critical findings', accent: true },
+    { icon: '📝', name: 'Naming Conventions', threshold: '100% compliance', accent: false },
+    { icon: '📋', name: 'Story Completeness', threshold: 'All ACs verified & linked', accent: true },
+    { icon: '🔗', name: 'Dependency Graph', threshold: 'No missing references', accent: false },
+  ]
+},
+
+// 7: BRANCHING
+{ type: 'branching', tag: 'Source Control', title: 'Branching Strategy', subtitle: "Short-lived, story-scoped branches — the foundation of Copado's promotion model",
+  rules: [
+    { title: 'One Branch Per Story', desc: 'Never share branches across stories. Each story must be independently promotable without coupling to other work.' },
+    { title: 'Short-Lived Branches', desc: 'Target < 5 days. Long-lived branches accumulate merge debt, conflicts, and deployment risk.' },
+    { title: 'Auto-Prune After Merge', desc: 'Copado cleans up merged branches automatically to keep the repository lean and navigable.' },
+    { title: 'Conflict Resolution SLA', desc: 'Any merge conflict must be resolved within 24 hours of detection — never deferred.' },
+    { title: 'Protected Main Branch', desc: 'All changes flow through validated story branches. Direct commits to main are blocked at the Git policy level.' },
+  ]
+},
+
+// 8: BACK PROMOTION
+{ type: 'backpromo', tag: 'Stability', title: 'Back Promotion', subtitle: 'Keeping every environment in sync after every production deployment',
+  cols: [
+    { title: 'Why It Matters', color: 'accent', items: ['Prevents lower environments drifting from production state', 'Eliminates "works in UAT, fails in Prod" scenarios', 'Future branches start from the correct baseline', 'Reduces emergency hotfix complexity significantly'] },
+    { title: 'When to Run', color: 'mint', items: ['Immediately after every production deployment', 'After any emergency hotfix applied to production', 'After Salesforce seasonal release upgrades', 'After any admin-made metadata changes to production'] },
+    { title: 'Automation Rules', color: 'accent-l', items: ['Back-promotion jobs triggered automatically post-deploy', 'Validation gates apply on back-promotion as on forward', 'Failures alert the release manager within 15 minutes', 'All events tracked in Copado audit log with owner'] },
+  ]
+},
+
+// 9: HOTFIX
+{ type: 'hotfix', tag: 'Incident Response', title: 'Hotfix Workflow', subtitle: 'Controlled fast-track process for production critical issues',
+  rules: [
+    { label: 'Separate Story', desc: 'Every hotfix gets its own Copado story — never bundled with in-flight feature work.' },
+    { label: 'Fast-Track Approvals', desc: 'Pre-approved emergency approver chain. SLA: 2 hours from story creation to production deploy.' },
+    { label: 'Scoped Validation', desc: 'Run targeted Apex tests (not full regression) to minimize the deployment window.' },
+    { label: 'Mandatory Back Promote', desc: 'After production deploy, back promote immediately to all lower environments without exception.' },
+    { label: 'Post-Mortem Required', desc: 'Every hotfix triggers an incident record and root-cause analysis within 48 hours.' },
+  ]
+},
+
+// 10: COMPLIANCE
+{ type: 'compliance', tag: 'Governance', title: 'Compliance & Auditability', subtitle: 'Enterprise governance built into every deployment — not bolted on after',
+  tracks: [
+    { title: 'Who Deployed', desc: 'Full user identity, org, and timestamp recorded on every promotion event.' },
+    { title: 'What Changed', desc: 'Component-level diff with before/after metadata snapshots for every commit.' },
+    { title: 'Approval Chain', desc: 'All approvers, timestamps, and approval comments persisted immutably.' },
+    { title: 'Test Evidence', desc: 'Apex execution logs, coverage %, and failure details retained per deployment.' },
+    { title: 'Deployment Artifacts', desc: 'Full deployment package archived — 7-year retention for regulated orgs.' },
+    { title: 'Rollback Record', desc: 'Every rollback event and reason captured in the audit trail automatically.' },
+  ],
+  frameworks: ['SOX', 'HIPAA', 'PCI-DSS', 'ISO 27001', 'GDPR', 'SOC 2']
+},
+
+// 11: RELEASE SCHEDULING
+{ type: 'schedule', tag: 'Operations', title: 'Release Scheduling & Deployment Controls', subtitle: 'Predictable, governed production deployment windows with clear escalation paths',
+  rows: [
+    { day: 'Tuesday', color: '#2E9BDA', type: 'Feature Releases', desc: 'Planned feature and enhancement deployments. Full regression suite required. Business owner sign-off mandatory.' },
+    { day: 'Thursday', color: '#5EB8F0', type: 'Patch Releases', desc: 'Bug fixes and minor configuration changes. Targeted test execution. Tech lead approval sufficient.' },
+    { day: 'Friday', color: '#00C9A7', type: 'Hotfixes Only', desc: 'Emergency production fixes via fast-track pipeline. On-call approver mandatory. Back-promotion same day.' },
+    { day: 'Freeze Periods', color: '#E74C3C', type: 'No Deployments', desc: 'End-of-quarter closes, major business events, and Salesforce seasonal release windows.' },
+  ]
+},
+
+// 12: ANTI-PATTERNS
+{ type: 'antipatterns', tag: 'Risk', title: 'Common Anti-Patterns to Avoid', subtitle: 'What elite Salesforce DevOps teams never do — and why it matters',
+  items: [
+    { title: 'Direct Sandbox Edits', desc: 'Metadata changed outside Copado creates ghost changes invisible to the pipeline and impossible to roll back.' },
+    { title: 'Long-Lived Stories', desc: 'Stories open > 5 days accumulate merge conflicts and become impossible to promote cleanly.' },
+    { title: 'Manual Production Deploys', desc: 'Change Sets bypass quality gates, approvals, and audit logging. Never acceptable for enterprise teams.' },
+    { title: 'Skipping Back Promotion', desc: 'Environment drift compounds with every skipped back-promo. Within weeks, lower environments become untrustworthy.' },
+    { title: 'Shared Dev Branches', desc: 'Shared branches create implicit coupling between stories and make independent promotion impossible.' },
+    { title: 'Ignoring Validation Failures', desc: 'Suppressing CI failures normalizes technical debt. All failures must be resolved before promotion.' },
+    { title: 'Large Bundled Promotions', desc: 'Bundling multiple stories hides causation when defects appear in production and complicates rollback.' },
+  ]
+},
+
+// 13: KPIs
+{ type: 'kpis', tag: 'Metrics', title: 'Key Metrics & Operational KPIs', subtitle: 'Measure what matters — review every sprint and act on every deviation',
+  kpis: [
+    { metric: '≥ 98%', label: 'Deployment Success Rate', target: 'Target: 98%+', accent: true },
+    { metric: '< 3 days', label: 'Story Cycle Time', target: 'Target: < 3 days', accent: false },
+    { metric: '< 5%', label: 'Failed Validation Rate', target: 'Target: < 5%', accent: true },
+    { metric: '< 2 / wk', label: 'Merge Conflict Frequency', target: 'Target: < 2 per week', accent: false },
+    { metric: '0%', label: 'Defect Leakage to Prod', target: 'Target: Zero escaped defects', accent: true },
+    { metric: '< 4 hrs', label: 'Back Promotion Lag', target: 'Target: Same-day', accent: false },
+    { metric: '100%', label: 'Approval SLA Compliance', target: 'Target: All on time', accent: true },
+    { metric: '100%', label: 'Audit Trail Coverage', target: 'Target: All deployments traced', accent: false },
+  ]
+},
+
+// 14: GOLDEN RULES
+{ type: 'rules', tag: 'Excellence', title: 'Golden Rules for Copado Success', subtitle: 'The ten commitments every elite Salesforce DevOps team honors',
+  rules: [
+    'Story-first development — every change must be traceable',
+    'Automate all validations — human gates for approvals only',
+    'Keep stories small and independently promotable',
+    'Promote continuously — avoid batch accumulation',
+    'Back promote always — no exceptions, no delays',
+    'Enforce approvals — document and audit every exception',
+    'Never bypass quality gates — fix the code, not the gate',
+    'Audit everything — deployment history is your insurance',
+    'Resolve conflicts early — same day, never deferred',
+    'Measure and improve — KPI review every sprint',
+  ]
+},
+
+// 15: CLOSING
+{ type: 'closing', tag: 'Summary', title: 'Copado Success Formula', pillars: ['Process Discipline', 'Automation', 'Governance', 'Fast Feedback', 'Continuous Improvement'] },
+
+];
+
+// ═══════════════════════════════════════════════════════════
+// RENDERERS
+// ═══════════════════════════════════════════════════════════
+
+function renderSlide(s) {
+  const t = s.type;
+  if (t === 'title')        return renderTitle(s);
+  if (t === 'cards6')       return renderCards6(s);
+  if (t === 'lifecycle')    return renderLifecycle(s);
+  if (t === 'story')        return renderStory(s);
+  if (t === 'pipeline')     return renderPipeline(s);
+  if (t === 'ci')           return renderCI(s);
+  if (t === 'gates')        return renderGates(s);
+  if (t === 'branching')    return renderBranching(s);
+  if (t === 'backpromo')    return renderBackPromo(s);
+  if (t === 'hotfix')       return renderHotfix(s);
+  if (t === 'compliance')   return renderCompliance(s);
+  if (t === 'schedule')     return renderSchedule(s);
+  if (t === 'antipatterns') return renderAntiPatterns(s);
+  if (t === 'kpis')         return renderKPIs(s);
+  if (t === 'rules')        return renderRules(s);
+  if (t === 'closing')      return renderClosing(s);
+  return '<div style="padding:40px;color:var(--muted)">Unknown slide type</div>';
+}
+
+function headerHTML(s) {
+  return `<div style="flex-shrink:0">
+    <div class="slide-tag">${s.tag || ''}</div>
+    <div class="slide-title">${(s.title||'').replace(/\n/g,'<br>')}</div>
+    ${s.subtitle ? `<div class="slide-subtitle">${s.subtitle}</div>` : ''}
+    <div class="accent-bar"></div>
+  </div>`;
+}
+
+function renderTitle(s) {
+  return `<div class="title-slide">
+    <div class="title-stripe"></div>
+    <div class="title-band"></div>
+    <div class="title-content">
+      <div class="title-tag">${s.tag}</div>
+      <div class="title-main">${s.title.replace(/\n/g,'<br>')}</div>
+      <div class="title-sub">${s.sub}</div>
+      <div class="title-desc">${s.desc}</div>
+    </div>
+    <div class="title-footer">CONFIDENTIAL · ENTERPRISE DEVOPS · COPADO BEST PRACTICES</div>
+  </div>`;
+}
+
+function renderCards6(s) {
+  const cards = s.items.map((it,i) => `
+    <div class="card">
+      <div class="card-accent${i%2===0?'':' card-accent-mint'}"></div>
+      <div style="padding-left:8px">
+        <div style="font-size:clamp(14px,1.8vw,20px);margin-bottom:4px">${it.icon}</div>
+        <h3>${it.title}</h3>
+        <p>${it.body}</p>
+      </div>
+    </div>`).join('');
+  return `<div class="slide" style="background:var(--navy)">
+    ${headerHTML(s)}
+    <div class="slide-body"><div class="slide-grid g3" style="flex:1">${cards}</div></div>
+  </div>`;
+}
+
+function renderLifecycle(s) {
+  const left = s.steps.map((st,i) => {
+    const isFirst = i===0, isLast = i===s.steps.length-1;
+    const bg = isFirst ? 'var(--accent)' : isLast ? 'var(--mint)' : 'var(--blue)';
+    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
+      <div style="width:8px;height:8px;border-radius:50%;background:${bg};flex-shrink:0"></div>
+      <div style="font-size:clamp(8px,0.9vw,10px);font-weight:700;color:${isFirst?'var(--accent)':isLast?'var(--mint)':'var(--accent-l)'}">${st.label}</div>
+    </div>`;
+  }).join('');
+
+  const right = s.steps.map((st,i) => {
+    const isFirst = i===0, isLast = i===s.steps.length-1;
+    return `<div class="step-row">
+      <div class="step-dot${isLast?' mint':''}">${i+1}</div>
+      <div>
+        <div style="font-size:clamp(9px,1.1vw,12px);font-weight:700;color:var(--accent-l)">${st.label}</div>
+        <div style="font-size:clamp(7px,0.85vw,9px);color:var(--muted);margin-top:2px">${st.desc}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `<div class="slide" style="background:var(--navy)">
+    ${headerHTML(s)}
+    <div class="slide-body" style="display:flex;gap:16px;flex:1;overflow:hidden">
+      <div style="width:140px;flex-shrink:0;background:var(--card);border-radius:8px;padding:12px;border:1px solid var(--blue);display:flex;flex-direction:column;justify-content:center">
+        <div style="font-size:9px;letter-spacing:1px;color:var(--muted);margin-bottom:8px">FLOW</div>
+        ${left}
+      </div>
+      <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;gap:0">${right}</div>
+    </div>
+  </div>`;
+}
+
+function renderStory(s) {
+  const fields = [
+    ['Requirement Traceability', 'Links story to business requirement or Jira/ADO ticket'],
+    ['Git Branch', 'Auto-created feature branch; auto-pruned after merge'],
+    ['Committed Metadata', 'Versioned components with full diff visibility'],
+    ['Validation Status', 'Real-time CI gate status per commit'],
+    ['Deployment History', 'Complete audit trail of every promotion and environment'],
+    ['Test Execution Results', 'Apex coverage %, PMD score, UI test pass/fail'],
+  ];
+  const fieldHTML = fields.map(([t,d]) => `
+    <div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid var(--blue)">
+      <div style="width:6px;height:6px;border-radius:50%;background:var(--accent);margin-top:4px;flex-shrink:0"></div>
+      <div>
+        <div style="font-size:clamp(9px,1.1vw,12px);font-weight:700;color:var(--off-white)">${t}</div>
+        <div style="font-size:clamp(7px,0.85vw,9px);color:var(--muted)">${d}</div>
+      </div>
+    </div>`).join('');
+
+  return `<div class="slide" style="background:var(--navy)">
+    ${headerHTML(s)}
+    <div class="slide-body" style="display:flex;gap:16px;flex:1;overflow:hidden">
+      <div class="card" style="width:200px;flex-shrink:0;align-items:center;justify-content:center;background:var(--card-lt)">
+        <div class="card-stat" style="font-size:clamp(36px,5vw,58px)">100%</div>
+        <div style="font-size:clamp(9px,1.1vw,12px);font-weight:700;color:var(--white);text-align:center;margin:8px 0 4px">of changes must trace to a User Story</div>
+        <div style="font-size:clamp(7px,0.85vw,9px);color:var(--muted);text-align:center;font-style:italic">Zero orphaned metadata</div>
+        <div class="badge badge-mint" style="margin-top:10px;letter-spacing:2px">Mandatory</div>
+      </div>
+      <div style="flex:1;overflow:hidden">
+        <div style="font-size:clamp(10px,1.2vw,13px);font-weight:700;color:var(--accent-l);margin-bottom:6px">Every User Story Contains:</div>
+        ${fieldHTML}
+        <div style="margin-top:10px;padding:8px 12px;background:var(--card);border-radius:6px;border-left:3px solid #E74C3C">
+          <div style="font-size:clamp(8px,1vw,11px);font-weight:700;color:#E74C3C">⚠ Never deploy unmanaged metadata changes</div>
+          <div style="font-size:clamp(7px,0.85vw,9px);color:var(--muted);margin-top:2px">Any change without a linked story bypasses governance and creates untracked risk.</div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderPipeline(s) {
+  const pipeHTML = s.envs.map((e,i) => {
+    const isLast = i===s.envs.length-1;
+    return `<div class="pipe-node">
+      <div class="pipe-box" style="background:${e.color}">${e.name}</div>
+    </div>${!isLast?'<div class="pipe-arrow">→</div>':''}`;
+  }).join('');
+
+  const rules = s.rules.map(r => `
+    <div class="card" style="flex:1">
+      <div class="card-accent-top"></div>
+      <h3 style="margin-top:6px">${r.title}</h3>
+      <ul>${r.items.map(it=>`<li>${it}</li>`).join('')}</ul>
+    </div>`).join('');
+
+  return `<div class="slide" style="background:var(--navy)">
+    ${headerHTML(s)}
+    <div class="slide-body" style="display:flex;flex-direction:column;gap:12px;flex:1">
+      <div style="background:var(--card);border:1px solid var(--blue);border-radius:8px;padding:14px">
+        <div class="pipeline-wrap">${pipeHTML}</div>
+      </div>
+      <div style="display:flex;gap:10px;flex:1">${rules}</div>
+    </div>
+  </div>`;
+}
+
+function renderCI(s) {
+  const rows = s.stages.map((st,i) => {
+    const isLast = i===s.stages.length-1;
+    const bg = i===0?'var(--accent)':isLast?'var(--mint)':'var(--blue)';
+    return `<div style="display:flex;align-items:flex-start;gap:10px;padding:5px 0;border-bottom:1px solid var(--blue);${isLast?'border-bottom:none':''}">
+      <div style="width:22px;height:22px;border-radius:50%;background:${bg};display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;color:var(--navy);flex-shrink:0;margin-top:1px">${i+1}</div>
+      <div>
+        <div style="font-size:clamp(9px,1.1vw,12px);font-weight:700;color:var(--accent-l)">${st.title}</div>
+        <div style="font-size:clamp(7px,0.85vw,9px);color:var(--muted);margin-top:2px;line-height:1.4">${st.desc}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const ciSvg = `<svg viewBox="0 0 80 320" style="width:80px;height:100%">
+    ${[0,1,2,3,4,5].map((i)=>{
+      const y = 20 + i*50, isFirst=i===0, isLast=i===5;
+      const fill = isFirst?'#2E9BDA':isLast?'#00C9A7':'#1A3A7C';
+      return `<rect x="10" y="${y}" width="60" height="28" rx="6" fill="${fill}"/>
+              ${i<5?`<line x1="40" y1="${y+28}" x2="40" y2="${y+50}" stroke="#5EB8F0" stroke-width="2"/>
+              <polygon points="36,${y+50} 44,${y+50} 40,${y+56}" fill="#5EB8F0"/>`:''}`
+    }).join('')}
+  </svg>`;
+
+  return `<div class="slide" style="background:var(--navy)">
+    ${headerHTML(s)}
+    <div class="slide-body" style="display:flex;gap:16px;flex:1;overflow:hidden">
+      <div style="background:var(--card);border:1px solid var(--blue);border-radius:8px;padding:12px;display:flex;align-items:center;justify-content:center;width:100px;flex-shrink:0">
+        ${ciSvg}
+      </div>
+      <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between">${rows}</div>
+    </div>
+  </div>`;
+}
+
+function renderGates(s) {
+  const cards = s.gates.map(g => `
+    <div class="card">
+      <div class="card-accent${g.accent?'':' card-accent-mint'}"></div>
+      <div style="padding-left:8px">
+        <div style="font-size:clamp(14px,1.8vw,18px);margin-bottom:2px">${g.icon}</div>
+        <h3>${g.name}</h3>
+        <div style="font-size:clamp(8px,1vw,11px);color:${g.accent?'var(--accent)':'var(--mint)'};font-weight:600;margin-bottom:2px">${g.threshold}</div>
+        <div style="font-size:clamp(7px,0.8vw,9px);color:var(--muted);font-style:italic">Auto-blocked if not met</div>
+      </div>
+    </div>`).join('');
+
+  return `<div class="slide" style="background:var(--navy)">
+    ${headerHTML(s)}
+    <div class="slide-body"><div class="slide-grid g3" style="flex:1">${cards}</div></div>
+  </div>`;
+}
+
+function renderBranching(s) {
+  const svgGraph = `<svg viewBox="0 0 360 120" style="width:100%;height:auto">
+    <rect width="360" height="120" rx="8" fill="var(--card)"/>
+    <line x1="30" y1="60" x2="330" y2="60" stroke="#5EB8F0" stroke-width="2.5"/>
+    <path d="M120,60 C130,60 140,25 170,25" stroke="#00C9A7" stroke-width="2.5" fill="none"/>
+    <line x1="170" y1="25" x2="230" y2="25" stroke="#00C9A7" stroke-width="2.5"/>
+    <path d="M230,25 C260,25 270,60 270,60" stroke="#00C9A7" stroke-width="2.5" fill="none"/>
+    <circle cx="60" cy="60" r="8" fill="#1A3A7C" stroke="#5EB8F0" stroke-width="2.5"/>
+    <circle cx="120" cy="60" r="8" fill="#1A3A7C" stroke="#5EB8F0" stroke-width="2.5"/>
+    <circle cx="270" cy="60" r="8" fill="#1A3A7C" stroke="#5EB8F0" stroke-width="2.5"/>
+    <circle cx="330" cy="60" r="10" fill="#2E9BDA" stroke="#5EB8F0" stroke-width="2.5"/>
+    <circle cx="170" cy="25" r="7" fill="#112244" stroke="#00C9A7" stroke-width="2.5"/>
+    <circle cx="200" cy="25" r="7" fill="#112244" stroke="#00C9A7" stroke-width="2.5"/>
+    <circle cx="230" cy="25" r="7" fill="#112244" stroke="#00C9A7" stroke-width="2.5"/>
+    <text x="60" y="82" text-anchor="middle" fill="#8BA4C8" font-size="8" font-family="Segoe UI">main</text>
+    <text x="200" y="13" text-anchor="middle" fill="#00C9A7" font-size="8" font-family="Segoe UI">feature/story-42</text>
+    <text x="330" y="48" text-anchor="middle" fill="#5EB8F0" font-size="8" font-family="Segoe UI">merge</text>
+  </svg>`;
+
+  const rules = s.rules.map(r => `
+    <div class="step-row">
+      <div style="width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0;margin-top:4px"></div>
+      <div>
+        <div style="font-size:clamp(9px,1.1vw,12px);font-weight:700;color:var(--off-white)">${r.title}</div>
+        <div style="font-size:clamp(7px,0.85vw,9px);color:var(--muted);margin-top:1px">${r.desc}</div>
+      </div>
+    </div>`).join('');
+
+  return `<div class="slide" style="background:var(--navy)">
+    ${headerHTML(s)}
+    <div class="slide-body" style="display:flex;gap:16px;flex:1;overflow:hidden">
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+        <div>${svgGraph}</div>
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <span class="badge badge-accent">● Main branch</span>
+          <span class="badge badge-mint">● Feature branch</span>
+        </div>
+      </div>
+      <div style="flex:1;overflow:hidden;display:flex;flex-direction:column;justify-content:space-around">${rules}</div>
+    </div>
+  </div>`;
+}
+
+function renderBackPromo(s) {
+  const envs = ['Production','UAT','QA','Integration','Dev'];
+  const fills = ['#00C9A7','#1A3A7C','#1A3A7C','#1A3A7C','#2E9BDA'];
+  const pipeHTML = envs.map((e,i) => {
+    const isLast = i===envs.length-1;
+    return `<div style="background:${fills[i]};border-radius:7px;padding:8px 10px;font-size:clamp(9px,1.1vw,11px);font-weight:700;color:#fff;text-align:center;flex:1">${e}</div>${!isLast?'<div style="color:var(--accent-l);font-size:16px;align-self:center">→</div>':''}`;
+  }).join('');
+
+  const cols = s.cols.map((c,i) => {
+    const color = i===0?'var(--accent)':i===1?'var(--mint)':'var(--accent-l)';
+    return `<div class="card" style="flex:1">
+      <div style="position:absolute;top:0;left:0;right:0;height:3px;background:${color};border-radius:8px 8px 0 0"></div>
+      <h3 style="margin-top:6px;color:${color}">${c.title}</h3>
+      <ul>${c.items.map(it=>`<li>${it}</li>`).join('')}</ul>
+    </div>`;
+  }).join('');
+
+  return `<div class="slide" style="background:var(--navy)">
+    ${headerHTML(s)}
+    <div class="slide-body" style="display:flex;flex-direction:column;gap:12px;flex:1">
+      <div style="background:var(--card);border:1px solid var(--blue);border-radius:8px;padding:12px">
+        <div style="font-size:9px;color:var(--muted);letter-spacing:1.5px;margin-bottom:6px">BACK PROMOTION DIRECTION</div>
+        <div style="display:flex;align-items:center;gap:6px">${pipeHTML}</div>
+      </div>
+      <div style="display:flex;gap:10px;flex:1">${cols}</div>
+    </div>
+  </div>`;
+}
+
+function renderHotfix(s) {
+  const svgFlow = `<svg viewBox="0 0 460 140" style="width:100%;height:auto">
+    <rect width="460" height="140" rx="8" fill="var(--card)"/>
+    ${[['Production Issue',40,55,'#2E9BDA'],['Hotfix Story',165,55,'#1A3A7C'],['Validate',280,55,'#1A3A7C'],['Deploy Prod',280,95,'#00C9A7'],['Back Promote',165,95,'#1A3A7C']].map(([l,x,y,c])=>`
+      <rect x="${x}" y="${y}" width="105" height="32" rx="6" fill="${c}"/>
+      <text x="${x+52}" y="${y+20}" text-anchor="middle" fill="white" font-size="9" font-weight="bold" font-family="Segoe UI">${l}</text>`).join('')}
+    <line x1="145" y1="71" x2="165" y2="71" stroke="#5EB8F0" stroke-width="2" marker-end="url(#arr)"/>
+    <line x1="270" y1="71" x2="280" y2="71" stroke="#5EB8F0" stroke-width="2" marker-end="url(#arr)"/>
+    <line x1="332" y1="87" x2="332" y2="95" stroke="#5EB8F0" stroke-width="2" marker-end="url(#arr)"/>
+    <line x1="280" y1="111" x2="270" y2="111" stroke="#5EB8F0" stroke-width="2" marker-end="url(#arr)"/>
+    <defs><marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#5EB8F0"/></marker></defs>
+  </svg>`;
+
+  const rules = s.rules.map((r,i) => `
+    <div style="display:flex;align-items:flex-start;gap:8px;padding:4px 0;border-bottom:1px solid var(--blue)">
+      <div style="width:5px;height:5px;border-radius:50%;background:var(--mint);margin-top:5px;flex-shrink:0"></div>
+      <div>
+        <span style="font-size:clamp(9px,1.1vw,11px);font-weight:700;color:var(--mint)">${r.label}</span>
+        <span style="font-size:clamp(8px,0.95vw,10px);color:var(--muted)"> — ${r.desc}</span>
+      </div>
+    </div>`).join('');
+
+  return `<div class="slide" style="background:var(--navy)">
+    ${headerHTML(s)}
+    <div class="slide-body" style="display:flex;gap:16px;flex:1;overflow:hidden">
+      <div style="flex:3;display:flex;flex-direction:column;gap:8px">
+        ${svgFlow}
+        <div style="display:flex;flex-direction:column;flex:1;justify-content:space-around">${rules}</div>
+      </div>
+      <div class="card" style="width:150px;flex-shrink:0;align-items:center;justify-content:center;background:var(--card-lt);border-color:var(--mint)">
+        <div style="font-size:10px;font-weight:700;color:var(--mint);text-align:center;margin-bottom:6px">⏱ Target SLA</div>
+        <div style="font-size:clamp(28px,4vw,44px);font-weight:800;color:#fff;font-family:Georgia,serif;text-align:center">2 hrs</div>
+        <div style="font-size:clamp(8px,0.9vw,10px);color:var(--muted);text-align:center">Story → Production</div>
+        <div class="badge badge-mint" style="margin-top:8px">Emergency</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderCompliance(s) {
+  const cards = s.tracks.map(t => `
+    <div class="card">
+      <div class="card-accent card-accent-mint"></div>
+      <div style="padding-left:8px">
+        <h3><span style="color:var(--mint)">✓</span> ${t.title}</h3>
+        <p>${t.desc}</p>
+      </div>
+    </div>`).join('');
+
+  const fwHTML = s.frameworks.map(f => `<div class="fw-badge">${f}</div>`).join('');
+
+  return `<div class="slide" style="background:var(--navy)">
+    ${headerHTML(s)}
+    <div class="slide-body" style="display:flex;flex-direction:column;gap:10px;flex:1">
+      <div class="slide-grid g3" style="flex:1">${cards}</div>
+      <div class="fw-row">${fwHTML}</div>
+    </div>
+  </div>`;
+}
+
+function renderSchedule(s) {
+  const rows = s.rows.map(r => `
+    <div class="sched-row">
+      <div class="sched-day" style="background:${r.color}">${r.day}</div>
+      <div class="sched-content">
+        <div class="sched-type">${r.type}</div>
+        <div class="sched-desc">${r.desc}</div>
+      </div>
+    </div>`).join('');
+
+  return `<div class="slide" style="background:var(--navy)">
+    ${headerHTML(s)}
+    <div class="slide-body" style="display:flex;flex-direction:column;gap:8px;flex:1;justify-content:space-between">${rows}</div>
+  </div>`;
+}
+
+function renderAntiPatterns(s) {
+  const cards = s.items.map(it => `
+    <div class="anti-card">
+      <div class="anti-title">✗ ${it.title}</div>
+      <div class="anti-desc">${it.desc}</div>
+    </div>`).join('');
+
+  return `<div class="slide" style="background:var(--navy)">
+    ${headerHTML(s)}
+    <div class="slide-body">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1">${cards}</div>
+    </div>
+  </div>`;
+}
+
+function renderKPIs(s) {
+  const cards = s.kpis.map(k => `
+    <div class="card" style="align-items:center;justify-content:center;text-align:center;padding:10px 8px">
+      <div class="card-stat${k.accent?'':' mint'}" style="font-size:clamp(16px,2.5vw,26px)">${k.metric}</div>
+      <div style="font-size:clamp(8px,1vw,10px);font-weight:700;color:var(--off-white);margin:4px 0 2px;line-height:1.3">${k.label}</div>
+      <div style="font-size:clamp(7px,0.8vw,9px);color:var(--muted);font-style:italic">${k.target}</div>
+    </div>`).join('');
+
+  return `<div class="slide" style="background:var(--navy)">
+    ${headerHTML(s)}
+    <div class="slide-body"><div class="slide-grid g4" style="flex:1">${cards}</div></div>
+  </div>`;
+}
+
+function renderRules(s) {
+  const left  = s.rules.slice(0,5);
+  const right = s.rules.slice(5);
+  const mkRules = (arr, start) => arr.map((r,i) => `
+    <div class="rule-item">
+      <div class="rule-num${(start+i)%2===0?'':' mint'}">${start+i+1}</div>
+      <div class="rule-text">${r}</div>
+    </div>`).join('');
+
+  return `<div class="slide" style="background:var(--navy)">
+    ${headerHTML(s)}
+    <div class="slide-body" style="display:flex;gap:16px;flex:1">
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:space-around">${mkRules(left,0)}</div>
+      <div style="width:1px;background:var(--blue)"></div>
+      <div style="flex:1;display:flex;flex-direction:column;justify-content:space-around">${mkRules(right,5)}</div>
+    </div>
+  </div>`;
+}
+
+function renderClosing(s) {
+  const pillars = s.pillars.map((p,i) => `
+    <div class="pillar" style="background:${i%2===0?'var(--accent)':'var(--mint)'};color:var(--navy)">${p}</div>`).join('');
+
+  return `<div class="slide" style="background:var(--navy);position:relative;overflow:hidden">
+    <div style="position:absolute;top:0;left:0;right:0;height:6px;background:var(--accent)"></div>
+    <div style="position:absolute;bottom:0;left:0;right:0;height:18%;background:var(--blue)"></div>
+    <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px">
+      <div style="font-size:10px;letter-spacing:3px;color:var(--muted);margin-bottom:12px">THE FORMULA</div>
+      <div style="font-size:clamp(22px,4vw,44px);font-weight:800;color:#fff;font-family:Georgia,serif;text-align:center;margin-bottom:8px">Copado Success =</div>
+      <div class="closing-pillars">${pillars}</div>
+      <div style="margin-top:28px;font-size:clamp(10px,1.3vw,14px);color:var(--muted);font-style:italic;text-align:center">Process discipline + Automation + Governance + Fast Feedback + Continuous Improvement</div>
+    </div>
+  </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// ENGINE
+// ═══════════════════════════════════════════════════════════
+let current = 0;
+let slides = [...SLIDES];
+
+function showSlide(n) {
+  current = Math.max(0, Math.min(n, slides.length-1));
+  document.getElementById('slideContent').innerHTML = renderSlide(slides[current]);
+  document.getElementById('counter').textContent = `${current+1} / ${slides.length}`;
+  document.getElementById('progress').style.width = `${((current+1)/slides.length)*100}%`;
+  document.getElementById('prevBtn').disabled = current === 0;
+  document.getElementById('nextBtn').disabled = current === slides.length-1;
+  document.querySelectorAll('.thumb').forEach((t,i) => t.classList.toggle('active', i===current));
+}
+
+function navigate(dir) { showSlide(current + dir); }
+
+function buildThumbs() {
+  const container = document.getElementById('thumbs');
+  container.innerHTML = '';
+  slides.forEach((s, i) => {
+    const div = document.createElement('div');
+    div.className = 'thumb' + (i===current?' active':'');
+    div.onclick = () => showSlide(i);
+    const title = s.title ? s.title.replace(/\n/g,' ') : (s.type==='closing'?'Summary':'Slide');
+    div.innerHTML = `<div class="thumb-inner">
+      <div class="thumb-num">${i+1}</div>
+      <div class="thumb-bar"></div>
+      <div class="thumb-title">${title}</div>
+      ${[0,1,2].map(()=>`<div class="thumb-line" style="width:${55+Math.random()*40}%"></div>`).join('')}
+    </div>`;
+    container.appendChild(div);
+  });
+}
+
+// THEME
+function toggleTheme() {
+  const html = document.documentElement;
+  html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+}
+
+// FULLSCREEN
+function enterFullscreen() {
+  const el = document.documentElement;
+  if (el.requestFullscreen) el.requestFullscreen();
+  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+}
+
+// ── MARKDOWN EXPORT ──────────────────────────────────────
+function slideToMarkdown(s, i) {
+  let md = `# ${(s.title||s.type||'Slide').replace(/\n/g,' ')}\n\n`;
+  if (s.subtitle) md += `> ${s.subtitle}\n\n`;
+  if (s.tag) md += `**Category:** ${s.tag}\n\n`;
+
+  if (s.desc) md += `${s.desc}\n\n`;
+  if (s.sub) md += `**${s.sub}**\n\n`;
+
+  if (s.items && s.type==='cards6') s.items.forEach(it => { md += `### ${it.icon} ${it.title}\n${it.body}\n\n`; });
+  if (s.steps) s.steps.forEach((st,j) => { md += `${j+1}. **${st.label}** — ${st.desc}\n`; }); if(s.steps) md+='\n';
+  if (s.rules && s.type==='rules') s.rules.forEach((r,j) => { md += `${j+1}. ${r}\n`; }); if(s.rules&&s.type==='rules') md+='\n';
+  if (s.rules && s.type==='branching') s.rules.forEach(r => { md += `### ${r.title}\n${r.desc}\n\n`; });
+  if (s.gates) s.gates.forEach(g => { md += `- **${g.icon} ${g.name}:** ${g.threshold}\n`; }); if(s.gates) md+='\n';
+  if (s.stages) s.stages.forEach(st => { md += `### ${st.title}\n${st.desc}\n\n`; });
+  if (s.cols) s.cols.forEach(c => { md += `### ${c.title}\n${c.items.map(it=>`- ${it}`).join('\n')}\n\n`; });
+  if (s.rules && s.type==='hotfix') s.rules.forEach(r => { md += `- **${r.label}:** ${r.desc}\n`; }); if(s.rules&&s.type==='hotfix') md+='\n';
+  if (s.tracks) s.tracks.forEach(t => { md += `- **${t.title}:** ${t.desc}\n`; }); if(s.tracks) md+='\n';
+  if (s.frameworks) md += `\n**Compliance frameworks:** ${s.frameworks.join(', ')}\n\n`;
+  if (s.rows) s.rows.forEach(r => { md += `| ${r.day} | ${r.type} | ${r.desc} |\n`; }); if(s.rows) md+='\n';
+  if (s.items && s.type==='antipatterns') s.items.forEach(it => { md += `- ❌ **${it.title}:** ${it.desc}\n`; }); if(s.items&&s.type==='antipatterns') md+='\n';
+  if (s.kpis) s.kpis.forEach(k => { md += `- **${k.metric}** — ${k.label} _(${k.target})_\n`; }); if(s.kpis) md+='\n';
+  if (s.pillars) md += `${s.pillars.join(' + ')}\n\n`;
+  if (s.envs) md += `Pipeline: ${s.envs.map(e=>e.name).join(' → ')}\n\n`;
+  if (s.rules && s.type==='pipeline') s.rules.forEach(r => { md += `### ${r.title}\n${r.items.map(it=>`- ${it}`).join('\n')}\n\n`; });
+
+  return md.trim();
+}
+
+function downloadMarkdown() {
+  const md = slides.map((s,i) => slideToMarkdown(s,i)).join('\n\n---\n\n');
+  const blob = new Blob([md], {type:'text/markdown'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'copado-slides.md';
+  a.click();
+}
+
+// ── LOAD MARKDOWN ────────────────────────────────────────
+function openLoadModal() { document.getElementById('loadModal').style.display='flex'; }
+function closeLoadModal() { document.getElementById('loadModal').style.display='none'; }
+
+function loadMarkdown() {
+  const md = document.getElementById('mdInput').value.trim();
+  if (!md) return;
+  const parts = md.split(/\n---\n/);
+  const newSlides = parts.map(part => {
+    const lines = part.trim().split('\n');
+    const titleLine = lines.find(l => l.startsWith('# '));
+    const subtitleLine = lines.find(l => l.startsWith('> '));
+    const bodyLines = lines.filter(l => !l.startsWith('# ') && !l.startsWith('> ') && !l.startsWith('**Category:**'));
+    const title = titleLine ? titleLine.replace(/^# /,'') : 'Untitled';
+    const subtitle = subtitleLine ? subtitleLine.replace(/^> /,'') : '';
+    const body = bodyLines.join('\n').trim();
+    return { type: 'markdown', title, subtitle, body };
+  });
+
+  // Add a renderer for markdown type
+  slides = newSlides;
+  buildThumbs();
+  showSlide(0);
+  closeLoadModal();
+}
+
+// Override renderSlide to handle markdown type
+const _origRender = renderSlide;
+window.renderSlide = function(s) {
+  if (s.type === 'markdown') return renderMarkdownSlide(s);
+  return _origRender(s);
+};
+
+function renderMarkdownSlide(s) {
+  const html = typeof marked !== 'undefined' ? marked.parse(s.body) : s.body.replace(/\n/g,'<br>');
+  return `<div class="slide" style="background:var(--navy)">
+    <div style="flex-shrink:0">
+      <div class="slide-title">${s.title}</div>
+      ${s.subtitle ? `<div class="slide-subtitle">${s.subtitle}</div>` : ''}
+      <div class="accent-bar"></div>
+    </div>
+    <div class="slide-body" style="overflow-y:auto">
+      <div style="font-size:clamp(10px,1.2vw,13px);color:var(--off-white);line-height:1.7">${html}</div>
+    </div>
+  </div>`;
+}
+
+// KEYBOARD NAV
+document.addEventListener('keydown', e => {
+  if (e.target.tagName==='TEXTAREA') return;
+  if (e.key==='ArrowRight'||e.key==='ArrowDown') navigate(1);
+  if (e.key==='ArrowLeft'||e.key==='ArrowUp') navigate(-1);
+  if (e.key==='Escape') closeLoadModal();
+});
+
+// INIT
+buildThumbs();
+showSlide(0);
+</script>
+</body>
+</html>
