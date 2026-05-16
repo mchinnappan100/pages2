@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+
+    <!-- ─── Metadata ─── -->
+    <apiVersion>60.0</apiVersion>
+    <label>Welcome Email Flow (TEST)</label>
+    <description>Sends a welcome email and sets consent preferences when a new lead is created.</description>
+    <processType>AutoLaunchedFlow</processType>
+    <status>Active</status>
+    <environments>Default</environments>
+    <interviewLabel>Welcome Email Flow {!$Flow.CurrentDateTime}</interviewLabel>
+
+    <!-- ─── Trigger: new Lead created ─── -->
+    <start>
+        <locationX>176</locationX>
+        <locationY>50</locationY>
+        <connector>
+            <targetReference>CheckConsent</targetReference>
+        </connector>
+        <object>Lead</object>
+        <recordTriggerType>Create</recordTriggerType>
+        <triggerType>RecordAfterSave</triggerType>
+    </start>
+
+    <!-- ─── Decision: has the lead given consent? ─── -->
+    <decisions>
+        <name>CheckConsent</name>
+        <label>Check Consent</label>
+        <locationX>176</locationX>
+        <locationY>180</locationY>
+        <defaultConnectorLabel>No Consent</defaultConnectorLabel>
+        <rules>
+            <name>HasConsent</name>
+            <label>Has Consent</label>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>$Record.HasOptedOutOfEmail</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>OptInNewsletter</targetReference>
+            </connector>
+        </rules>
+    </decisions>
+
+    <!-- ─── Action: Opt-In for Newsletter ─── -->
+    <actionCalls>
+        <name>OptInNewsletter</name>
+        <label>Opt-In Newsletter</label>
+        <locationX>176</locationX>
+        <locationY>320</locationY>
+        <actionName>createConsent</actionName>
+        <actionType>createConsent</actionType>
+        <connector>
+            <targetReference>OptInWelcomeOffer</targetReference>
+        </connector>
+        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
+        <inputParameters>
+            <name>consentRequest</name>
+            <value>
+                <apexValue>{&quot;recordList&quot;:[{&quot;engagementChannelTypeId&quot;:&quot;0eFO80000000l29MAA&quot;,&quot;commSubscriptionId&quot;:&quot;0XlO80000003lK9KAI&quot;,&quot;commSubscriptionChannelTypeId&quot;:&quot;0eBO80000000YJRMA2&quot;,&quot;contactPointValue&quot;:&quot;{!$Record.Email}&quot;,&quot;consentStatus&quot;:&quot;OptIn&quot;,&quot;flowName&quot;:&quot;Welcome Email Flow&quot;}]}</apexValue>
+            </value>
+        </inputParameters>
+    </actionCalls>
+
+    <!-- ─── Action: Opt-In for Welcome Offer ─── -->
+    <actionCalls>
+        <name>OptInWelcomeOffer</name>
+        <label>Opt-In Welcome Offer</label>
+        <locationX>176</locationX>
+        <locationY>460</locationY>
+        <actionName>createConsent</actionName>
+        <actionType>createConsent</actionType>
+        <connector>
+            <targetReference>SendWelcomeEmail</targetReference>
+        </connector>
+        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
+        <inputParameters>
+            <name>consentRequest</name>
+            <value>
+                <apexValue>{&quot;recordList&quot;:[{&quot;engagementChannelTypeId&quot;:&quot;0eFO80000000l29MAA&quot;,&quot;commSubscriptionId&quot;:&quot;0XlO80000003lFJKAY&quot;,&quot;commSubscriptionChannelTypeId&quot;:&quot;0eBO80000000YEbMAM&quot;,&quot;contactPointValue&quot;:&quot;{!$Record.Email}&quot;,&quot;consentStatus&quot;:&quot;OptIn&quot;,&quot;flowName&quot;:&quot;Welcome Email Flow&quot;}]}</apexValue>
+            </value>
+        </inputParameters>
+    </actionCalls>
+
+    <!-- ─── Action: Send Welcome Email via email alert ─── -->
+    <actionCalls>
+        <name>SendWelcomeEmail</name>
+        <label>Send Welcome Email</label>
+        <locationX>176</locationX>
+        <locationY>600</locationY>
+        <actionName>0WFO80000000cAbMAI</actionName>
+        <actionType>emailAlert</actionType>
+        <flowTransactionModel>CurrentTransaction</flowTransactionModel>
+        <inputParameters>
+            <name>SObjectRowId</name>
+            <value>
+                <elementReference>$Record.Id</elementReference>
+            </value>
+        </inputParameters>
+    </actionCalls>
+
+    <!-- ─── Record Update: stamp the Lead with consent date ─── -->
+    <recordUpdates>
+        <name>StampConsentDate</name>
+        <label>Stamp Consent Date</label>
+        <locationX>176</locationX>
+        <locationY>740</locationY>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Id</field>
+            <operator>EqualTo</operator>
+            <value>
+                <elementReference>$Record.Id</elementReference>
+            </value>
+        </filters>
+        <inputAssignments>
+            <field>ConsentDate__c</field>
+            <value>
+                <elementReference>$Flow.CurrentDate</elementReference>
+            </value>
+        </inputAssignments>
+        <object>Lead</object>
+    </recordUpdates>
+
+</Flow>

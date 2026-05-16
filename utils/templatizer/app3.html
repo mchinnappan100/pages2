@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SF Flow Templatizer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;800&display=swap" rel="stylesheet" />
+<style>
+:root {
+  --bg:#0c0e13; --surf:#13161f; --surf2:#1a1e2e; --surf3:#202538;
+  --border:#252b3d; --border2:#313856;
+  --accent:#4f8ef7; --accent2:#7c3aed;
+  --green:#22c55e; --orange:#f59e0b; --red:#ef4444;
+  --text:#e2e8f0; --text2:#8892a4; --text3:#3d4560;
+  --hdr:52px; --bar:38px; --status:26px;
+  --font:'Syne',sans-serif; --mono:'JetBrains Mono',monospace;
+}
+[data-theme="light"] {
+  --bg:#eef0f5; --surf:#ffffff; --surf2:#f4f6fb; --surf3:#eaecf3;
+  --border:#d8dce8; --border2:#c0c5d8;
+  --text:#1a1f2e; --text2:#5a6275; --text3:#b8becf;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font)}
+
+/* Header */
+#hdr{
+  height:var(--hdr);background:var(--surf);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 16px;gap:12px;z-index:100;flex-shrink:0;
+  box-shadow:0 2px 20px rgba(0,0,0,.35);
+}
+.logo{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:800;letter-spacing:-.4px;flex-shrink:0}
+.logo-mark{
+  width:30px;height:30px;border-radius:7px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;justify-content:center;font-size:15px;
+}
+.logo em{color:var(--accent);font-style:normal}
+
+/* Pipeline */
+#pipeline{
+  display:flex;align-items:center;flex:1;
+  background:var(--surf2);border-radius:8px;border:1px solid var(--border);
+  overflow:hidden;height:34px;
+}
+.step-btn{
+  display:flex;align-items:center;gap:7px;
+  padding:0 16px;height:100%;border:none;cursor:pointer;
+  font-family:var(--font);font-size:12px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;
+  background:transparent;color:var(--text2);transition:all .15s;white-space:nowrap;
+}
+.step-btn .num{
+  width:18px;height:18px;border-radius:50%;
+  background:var(--surf3);border:1px solid var(--border2);
+  display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:800;color:var(--text2);transition:all .15s;flex-shrink:0;
+}
+.step-btn:hover{color:var(--text);background:var(--surf3)}
+.step-btn.active{color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+.step-btn.active .num{background:rgba(255,255,255,.25);border-color:rgba(255,255,255,.3);color:#fff}
+.step-btn.done{color:var(--green)}
+.step-btn.done .num{background:rgba(34,197,94,.15);border-color:var(--green);color:var(--green)}
+.step-arrow{color:var(--text3);font-size:14px;flex-shrink:0;padding:0 2px;pointer-events:none}
+
+/* Buttons */
+#run-btn{
+  display:flex;align-items:center;gap:7px;
+  padding:0 18px;height:34px;border-radius:7px;border:none;cursor:pointer;
+  font-family:var(--font);font-size:13px;font-weight:700;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:#fff;box-shadow:0 0 20px rgba(79,142,247,.2);
+  transition:all .15s;white-space:nowrap;flex-shrink:0;
+}
+#run-btn:hover{opacity:.88;transform:translateY(-1px);box-shadow:0 4px 20px rgba(79,142,247,.4)}
+#run-btn:active{transform:translateY(0)}
+#run-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+#theme-btn{
+  width:32px;height:32px;border-radius:7px;border:1px solid var(--border);
+  background:var(--surf2);cursor:pointer;font-size:15px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--text2);transition:all .15s;flex-shrink:0;
+}
+#theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+.kbd{font-size:10px;opacity:.5;font-family:var(--mono);background:rgba(255,255,255,.1);padding:1px 5px;border-radius:3px}
+
+/* Layout */
+#workspace{display:flex;flex-direction:column;height:calc(100vh - var(--hdr) - var(--status));overflow:hidden}
+#panels{display:flex;flex:1;overflow:hidden}
+
+/* Panel */
+.panel{display:flex;flex-direction:column;min-width:150px;overflow:hidden}
+.panel-bar{
+  height:var(--bar);flex-shrink:0;
+  background:var(--surf);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;padding:0 10px;gap:6px;
+}
+.panel-label{
+  display:flex;align-items:center;gap:6px;
+  font-size:10px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--text2);flex-shrink:0;
+}
+.dot{width:7px;height:7px;border-radius:50%;animation:blink 2.5s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+.dot-blue{background:var(--accent);box-shadow:0 0 5px var(--accent)}
+.dot-purple{background:var(--accent2);box-shadow:0 0 5px var(--accent2)}
+.dot-green{background:var(--green);box-shadow:0 0 5px var(--green)}
+.dot-orange{background:var(--orange);box-shadow:0 0 5px var(--orange)}
+.panel-acts{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.act{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 8px;border-radius:5px;border:1px solid var(--border);
+  background:transparent;color:var(--text2);cursor:pointer;
+  font-family:var(--font);font-size:11px;font-weight:600;
+  transition:all .12s;white-space:nowrap;
+}
+.act:hover{background:var(--surf2);color:var(--text);border-color:var(--border2)}
+.act.hi{border-color:var(--accent);color:var(--accent);background:rgba(79,142,247,.08)}
+.act.hi:hover{background:rgba(79,142,247,.15)}
+.tag{font-size:9px;font-weight:700;letter-spacing:.05em;padding:1px 6px;border-radius:3px}
+.tag-blue{background:rgba(79,142,247,.15);color:var(--accent)}
+.tag-purple{background:rgba(124,58,237,.15);color:#a78bfa}
+.tag-green{background:rgba(34,197,94,.15);color:var(--green)}
+.tag-orange{background:rgba(245,158,11,.15);color:var(--orange)}
+.editor-wrap{flex:1;overflow:hidden;position:relative;background:var(--surf)}
+
+/* Drop zone */
+.dropzone{
+  position:absolute;inset:0;z-index:20;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:var(--surf);cursor:pointer;transition:all .18s;
+}
+.dropzone.hidden{display:none}
+.dropzone.over{background:color-mix(in srgb,var(--accent) 6%,var(--surf));outline:2px dashed var(--accent);outline-offset:-6px}
+.dz-icon{font-size:44px;opacity:.3;margin-bottom:14px}
+.dz-title{font-size:14px;font-weight:700;margin-bottom:5px}
+.dz-hint{font-size:11px;color:var(--text2);text-align:center;line-height:1.8}
+.dz-hint code{font-family:var(--mono);font-size:10px;background:var(--surf2);padding:1px 5px;border-radius:3px}
+.dz-hint strong{color:var(--text)}
+.dz-browse{
+  margin-top:16px;padding:7px 18px;border-radius:6px;
+  background:var(--surf2);border:1px solid var(--border2);
+  font-family:var(--font);font-size:12px;font-weight:600;
+  color:var(--text2);cursor:pointer;transition:all .12s;
+}
+.dz-browse:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Splitter */
+.splitter{
+  width:5px;flex-shrink:0;cursor:col-resize;
+  background:var(--border);position:relative;
+  display:flex;align-items:center;justify-content:center;transition:background .12s;
+}
+.splitter::after{
+  content:'⋮';font-size:13px;color:var(--text3);
+  letter-spacing:-3px;transition:all .12s;user-select:none;
+}
+.splitter:hover,.splitter.drag{background:var(--accent)}
+.splitter:hover::after,.splitter.drag::after{color:#fff;text-shadow:0 0 8px rgba(79,142,247,.7)}
+
+/* Hint banner */
+#p3-hint{
+  background:linear-gradient(90deg,rgba(79,142,247,.07),rgba(124,58,237,.07));
+  border-bottom:1px solid var(--border);
+  padding:7px 14px;font-size:11px;color:var(--text2);
+  display:flex;align-items:center;gap:8px;flex-shrink:0;line-height:1.5;
+}
+#p3-hint.hidden{display:none}
+#p3-hint strong{color:var(--accent)}
+#p3-hint .hint-action{
+  margin-left:auto;padding:3px 10px;border-radius:5px;border:none;cursor:pointer;
+  background:var(--accent);color:#fff;font-family:var(--font);font-size:11px;font-weight:700;
+  white-space:nowrap;transition:all .12s;flex-shrink:0;
+}
+#p3-hint .hint-action:hover{opacity:.85}
+
+/* Status bar */
+#status{
+  height:var(--status);flex-shrink:0;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  display:flex;align-items:center;padding:0 12px;gap:14px;
+  font-family:var(--mono);font-size:10px;font-weight:600;color:rgba(255,255,255,.8);
+}
+.st{display:flex;align-items:center;gap:4px}
+.st-sep{opacity:.3}
+
+/* Env selector */
+#env-sel{
+  padding:2px 6px;border-radius:4px;border:1px solid var(--border2);
+  background:var(--surf2);color:var(--text);font-family:var(--font);
+  font-size:11px;font-weight:600;cursor:pointer;display:none;
+}
+
+/* Toasts */
+#toasts{
+  position:fixed;bottom:calc(var(--status) + 10px);right:14px;
+  z-index:9999;display:flex;flex-direction:column;gap:6px;pointer-events:none;
+}
+.toast{
+  background:var(--surf);border:1px solid var(--border);border-radius:7px;
+  padding:9px 14px;font-size:12px;font-weight:600;color:var(--text);
+  box-shadow:0 6px 28px rgba(0,0,0,.45);
+  display:flex;align-items:center;gap:7px;
+  animation:tin .22s ease;pointer-events:all;
+}
+.toast.ok{border-left:3px solid var(--green)}
+.toast.err{border-left:3px solid var(--red)}
+.toast.info{border-left:3px solid var(--accent)}
+@keyframes tin{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
+@keyframes tout{from{opacity:1;transform:none}to{opacity:0;transform:translateX(16px)}}
+
+/* Spinner */
+.spin{
+  width:13px;height:13px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.3);border-top-color:#fff;
+  animation:rotate .65s linear infinite;display:inline-block;
+}
+@keyframes rotate{to{transform:rotate(360deg)}}
+
+input[type=file]{display:none}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div id="hdr">
+  <div class="logo">
+    <div class="logo-mark">⚡</div>
+    SF Flow <em>Templatizer</em>
+  </div>
+
+  <div id="pipeline">
+    <button class="step-btn active" id="s1" onclick="activateStep(1)">
+      <span class="num">1</span> Templatize
+    </button>
+    <span class="step-arrow">›</span>
+    <button class="step-btn" id="s2" onclick="activateStep(2)">
+      <span class="num">2</span> Generate
+    </button>
+  </div>
+
+  <button id="run-btn" onclick="runStep()">
+    <span id="run-icon">▶</span>
+    <span id="run-label">Templatize</span>
+    <span class="kbd">⌘↵</span>
+  </button>
+
+  <button id="theme-btn" onclick="toggleTheme()">🌙</button>
+</div>
+
+<!-- Workspace -->
+<div id="workspace">
+  <div id="panels">
+
+    <!-- Panel 1: Raw XML -->
+    <div class="panel" id="p1" style="flex:1">
+      <div class="panel-bar">
+        <div class="panel-label">
+          <div class="dot dot-blue"></div>
+          <span>Raw Flow XML</span>
+          <span class="tag tag-blue">step 1 input</span>
+        </div>
+        <div class="panel-acts">
+          <label for="f-xml" class="act">⬆ Upload</label>
+          <button class="act" onclick="dl('xml')">⬇</button>
+          <button class="act" onclick="clr('xml')">✕</button>
+        </div>
+      </div>
+      <div class="editor-wrap">
+        <div class="dropzone" id="dz-xml"
+             ondragover="dzo(event,'dz-xml')" ondragleave="dzl('dz-xml')" ondrop="dzd(event,'xml')"
+             onclick="document.getElementById('f-xml').click()">
+          <div class="dz-icon">📄</div>
+          <div class="dz-title">Drop your Salesforce Flow XML</div>
+          <div class="dz-hint">.xml or .flow-meta.xml<br/>Drag & drop or click to browse</div>
+          <div class="dz-browse">Browse file</div>
+        </div>
+        <div id="m-xml" style="width:100%;height:100%"></div>
+      </div>
+    </div>
+
+    <div class="splitter" id="sp1" onmousedown="dragStart(event,'sp1','p1','p2')"></div>
+
+    <!-- Panel 2: Env Mapping -->
+    <div class="panel" id="p2" style="flex:1">
+      <div class="panel-bar">
+        <div class="panel-label">
+          <div class="dot dot-purple"></div>
+          <span>Env Mapping</span>
+          <span class="tag tag-purple">steps 1 &amp; 2 input</span>
+        </div>
+        <div class="panel-acts">
+          <label for="f-map" class="act">⬆ Upload</label>
+          <button class="act" onclick="dl('map')">⬇</button>
+          <button class="act hi" onclick="loadSample()">Sample</button>
+          <button class="act" onclick="clr('map')">✕</button>
+        </div>
+      </div>
+      <div class="editor-wrap">
+        <div class="dropzone" id="dz-map"
+             ondragover="dzo(event,'dz-map')" ondragleave="dzl('dz-map')" ondrop="dzd(event,'map')"
+             onclick="document.getElementById('f-map').click()">
+          <div class="dz-icon">🗂</div>
+          <div class="dz-title">Drop your Env Mapping</div>
+          <div class="dz-hint">
+            JSON: <code>{ "source":{…}, "qa":{…}, "prod":{…} }</code><br/>
+            CSV: <code>env, VAR1, VAR2 …</code><br/>
+            Include a <strong>source</strong> row with the original IDs
+          </div>
+          <div class="dz-browse">Browse file</div>
+        </div>
+        <div id="m-map" style="width:100%;height:100%"></div>
+      </div>
+    </div>
+
+    <div class="splitter" id="sp2" onmousedown="dragStart(event,'sp2','p2','p3')"></div>
+
+    <!-- Panel 3: Template → Generated output -->
+    <div class="panel" id="p3" style="flex:1">
+      <div class="panel-bar">
+        <div class="panel-label">
+          <div class="dot dot-green" id="p3-dot"></div>
+          <span id="p3-title">Template XML</span>
+          <span class="tag tag-green" id="p3-tag">step 1 output / step 2 input</span>
+        </div>
+        <div class="panel-acts">
+          <select id="env-sel" onchange="switchEnv()"></select>
+          <button class="act" onclick="dl('out')">⬇ Download</button>
+          <button class="act hi" id="dl-all-btn" style="display:none" onclick="dlAll()">⬇ All Envs</button>
+          <button class="act" onclick="clr('out')">✕</button>
+        </div>
+      </div>
+      <!-- Context hint -->
+      <div id="p3-hint" class="hidden">
+        💡 <strong>Step 1 done.</strong>&nbsp; Template XML is in this panel — review or edit it, then run <strong>Step 2: Generate</strong> to stamp out env-specific XMLs using the mapping in Panel 2.
+        <button class="hint-action" onclick="activateStep(2);runStep()">Run Step 2 →</button>
+      </div>
+      <div class="editor-wrap">
+        <div id="m-out" style="width:100%;height:100%"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Status bar -->
+<div id="status">
+  <div class="st">⚡ SF Flow Templatizer</div>
+  <div class="st-sep">│</div>
+  <div class="st" id="st-step">Step 1 · Templatize</div>
+  <div class="st-sep">│</div>
+  <div class="st" id="st-ids">IDs: —</div>
+  <div class="st-sep">│</div>
+  <div class="st" id="st-envs">Envs: —</div>
+  <div class="st-sep">│</div>
+  <div class="st" id="st-msg">Ready</div>
+</div>
+
+<input type="file" id="f-xml" accept=".xml,.flow-meta.xml" onchange="onFile(event,'xml')"/>
+<input type="file" id="f-map" accept=".json,.csv" onchange="onFile(event,'map')"/>
+<div id="toasts"></div>
+
+<script>
+require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' }});
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+<script>
+// ─── Core logic ───────────────────────────────────────────────────
+
+function decodeEntities(s) {
+  return s.replace(/&quot;/g,'"').replace(/&amp;/g,'&')
+          .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&#39;/g,"'");
+}
+function detectIds(xml) {
+  const dec = decodeEntities(xml);
+  const RE = /\b([A-Za-z0-9]{15}(?:[A-Za-z0-9]{3})?)\b/g;
+  const seen = new Set(); let m;
+  while ((m=RE.exec(dec))!==null) {
+    const c=m[1];
+    if (/[A-Z]/.test(c)&&/[a-z]/.test(c)&&/[0-9]/.test(c)) seen.add(c);
+  }
+  return [...seen];
+}
+function applyVarMap(xml, varMap) {
+  let r=xml;
+  for (const [id,name] of Object.entries(varMap)) r=r.split(id).join(`{{${name}}}`);
+  return r;
+}
+function applyValues(tmpl, values) {
+  let r=tmpl;
+  for (const [k,v] of Object.entries(values)) r=r.split(`{{${k}}}`).join(v);
+  return r;
+}
+function parseMapping(raw) {
+  const t=raw.trim();
+  if (t.startsWith('{')||t.startsWith('[')) {
+    const p=JSON.parse(raw);
+    if (Array.isArray(p)) return p.map(r=>{ const{env,...rest}=r; return{env,values:rest}; });
+    const firstKey=Object.keys(p)[0]||'';
+    const isIdMap=firstKey.length>=15&&/[A-Z]/.test(firstKey)&&/[a-z]/.test(firstKey)&&/[0-9]/.test(firstKey);
+    if (isIdMap) return {isIdMap:true,varMap:p};
+    return Object.entries(p).map(([env,values])=>({env,values}));
+  }
+  // CSV
+  const lines=t.split('\n').map(l=>l.trim()).filter(Boolean);
+  const heads=lines[0].split(',').map(h=>h.trim());
+  return lines.slice(1).map(line=>{
+    const cols=line.split(',').map(c=>c.trim());
+    const row={}; heads.forEach((h,i)=>{row[h]=cols[i]||'';});
+    const{env,...rest}=row; return{env:env||'',values:rest};
+  });
+}
+function buildVarMap(xml, envRows) {
+  const ids=detectIds(xml);
+  let src=envRows.find(r=>r.env.toLowerCase()==='source');
+  if (!src) src=envRows.find(({values})=>Object.values(values).some(v=>ids.includes(v)));
+  if (!src) throw new Error('No "source" env row found. Add a row with env=source containing the original IDs.');
+  const map={};
+  for (const [name,id] of Object.entries(src.values))
+    if (ids.includes(id)) map[id]=name;
+  if (!Object.keys(map).length) throw new Error('Source row IDs do not match any IDs detected in the XML.');
+  return map;
+}
+
+// ─── State ────────────────────────────────────────────────────────
+let eds={}, step=1, envOutputs={}, ready=false;
+
+// ─── Monaco ───────────────────────────────────────────────────────
+const monacoTheme=()=>document.documentElement.dataset.theme==='light'?'vs':'vs-dark';
+
+require(['vs/editor/editor.main'],()=>{
+  const base={
+    theme:monacoTheme(),automaticLayout:true,
+    minimap:{enabled:false},scrollBeyondLastLine:false,
+    fontFamily:"'JetBrains Mono',monospace",fontSize:13,lineHeight:20,
+    padding:{top:10},smoothScrolling:true,cursorBlinking:'phase',
+    wordWrap:'on',scrollbar:{verticalScrollbarSize:5,horizontalScrollbarSize:5},
+    renderLineHighlight:'gutter',
+  };
+  eds.xml=monaco.editor.create(document.getElementById('m-xml'),{...base,language:'xml',value:''});
+  eds.map=monaco.editor.create(document.getElementById('m-map'),{...base,language:'json',value:''});
+  // Panel 3 is EDITABLE — user can tweak template before generating
+  eds.out=monaco.editor.create(document.getElementById('m-out'),{...base,language:'xml',value:'',readOnly:false});
+  eds.xml.onDidChangeModelContent(analyzeXml);
+  eds.map.onDidChangeModelContent(analyzeMap);
+  ready=true;
+  setSt('msg','Ready — upload Flow XML (Panel 1) and Env Mapping (Panel 2) to begin');
+});
+
+// ─── Steps ────────────────────────────────────────────────────────
+function activateStep(n) {
+  step=n;
+  document.getElementById('s1').className='step-btn'+(n===1?' active':'');
+  document.getElementById('s2').className='step-btn'+(n===2?' active':'');
+  document.getElementById('run-label').textContent=n===1?'Templatize':'Generate';
+  setSt('step',n===1?'Step 1 · Templatize':'Step 2 · Generate');
+  if (n===2) {
+    document.getElementById('p3-title').textContent='Generated Outputs';
+    document.getElementById('p3-tag').textContent='step 2 output';
+    document.getElementById('p3-tag').className='tag tag-orange';
+    document.getElementById('p3-dot').className='dot dot-orange';
+  } else {
+    document.getElementById('p3-title').textContent='Template XML';
+    document.getElementById('p3-tag').textContent='step 1 output / step 2 input';
+    document.getElementById('p3-tag').className='tag tag-green';
+    document.getElementById('p3-dot').className='dot dot-green';
+  }
+}
+
+// ─── Run ──────────────────────────────────────────────────────────
+function runStep() {
+  if (!ready){toast('Monaco loading…','info');return;}
+  step===1?runTemplatize():runGenerate();
+}
+
+function runTemplatize() {
+  const xml=eds.xml.getValue().trim();
+  if (!xml){toast('Upload or paste your Flow XML in Panel 1 first','err');return;}
+  const mapRaw=eds.map.getValue().trim();
+  if (!mapRaw){toast('Upload or paste your Env Mapping in Panel 2 first','err');return;}
+  setBusy(true);
+  setTimeout(()=>{
+    try {
+      const parsed=parseMapping(mapRaw);
+      const varMap=parsed.isIdMap?parsed.varMap:buildVarMap(xml,parsed);
+      const count=Object.keys(varMap).length;
+      if (!count) throw new Error('No IDs matched. Check the source row in your mapping has the original IDs.');
+
+      const template=applyVarMap(xml,varMap);
+
+      // ✅ Write templatized XML into Panel 3 — editable so user can review/tweak
+      setOut(template);
+      envOutputs={};
+      document.getElementById('env-sel').style.display='none';
+      document.getElementById('dl-all-btn').style.display='none';
+
+      // Show next-step hint
+      document.getElementById('p3-hint').classList.remove('hidden');
+
+      // Mark step 1 done
+      document.getElementById('s1').className='step-btn done';
+      setSt('msg',`✓ ${count} IDs → {{placeholders}}. Review template in Panel 3, then run Step 2 to generate env XMLs.`);
+      toast(`✓ Templatized: ${count} IDs replaced with placeholders`,'ok');
+
+      // Auto-switch to step 2 if env rows exist (and user hasn't dismissed)
+      if (!parsed.isIdMap&&Array.isArray(parsed)&&parsed.length>0)
+        setTimeout(()=>activateStep(2),450);
+    } catch(e){toast('Error: '+e.message,'err');setSt('msg','✗ '+e.message);}
+    setBusy(false);
+  },60);
+}
+
+function runGenerate() {
+  // Read the TEMPLATE from Panel 3 (not Panel 1)
+  const template=eds.out.getValue().trim();
+  if (!template){
+    toast('Panel 3 is empty — run Step 1 first to produce a template','err');return;
+  }
+  if (!template.includes('{{')) {
+    toast('Panel 3 has no {{placeholders}} — run Step 1: Templatize first','err');return;
+  }
+  const mapRaw=eds.map.getValue().trim();
+  if (!mapRaw){toast('Upload or paste your Env Mapping in Panel 2 first','err');return;}
+  setBusy(true);
+  setTimeout(()=>{
+    try {
+      const parsed=parseMapping(mapRaw);
+      if (parsed.isIdMap) throw new Error('Panel 2 is an id-map, not an env-mapping. Generate needs env rows (source, qa, uat, prod…)');
+      if (!Array.isArray(parsed)) throw new Error('Could not parse env rows from mapping');
+
+      envOutputs={};
+      for (const {env,values} of parsed){
+        if (!env) continue;
+        envOutputs[env]=applyValues(template,values);
+      }
+      const names=Object.keys(envOutputs);
+      if (!names.length) throw new Error('No environments found in mapping');
+
+      // Populate env selector & show first env in Panel 3
+      const sel=document.getElementById('env-sel');
+      sel.innerHTML=names.map(n=>`<option value="${n}">${n}</option>`).join('');
+      sel.style.display='';
+      document.getElementById('dl-all-btn').style.display='';
+      document.getElementById('p3-hint').classList.add('hidden');
+
+      switchEnv(); // display first env
+
+      document.getElementById('s2').className='step-btn done';
+      setSt('msg',`✓ Generated ${names.length} env XMLs: ${names.join(', ')}`);
+      toast(`✓ Generated: ${names.join(', ')}`,'ok');
+    } catch(e){toast('Error: '+e.message,'err');setSt('msg','✗ '+e.message);}
+    setBusy(false);
+  },60);
+}
+
+// ─── Output panel ─────────────────────────────────────────────────
+function setOut(content,lang='xml') {
+  monaco.editor.setModelLanguage(eds.out.getModel(),lang);
+  eds.out.setValue(content);
+  eds.out.setScrollPosition({scrollTop:0});
+}
+function switchEnv() {
+  const sel=document.getElementById('env-sel');
+  const env=sel.value;
+  if (env&&envOutputs[env]) setOut(envOutputs[env]);
+}
+
+// ─── Analysis ─────────────────────────────────────────────────────
+function analyzeXml() {
+  const xml=eds.xml?.getValue()||'';
+  if (!xml.trim()){setSt('ids','IDs: —');return;}
+  setSt('ids',`IDs: ${detectIds(xml).length} detected`);
+}
+function analyzeMap() {
+  const raw=eds.map?.getValue()||'';
+  if (!raw.trim()){setSt('envs','Envs: —');return;}
+  try {
+    const p=parseMapping(raw);
+    if (Array.isArray(p)) setSt('envs',`Envs: ${p.map(r=>r.env).filter(Boolean).join(', ')}`);
+    else setSt('envs','Envs: id-map');
+  } catch { setSt('envs','Envs: parse error'); }
+}
+
+// ─── File handling ────────────────────────────────────────────────
+function onFile(e,target) {
+  const f=e.target.files[0]; if (!f) return;
+  readFile(f,target); e.target.value='';
+}
+function readFile(f,target) {
+  const r=new FileReader();
+  r.onload=ev=>{
+    const txt=ev.target.result;
+    if (target==='xml') {
+      hide('dz-xml');
+      monaco.editor.setModelLanguage(eds.xml.getModel(),'xml');
+      eds.xml.setValue(txt); eds.xml.setScrollPosition({scrollTop:0});
+      toast(`Loaded ${f.name}`,'ok');
+    } else {
+      hide('dz-map');
+      monaco.editor.setModelLanguage(eds.map.getModel(),f.name.endsWith('.csv')?'plaintext':'json');
+      eds.map.setValue(txt); eds.map.setScrollPosition({scrollTop:0});
+      toast(`Loaded ${f.name}`,'ok');
+    }
+  };
+  r.readAsText(f);
+}
+function dzo(e,id){e.preventDefault();document.getElementById(id).classList.add('over')}
+function dzl(id){document.getElementById(id).classList.remove('over')}
+function dzd(e,target){
+  e.preventDefault();
+  const id=target==='xml'?'dz-xml':'dz-map';
+  document.getElementById(id).classList.remove('over');
+  const f=e.dataTransfer.files[0]; if(f) readFile(f,target);
+}
+function hide(id){document.getElementById(id).classList.add('hidden')}
+function show(id){document.getElementById(id).classList.remove('hidden')}
+function clr(which) {
+  if (which==='xml'){eds.xml.setValue('');show('dz-xml');setSt('ids','IDs: —');document.getElementById('s1').className='step-btn';}
+  else if (which==='map'){eds.map.setValue('');show('dz-map');setSt('envs','Envs: —');}
+  else {
+    eds.out.setValue(''); envOutputs={};
+    document.getElementById('env-sel').style.display='none';
+    document.getElementById('dl-all-btn').style.display='none';
+    document.getElementById('p3-hint').classList.add('hidden');
+    document.getElementById('s2').className='step-btn';
+  }
+}
+
+// ─── Download ─────────────────────────────────────────────────────
+function dl(which) {
+  let content,name;
+  if (which==='xml'){content=eds.xml.getValue();name='flow-source.xml';}
+  else if (which==='map'){content=eds.map.getValue();name='env-mapping.json';}
+  else {
+    content=eds.out.getValue();
+    const sel=document.getElementById('env-sel');
+    const env=sel.value;
+    name=step===1?'flow.template.xml':`flow.${env||'output'}.xml`;
+  }
+  if (!content.trim()){toast('Nothing to download','info');return;}
+  doDownload(content,name); toast(`Downloaded ${name}`,'ok');
+}
+function dlAll() {
+  const names=Object.keys(envOutputs);
+  if (!names.length){toast('No env outputs yet','info');return;}
+  names.forEach((env,i)=>setTimeout(()=>doDownload(envOutputs[env],`flow.${env}.xml`),i*110));
+  toast(`Downloading ${names.length} files…`,'ok');
+}
+function doDownload(content,name) {
+  const url=URL.createObjectURL(new Blob([content],{type:'text/xml;charset=utf-8'}));
+  const a=document.createElement('a');
+  a.href=url;a.download=name;document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+
+// ─── Sample mapping ───────────────────────────────────────────────
+function loadSample() {
+  const s={
+    "source":{"ENGAGEMENT_CHANNEL_TYPE_ID":"0eFO80000000l29MAA","COMM_SUB_APPLE_EVENTS_ID":"0XlO80000003lDhKAI","COMM_SUB_CH_APPLE_EVENTS_ID":"0eBO80000000YCzMAM","COMM_SUB_FEATURED_CONTENT_ID":"0XlO80000003lFJKAY","COMM_SUB_CH_FEATURED_CONTENT_ID":"0eBO80000000YEbMAM","COMM_SUB_CUSTOM_OUTREACH_ID":"0XlO80000003lGvKAI","COMM_SUB_CH_CUSTOM_OUTREACH_ID":"0eBO80000000YGDMA2","COMM_SUB_ANNOUNCEMENTS_ID":"0XlO80000003lIXKAY","COMM_SUB_CH_ANNOUNCEMENTS_ID":"0eBO80000000YHpMAM","COMM_SUB_NEWSLETTER_ID":"0XlO80000003lK9KAI","COMM_SUB_CH_NEWSLETTER_ID":"0eBO80000000YJRMA2"},
+    "qa":{"ENGAGEMENT_CHANNEL_TYPE_ID":"0eFQ00000000qa1AAA","COMM_SUB_APPLE_EVENTS_ID":"0XlQ00000000qa2BBB","COMM_SUB_CH_APPLE_EVENTS_ID":"0eBQ00000000qa3CCC","COMM_SUB_FEATURED_CONTENT_ID":"0XlQ00000000qa4DDD","COMM_SUB_CH_FEATURED_CONTENT_ID":"0eBQ00000000qa5EEE","COMM_SUB_CUSTOM_OUTREACH_ID":"0XlQ00000000qa6FFF","COMM_SUB_CH_CUSTOM_OUTREACH_ID":"0eBQ00000000qa7GGG","COMM_SUB_ANNOUNCEMENTS_ID":"0XlQ00000000qa8HHH","COMM_SUB_CH_ANNOUNCEMENTS_ID":"0eBQ00000000qa9III","COMM_SUB_NEWSLETTER_ID":"0XlQ00000000qa0JJJ","COMM_SUB_CH_NEWSLETTER_ID":"0eBQ00000000qaAKKK"},
+    "uat":{"ENGAGEMENT_CHANNEL_TYPE_ID":"0eFU00000000ua1AAA","COMM_SUB_APPLE_EVENTS_ID":"0XlU00000000ua2BBB","COMM_SUB_CH_APPLE_EVENTS_ID":"0eBU00000000ua3CCC","COMM_SUB_FEATURED_CONTENT_ID":"0XlU00000000ua4DDD","COMM_SUB_CH_FEATURED_CONTENT_ID":"0eBU00000000ua5EEE","COMM_SUB_CUSTOM_OUTREACH_ID":"0XlU00000000ua6FFF","COMM_SUB_CH_CUSTOM_OUTREACH_ID":"0eBU00000000ua7GGG","COMM_SUB_ANNOUNCEMENTS_ID":"0XlU00000000ua8HHH","COMM_SUB_CH_ANNOUNCEMENTS_ID":"0eBU00000000ua9III","COMM_SUB_NEWSLETTER_ID":"0XlU00000000ua0JJJ","COMM_SUB_CH_NEWSLETTER_ID":"0eBU00000000uaAKKK"},
+    "prod":{"ENGAGEMENT_CHANNEL_TYPE_ID":"0eFP00000000pr1AAA","COMM_SUB_APPLE_EVENTS_ID":"0XlP00000000pr2BBB","COMM_SUB_CH_APPLE_EVENTS_ID":"0eBP00000000pr3CCC","COMM_SUB_FEATURED_CONTENT_ID":"0XlP00000000pr4DDD","COMM_SUB_CH_FEATURED_CONTENT_ID":"0eBP00000000pr5EEE","COMM_SUB_CUSTOM_OUTREACH_ID":"0XlP00000000pr6FFF","COMM_SUB_CH_CUSTOM_OUTREACH_ID":"0eBP00000000pr7GGG","COMM_SUB_ANNOUNCEMENTS_ID":"0XlP00000000pr8HHH","COMM_SUB_CH_ANNOUNCEMENTS_ID":"0eBP00000000pr9III","COMM_SUB_NEWSLETTER_ID":"0XlP00000000pr0JJJ","COMM_SUB_CH_NEWSLETTER_ID":"0eBP00000000prAKKK"}
+  };
+  hide('dz-map');
+  monaco.editor.setModelLanguage(eds.map.getModel(),'json');
+  eds.map.setValue(JSON.stringify(s,null,2));
+  toast('Sample mapping loaded — replace values with your real IDs','info');
+  analyzeMap();
+}
+
+// ─── Splitter drag ────────────────────────────────────────────────
+let ds=null;
+function dragStart(e,spId,leftId,rightId) {
+  e.preventDefault();
+  const sp=document.getElementById(spId),L=document.getElementById(leftId),R=document.getElementById(rightId);
+  sp.classList.add('drag');
+  ds={sp,L,R,x0:e.clientX,lw:L.getBoundingClientRect().width,rw:R.getBoundingClientRect().width};
+  document.addEventListener('mousemove',onDrag);
+  document.addEventListener('mouseup',onDragEnd);
+  document.body.style.cssText+='cursor:col-resize;user-select:none';
+}
+function onDrag(e) {
+  if (!ds) return;
+  const{L,R,x0,lw,rw}=ds,d=e.clientX-x0;
+  const nl=Math.max(150,lw+d),nr=Math.max(150,rw-d);
+  L.style.flex='none';R.style.flex='none';L.style.width=nl+'px';R.style.width=nr+'px';
+}
+function onDragEnd() {
+  if (!ds) return;
+  ds.sp.classList.remove('drag');ds=null;
+  document.removeEventListener('mousemove',onDrag);
+  document.removeEventListener('mouseup',onDragEnd);
+  document.body.style.cursor='';document.body.style.userSelect='';
+}
+
+// ─── Theme ────────────────────────────────────────────────────────
+function toggleTheme() {
+  const d=document.documentElement,dark=d.dataset.theme==='dark';
+  d.dataset.theme=dark?'light':'dark';
+  document.getElementById('theme-btn').textContent=dark?'☀️':'🌙';
+  if (ready) monaco.editor.setTheme(monacoTheme());
+}
+
+// ─── Utils ────────────────────────────────────────────────────────
+function setSt(k,v){const el=document.getElementById('st-'+k);if(el)el.textContent=v;}
+function setBusy(on) {
+  document.getElementById('run-btn').disabled=on;
+  document.getElementById('run-icon').innerHTML=on?'<span class="spin"></span>':'▶';
+}
+function toast(msg,type='info') {
+  const icons={ok:'✓',err:'✕',info:'ℹ'};
+  const el=document.createElement('div');
+  el.className=`toast ${type}`;
+  el.innerHTML=`<span>${icons[type]}</span><span>${msg}</span>`;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>{el.style.animation='tout .25s ease forwards';setTimeout(()=>el.remove(),250);},3200);
+}
+document.addEventListener('keydown',e=>{
+  if ((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();runStep();}
+});
+</script>
+</body>
+</html>
