@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -355,6 +356,7 @@ tailwind.config = {
           <button class="ctrl-btn ctrl-btn-red" onclick="tapTempo()">TAP</button>
           <button class="ctrl-btn" onclick="toggleRecord()"><span id="recLabel">● REC</span></button>
           <button class="ctrl-btn" onclick="playback()"><span id="playLabel">▶ PLAY</span></button>
+          <button class="ctrl-btn" id="dlBtn" onclick="downloadRecording()" style="grid-column:span 2;background:linear-gradient(180deg,#1a3a1a,#0f260f);border-color:rgba(74,255,107,0.25);color:#4AFF6B;">⬇ WAV DOWNLOAD</button>
         </div>
 
         <!-- Volume meter -->
@@ -680,11 +682,21 @@ function playMetroClick(accent) {
 
 // ─── Patches ────────────────────────────────────────────────────────────────
 const patches = [
-  { id: '001', name: 'TAIKO KIT', labels: ['BASS','TAIKO H','DJEMBE','CONGA','BONGO','SURDO','CAJON','SHAKER','TABLA','TAIKO L','RIM','COWBELL','TAMBR'] },
-  { id: '002', name: 'WORLD PERC', labels: ['BASS','DJEMBE','UDU','CONGA','TALKING','CAJON','SHAKER','KPANLOGO','DUNUN','DOUMBEK','RIM','AGOGO','TAMB'] },
-  { id: '003', name: 'SAMBA KIT', labels: ['SURDO','REPIQUE','CUT RIM','CAIXA','SHAKER','CUICA','TAMBORIM','AGOGO H','AGOGO L','PANDEIRO','COWBELL','CHOCALHO','REPIQUE2'] },
-  { id: '004', name: 'JAZZ PERC', labels: ['KICK','SNARE','HIHAT','RIDE','CRASH','FLOOR T','MID TOM','HI TOM','COWBELL','CROSS ST','OPEN HH','RIM','BRUSH'] },
-  { id: '005', name: 'ELEKTRONIK', labels: ['808 KICK','SNARE','CLAP','HIHAT','808 BASE','SYNTH BD','NOISE','CLAVE','WOODBLK','CYMBAL','REVERSE','GLITCH','LASER'] },
+  { id: '001', name: 'TAIKO KIT',   labels: ['BASS','TAIKO H','DJEMBE','CONGA','BONGO','SURDO','CAJON','SHAKER','TABLA','TAIKO L','RIM','COWBELL','TAMBR'] },
+  { id: '002', name: 'WORLD PERC',  labels: ['BASS','DJEMBE','UDU','CONGA','TALKING','CAJON','SHAKER','KPANLOGO','DUNUN','DOUMBEK','RIM','AGOGO','TAMB'] },
+  { id: '003', name: 'SAMBA KIT',   labels: ['SURDO','REPIQUE','CUT RIM','CAIXA','SHAKER','CUICA','TAMBORIM','AGOGO H','AGOGO L','PANDEIRO','COWBELL','CHOCALHO','REPIQUE2'] },
+  { id: '004', name: 'JAZZ PERC',   labels: ['KICK','SNARE','HIHAT','RIDE','CRASH','FLOOR T','MID TOM','HI TOM','COWBELL','CROSS ST','OPEN HH','RIM','BRUSH'] },
+  { id: '005', name: 'ELEKTRONIK',  labels: ['808 KICK','SNARE','CLAP','HIHAT','808 BASE','SYNTH BD','NOISE','CLAVE','WOODBLK','CYMBAL','REVERSE','GLITCH','LASER'] },
+  { id: '006', name: 'AFRO LATIN',  labels: ['BASS','BATA L','BATA M','BATA H','GUIRO','CLAVES','MARACAS','TIMBALE','COWBELL','BONGO L','BONGO H','CONGA SL','CONGAS'] },
+  { id: '007', name: 'MIDDLE EAST', labels: ['BASS','DARBUKA','RIQQ','BENDIR','FRAME DR','SAGAT','DAVUL','DHOL','ZAFFA','TUPAN','DOUFF','NAY PERC','KARACA'] },
+  { id: '008', name: 'INDIAN KIT',  labels: ['MRIDANG','TABLA B','TABLA T','DHOLAK','DHOL','KHANJIRA','GHATAM','MORSING','KANJIRA','TAVIL','PAKHAWAJ','JALTARANG','NAGARA'] },
+  { id: '009', name: 'DRUM CORPS',  labels: ['BASS 1','BASS 2','BASS 3','SN CRACK','SN BUZZ','SN SHOT','TOM 1','TOM 2','TOM 3','CYMBAL','SPLASH','HI-HAT','GLOCK'] },
+  { id: '010', name: 'REGGAE KIT',  labels: ['BASS','ONE DROP','SKANKS','HIHAT','RIMSHOT','CLAVE','BONGO','SHAKER','NYABINGHI','FUNDEH','BASS DR','FUNDE','REPEATER'] },
+  { id: '011', name: 'TRAP KIT',    labels: ['808 SUB','HI-HAT','OPEN HH','SNARE','CLAP','RIDE','HI TOM','MID TOM','PERC 1','PERC 2','SNAP','COWBELL','FX'] },
+  { id: '012', name: 'STEEL PAN',   labels: ['BASS PAN','CELLO','GUITAR','TENOR L','TENOR H','PING PAN','LEAD 1','LEAD 2','TENOR2 L','TENOR2 H','BASS DR','IRON','CONGA'] },
+  { id: '013', name: 'ORCHESTRAL',  labels: ['BASS DR','SNARE','TIMP 1','TIMP 2','CROTALES','TRIANGLE','TAMB','WOOD BLK','CASTANETS','WHIP','CHIMES','GONG','CYMBAL'] },
+  { id: '014', name: 'FLAMENCO',    labels: ['PALMAS L','PALMAS H','CAJON L','CAJON H','CAJON SN','PITOS','GOLPE','TACONEO','ZAPATEADO','SHAKER','CASTANETS','PANDEIRO','CLAP'] },
+  { id: '015', name: 'FUSION MIX',  labels: ['KICK','SNARE','DJEMBE','TABLA','DARBUKA','SHAKER','TAMB','RIM','CLAVE','COWBELL','HIHAT','CRASH','FX PERC'] },
 ];
 let currentPatch = 0;
 let beatCount = 0;
@@ -943,7 +955,177 @@ function playback() {
   scheduleHits();
 }
 
-// ─── MIDI LED flash ──────────────────────────────────────────────────────────
+// ─── WAV Download ─────────────────────────────────────────────────────────────
+async function downloadRecording() {
+  if (recordedHits.length === 0) {
+    document.getElementById('hitLog').textContent = 'Nothing recorded — press REC first';
+    return;
+  }
+
+  const btn = document.getElementById('dlBtn');
+  btn.textContent = '⏳ RENDER';
+  btn.disabled = true;
+
+  try {
+    const hits = recordedHits.slice();
+    const t0 = hits[0].time;
+    const totalSec = (hits[hits.length - 1].time - t0) / 1000 + 1.5; // +1.5s tail
+    const sampleRate = 44100;
+    const offline = new OfflineAudioContext(2, Math.ceil(totalSec * sampleRate), sampleRate);
+
+    // Rebuild reverb on offline context
+    const impulseLength = sampleRate * 2;
+    const impulse = offline.createBuffer(2, impulseLength, sampleRate);
+    for (let c = 0; c < 2; c++) {
+      const ch = impulse.getChannelData(c);
+      for (let i = 0; i < impulseLength; i++)
+        ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / impulseLength, 2.5);
+    }
+    const offConv = offline.createConvolver();
+    offConv.buffer = impulse;
+
+    const offMaster = offline.createGain();
+    offMaster.gain.value = masterVol;
+    const offDry = offline.createGain();
+    offDry.gain.value = 1 - reverbAmount;
+    const offRev = offline.createGain();
+    offRev.gain.value = reverbAmount;
+
+    offConv.connect(offRev);
+    offRev.connect(offMaster);
+    offDry.connect(offMaster);
+    offMaster.connect(offline.destination);
+
+    // Schedule each hit into offline context
+    const pitch = Math.pow(2, pitchSemitones / 12);
+    hits.forEach(h => {
+      const tSec = (h.time - t0) / 1000;
+      const s = padSounds[h.padId] || { type: 'drum', freq: 200, decay: 0.3 };
+      const vel = h.velocity;
+
+      if (s.type === 'shaker' || s.type === 'tamb') {
+        const bufLen = Math.ceil(sampleRate * s.decay);
+        const buf = offline.createBuffer(1, bufLen, sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufLen, 1.5);
+        const src = offline.createBufferSource();
+        src.buffer = buf;
+        const bp = offline.createBiquadFilter();
+        bp.type = 'bandpass'; bp.frequency.value = s.freq * pitch; bp.Q.value = 2;
+        const g = offline.createGain();
+        g.gain.setValueAtTime(vel * 0.6, tSec);
+        g.gain.exponentialRampToValueAtTime(0.001, tSec + s.decay);
+        src.connect(bp); bp.connect(g); g.connect(offDry); g.connect(offConv);
+        src.start(tSec);
+      } else if (s.type === 'rim' || s.type === 'cowbell') {
+        [s.freq * pitch, s.freq * pitch * 1.47, s.freq * pitch * 1.87].forEach(f => {
+          const osc = offline.createOscillator();
+          osc.type = 'square'; osc.frequency.value = f;
+          const g = offline.createGain();
+          g.gain.setValueAtTime(vel * 0.2, tSec);
+          g.gain.exponentialRampToValueAtTime(0.001, tSec + s.decay);
+          osc.connect(g); g.connect(offDry); g.connect(offConv);
+          osc.start(tSec); osc.stop(tSec + s.decay);
+        });
+      } else {
+        // Drum pitch sweep
+        const osc = offline.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(s.freq * pitch * 2.5, tSec);
+        osc.frequency.exponentialRampToValueAtTime(s.freq * pitch * 0.5, tSec + s.decay * 0.15);
+        osc.frequency.exponentialRampToValueAtTime(s.freq * pitch, tSec + s.decay);
+        const og = offline.createGain();
+        og.gain.setValueAtTime(vel, tSec);
+        og.gain.exponentialRampToValueAtTime(0.001, tSec + s.decay);
+        osc.connect(og); og.connect(offDry); og.connect(offConv);
+        osc.start(tSec); osc.stop(tSec + s.decay + 0.05);
+
+        // Transient click
+        const ck = offline.createOscillator();
+        ck.frequency.value = 3000 * pitch;
+        const cg = offline.createGain();
+        cg.gain.setValueAtTime(vel * 0.3, tSec);
+        cg.gain.exponentialRampToValueAtTime(0.001, tSec + 0.02);
+        ck.connect(cg); cg.connect(offDry); ck.start(tSec); ck.stop(tSec + 0.02);
+
+        // Body noise
+        const bLen = Math.min(Math.ceil(sampleRate * s.decay), sampleRate);
+        const bbuf = offline.createBuffer(1, bLen, sampleRate);
+        const bd = bbuf.getChannelData(0);
+        for (let i = 0; i < bLen; i++) bd[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bLen, 2);
+        const nsrc = offline.createBufferSource();
+        nsrc.buffer = bbuf;
+        const lp = offline.createBiquadFilter();
+        lp.type = 'lowpass'; lp.frequency.value = s.freq * pitch * 3;
+        const ng = offline.createGain();
+        ng.gain.setValueAtTime(vel * 0.15, tSec);
+        ng.gain.exponentialRampToValueAtTime(0.001, tSec + s.decay * 0.5);
+        nsrc.connect(lp); lp.connect(ng); ng.connect(offDry);
+        nsrc.start(tSec);
+      }
+    });
+
+    const rendered = await offline.startRendering();
+
+    // Encode to WAV
+    const wavBytes = audioBufferToWav(rendered);
+    const blob = new Blob([wavBytes], { type: 'audio/wav' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const patchName = patches[currentPatch].name.replace(/\s+/g, '_');
+    a.download = `HPD20_${patchName}_${Date.now()}.wav`;
+    a.href = url;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    document.getElementById('hitLog').textContent = `✓ Downloaded: ${a.download}`;
+  } catch (err) {
+    document.getElementById('hitLog').textContent = `Download error: ${err.message}`;
+    console.error(err);
+  }
+
+  btn.textContent = '⬇ WAV';
+  btn.disabled = false;
+}
+
+// WAV encoder — converts AudioBuffer to PCM WAV ArrayBuffer
+function audioBufferToWav(buffer) {
+  const numCh = buffer.numberOfChannels;
+  const numSamples = buffer.length;
+  const sampleRate = buffer.sampleRate;
+  const bytesPerSample = 2; // 16-bit
+  const blockAlign = numCh * bytesPerSample;
+  const byteRate = sampleRate * blockAlign;
+  const dataSize = numSamples * blockAlign;
+  const ab = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(ab);
+
+  function writeStr(offset, str) { for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i)); }
+  writeStr(0, 'RIFF');
+  view.setUint32(4, 36 + dataSize, true);
+  writeStr(8, 'WAVE');
+  writeStr(12, 'fmt ');
+  view.setUint32(16, 16, true);       // PCM chunk size
+  view.setUint16(20, 1, true);        // PCM format
+  view.setUint16(22, numCh, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, byteRate, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, 16, true);       // bits per sample
+  writeStr(36, 'data');
+  view.setUint32(40, dataSize, true);
+
+  // Interleave channels and convert float32 → int16
+  let offset = 44;
+  for (let i = 0; i < numSamples; i++) {
+    for (let ch = 0; ch < numCh; ch++) {
+      const sample = Math.max(-1, Math.min(1, buffer.getChannelData(ch)[i]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+      offset += 2;
+    }
+  }
+  return ab;
+}
 function flashMidi() {
   const led = document.getElementById('midiLed');
   led.className = 'led-dot led-green';
