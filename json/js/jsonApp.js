@@ -619,6 +619,7 @@ require(['vs/editor/editor.main'], function () {
     document.getElementById('diff-semantic-btn').addEventListener('click', () => {
         const status = document.getElementById('diff-status');
         document.getElementById('monaco-diff-container').style.display = 'none';
+        document.getElementById('diff-results').style.display = '';
 
         let jsonA, jsonB;
         try { jsonA = JSON.parse(diffEditorA.getValue()); } catch (e) { status.textContent = `JSON A error: ${e.message}`; return; }
@@ -688,17 +689,28 @@ require(['vs/editor/editor.main'], function () {
     // Verbatim diff using Monaco diff editor
     let monacoDiffEditor = null;
 
-    document.getElementById('diff-verbatim-btn').addEventListener('click', () => {
-        const status = document.getElementById('diff-status');
-        document.getElementById('diff-results').innerHTML = '';
+    // Container is position:absolute inset:0 so offsetWidth/Height are always real.
+    const diffContainerEl = document.getElementById('monaco-diff-container');
 
-        const container = document.getElementById('monaco-diff-container');
-        container.style.display = 'flex';
+    function relayoutDiffEditor() {
+        if (!monacoDiffEditor) return;
+        const { offsetWidth: w, offsetHeight: h } = diffContainerEl;
+        if (w > 0 && h > 0) monacoDiffEditor.layout({ width: w, height: h });
+    }
+
+    // ResizeObserver keeps Monaco in sync whenever the splitter is dragged.
+    new ResizeObserver(() => relayoutDiffEditor()).observe(diffContainerEl);
+
+    document.getElementById('diff-verbatim-btn').addEventListener('click', () => {
+        const status    = document.getElementById('diff-status');
+        const resultsEl = document.getElementById('diff-results');
+
+        resultsEl.style.display    = 'none';
+        diffContainerEl.style.display = 'block';
 
         const textA = diffEditorA.getValue();
         const textB = diffEditorB.getValue();
 
-        // Normalise both sides to pretty-printed JSON for a cleaner text diff
         let prettyA = textA, prettyB = textB;
         try { prettyA = JSON.stringify(JSON.parse(textA), null, 2); } catch (_) { }
         try { prettyB = JSON.stringify(JSON.parse(textB), null, 2); } catch (_) { }
@@ -706,32 +718,36 @@ require(['vs/editor/editor.main'], function () {
         if (monacoDiffEditor) {
             monacoDiffEditor.getModel().original.setValue(prettyA);
             monacoDiffEditor.getModel().modified.setValue(prettyB);
+            relayoutDiffEditor();
         } else {
-            monacoDiffEditor = monaco.editor.createDiffEditor(container, {
-                theme: 'vs-dark',
-                automaticLayout: true,
-                readOnly: true,
-                renderSideBySide: true,
-                minimap: { enabled: false }
-            });
-            monacoDiffEditor.setModel({
-                original: monaco.editor.createModel(prettyA, 'json'),
-                modified: monaco.editor.createModel(prettyB, 'json')
+            // One rAF so the browser paints display:block before Monaco reads dimensions.
+            requestAnimationFrame(() => {
+                monacoDiffEditor = monaco.editor.createDiffEditor(diffContainerEl, {
+                    theme: 'vs-dark',
+                    automaticLayout: false,
+                    readOnly: true,
+                    renderSideBySide: true,
+                    minimap: { enabled: false },
+                    scrollBeyondLastLine: false
+                });
+                monacoDiffEditor.setModel({
+                    original: monaco.editor.createModel(prettyA, 'json'),
+                    modified: monaco.editor.createModel(prettyB, 'json')
+                });
+                monacoDiffEditor.onDidUpdateDiff(() => {
+                    const changes = monacoDiffEditor.getLineChanges() || [];
+                    status.textContent = `${changes.length} changed region(s)`;
+                });
+                relayoutDiffEditor();
             });
         }
-
-        // Count changed lines from diff editor's line changes
-        monacoDiffEditor.onDidUpdateDiff(() => {
-            const changes = monacoDiffEditor.getLineChanges() || [];
-            status.textContent = `${changes.length} changed region(s)`;
-        });
     });
 
     // Relayout diff editors when tab shown
     document.getElementById('diff-tab-nav').addEventListener('shown.bs.tab', () => {
         diffEditorA.layout();
         diffEditorB.layout();
-        if (monacoDiffEditor) monacoDiffEditor.layout();
+        relayoutDiffEditor();
     });
 
     // ── diff pane drag splitter ──────────────────────────────────────────────
@@ -761,7 +777,7 @@ require(['vs/editor/editor.main'], function () {
             colB.style.flex = `0 0 ${total - newAW}px`;
             diffEditorA.layout();
             diffEditorB.layout();
-            if (monacoDiffEditor) monacoDiffEditor.layout();
+            relayoutDiffEditor();
         });
 
         gutter.addEventListener('pointerup', () => {
@@ -801,7 +817,7 @@ require(['vs/editor/editor.main'], function () {
             topRow.style.flex = `0 0 ${newH}px`;
             diffEditorA.layout();
             diffEditorB.layout();
-            if (monacoDiffEditor) monacoDiffEditor.layout();
+            relayoutDiffEditor();
         });
 
         hGutter.addEventListener('pointerup', () => {
