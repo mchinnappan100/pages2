@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YAML Editor - Kalam</title>
+
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/editor/img/favicon.ico" />
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/css/bootstrap.min.css"
+        integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2" crossorigin="anonymous">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+        integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+        integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.min.js" crossorigin="anonymous"
+        integrity="sha384-w1Q4orYjBQndcko6MimVbzY0tgp4pWB4lZ7lr30WKz0vr/aWKhXdBNmNb5D92v7s"></script>
+
+    <!-- js-yaml -->
+    <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+    <!-- deep-diff for semantic diff -->
+    <script src="https://cdn.jsdelivr.net/npm/deep-diff@1.0.2/dist/deep-diff.min.js"></script>
+
+    <!-- Monaco loader -->
+    <script src="https://unpkg.com/monaco-editor/min/vs/loader.js"></script>
+
+    <link rel="stylesheet" href="css/yaml.css?v=1">
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark py-1">
+    <a class="navbar-brand" href="#">&nbsp; YAML Editor - Kalam</a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+        aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav">
+            <li class="nav-item">
+                <div id="dropArea" style="border:2px dashed #ccc; padding:2px; text-align:center;">
+                    <input class="btn btn-dark" type="file" id="yamlFileInput" accept=".yaml,.yml,.json">
+                    <span style="color:wheat;">Drag &amp; drop a YAML / JSON file here</span>
+                    <button class="btn btn-primary" id="download-button">Download YAML</button>
+                    <button class="btn btn-secondary" id="download-json-button">Download JSON</button>
+                    <button class="btn btn-outline-light" id="convert-json-btn" title="Convert pasted JSON → YAML">JSON→YAML</button>
+                </div>
+            </li>
+        </ul>
+    </div>
+</nav>
+
+<!-- Tab Navigation -->
+<ul class="nav nav-tabs bg-dark px-2 pt-1" id="mainTabs" role="tablist">
+    <li class="nav-item">
+        <a class="nav-link active" id="editor-tab" data-toggle="tab" href="#editor-pane" role="tab">
+            &#128196; Editor
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="jq-tab" data-toggle="tab" href="#jq-pane" role="tab">
+            &#9965; jq Query
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="diff-tab-nav" data-toggle="tab" href="#diff-pane" role="tab">
+            &#128195; YAML Diff
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content" id="mainTabContent">
+
+    <!-- ===== Editor Tab ===== -->
+    <div class="tab-pane fade show active" id="editor-pane" role="tabpanel">
+        <div class="editor-container">
+            <!-- Left: Monaco YAML source -->
+            <div id="yaml-monaco-col" class="yaml-monaco-col">
+                <div class="pane-label">YAML Source</div>
+                <div id="editor-yaml" class="code-pane"></div>
+            </div>
+            <!-- Vertical splitter -->
+            <div id="editor-gutter" class="v-gutter" title="Drag to resize">
+                <div class="v-gutter-handle"></div>
+            </div>
+            <!-- Right: parsed key/value tree -->
+            <div id="yaml-tree-col" class="yaml-tree-col">
+                <div class="pane-label d-flex justify-content-between align-items-center">
+                    <span>Parsed Tree</span>
+                    <span id="parse-status" class="parse-status"></span>
+                </div>
+                <div id="yaml-tree" class="yaml-tree-pane"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== jq Query Tab ===== -->
+    <div class="tab-pane fade" id="jq-pane" role="tabpanel">
+        <div class="jq-toolbar bg-dark p-2">
+            <div class="input-group">
+                <div class="input-group-prepend">
+                    <span class="input-group-text bg-secondary text-white font-weight-bold"
+                          title="jq filter (runs on the parsed JSON representation)">jq</span>
+                </div>
+                <input type="text" id="jq-query-input" class="form-control font-weight-bold"
+                       style="font-family:monospace;"
+                       placeholder='e.g.  .  |  .name  |  .items[]  |  .. | numbers  |  .[] | select(.age > 30)'
+                       value=".">
+                <div class="input-group-append">
+                    <button class="btn btn-success" id="jq-run-btn" title="Run (Enter)">&#9654; Run</button>
+                    <button class="btn btn-outline-light" id="jq-use-editor-btn"
+                            title="Copy current editor YAML into jq input">Use Editor YAML</button>
+                    <button class="btn btn-warning" id="jq-help-btn" title="jq cheatsheet">&#10067; Help</button>
+                </div>
+            </div>
+            <small class="text-muted">Press <kbd>Enter</kbd> to run &bull; Queries run on the JSON representation of the YAML</small>
+        </div>
+        <div class="jq-editors-row">
+            <div class="jq-editor-col">
+                <div class="pane-label">Input YAML</div>
+                <div id="jq-input-editor" class="code-pane"></div>
+            </div>
+            <div class="jq-editor-col">
+                <div class="pane-label">Output (JSON)</div>
+                <div id="jq-output-editor" class="code-pane"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Diff Tab ===== -->
+    <div class="tab-pane fade" id="diff-pane" role="tabpanel">
+        <div class="diff-inputs-row" id="diff-inputs-row">
+            <div class="diff-editor-col" id="diff-col-a">
+                <div class="d-flex justify-content-between align-items-center pane-label">
+                    <span>YAML A &mdash; Original</span>
+                    <input type="file" id="diff-file-a" accept=".yaml,.yml,.json" class="form-control-file small-file-input">
+                </div>
+                <div id="diff-editor-a" class="code-pane"></div>
+            </div>
+            <div id="diff-gutter" class="diff-gutter" title="Drag to resize">
+                <div class="diff-gutter-handle"></div>
+            </div>
+            <div class="diff-editor-col" id="diff-col-b">
+                <div class="d-flex justify-content-between align-items-center pane-label">
+                    <span>YAML B &mdash; Modified</span>
+                    <input type="file" id="diff-file-b" accept=".yaml,.yml,.json" class="form-control-file small-file-input">
+                </div>
+                <div id="diff-editor-b" class="code-pane"></div>
+            </div>
+        </div>
+
+        <!-- Horizontal splitter -->
+        <div id="diff-h-gutter" class="diff-h-gutter" title="Drag to resize">
+            <div class="diff-h-gutter-handle"></div>
+        </div>
+
+        <!-- Bottom: controls + results -->
+        <div id="diff-bottom" class="diff-bottom">
+            <div class="diff-controls bg-dark d-flex align-items-center px-3 py-2">
+                <button class="btn btn-sm btn-primary mr-2" id="diff-semantic-btn">&#9965; Semantic Diff</button>
+                <button class="btn btn-sm btn-info mr-2"    id="diff-verbatim-btn">&#128195; Verbatim Diff</button>
+                <button class="btn btn-sm btn-outline-light mr-3" id="diff-use-editor-btn">Use Editor as A</button>
+                <span id="diff-status" class="text-muted small"></span>
+            </div>
+            <div id="diff-content-viewport" class="diff-content-viewport">
+                <div id="monaco-diff-container" style="display:none;"></div>
+                <div id="diff-results" style="overflow-y:auto;"></div>
+            </div>
+        </div>
+    </div>
+
+</div><!-- /tab-content -->
+
+<!-- ===== jq Help Drawer ===== -->
+<div id="jq-help-overlay" class="jq-help-overlay"></div>
+<div id="jq-help-drawer" class="jq-help-drawer" aria-label="jq Help">
+    <div class="jq-help-header">
+        <span>&#10067; jq Cheatsheet</span>
+        <div class="d-flex align-items-center">
+            <input type="text" id="jq-help-search" class="form-control form-control-sm"
+                   placeholder="Search examples..." style="width:200px;">
+            <button id="jq-help-close" class="btn btn-sm btn-outline-light ml-2">&times; Close</button>
+        </div>
+    </div>
+    <div id="jq-help-body" class="jq-help-body"></div>
+</div>
+
+<script type="module" src="js/yamlApp.js?v=1"></script>
+</body>
+</html>
