@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SF Playwright Recorder</title>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+
+    header {
+      background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+      border-bottom: 1px solid #334155;
+      padding: 16px 24px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    header .logo { font-size: 28px; }
+    header h1 { font-size: 20px; font-weight: 700; color: #f8fafc; }
+    header .subtitle { font-size: 12px; color: #64748b; margin-top: 2px; }
+
+    .layout { display: flex; height: calc(100vh - 65px); overflow: hidden; }
+
+    /* ── Resizable splitter ── */
+    .splitter {
+      width: 6px; flex-shrink: 0; cursor: col-resize;
+      background: #1e293b;
+      position: relative; z-index: 10;
+      transition: background .15s;
+    }
+    .splitter:hover, .splitter.dragging { background: #6366f1; }
+    .splitter::after {
+      content: ''; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 2px; height: 40px; border-radius: 2px;
+      background: #334155;
+      transition: background .15s, height .2s;
+    }
+    .splitter:hover::after, .splitter.dragging::after {
+      background: #a5b4fc; height: 60px;
+    }
+
+    /* ── Left panel ── */
+    .sidebar {
+      background: #1e293b;
+      display: flex; flex-direction: column;
+      overflow-y: auto; overflow-x: hidden;
+      flex-shrink: 0; min-width: 220px; max-width: 600px;
+      scrollbar-width: thin;
+      scrollbar-color: #334155 transparent;
+    }
+    .sidebar::-webkit-scrollbar { width: 5px; }
+    .sidebar::-webkit-scrollbar-track { background: transparent; }
+    .sidebar::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    .sidebar::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    .section { padding: 16px; border-bottom: 1px solid #334155; flex-shrink: 0; }
+    .section h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: #64748b; margin-bottom: 12px; }
+
+    .url-row { display: flex; gap: 8px; }
+    input[type=text] {
+      flex: 1; background: #0f172a; border: 1px solid #334155; color: #e2e8f0;
+      border-radius: 6px; padding: 8px 10px; font-size: 13px; outline: none;
+    }
+    input[type=text]:focus { border-color: #6366f1; }
+
+    .btn {
+      padding: 8px 14px; border-radius: 6px; border: none; font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: opacity .15s, transform .1s;
+    }
+    .btn:active { transform: scale(.97); }
+    .btn:disabled { opacity: .4; cursor: not-allowed; }
+    .btn-primary  { background: #6366f1; color: #fff; }
+    .btn-danger   { background: #ef4444; color: #fff; }
+    .btn-success  { background: #10b981; color: #fff; }
+    .btn-ghost    { background: #334155; color: #e2e8f0; }
+    .btn-warning  { background: #f59e0b; color: #0f172a; }
+    .btn-sm { padding: 6px 10px; font-size: 12px; }
+    .btn-full { width: 100%; margin-top: 6px; }
+
+    .recording-indicator {
+      display: flex; align-items: center; gap: 8px;
+      background: #7f1d1d; border: 1px solid #ef4444; border-radius: 8px;
+      padding: 10px 14px; margin-bottom: 10px; font-size: 13px;
+    }
+    .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; animation: pulse 1.2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.3} }
+
+    .hidden { display: none !important; }
+
+    .step-count { font-size: 24px; font-weight: 800; color: #6366f1; }
+    .step-label { font-size: 11px; color: #64748b; }
+
+    .auth-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    }
+    .auth-badge.active  { background: #064e3b; color: #34d399; border: 1px solid #065f46; }
+    .auth-badge.missing { background: #1c1917; color: #78716c; border: 1px solid #292524; }
+
+    .filename-row { display: flex; gap: 8px; margin-top: 8px; }
+
+    .files-list { padding: 12px 16px; flex-shrink: 0; }
+    .file-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 10px; border-radius: 6px; background: #0f172a;
+      margin-bottom: 6px; font-size: 12px;
+    }
+    .file-item .name { color: #a5b4fc; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
+    .file-item .actions { display: flex; gap: 4px; }
+
+    .log-panel { overflow-y: auto; max-height: 120px; font-size: 11px; color: #64748b; padding: 8px 16px; border-top: 1px solid #334155; flex-shrink: 0; }
+    .log-entry { margin-bottom: 3px; }
+    .log-entry.ok   { color: #4ade80; }
+    .log-entry.err  { color: #f87171; }
+    .log-entry.info { color: #38bdf8; }
+
+    /* ── Profile selector ── */
+    .profile-row { display: flex; gap: 6px; align-items: center; }
+    .profile-row select { flex: 1; font-size: 12px; padding: 6px 8px; }
+    .org-badge {
+      display: inline-block; padding: 2px 7px; border-radius: 10px;
+      font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+    }
+    .org-sandbox    { background: #1c3461; color: #93c5fd; }
+    .org-production { background: #4c1d1d; color: #fca5a5; }
+    .org-scratch    { background: #1a3a2a; color: #6ee7b7; }
+    .org-developer  { background: #2d1f5e; color: #c4b5fd; }
+    .org-default    { background: #1e293b; color: #94a3b8; }
+
+    /* ── Profile modal ── */
+    .modal-backdrop {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.65); z-index: 100;
+      align-items: center; justify-content: center;
+    }
+    .modal-backdrop.open { display: flex; }
+    .modal {
+      background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+      padding: 24px; width: 420px; max-width: 95vw;
+    }
+    .modal h3 { font-size: 15px; font-weight: 700; margin-bottom: 16px; color: #f8fafc; }
+    .field-group { margin-bottom: 12px; }
+    .field-group label { display: block; font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+    .field-group input, .field-group select { width: 100%; }
+    .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+    /* ── Right panel tabs ── */
+    .right-panel { display: flex; flex-direction: column; background: #0f172a; overflow: hidden; flex: 1; min-width: 0; }
+
+    .tab-bar {
+      display: flex; background: #1e293b; border-bottom: 1px solid #334155;
+      padding: 0 16px; gap: 4px; flex-shrink: 0;
+    }
+    .tab {
+      padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer;
+      border-bottom: 2px solid transparent; color: #64748b; background: none; border-top: none;
+      border-left: none; border-right: none; transition: color .15s;
+    }
+    .tab:hover { color: #e2e8f0; }
+    .tab.active { color: #a5b4fc; border-bottom-color: #6366f1; }
+    .tab-extra { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+    .tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+    .tab-content.active { display: flex; }
+
+    /* ── Code tab ── */
+    pre {
+      flex: 1; overflow: auto; padding: 20px 24px;
+      font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+      font-size: 13px; line-height: 1.7; color: #e2e8f0;
+      white-space: pre; margin: 0;
+    }
+    .kw  { color: #c084fc; }
+    .str { color: #86efac; }
+    .fn  { color: #67e8f9; }
+    .cm  { color: #475569; }
+
+    /* ── Run tab ── */
+    .run-toolbar {
+      display: flex; align-items: center; gap: 8px; padding: 12px 16px;
+      border-bottom: 1px solid #334155; background: #1e293b; flex-wrap: wrap;
+    }
+    select {
+      background: #0f172a; border: 1px solid #334155; color: #e2e8f0;
+      border-radius: 6px; padding: 7px 10px; font-size: 13px; outline: none; cursor: pointer;
+    }
+    select:focus { border-color: #6366f1; }
+
+    .upload-label {
+      padding: 6px 12px; border-radius: 6px; background: #334155; color: #e2e8f0;
+      font-size: 12px; font-weight: 600; cursor: pointer; border: 1px dashed #475569;
+    }
+    .upload-label:hover { background: #3f4f6a; }
+    input[type=file] { display: none; }
+
+    .run-status {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    }
+    .run-status.idle    { background: #1e293b; color: #475569; border: 1px solid #334155; }
+    .run-status.running { background: #1c3461; color: #60a5fa; border: 1px solid #2563eb; }
+    .run-status.passed  { background: #064e3b; color: #34d399; border: 1px solid #065f46; }
+    .run-status.failed  { background: #7f1d1d; color: #f87171; border: 1px solid #b91c1c; }
+
+    .terminal {
+      flex: 1; overflow-y: auto; background: #020617; padding: 16px 20px;
+      font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+      font-size: 12px; line-height: 1.6;
+    }
+    .terminal .line { white-space: pre-wrap; word-break: break-all; }
+    .terminal .line.stderr { color: #f87171; }
+    .terminal .line.stdout { color: #e2e8f0; }
+    .terminal .line.meta   { color: #475569; font-style: italic; }
+
+    /* ANSI colour approximations */
+    .ansi-green  { color: #4ade80; }
+    .ansi-red    { color: #f87171; }
+    .ansi-yellow { color: #fbbf24; }
+    .ansi-cyan   { color: #67e8f9; }
+    .ansi-gray   { color: #64748b; }
+    .ansi-bold   { font-weight: bold; }
+
+    .ws-status { width: 8px; height: 8px; border-radius: 50%; background: #334155; flex-shrink: 0; }
+    .ws-status.connected { background: #4ade80; }
+
+    /* ── Help slide-in ── */
+    .help-btn {
+      width: 30px; height: 30px; border-radius: 50%; border: 1px solid #334155;
+      background: #1e293b; color: #94a3b8; font-size: 15px; font-weight: 700;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background .15s, color .15s;
+    }
+    .help-btn:hover { background: #6366f1; color: #fff; border-color: #6366f1; }
+
+    .help-drawer {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      width: 380px; max-width: 95vw;
+      background: #1e293b; border-left: 1px solid #334155;
+      z-index: 200; display: flex; flex-direction: column;
+      transform: translateX(100%);
+      transition: transform .3s cubic-bezier(.4,0,.2,1);
+      box-shadow: -8px 0 32px rgba(0,0,0,.5);
+    }
+    .help-drawer.open { transform: translateX(0); }
+    .help-drawer-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 20px; border-bottom: 1px solid #334155; flex-shrink: 0;
+    }
+    .help-drawer-header h2 { font-size: 15px; font-weight: 700; color: #f8fafc; }
+    .help-close {
+      background: none; border: none; color: #64748b; font-size: 20px;
+      cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 4px;
+    }
+    .help-close:hover { color: #e2e8f0; background: #334155; }
+    .help-body {
+      flex: 1; overflow-y: auto; padding: 20px;
+      font-size: 13px; line-height: 1.7; color: #cbd5e1;
+      scrollbar-width: thin; scrollbar-color: #334155 transparent;
+    }
+    .help-body::-webkit-scrollbar { width: 5px; }
+    .help-body::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    .help-body h3 { font-size: 12px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: .07em; color: #6366f1; margin: 20px 0 8px; }
+    .help-body h3:first-child { margin-top: 0; }
+    .help-body p { margin-bottom: 10px; color: #94a3b8; }
+    .help-body ul { padding-left: 18px; margin-bottom: 10px; }
+    .help-body li { margin-bottom: 5px; }
+    .help-body code {
+      background: #0f172a; border: 1px solid #334155; border-radius: 4px;
+      padding: 1px 6px; font-family: 'JetBrains Mono', Consolas, monospace;
+      font-size: 11px; color: #a5b4fc;
+    }
+    .help-body .shortcut {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 0; border-bottom: 1px solid #1e293b;
+    }
+    .help-body .shortcut kbd {
+      background: #0f172a; border: 1px solid #475569; border-radius: 4px;
+      padding: 2px 7px; font-size: 11px; font-family: monospace; color: #e2e8f0;
+    }
+    .help-overlay {
+      display: none; position: fixed; inset: 0; z-index: 199; background: rgba(0,0,0,.3);
+    }
+    .help-overlay.open { display: block; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🎬</span>
+  <div>
+    <h1>SF Playwright Recorder</h1>
+    <div class="subtitle">Record browser interactions → generate &amp; run Playwright tests</div>
+  </div>
+  <div style="margin-left:auto;display:flex;align-items:center;gap:10px;">
+    <div class="ws-status" id="wsStatus" title="WebSocket"></div>
+    <span style="font-size:11px;color:#475569" id="wsLabel">disconnected</span>
+    <button class="help-btn" id="helpBtn" title="Help">?</button>
+  </div>
+</header>
+
+<!-- Help slide-in drawer -->
+<div class="help-overlay" id="helpOverlay"></div>
+<aside class="help-drawer" id="helpDrawer">
+  <div class="help-drawer-header">
+    <h2>SF Playwright Recorder — Help</h2>
+    <button class="help-close" id="helpClose">✕</button>
+  </div>
+  <div class="help-body">
+
+    <h3>Quick Start</h3>
+    <ul>
+      <li>Add an <strong>Org Profile</strong> with your SF username &amp; password.</li>
+      <li>Click <strong>⚡ Quick Login &amp; Record</strong> — the browser opens, logs in automatically, and starts recording.</li>
+      <li>Perform your flow in the browser window.</li>
+      <li>Click <strong>■ Stop Recording</strong>, give the test a filename, click <strong>Save</strong>.</li>
+      <li>Switch to the <strong>▶ Run</strong> tab and click <strong>▶ Run</strong>.</li>
+    </ul>
+
+    <h3>Org Profiles (~/.sfplaywright-recorder)</h3>
+    <p>Profiles are stored in a plain YAML dotfile in your home directory. You can edit it by hand or use the UI.</p>
+    <ul>
+      <li><strong>＋</strong> — add a new profile</li>
+      <li><strong>✏</strong> — edit (leave password blank to keep existing)</li>
+      <li><strong>✕</strong> — delete</li>
+      <li>Selecting a profile auto-fills the Login URL field.</li>
+    </ul>
+
+    <h3>Saved Auth State</h3>
+    <p>After logging in, click <strong>Save Auth State</strong> to store cookies &amp; tokens in <code>generated/sf-auth.json</code>. Tick <strong>Use saved auth</strong> on future recordings to skip the login page entirely.</p>
+
+    <h3>Selector Quality</h3>
+    <p>The recorder prefers stable selectors in this order:</p>
+    <ol style="padding-left:18px;margin-bottom:10px;">
+      <li><code>getByLabel()</code> — associated &lt;label&gt; text</li>
+      <li><code>getByPlaceholder()</code></li>
+      <li><code>getByRole()</code> — ARIA role + accessible name</li>
+      <li><code>getByTestId()</code></li>
+      <li><code>getByText()</code> — for buttons &amp; links</li>
+      <li>Shadow-DOM path — for Salesforce LWC components</li>
+      <li>CSS selector — last resort</li>
+    </ol>
+
+    <h3>Fill Dedup</h3>
+    <p>Keystroke-by-keystroke fills are collapsed to a single <code>fill(finalValue)</code> per field. Only the last value typed before you leave the field is kept.</p>
+
+    <h3>Running Tests</h3>
+    <p>Select a saved test in the <strong>▶ Run</strong> tab and click <strong>▶ Run</strong>. Output streams live. Click <strong>■ Kill</strong> to abort.</p>
+    <p>You can also upload a <code>.spec.js</code> file from outside the project using the <strong>⬆ Upload</strong> button.</p>
+    <p>From the terminal:</p>
+    <code>npx playwright test generated/my-test.js</code>
+
+    <h3>CLI Options</h3>
+    <div class="shortcut"><span><code>node server.js -p 4000</code></span><span>Use port 4000</span></div>
+    <div class="shortcut"><span><code>--no-open</code></span><span>Don't auto-open browser</span></div>
+    <div class="shortcut"><span><code>--help</code></span><span>Show CLI help</span></div>
+    <p style="margin-top:8px;">If the requested port is busy the server automatically tries the next one.</p>
+
+    <h3>Splitter</h3>
+    <p>Drag the vertical bar between the sidebar and the code panel to resize. <strong>Double-click</strong> to snap back to the default width.</p>
+
+    <h3>Dotfile Format</h3>
+    <pre style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:12px;font-size:11px;color:#a5b4fc;overflow:auto;margin-bottom:10px;">profiles:
+  - name: my-dev-org
+    login-url: https://login.salesforce.com
+    username: me@example.com.dev
+    password: Secret1
+    org-type: developer</pre>
+    <p>Keep this file private — treat it like <code>.env</code>.</p>
+
+  </div>
+</aside>
+
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+
+    <!-- Profiles -->
+    <div class="section">
+      <h2 style="display:flex;align-items:center;justify-content:space-between;">
+        Org Profiles
+        <button class="btn btn-ghost btn-sm" id="addProfileBtn" title="Add profile">＋</button>
+      </h2>
+      <div class="profile-row">
+        <select id="profileSelect"><option value="">— no profile —</option></select>
+        <button class="btn btn-ghost btn-sm" id="editProfileBtn" title="Edit" disabled>✏</button>
+        <button class="btn btn-danger btn-sm" id="deleteProfileBtn" title="Delete" disabled>✕</button>
+      </div>
+      <div id="profileMeta" style="margin-top:8px;font-size:11px;color:#64748b;min-height:16px;"></div>
+      <button class="btn btn-warning btn-full btn-sm hidden" id="quickLoginBtn">⚡ Quick Login &amp; Record</button>
+    </div>
+
+    <div class="section">
+      <h2>Session</h2>
+      <div id="recordingBadge" class="recording-indicator hidden">
+        <div class="dot"></div> Recording — interact with the browser window
+      </div>
+      <div class="url-row">
+        <input type="text" id="urlInput" placeholder="https://login.salesforce.com" value="https://login.salesforce.com">
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px;align-items:center;">
+        <label id="useAuthLabel" style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="checkbox" id="useAuthCheck"> Use saved auth
+        </label>
+        <span id="noAuthHint" class="hidden" style="font-size:11px;color:#f59e0b;" title="Save auth state first">⚠ no auth saved</span>
+      </div>
+      <button class="btn btn-primary btn-full" id="startBtn">▶ Start Recording</button>
+      <button class="btn btn-danger btn-full hidden" id="stopBtn">■ Stop Recording</button>
+    </div>
+
+    <div class="section" style="display:flex;align-items:center;gap:20px;">
+      <div>
+        <div class="step-count" id="stepCount">0</div>
+        <div class="step-label">steps captured</div>
+      </div>
+      <div style="margin-left:auto;">
+        <div id="authBadge" class="auth-badge missing">no saved auth</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Salesforce Auth</h2>
+      <p style="font-size:12px;color:#64748b;margin-bottom:8px;">
+        Log into Salesforce in the recorder window, then save auth state to skip login in future recordings.
+      </p>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-success btn-sm" id="saveAuthBtn">Save Auth State</button>
+        <button class="btn btn-ghost btn-sm" id="clearAuthBtn">Clear</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Save Test</h2>
+      <div class="filename-row">
+        <input type="text" id="filenameInput" placeholder="recorded-test.spec.js" value="recorded-test.spec.js">
+        <button class="btn btn-success btn-sm" id="saveBtn">Save</button>
+      </div>
+      <button class="btn btn-ghost btn-full btn-sm" id="copyBtn" style="margin-top:8px;">📋 Copy to Clipboard</button>
+      <button class="btn btn-ghost btn-full btn-sm" id="clearStepsBtn" style="margin-top:6px;">🗑 Clear Steps</button>
+    </div>
+
+    <div class="section" style="padding-bottom:8px;">
+      <h2>Saved Tests</h2>
+    </div>
+    <div class="files-list" id="filesList">
+      <div style="font-size:12px;color:#475569;text-align:center;padding-top:20px;">No saved tests yet</div>
+    </div>
+
+    <div class="log-panel" id="logPanel"></div>
+  </aside>
+
+  <!-- ── Resizable splitter ── -->
+  <div class="splitter" id="splitter"></div>
+
+  <!-- ── Right panel ── -->
+  <main class="right-panel">
+    <div class="tab-bar">
+      <button class="tab active" data-tab="code">Code</button>
+      <button class="tab" data-tab="run">▶ Run</button>
+      <div class="tab-extra">
+        <span style="font-size:11px;color:#475569" id="codeLabel">Generated code appears here as you record.</span>
+        <button class="btn btn-ghost btn-sm" id="copyCodeBtn">📋 Copy</button>
+      </div>
+    </div>
+
+    <!-- Code tab -->
+    <div class="tab-content active" id="tab-code">
+      <pre id="codeBlock"><span class="cm">// Start a recording session to generate test code</span>
+<span class="cm">// Steps are captured live as you interact with the browser</span></pre>
+    </div>
+
+    <!-- Run tab -->
+    <div class="tab-content" id="tab-run">
+      <div class="run-toolbar">
+        <select id="runFileSelect">
+          <option value="">— select a test file —</option>
+        </select>
+        <label class="upload-label" title="Upload a .spec.js file from your machine">
+          ⬆ Upload
+          <input type="file" id="uploadInput" accept=".js,.ts">
+        </label>
+        <button class="btn btn-success btn-sm" id="runBtn">▶ Run</button>
+        <button class="btn btn-danger btn-sm hidden" id="killBtn">■ Kill</button>
+        <div class="run-status idle" id="runStatus">idle</div>
+        <button class="btn btn-ghost btn-sm" id="clearTermBtn" style="margin-left:auto;">Clear</button>
+      </div>
+      <div class="terminal" id="terminal">
+        <div class="line meta">Select a test file above and click Run.</div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<!-- Profile add/edit modal -->
+<div class="modal-backdrop" id="profileModal">
+  <div class="modal">
+    <h3 id="modalTitle">Add Org Profile</h3>
+    <div class="field-group">
+      <label>Profile Name</label>
+      <input type="text" id="pName" placeholder="my-dev-org">
+    </div>
+    <div class="field-group">
+      <label>Login URL</label>
+      <input type="text" id="pLoginUrl" placeholder="https://login.salesforce.com">
+    </div>
+    <div class="field-group">
+      <label>Username</label>
+      <input type="text" id="pUsername" placeholder="you@example.com.dev" autocomplete="off">
+    </div>
+    <div class="field-group">
+      <label>Password</label>
+      <input type="password" id="pPassword" placeholder="(stored in ~/.sfplaywright-recorder)" autocomplete="off">
+    </div>
+    <div class="field-group">
+      <label>Org Type</label>
+      <select id="pOrgType">
+        <option value="developer">Developer</option>
+        <option value="sandbox">Sandbox</option>
+        <option value="production">Production</option>
+        <option value="scratch">Scratch</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="modalCancel">Cancel</button>
+      <button class="btn btn-primary" id="modalSave">Save Profile</button>
+    </div>
+    <p style="font-size:10px;color:#475569;margin-top:14px;">
+      Stored in <code style="color:#94a3b8">~/.sfplaywright-recorder</code> — keep this file private.
+    </p>
+  </div>
+</div>
+
+<script>
+  // ── WebSocket ──────────────────────────────────────────────────────────────
+  let ws;
+  const wsStatus = document.getElementById('wsStatus');
+  const wsLabel  = document.getElementById('wsLabel');
+
+  function connectWS() {
+    ws = new WebSocket(`ws://${location.host}`);
+    ws.onopen  = () => { wsStatus.classList.add('connected'); wsLabel.textContent = 'connected'; };
+    ws.onclose = () => { wsStatus.classList.remove('connected'); wsLabel.textContent = 'disconnected'; setTimeout(connectWS, 2000); };
+    ws.onmessage = (e) => handleServerMsg(JSON.parse(e.data));
+  }
+  connectWS();
+
+  // ── Tabs ───────────────────────────────────────────────────────────────────
+  document.querySelectorAll('.tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  // ── UI refs ────────────────────────────────────────────────────────────────
+  const startBtn       = document.getElementById('startBtn');
+  const stopBtn        = document.getElementById('stopBtn');
+  const recordingBadge = document.getElementById('recordingBadge');
+  const stepCount      = document.getElementById('stepCount');
+  const urlInput       = document.getElementById('urlInput');
+  const useAuthCheck   = document.getElementById('useAuthCheck');
+  const codeBlock      = document.getElementById('codeBlock');
+  const codeLabel      = document.getElementById('codeLabel');
+  const filenameInput  = document.getElementById('filenameInput');
+  const authBadge      = document.getElementById('authBadge');
+  const logPanel       = document.getElementById('logPanel');
+  const filesList      = document.getElementById('filesList');
+  const runFileSelect  = document.getElementById('runFileSelect');
+  const runBtn         = document.getElementById('runBtn');
+  const killBtn        = document.getElementById('killBtn');
+  const runStatus      = document.getElementById('runStatus');
+  const terminal       = document.getElementById('terminal');
+
+  // ── Log ────────────────────────────────────────────────────────────────────
+  function log(msg, cls = 'info') {
+    const d = document.createElement('div');
+    d.className = 'log-entry ' + cls;
+    d.textContent = new Date().toLocaleTimeString() + ' — ' + msg;
+    logPanel.prepend(d);
+    if (logPanel.children.length > 40) logPanel.lastChild.remove();
+  }
+
+  // ── Terminal output ────────────────────────────────────────────────────────
+  // Strip ANSI escape codes and apply basic colour classes
+  function ansiToHtml(text) {
+    const esc = text
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return esc
+      .replace(/\x1b\[0?m/g,    '</span>')
+      .replace(/\x1b\[1m/g,     '<span class="ansi-bold">')
+      .replace(/\x1b\[32m/g,    '<span class="ansi-green">')
+      .replace(/\x1b\[31m/g,    '<span class="ansi-red">')
+      .replace(/\x1b\[33m/g,    '<span class="ansi-yellow">')
+      .replace(/\x1b\[36m/g,    '<span class="ansi-cyan">')
+      .replace(/\x1b\[90m/g,    '<span class="ansi-gray">')
+      .replace(/\x1b\[\d+m/g,   '');  // strip remaining codes
+  }
+
+  function termLine(text, channel) {
+    const div = document.createElement('div');
+    div.className = 'line ' + channel;
+    div.innerHTML = ansiToHtml(text);
+    terminal.appendChild(div);
+    terminal.scrollTop = terminal.scrollHeight;
+  }
+
+  function termMeta(text) { termLine(text, 'meta'); }
+
+  // ── Server messages ────────────────────────────────────────────────────────
+  function handleServerMsg(msg) {
+    switch (msg.type) {
+      case 'started':
+        setRecordingUI(true);
+        log('Recording started', 'ok');
+        break;
+      case 'stopped':
+        setRecordingUI(false);
+        stepCount.textContent = msg.stepCount;
+        log(`Recording stopped — ${msg.stepCount} steps`, 'ok');
+        break;
+      case 'step':
+        stepCount.textContent = msg.stepCount;
+        if (msg.code) renderCode(msg.code);
+        if (msg.event) log(`${msg.event.type}: ${msg.event.element?.label || msg.event.element?.css || msg.event.url || ''}`, 'info');
+        break;
+      case 'saved':
+        log('Saved: ' + msg.path, 'ok');
+        loadFiles();
+        break;
+      case 'cleared':
+        stepCount.textContent = '0';
+        renderCode('// Steps cleared');
+        log('Steps cleared');
+        break;
+      case 'authSaved':
+        log('Auth state saved', 'ok');
+        refreshAuthStatus();
+        break;
+      case 'authCleared':
+        log('Auth state cleared');
+        refreshAuthStatus();
+        break;
+
+      // ── Profile events ──
+      case 'profilesChanged':
+        loadProfiles();
+        break;
+      case 'quickLoginDone':
+        setRecordingUI(true);
+        log('Logged in — recording started at ' + msg.url, 'ok');
+        break;
+
+      // ── Runner events ──
+      case 'runStart':
+        terminal.innerHTML = '';
+        termMeta(`▶ Running ${msg.filename} …`);
+        setRunStatus('running');
+        runBtn.classList.add('hidden');
+        killBtn.classList.remove('hidden');
+        // Switch to Run tab automatically
+        document.querySelector('.tab[data-tab="run"]').click();
+        break;
+      case 'runLog':
+        termLine(msg.text, msg.channel);
+        break;
+      case 'runEnd': {
+        const ok = msg.code === 0;
+        termMeta(`\n${ok ? '✓ Passed' : '✗ Failed'} (exit ${msg.code})`);
+        setRunStatus(ok ? 'passed' : 'failed');
+        runBtn.classList.remove('hidden');
+        killBtn.classList.add('hidden');
+        log(`Test run ${ok ? 'passed' : 'failed'} (exit ${msg.code})`, ok ? 'ok' : 'err');
+        break;
+      }
+    }
+  }
+
+  function setRunStatus(s) {
+    runStatus.className = 'run-status ' + s;
+    runStatus.textContent = s;
+  }
+
+  function setRecordingUI(on) {
+    recordingBadge.classList.toggle('hidden', !on);
+    startBtn.classList.toggle('hidden', on);
+    stopBtn.classList.toggle('hidden', !on);
+    startBtn.disabled = false;
+  }
+
+  // ── Syntax highlight ───────────────────────────────────────────────────────
+  function highlight(code) {
+    return code
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/(&#39;|'[^']*'|"[^"]*"|`[^`]*`)/g, '<span class="str">$1</span>')
+      .replace(/\b(import|from|export|const|let|var|async|await|test|expect|return)\b/g, '<span class="kw">$1</span>')
+      .replace(/\b(goto|click|fill|selectOption|check|uncheck|press|screenshot|waitForURL|toHaveText|toBeVisible|getByLabel|getByRole|getByText|getByPlaceholder|getByTestId|locator)\b/g, '<span class="fn">$1</span>')
+      .replace(/(\/\/[^\n]*)/g, '<span class="cm">$1</span>');
+  }
+
+  function renderCode(code) {
+    codeBlock.innerHTML = highlight(code);
+    codeLabel.textContent = `${code.split('\n').length} lines`;
+  }
+
+  // ── Record buttons ─────────────────────────────────────────────────────────
+  startBtn.addEventListener('click', async () => {
+    startBtn.disabled = true;
+    try {
+      const res = await fetch('/api/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: urlInput.value, useAuth: useAuthCheck.checked }),
+      });
+      const data = await res.json();
+      if (!data.ok) { log('Error: ' + data.error, 'err'); startBtn.disabled = false; }
+    } catch (e) { log('Network error: ' + e.message, 'err'); startBtn.disabled = false; }
+  });
+
+  stopBtn.addEventListener('click', async () => {
+    stopBtn.disabled = true;
+    try { await fetch('/api/stop', { method: 'POST' }); }
+    finally { stopBtn.disabled = false; }
+  });
+
+  document.getElementById('saveAuthBtn').addEventListener('click', async () => {
+    const res = await fetch('/api/save-auth', { method: 'POST' });
+    const data = await res.json();
+    if (!data.ok) log('Error: ' + data.error, 'err');
+  });
+
+  document.getElementById('clearAuthBtn').addEventListener('click', () =>
+    fetch('/api/auth', { method: 'DELETE' }));
+
+  document.getElementById('saveBtn').addEventListener('click', async () => {
+    const filename = filenameInput.value.trim() || 'recorded-test.spec.js';
+    const res = await fetch('/api/save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename }),
+    });
+    const data = await res.json();
+    if (!data.ok) log('Error saving: ' + data.error, 'err');
+  });
+
+  document.getElementById('clearStepsBtn').addEventListener('click', () =>
+    fetch('/api/clear', { method: 'POST' }));
+
+  const copyFn = async (text) => {
+    await navigator.clipboard.writeText(text);
+    log('Copied to clipboard', 'ok');
+  };
+
+  document.getElementById('copyBtn').addEventListener('click', async () => {
+    const res = await fetch('/api/code');
+    const data = await res.json();
+    copyFn(data.code);
+  });
+
+  document.getElementById('copyCodeBtn').addEventListener('click', () =>
+    copyFn(codeBlock.innerText || codeBlock.textContent));
+
+  // ── Run tab ────────────────────────────────────────────────────────────────
+  runBtn.addEventListener('click', async () => {
+    const filename = runFileSelect.value;
+    if (!filename) { log('Select a test file first', 'err'); return; }
+    const res = await fetch('/api/run', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename }),
+    });
+    const data = await res.json();
+    if (!data.ok) log('Run error: ' + data.error, 'err');
+  });
+
+  killBtn.addEventListener('click', () => fetch('/api/run/kill', { method: 'POST' }));
+
+  document.getElementById('clearTermBtn').addEventListener('click', () => {
+    terminal.innerHTML = '';
+    setRunStatus('idle');
+  });
+
+  // Upload an external spec file
+  document.getElementById('uploadInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const buf = await file.arrayBuffer();
+    const res = await fetch('/api/upload?name=' + encodeURIComponent(file.name), {
+      method: 'POST', body: buf,
+    });
+    const data = await res.json();
+    if (data.ok) {
+      log('Uploaded: ' + data.name, 'ok');
+      await loadFiles();
+      // Auto-select the uploaded file in the run dropdown
+      runFileSelect.value = data.name;
+    } else {
+      log('Upload error: ' + data.error, 'err');
+    }
+    e.target.value = '';
+  });
+
+  // ── Auth status ────────────────────────────────────────────────────────────
+  async function refreshAuthStatus() {
+    const data = await fetch('/api/auth-status').then(r => r.json());
+    authBadge.className = 'auth-badge ' + (data.hasAuth ? 'active' : 'missing');
+    authBadge.textContent = data.hasAuth ? '✓ auth saved' : 'no saved auth';
+    // Never disable the checkbox — always let the user tick it.
+    // If there's no saved auth and they tick it, show a hint; server will ignore the flag anyway.
+    useAuthCheck.disabled = false;
+    const hint = document.getElementById('noAuthHint');
+    const lbl  = document.getElementById('useAuthLabel');
+    if (data.hasAuth) {
+      hint.classList.add('hidden');
+      lbl.style.color = '#94a3b8';
+    } else {
+      // Show warning only when the box is actually checked without saved auth
+      hint.classList.toggle('hidden', !useAuthCheck.checked);
+      lbl.style.color = useAuthCheck.checked ? '#f59e0b' : '#94a3b8';
+    }
+  }
+
+  // Re-run hint logic when user changes the checkbox
+  document.getElementById('useAuthCheck').addEventListener('change', refreshAuthStatus);
+
+  // ── Files list + run dropdown ──────────────────────────────────────────────
+  async function loadFiles() {
+    const data = await fetch('/api/files').then(r => r.json());
+
+    // Sidebar list
+    if (!data.files.length) {
+      filesList.innerHTML = '<div style="font-size:12px;color:#475569;text-align:center;padding-top:20px;">No saved tests yet</div>';
+    } else {
+      filesList.innerHTML = data.files.map(f => `
+        <div class="file-item">
+          <span class="name" title="${f.name}">${f.name}</span>
+          <div class="actions">
+            <button class="btn btn-success btn-sm" onclick="quickRun('${f.name}')" title="Run">▶</button>
+            <a href="/api/files/${encodeURIComponent(f.name)}" download="${f.name}">
+              <button class="btn btn-ghost btn-sm" title="Download">⬇</button>
+            </a>
+          </div>
+        </div>`).join('');
+    }
+
+    // Run dropdown
+    const prev = runFileSelect.value;
+    runFileSelect.innerHTML = '<option value="">— select a test file —</option>' +
+      data.files.map(f => `<option value="${f.name}">${f.name}</option>`).join('');
+    if (prev && data.files.some(f => f.name === prev)) runFileSelect.value = prev;
+  }
+
+  // Quick run from sidebar ▶ button
+  window.quickRun = async (filename) => {
+    runFileSelect.value = filename;
+    document.querySelector('.tab[data-tab="run"]').click();
+    const res = await fetch('/api/run', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename }),
+    });
+    const data = await res.json();
+    if (!data.ok) log('Run error: ' + data.error, 'err');
+  };
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  refreshAuthStatus();
+  loadFiles();
+
+  fetch('/api/code').then(r => r.json()).then(d => {
+    if (d.stepCount > 0) { stepCount.textContent = d.stepCount; renderCode(d.code); }
+  });
+
+  fetch('/api/run/status').then(r => r.json()).then(d => {
+    if (d.running) setRunStatus('running');
+  });
+
+  // ── Profiles ───────────────────────────────────────────────────────────────
+  const profileSelect    = document.getElementById('profileSelect');
+  const editProfileBtn   = document.getElementById('editProfileBtn');
+  const deleteProfileBtn = document.getElementById('deleteProfileBtn');
+  const quickLoginBtn    = document.getElementById('quickLoginBtn');
+  const profileMeta      = document.getElementById('profileMeta');
+  const profileModal     = document.getElementById('profileModal');
+
+  const ORG_COLORS = { sandbox:'org-sandbox', production:'org-production', scratch:'org-scratch', developer:'org-developer' };
+
+  let profilesCache = [];
+
+  async function loadProfiles() {
+    const data = await fetch('/api/profiles').then(r => r.json());
+    profilesCache = data.profiles || [];
+    const prev = profileSelect.value;
+    profileSelect.innerHTML = '<option value="">— no profile —</option>' +
+      profilesCache.map(p => {
+        const cls = ORG_COLORS[p['org-type']] || 'org-default';
+        return `<option value="${p.name}">${p.name}  [${p['org-type'] || '?'}]</option>`;
+      }).join('');
+    if (prev && profilesCache.some(p => p.name === prev)) profileSelect.value = prev;
+    onProfileChange();
+  }
+
+  function onProfileChange() {
+    const name = profileSelect.value;
+    const p = profilesCache.find(x => x.name === name);
+    editProfileBtn.disabled   = !p;
+    deleteProfileBtn.disabled = !p;
+    quickLoginBtn.classList.toggle('hidden', !p);
+
+    if (p) {
+      const cls = ORG_COLORS[p['org-type']] || 'org-default';
+      const hasPass = p.password && p.password !== '';
+      profileMeta.innerHTML =
+        `<span class="org-badge ${cls}">${p['org-type'] || 'org'}</span> ` +
+        `<span style="color:#94a3b8">${p.username || ''}</span> ` +
+        `<span style="color:#475569">${hasPass ? '🔑' : '(no password)'}</span>`;
+      // Pre-fill the URL input
+      if (p['login-url']) urlInput.value = p['login-url'];
+    } else {
+      profileMeta.innerHTML = '';
+    }
+  }
+
+  profileSelect.addEventListener('change', onProfileChange);
+
+  // Quick Login
+  quickLoginBtn.addEventListener('click', async () => {
+    const name = profileSelect.value;
+    if (!name) return;
+    quickLoginBtn.disabled = true;
+    try {
+      const res  = await fetch('/api/quick-login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileName: name, useAuth: useAuthCheck.checked }),
+      });
+      const data = await res.json();
+      if (!data.ok) log('Quick login error: ' + data.error, 'err');
+    } catch(e) { log('Quick login error: ' + e.message, 'err'); }
+    finally { quickLoginBtn.disabled = false; }
+  });
+
+  // Modal open helpers
+  function openModal(profile) {
+    document.getElementById('modalTitle').textContent = profile ? 'Edit Profile' : 'Add Org Profile';
+    document.getElementById('pName').value      = profile?.name       || '';
+    document.getElementById('pLoginUrl').value  = profile?.['login-url'] || 'https://login.salesforce.com';
+    document.getElementById('pUsername').value  = profile?.username   || '';
+    document.getElementById('pPassword').value  = '';   // never pre-fill password from server
+    document.getElementById('pOrgType').value   = profile?.['org-type'] || 'developer';
+    document.getElementById('pName').disabled   = !!profile; // can't rename
+    profileModal.classList.add('open');
+  }
+
+  document.getElementById('addProfileBtn').addEventListener('click', () => openModal(null));
+
+  editProfileBtn.addEventListener('click', () => {
+    const p = profilesCache.find(x => x.name === profileSelect.value);
+    if (p) openModal(p);
+  });
+
+  deleteProfileBtn.addEventListener('click', async () => {
+    const name = profileSelect.value;
+    if (!name || !confirm(`Delete profile "${name}"?`)) return;
+    await fetch('/api/profiles/' + encodeURIComponent(name), { method: 'DELETE' });
+    await loadProfiles();
+    log('Profile deleted: ' + name);
+  });
+
+  document.getElementById('modalCancel').addEventListener('click', () =>
+    profileModal.classList.remove('open'));
+
+  profileModal.addEventListener('click', e => {
+    if (e.target === profileModal) profileModal.classList.remove('open');
+  });
+
+  document.getElementById('modalSave').addEventListener('click', async () => {
+    const name = document.getElementById('pName').value.trim();
+    if (!name) { alert('Profile name is required'); return; }
+    const body = {
+      name,
+      'login-url': document.getElementById('pLoginUrl').value.trim() || 'https://login.salesforce.com',
+      username:    document.getElementById('pUsername').value.trim(),
+      'org-type':  document.getElementById('pOrgType').value,
+    };
+    const pw = document.getElementById('pPassword').value;
+    if (pw) body.password = pw;   // only send if user typed something
+
+    const res  = await fetch('/api/profiles', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      profileModal.classList.remove('open');
+      await loadProfiles();
+      profileSelect.value = name;
+      onProfileChange();
+      log('Profile saved: ' + name, 'ok');
+    } else {
+      log('Error saving profile: ' + data.error, 'err');
+    }
+  });
+
+  loadProfiles();
+
+  // ── Help drawer ────────────────────────────────────────────────────────────
+  (function () {
+    const drawer  = document.getElementById('helpDrawer');
+    const overlay = document.getElementById('helpOverlay');
+    const open  = () => { drawer.classList.add('open');  overlay.classList.add('open'); };
+    const close = () => { drawer.classList.remove('open'); overlay.classList.remove('open'); };
+    document.getElementById('helpBtn').addEventListener('click', open);
+    document.getElementById('helpClose').addEventListener('click', close);
+    overlay.addEventListener('click', close);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  })();
+
+  // ── Resizable splitter ─────────────────────────────────────────────────────
+  (function () {
+    const splitter = document.getElementById('splitter');
+    const sidebar  = document.querySelector('.sidebar');
+    const layout   = document.querySelector('.layout');
+    let dragging = false, startX = 0, startW = 0;
+
+    splitter.addEventListener('mousedown', (e) => {
+      dragging = true;
+      startX = e.clientX;
+      startW = sidebar.getBoundingClientRect().width;
+      splitter.classList.add('dragging');
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!dragging) return;
+      const delta = e.clientX - startX;
+      const newW  = Math.min(600, Math.max(220, startW + delta));
+      sidebar.style.width = newW + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!dragging) return;
+      dragging = false;
+      splitter.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+
+    // Animate to default width on double-click
+    splitter.addEventListener('dblclick', () => {
+      sidebar.style.transition = 'width .3s cubic-bezier(.4,0,.2,1)';
+      sidebar.style.width = '340px';
+      setTimeout(() => sidebar.style.transition = '', 350);
+    });
+  })();
+</script>
+</body>
+</html>
