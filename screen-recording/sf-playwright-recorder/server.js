@@ -362,12 +362,12 @@ app.get('/api/code', (req, res) => {
   res.json({ code: generateCode(recorderState.steps, useAuth), stepCount: recorderState.steps.length });
 });
 
-// Save generated test to disk
+// Save generated test to disk (code may come from editor via req.body.code)
 app.post('/api/save', (req, res) => {
-  const { filename = 'recorded-test.spec.js' } = req.body;
+  const { filename = 'recorded-test.spec.js', code: bodyCode } = req.body;
   const useAuth = fs.existsSync(AUTH_FILE);
-  const code = generateCode(recorderState.steps, useAuth);
-  const outPath = path.join(STORAGE_DIR, filename);
+  const code = bodyCode !== undefined ? bodyCode : generateCode(recorderState.steps, useAuth);
+  const outPath = path.join(STORAGE_DIR, path.basename(filename));
   fs.writeFileSync(outPath, code, 'utf8');
   broadcast({ type: 'saved', path: outPath });
   res.json({ ok: true, path: outPath });
@@ -561,6 +561,24 @@ app.get('/api/files/:name', (req, res) => {
   const filePath = path.join(STORAGE_DIR, path.basename(req.params.name));
   if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
   res.download(filePath);
+});
+
+// Return file content as plain text (for Monaco editor)
+app.get('/api/files/:name/content', (req, res) => {
+  const filePath = path.join(STORAGE_DIR, path.basename(req.params.name));
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Not found' });
+  res.type('text/plain').send(fs.readFileSync(filePath, 'utf8'));
+});
+
+// Overwrite file content from Monaco editor
+app.put('/api/files/:name/content', (req, res) => {
+  const name = path.basename(req.params.name);
+  if (!name.endsWith('.js') && !name.endsWith('.ts')) {
+    return res.status(400).json({ error: 'Only .js / .ts files accepted' });
+  }
+  const filePath = path.join(STORAGE_DIR, name);
+  fs.writeFileSync(filePath, req.body.code || '', 'utf8');
+  res.json({ ok: true });
 });
 
 // Upload an external test file into generated/ so Playwright can find it

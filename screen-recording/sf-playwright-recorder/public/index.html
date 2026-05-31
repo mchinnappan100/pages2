@@ -4,7 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SF Playwright Recorder</title>
-    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script>var require = { paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs' } };</script>
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.50.0/min/vs/loader.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
@@ -164,17 +166,10 @@
     .tab-content { display: none; flex: 1; flex-direction: column; overflow: hidden; }
     .tab-content.active { display: flex; }
 
-    /* ── Code tab ── */
-    pre {
-      flex: 1; overflow: auto; padding: 20px 24px;
-      font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
-      font-size: 13px; line-height: 1.7; color: #e2e8f0;
-      white-space: pre; margin: 0;
+    /* ── Monaco editor container ── */
+    #monacoContainer {
+      flex: 1; overflow: hidden; position: relative;
     }
-    .kw  { color: #c084fc; }
-    .str { color: #86efac; }
-    .fn  { color: #67e8f9; }
-    .cm  { color: #475569; }
 
     /* ── Run tab ── */
     .run-toolbar {
@@ -460,15 +455,16 @@
       <button class="tab active" data-tab="code">Code</button>
       <button class="tab" data-tab="run">▶ Run</button>
       <div class="tab-extra">
-        <span style="font-size:11px;color:#475569" id="codeLabel">Generated code appears here as you record.</span>
+        <span style="font-size:11px;color:#475569" id="codeLabel">Start a recording or select a file.</span>
         <button class="btn btn-ghost btn-sm" id="copyCodeBtn">📋 Copy</button>
+        <button class="btn btn-success btn-sm" id="saveEditorBtn" title="Save edits to disk">💾 Save</button>
+        <button class="btn btn-warning btn-sm" id="saveRunBtn" title="Save edits then run">💾 ▶ Save &amp; Run</button>
       </div>
     </div>
 
-    <!-- Code tab -->
+    <!-- Code tab — Monaco editor -->
     <div class="tab-content active" id="tab-code">
-      <pre id="codeBlock"><span class="cm">// Start a recording session to generate test code</span>
-<span class="cm">// Steps are captured live as you interact with the browser</span></pre>
+      <div id="monacoContainer"></div>
     </div>
 
     <!-- Run tab -->
@@ -564,8 +560,8 @@
   const stepCount      = document.getElementById('stepCount');
   const urlInput       = document.getElementById('urlInput');
   const useAuthCheck   = document.getElementById('useAuthCheck');
-  const codeBlock      = document.getElementById('codeBlock');
   const codeLabel      = document.getElementById('codeLabel');
+  let monacoEditor     = null;   // set once Monaco is ready
   const filenameInput  = document.getElementById('filenameInput');
   const authBadge      = document.getElementById('authBadge');
   const logPanel       = document.getElementById('logPanel');
@@ -692,19 +688,47 @@
     startBtn.disabled = false;
   }
 
-  // ── Syntax highlight ───────────────────────────────────────────────────────
-  function highlight(code) {
-    return code
-      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-      .replace(/(&#39;|'[^']*'|"[^"]*"|`[^`]*`)/g, '<span class="str">$1</span>')
-      .replace(/\b(import|from|export|const|let|var|async|await|test|expect|return)\b/g, '<span class="kw">$1</span>')
-      .replace(/\b(goto|click|fill|selectOption|check|uncheck|press|screenshot|waitForURL|toHaveText|toBeVisible|getByLabel|getByRole|getByText|getByPlaceholder|getByTestId|locator)\b/g, '<span class="fn">$1</span>')
-      .replace(/(\/\/[^\n]*)/g, '<span class="cm">$1</span>');
-  }
+  // ── Monaco editor ──────────────────────────────────────────────────────────
+  require(['vs/editor/editor.main'], function () {
+    monacoEditor = monaco.editor.create(document.getElementById('monacoContainer'), {
+      value: '// Start a recording session to generate test code\n// Steps are captured live as you interact with the browser',
+      language: 'javascript',
+      theme: 'vs-dark',
+      fontSize: 13,
+      fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
+      lineHeight: 22,
+      minimap: { enabled: true },
+      scrollBeyondLastLine: false,
+      automaticLayout: true,
+      tabSize: 2,
+      wordWrap: 'off',
+      renderLineHighlight: 'line',
+      smoothScrolling: true,
+      cursorBlinking: 'smooth',
+      padding: { top: 12, bottom: 12 },
+    });
+
+    // Track unsaved edits
+    monacoEditor.onDidChangeModelContent(() => {
+      const label = codeLabel.textContent;
+      if (label && !label.startsWith('*')) codeLabel.textContent = '* ' + label;
+    });
+  });
 
   function renderCode(code) {
-    codeBlock.innerHTML = highlight(code);
-    codeLabel.textContent = `${code.split('\n').length} lines`;
+    if (monacoEditor) {
+      monacoEditor.setValue(code);
+      // Reset the "unsaved" marker since this is a fresh load
+      const lines = code.split('\n').length;
+      codeLabel.textContent = `${lines} lines`;
+    } else {
+      // Monaco not ready yet — queue and retry
+      setTimeout(() => renderCode(code), 100);
+    }
+  }
+
+  function getEditorCode() {
+    return monacoEditor ? monacoEditor.getValue() : '';
   }
 
   // ── Record buttons ─────────────────────────────────────────────────────────
@@ -761,7 +785,74 @@
   });
 
   document.getElementById('copyCodeBtn').addEventListener('click', () =>
-    copyFn(codeBlock.innerText || codeBlock.textContent));
+    copyFn(getEditorCode()));
+
+  // Save editor content back to disk
+  async function saveEditorToDisk() {
+    const filename = document.getElementById('filenameInput').value.trim()
+      || runFileSelect.value
+      || 'recorded-test.spec.js';
+    const code = getEditorCode();
+    // Try to update an existing file first (PUT), else save as new (POST /api/save)
+    if (runFileSelect.value) {
+      const res = await fetch(`/api/files/${encodeURIComponent(runFileSelect.value)}/content`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        codeLabel.textContent = runFileSelect.value + '  ✓ saved';
+        log('Saved: ' + runFileSelect.value, 'ok');
+        return runFileSelect.value;
+      }
+    }
+    // Fall back to /api/save (creates new file)
+    const res = await fetch('/api/save', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename, code }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      codeLabel.textContent = filename + '  ✓ saved';
+      log('Saved: ' + filename, 'ok');
+      await loadFiles();
+      runFileSelect.value = filename;
+    }
+    return filename;
+  }
+
+  document.getElementById('saveEditorBtn').addEventListener('click', saveEditorToDisk);
+
+  document.getElementById('saveRunBtn').addEventListener('click', async () => {
+    const filename = await saveEditorToDisk();
+    if (!filename) return;
+    // Switch to Run tab and trigger run
+    runFileSelect.value = filename;
+    document.querySelector('.tab[data-tab="run"]').click();
+    const res = await fetch('/api/run', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename }),
+    });
+    const data = await res.json();
+    if (!data.ok) log('Run error: ' + data.error, 'err');
+  });
+
+  // ── Code tab: show selected file content ──────────────────────────────────
+  async function showFileInCodeTab(filename) {
+    if (!filename) return;
+    try {
+      const text = await fetch(`/api/files/${encodeURIComponent(filename)}/content`).then(r => r.text());
+      renderCode(text);
+      document.getElementById('codeLabel').textContent = filename;
+      // Switch to Code tab so the user sees it
+      document.querySelector('.tab[data-tab="code"]').click();
+    } catch (e) {
+      log('Could not load file: ' + e.message, 'err');
+    }
+  }
+
+  runFileSelect.addEventListener('change', () => showFileInCodeTab(runFileSelect.value));
 
   // ── Run tab ────────────────────────────────────────────────────────────────
   runBtn.addEventListener('click', async () => {
@@ -794,8 +885,8 @@
     if (data.ok) {
       log('Uploaded: ' + data.name, 'ok');
       await loadFiles();
-      // Auto-select the uploaded file in the run dropdown
       runFileSelect.value = data.name;
+      showFileInCodeTab(data.name);
     } else {
       log('Upload error: ' + data.error, 'err');
     }
@@ -855,6 +946,7 @@
   // Quick run from sidebar ▶ button
   window.quickRun = async (filename) => {
     runFileSelect.value = filename;
+    showFileInCodeTab(filename);
     document.querySelector('.tab[data-tab="run"]').click();
     const res = await fetch('/api/run', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -869,7 +961,14 @@
   loadFiles();
 
   fetch('/api/code').then(r => r.json()).then(d => {
-    if (d.stepCount > 0) { stepCount.textContent = d.stepCount; renderCode(d.code); }
+    if (d.stepCount > 0) {
+      stepCount.textContent = d.stepCount;
+      renderCode(d.code);
+    } else {
+      // No active recording — show the currently selected file (if any)
+      const sel = runFileSelect.value;
+      if (sel) showFileInCodeTab(sel);
+    }
   });
 
   fetch('/api/run/status').then(r => r.json()).then(d => {
