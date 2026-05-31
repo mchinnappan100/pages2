@@ -592,6 +592,107 @@ app.post('/api/upload', express.raw({ type: '*/*', limit: '2mb' }), (req, res) =
   res.json({ ok: true, name });
 });
 
+// ── Parameterize endpoint ─────────────────────────────────────────────────────
+// Receives code + a map of { literal -> paramName } replacements.
+// Returns the rewritten code with {{PARAM}} tokens and a test.use / fixture header.
+app.post('/api/parameterize', (req, res) => {
+  const { code, params } = req.body;  // params: [{literal, name, defaultValue}]
+  if (!code || !params) return res.status(400).json({ error: 'code and params required' });
+
+  let result = code;
+  for (const { literal, name } of params) {
+    // Replace every occurrence of the exact quoted string with {{NAME}}
+    // Works for both "double" and 'single' quotes
+    const escaped = literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    result = result
+      .replace(new RegExp(`"${escaped}"`, 'g'), `"{{${name}}}"`)
+      .replace(new RegExp(`'${escaped}'`, 'g'), `'{{${name}}}'`);
+  }
+
+  // Prepend a params block so the file is self-documenting
+  const defaults = params.map(p => `  ${p.name}: ${JSON.stringify(p.defaultValue || p.literal)},`).join('\n');
+  const header = `// ── Parameters ──────────────────────────────────────────────\n// Edit values here or supply a data file in the Data-driven tab\nconst PARAMS = {\n${defaults}\n};\n\n`;
+  // Replace {{NAME}} tokens with PARAMS.NAME at runtime
+  const footer = params.map(p =>
+    `// PARAMS.${p.name} → ${JSON.stringify(p.defaultValue || p.literal)}`
+  ).join('\n');
+
+  // Substitute tokens in the code body with PARAMS.NAME
+  let runnable = result;
+  for (const { name } of params) {
+    runnable = runnable
+      .replace(new RegExp(`"\\{\\{${name}\\}\\}"`, 'g'), `PARAMS.${name}`)
+      .replace(new RegExp(`'\\{\\{${name}\\}\\}'`, 'g'), `PARAMS.${name}`);
+  }
+
+  res.json({ ok: true, code: header + runnable });
+});
+
+// ── Data-driven run ───────────────────────────────────────────────────────────
+// Receives base code (with {{TOKEN}} placeholders) + rows (JSON array of objects or CSV string).
+// Writes a generated test.each file to disk and runs it.
+app.post('/api/run-data-driven', (req, res) => {
+  if (runnerProc) return res.json({ ok: false, error: 'A test run is already in progress' });
+
+  const { code, rows, filename = '_data-driven.spec.js' } = req.body;
+  if (!code || !rows || !rows.length) {
+    return res.status(400).json({ error: 'code and rows required' });
+  }
+
+  // Build test.each array
+  const datasets = JSON.stringify(rows, null, 2);
+
+  // Replace {{TOKEN}} in code body with row[token] references
+  const tokens = [...new Set([...code.matchAll(/\{\{(\w+)\}\}/g)].map(m => m[1]))];
+  let body = code;
+  for (const t of tokens) {
+    body = body
+      .replace(new RegExp(`"\\{\\{${t}\\}\\}"`, 'g'), `row.${t}`)
+      .replace(new RegExp(`'\\{\\{${t}\\}\\}'`, 'g'), `row.${t}`);
+  }
+
+  // Strip the require line — we'll add our own
+  body = body.replace(/^const\s*\{\s*test.*require.*;\n*/m, '');
+
+  const generated = `const { test, expect } = require('@playwright/test');
+
+const DATA = ${datasets};
+
+for (const row of DATA) {
+  test(\`Recorded SF flow — \${JSON.stringify(row)}\`, async ({ page }) => {
+${body.replace(/^test\(['"`].*?['"`],\s*async\s*\(\{[^}]*\}\)\s*=>\s*\{/m, '').replace(/^\}\);?\s*$/m, '')}  });
+}
+`;
+
+  const safeName = path.basename(filename).replace(/[^a-zA-Z0-9._-]/g, '_');
+  const outPath = path.join(STORAGE_DIR, safeName);
+  fs.writeFileSync(outPath, generated, 'utf8');
+
+  broadcast({ type: 'runStart', filename: safeName });
+
+  runnerProc = spawn(
+    'npx', ['playwright', 'test', outPath, '--config', path.join(__dirname, 'playwright.config.js')],
+    { cwd: __dirname, env: { ...process.env } }
+  );
+
+  runnerWatchdog = setTimeout(() => {
+    if (runnerProc) {
+      broadcast({ type: 'runLog', channel: 'stderr', text: '\n[Recorder] Watchdog: run exceeded time limit — killing.\n' });
+      runnerProc.kill('SIGKILL');
+    }
+  }, WATCHDOG_MS);
+
+  const fwd = (stream, ch) => stream.on('data', chunk => broadcast({ type: 'runLog', channel: ch, text: chunk.toString() }));
+  fwd(runnerProc.stdout, 'stdout');
+  fwd(runnerProc.stderr, 'stderr');
+  runnerProc.on('close', code => {
+    clearTimeout(runnerWatchdog); runnerWatchdog = null;
+    broadcast({ type: 'runEnd', code }); runnerProc = null;
+  });
+
+  res.json({ ok: true, generatedFile: safeName });
+});
+
 // ── Test runner ───────────────────────────────────────────────────────────────
 let runnerProc   = null;
 let runnerWatchdog = null;

@@ -171,6 +171,39 @@
       flex: 1; overflow: hidden; position: relative;
     }
 
+    /* ── Params & Data tabs ── */
+    .params-toolbar {
+      display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+      border-bottom: 1px solid #334155; background: #1e293b; flex-shrink: 0; flex-wrap: wrap;
+    }
+    .params-body { flex: 1; overflow-y: auto; padding: 14px; }
+    .params-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .params-table th {
+      text-align: left; padding: 6px 10px; background: #0f172a;
+      color: #64748b; font-size: 10px; text-transform: uppercase; letter-spacing: .07em;
+      border-bottom: 1px solid #334155;
+    }
+    .params-table td { padding: 6px 8px; border-bottom: 1px solid #1e293b; vertical-align: middle; }
+    .params-table input[type=text] { background: #0f172a; border: 1px solid #334155; color: #e2e8f0; border-radius: 4px; padding: 4px 8px; font-size: 12px; width: 100%; }
+    .params-table input[type=text]:focus { border-color: #6366f1; outline: none; }
+    .params-table .orig { color: #475569; font-family: monospace; font-size: 11px; }
+    .params-empty td { text-align: center; padding: 24px; color: #475569; font-size: 12px; }
+    .token-chip {
+      display: inline-block; background: #2d1f5e; color: #c4b5fd;
+      border: 1px solid #4c1d95; border-radius: 4px; padding: 1px 6px;
+      font-family: monospace; font-size: 11px;
+    }
+    #dataTextarea {
+      flex: 1; resize: none; background: #0a0f1a; border: none; outline: none;
+      color: #e2e8f0; font-family: 'JetBrains Mono', Consolas, monospace;
+      font-size: 12px; line-height: 1.6; padding: 14px;
+      scrollbar-width: thin; scrollbar-color: #334155 transparent;
+    }
+    .preview-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .preview-table th { background: #0f172a; color: #6366f1; padding: 6px 10px; text-align: left; border-bottom: 1px solid #334155; font-size: 11px; }
+    .preview-table td { padding: 6px 10px; border-bottom: 1px solid #1e293b; color: #cbd5e1; }
+    .preview-table tr:hover td { background: #1e293b; }
+
     /* ── Run tab ── */
     .run-toolbar {
       display: flex; align-items: center; gap: 8px; padding: 12px 16px;
@@ -453,6 +486,8 @@
   <main class="right-panel">
     <div class="tab-bar">
       <button class="tab active" data-tab="code">Code</button>
+      <button class="tab" data-tab="params">⚙ Params</button>
+      <button class="tab" data-tab="data">⊞ Data</button>
       <button class="tab" data-tab="run">▶ Run</button>
       <div class="tab-extra">
         <span style="font-size:11px;color:#475569" id="codeLabel">Start a recording or select a file.</span>
@@ -465,6 +500,73 @@
     <!-- Code tab — Monaco editor -->
     <div class="tab-content active" id="tab-code">
       <div id="monacoContainer"></div>
+    </div>
+
+    <!-- Params tab -->
+    <div class="tab-content" id="tab-params">
+      <div class="params-toolbar">
+        <span style="font-size:12px;color:#64748b;flex:1;">
+          Select a string in the Code editor, then click <strong>Add Param</strong> to replace it with a <code>{{TOKEN}}</code>.
+        </span>
+        <button class="btn btn-primary btn-sm" id="addParamBtn">＋ Add Param from selection</button>
+        <button class="btn btn-success btn-sm" id="applyParamsBtn">▶ Apply &amp; update code</button>
+      </div>
+      <div class="params-body">
+        <table class="params-table" id="paramsTable">
+          <thead><tr><th>Token name</th><th>Default value</th><th>Original literal</th><th></th></tr></thead>
+          <tbody id="paramsBody">
+            <tr class="params-empty"><td colspan="4">No parameters yet. Select a value in the Code editor and click Add Param.</td></tr>
+          </tbody>
+        </table>
+        <div style="margin-top:16px;display:flex;gap:8px;align-items:center;">
+          <button class="btn btn-ghost btn-sm" id="clearParamsBtn">🗑 Clear all</button>
+          <button class="btn btn-success btn-sm" id="saveParamCodeBtn">💾 Save parameterized code</button>
+          <span id="paramsStatus" style="font-size:11px;color:#64748b;margin-left:8px;"></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data-driven tab -->
+    <div class="tab-content" id="tab-data">
+      <div class="params-toolbar" style="flex-wrap:wrap;gap:8px;">
+        <span style="font-size:12px;color:#64748b;">
+          Paste JSON or CSV. Each row runs the test with <code>{{TOKEN}}</code> values substituted.
+        </span>
+        <label class="upload-label" style="border-style:dashed;" title="Upload JSON or CSV file">
+          ⬆ Upload JSON / CSV
+          <input type="file" id="dataFileInput" accept=".json,.csv,.txt">
+        </label>
+        <button class="btn btn-success btn-sm" id="runDataBtn">▶ Run data-driven</button>
+        <button class="btn btn-ghost btn-sm" id="previewDataBtn">👁 Preview rows</button>
+      </div>
+      <div style="display:flex;flex:1;overflow:hidden;gap:0;">
+        <!-- left: textarea for raw data -->
+        <div style="display:flex;flex-direction:column;flex:1;border-right:1px solid #334155;">
+          <div style="padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#64748b;border-bottom:1px solid #334155;display:flex;gap:8px;align-items:center;">
+            Data (JSON array or CSV)
+            <button class="btn btn-ghost btn-sm" id="loadSampleDataBtn" style="margin-left:auto;">Load sample</button>
+          </div>
+          <textarea id="dataTextarea" spellcheck="false" placeholder='[
+  { "objectName": "Account", "filterName": "AllAccounts" },
+  { "objectName": "Contact", "filterName": "AllContacts" }
+]
+
+Or CSV:
+objectName,filterName
+Account,AllAccounts
+Contact,AllContacts'></textarea>
+        </div>
+        <!-- right: preview table -->
+        <div style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+          <div style="padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#64748b;border-bottom:1px solid #334155;">
+            Row preview
+          </div>
+          <div style="flex:1;overflow:auto;padding:12px;" id="dataPreview">
+            <span style="font-size:12px;color:#475569;">Click "Preview rows" to see parsed data.</span>
+          </div>
+        </div>
+      </div>
+      <div style="padding:8px 12px;border-top:1px solid #334155;font-size:11px;color:#64748b;" id="dataStatus"></div>
     </div>
 
     <!-- Run tab -->
@@ -1102,6 +1204,182 @@
   });
 
   loadProfiles();
+
+  // ── Params tab ─────────────────────────────────────────────────────────────
+  let paramsList = [];   // [{name, literal, defaultValue}]
+
+  function renderParamsTable() {
+    const tbody = document.getElementById('paramsBody');
+    if (!paramsList.length) {
+      tbody.innerHTML = '<tr class="params-empty"><td colspan="4">No parameters yet. Select a value in the Code editor and click Add Param.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = paramsList.map((p, i) => `
+      <tr>
+        <td><input type="text" value="${escHtml(p.name)}" data-i="${i}" data-field="name" class="param-input"></td>
+        <td><input type="text" value="${escHtml(p.defaultValue)}" data-i="${i}" data-field="defaultValue" class="param-input"></td>
+        <td class="orig"><span class="token-chip">{{${escHtml(p.name)}}}</span> &larr; <em>${escHtml(p.literal)}</em></td>
+        <td><button class="btn btn-danger btn-sm" onclick="removeParam(${i})">✕</button></td>
+      </tr>`).join('');
+    tbody.querySelectorAll('.param-input').forEach(inp => {
+      inp.addEventListener('input', e => {
+        const i = +e.target.dataset.i, field = e.target.dataset.field;
+        paramsList[i][field] = e.target.value;
+      });
+    });
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  window.removeParam = (i) => { paramsList.splice(i,1); renderParamsTable(); };
+
+  document.getElementById('addParamBtn').addEventListener('click', () => {
+    if (!monacoEditor) return;
+    const sel = monacoEditor.getSelection();
+    const raw = monacoEditor.getModel().getValueInRange(sel).trim();
+    if (!raw) { log('Select a string value in the Code editor first', 'err'); return; }
+    // Strip surrounding quotes if selected with them
+    const literal = raw.replace(/^["'`]|["'`]$/g, '');
+    if (!literal) { log('Selection is empty', 'err'); return; }
+    // Auto-name: camelCase from the value
+    const suggested = literal
+      .replace(/[^a-zA-Z0-9]+(.)/g, (_, c) => c.toUpperCase())
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .replace(/^(.)/, c => c.toUpperCase()) || 'PARAM' + (paramsList.length + 1);
+    paramsList.push({ name: suggested, literal, defaultValue: literal });
+    renderParamsTable();
+    document.querySelector('.tab[data-tab="params"]').click();
+    log(`Param added: {{${suggested}}} ← "${literal}"`, 'ok');
+  });
+
+  document.getElementById('applyParamsBtn').addEventListener('click', async () => {
+    if (!paramsList.length) { log('No params defined', 'err'); return; }
+    const code = getEditorCode();
+    const res  = await fetch('/api/parameterize', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, params: paramsList }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      renderCode(data.code);
+      document.querySelector('.tab[data-tab="code"]').click();
+      document.getElementById('paramsStatus').textContent = '✓ Code updated with tokens';
+      log('Parameterized code applied', 'ok');
+    }
+  });
+
+  document.getElementById('clearParamsBtn').addEventListener('click', () => {
+    paramsList = []; renderParamsTable();
+    document.getElementById('paramsStatus').textContent = '';
+  });
+
+  document.getElementById('saveParamCodeBtn').addEventListener('click', async () => {
+    await saveEditorToDisk();
+    document.getElementById('paramsStatus').textContent = '✓ Saved';
+  });
+
+  // ── Data-driven tab ─────────────────────────────────────────────────────────
+  function parseCsv(text) {
+    const lines = text.trim().split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return [];
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^["']|["']$/g,''));
+    return lines.slice(1).map(line => {
+      const vals = line.split(',').map(v => v.trim().replace(/^["']|["']$/g,''));
+      return Object.fromEntries(headers.map((h,i) => [h, vals[i] ?? '']));
+    });
+  }
+
+  function parseDataInput(text) {
+    text = text.trim();
+    if (text.startsWith('[') || text.startsWith('{')) {
+      try { const j = JSON.parse(text); return Array.isArray(j) ? j : [j]; }
+      catch(e) { throw new Error('Invalid JSON: ' + e.message); }
+    }
+    return parseCsv(text);
+  }
+
+  function renderPreviewTable(rows) {
+    if (!rows.length) return '<span style="font-size:12px;color:#475569">No rows parsed.</span>';
+    const cols = Object.keys(rows[0]);
+    return `<table class="preview-table">
+      <thead><tr>${cols.map(c=>`<th>${escHtml(c)}</th>`).join('')}</tr></thead>
+      <tbody>${rows.map(r=>`<tr>${cols.map(c=>`<td>${escHtml(r[c]??'')}</td>`).join('')}</tr>`).join('')}</tbody>
+    </table><div style="font-size:11px;color:#64748b;margin-top:8px;">${rows.length} row(s)</div>`;
+  }
+
+  document.getElementById('previewDataBtn').addEventListener('click', () => {
+    const raw = document.getElementById('dataTextarea').value;
+    const status = document.getElementById('dataStatus');
+    const preview = document.getElementById('dataPreview');
+    try {
+      const rows = parseDataInput(raw);
+      preview.innerHTML = renderPreviewTable(rows);
+      status.textContent = `✓ ${rows.length} row(s) parsed`;
+    } catch(e) {
+      status.textContent = '✗ ' + e.message;
+      status.style.color = '#f87171';
+    }
+  });
+
+  document.getElementById('dataFileInput').addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const text = await file.text();
+    document.getElementById('dataTextarea').value = text;
+    log('Data file loaded: ' + file.name, 'ok');
+    document.getElementById('previewDataBtn').click();
+    e.target.value = '';
+  });
+
+  document.getElementById('loadSampleDataBtn').addEventListener('click', () => {
+    // Infer columns from {{TOKEN}} in editor code
+    const code = getEditorCode();
+    const tokens = [...new Set([...code.matchAll(/\{\{(\w+)\}\}/g)].map(m=>m[1]))];
+    if (!tokens.length) {
+      document.getElementById('dataTextarea').value =
+        '[{"objectName":"Account","filterName":"AllAccounts"},{"objectName":"Contact","filterName":"AllContacts"}]';
+    } else {
+      const sample = [
+        Object.fromEntries(tokens.map(t => [t, 'value1_' + t])),
+        Object.fromEntries(tokens.map(t => [t, 'value2_' + t])),
+      ];
+      document.getElementById('dataTextarea').value = JSON.stringify(sample, null, 2);
+    }
+    document.getElementById('previewDataBtn').click();
+  });
+
+  document.getElementById('runDataBtn').addEventListener('click', async () => {
+    const raw = document.getElementById('dataTextarea').value;
+    const status = document.getElementById('dataStatus');
+    let rows;
+    try {
+      rows = parseDataInput(raw);
+      if (!rows.length) throw new Error('No rows');
+    } catch(e) {
+      status.textContent = '✗ ' + e.message; return;
+    }
+    const code = getEditorCode();
+    const tokens = [...code.matchAll(/\{\{(\w+)\}\}/g)].map(m=>m[1]);
+    if (!tokens.length) {
+      status.textContent = '✗ No {{TOKEN}} placeholders found in code — apply params first';
+      return;
+    }
+    const baseFile = runFileSelect.value || 'data-driven';
+    const outName  = baseFile.replace(/\.js$/, '') + '-data.spec.js';
+    const res = await fetch('/api/run-data-driven', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, rows, filename: outName }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      status.textContent = `✓ Running ${rows.length} rows → ${data.generatedFile}`;
+      document.querySelector('.tab[data-tab="run"]').click();
+    } else {
+      status.textContent = '✗ ' + data.error;
+    }
+  });
 
   // ── Help drawer ────────────────────────────────────────────────────────────
   (function () {
