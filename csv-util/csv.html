@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSV Editor - Kalam</title>
+
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/editor/img/favicon.ico" />
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/css/bootstrap.min.css"
+        integrity="sha384-TX8t27EcRE3e/ihU7zmQxVncDAy5uIKz4rEkgIXeMed4M0jlfIDPvg6uqKI2xXr2" crossorigin="anonymous">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"
+        integrity="sha512-894YE6QWD5I59HgZOGReFYm4dnWc1Qt5NtvYSaNcOP+u1T9qYdvdihz0PPSiiqn/+/3e7Jo4EaG7TubfWGUrMQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+        integrity="sha384-9/reFTGAW83EW2RDu2S0VKaIzap3H66lZH81PoYlFhbGU+6BZp6G7niu735Sk7lN"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.3/dist/js/bootstrap.min.js" crossorigin="anonymous"
+        integrity="sha384-w1Q4orYjBQndcko6MimVbzY0tgp4pWB4lZ7lr30WKz0vr/aWKhXdBNmNb5D92v7s"></script>
+
+    <!-- PapaParse — fast, RFC 4180-compliant CSV parser -->
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <!-- AlaSQL — SQL queries on in-memory arrays -->
+    <script src="https://cdn.jsdelivr.net/npm/alasql@4.2.3/dist/alasql.min.js"></script>
+    <!-- deep-diff for semantic diff -->
+    <script src="https://cdn.jsdelivr.net/npm/deep-diff@1.0.2/dist/deep-diff.min.js"></script>
+    <!-- Monaco loader -->
+    <script src="https://unpkg.com/monaco-editor/min/vs/loader.js"></script>
+
+    <link rel="stylesheet" href="css/csv.css?v=3">
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark py-1">
+    <a class="navbar-brand" href="#">&nbsp; CSV Editor - Kalam</a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav"
+        aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav w-100">
+            <li class="nav-item w-100">
+                <div id="dropArea" style="border:2px dashed #ccc;padding:2px;text-align:center;">
+                    <input class="btn btn-dark" type="file" id="csvFileInput" accept=".csv,.tsv,.txt,.json">
+                    <span style="color:wheat;">Drag &amp; drop a CSV / JSON file here</span>
+                    <button class="btn btn-primary"        id="download-csv-btn">Download CSV</button>
+                    <button class="btn btn-secondary"      id="download-json-btn">Download JSON</button>
+                    <button class="btn btn-outline-light"  id="download-tsv-btn">Download TSV</button>
+                    <button class="btn btn-outline-info"   id="json2csv-btn" title="Convert JSON array in editor → CSV">JSON→CSV</button>
+                    <label class="btn btn-outline-warning mb-0" style="font-size:.75rem;">
+                        Delimiter:
+                        <select id="delimiter-select" class="bg-dark text-white border-0" style="font-size:.75rem;">
+                            <option value=","  selected>Comma ,</option>
+                            <option value=";">Semi-colon ;</option>
+                            <option value="&#9;">Tab \t</option>
+                            <option value="|">Pipe |</option>
+                        </select>
+                    </label>
+                </div>
+            </li>
+        </ul>
+    </div>
+</nav>
+
+<!-- Tab Navigation -->
+<ul class="nav nav-tabs bg-dark px-2 pt-1" id="mainTabs" role="tablist">
+    <li class="nav-item">
+        <a class="nav-link active" id="editor-tab" data-toggle="tab" href="#editor-pane" role="tab">
+            &#128196; Editor
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="grid-tab" data-toggle="tab" href="#grid-pane" role="tab">
+            &#128202; Grid View
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="sql-tab" data-toggle="tab" href="#sql-pane" role="tab">
+            &#128303; SQL Query
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="diff-tab-nav" data-toggle="tab" href="#diff-pane" role="tab">
+            &#128195; CSV Diff
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="compare-tab-nav" data-toggle="tab" href="#compare-pane" role="tab">
+            &#9878; Compare
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content" id="mainTabContent">
+
+    <!-- ===== Editor Tab ===== -->
+    <div class="tab-pane fade show active" id="editor-pane" role="tabpanel">
+        <div class="editor-container">
+            <div id="csv-monaco-col" class="csv-monaco-col">
+                <div class="pane-label">CSV Source</div>
+                <div id="editor-csv" class="code-pane"></div>
+            </div>
+            <div id="editor-gutter" class="v-gutter" title="Drag to resize">
+                <div class="v-gutter-handle"></div>
+            </div>
+            <div id="csv-stats-col" class="csv-stats-col">
+                <div class="pane-label d-flex justify-content-between align-items-center">
+                    <span>Summary &amp; Stats</span>
+                    <span id="parse-status" class="parse-status"></span>
+                </div>
+                <div id="csv-stats" class="stats-pane"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Grid Tab ===== -->
+    <div class="tab-pane fade" id="grid-pane" role="tabpanel">
+        <div class="grid-toolbar bg-dark d-flex align-items-center px-3 py-1" style="flex-shrink:0;">
+            <input type="text" id="grid-filter" class="form-control form-control-sm mr-2"
+                   style="max-width:260px; background:#333; color:#fff; border-color:#555;"
+                   placeholder="&#128269; Filter rows…">
+            <span id="grid-row-count" class="text-muted small mr-3"></span>
+            <button class="btn btn-sm btn-outline-light" id="grid-reset-sort">Reset Sort</button>
+        </div>
+        <div id="grid-container" class="grid-container">
+            <div id="csv-grid" class="csv-grid"></div>
+        </div>
+    </div>
+
+    <!-- ===== SQL Query Tab ===== -->
+    <div class="tab-pane fade" id="sql-pane" role="tabpanel">
+        <div class="sql-toolbar bg-dark p-2">
+            <div class="input-group">
+                <div class="input-group-prepend">
+                    <span class="input-group-text bg-secondary text-white font-weight-bold">SQL</span>
+                </div>
+                <input type="text" id="sql-query-input" class="form-control font-weight-bold"
+                       style="font-family:monospace;"
+                       placeholder='e.g.  SELECT * FROM csv  |  SELECT name, age FROM csv WHERE age > 30  |  SELECT dept, COUNT(*) AS n FROM csv GROUP BY dept'
+                       value="SELECT * FROM csv">
+                <div class="input-group-append">
+                    <button class="btn btn-success" id="sql-run-btn">&#9654; Run</button>
+                    <button class="btn btn-warning"  id="sql-help-btn">&#10067; Help</button>
+                </div>
+            </div>
+            <small class="text-muted">Table name is always <code>csv</code> &bull; Press <kbd>Enter</kbd> to run</small>
+        </div>
+        <div class="sql-editors-row">
+            <div class="sql-editor-col">
+                <div class="pane-label">Input CSV (editable)</div>
+                <div id="sql-input-editor" class="code-pane"></div>
+            </div>
+            <div class="sql-editor-col">
+                <div class="pane-label">Results</div>
+                <div id="sql-results-pane" class="sql-results-pane"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Diff Tab ===== -->
+    <div class="tab-pane fade" id="diff-pane" role="tabpanel">
+        <div class="diff-inputs-row" id="diff-inputs-row">
+            <div class="diff-editor-col" id="diff-col-a">
+                <div class="d-flex justify-content-between align-items-center pane-label">
+                    <span>CSV A &mdash; Original</span>
+                    <input type="file" id="diff-file-a" accept=".csv,.tsv,.txt" class="form-control-file small-file-input">
+                </div>
+                <div id="diff-editor-a" class="code-pane"></div>
+            </div>
+            <div id="diff-gutter" class="diff-gutter" title="Drag to resize">
+                <div class="diff-gutter-handle"></div>
+            </div>
+            <div class="diff-editor-col" id="diff-col-b">
+                <div class="d-flex justify-content-between align-items-center pane-label">
+                    <span>CSV B &mdash; Modified</span>
+                    <input type="file" id="diff-file-b" accept=".csv,.tsv,.txt" class="form-control-file small-file-input">
+                </div>
+                <div id="diff-editor-b" class="code-pane"></div>
+            </div>
+        </div>
+        <div id="diff-h-gutter" class="diff-h-gutter" title="Drag to resize">
+            <div class="diff-h-gutter-handle"></div>
+        </div>
+        <div id="diff-bottom" class="diff-bottom">
+            <div class="diff-controls bg-dark d-flex align-items-center px-3 py-2">
+                <button class="btn btn-sm btn-primary mr-2" id="diff-semantic-btn">&#9965; Semantic Diff</button>
+                <button class="btn btn-sm btn-info    mr-2" id="diff-verbatim-btn">&#128195; Verbatim Diff</button>
+                <button class="btn btn-sm btn-outline-light mr-3" id="diff-use-editor-btn">Use Editor as A</button>
+                <span id="diff-status" class="text-muted small"></span>
+            </div>
+            <div id="diff-content-viewport" class="diff-content-viewport">
+                <div id="monaco-diff-container" style="display:none;"></div>
+                <div id="diff-results"          style="overflow-y:auto;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Compare Tab ===== -->
+    <div class="tab-pane fade" id="compare-pane" role="tabpanel">
+
+        <!-- toolbar row 1: files + action buttons -->
+        <div class="cmp-toolbar-row1 bg-dark d-flex align-items-center px-3 py-2" style="flex-shrink:0; gap:1rem; border-bottom:1px solid #313244;">
+            <div class="cmp-file-group">
+                <span class="cmp-file-label">&#128196; Source</span>
+                <input type="file" id="cmp-file-src" accept=".csv,.tsv,.txt" class="cmp-file-input">
+                <span id="cmp-src-name" class="cmp-fname">No file</span>
+            </div>
+            <div class="cmp-file-group">
+                <span class="cmp-file-label">&#128196; Target</span>
+                <input type="file" id="cmp-file-tgt" accept=".csv,.tsv,.txt" class="cmp-file-input">
+                <span id="cmp-tgt-name" class="cmp-fname">No file</span>
+            </div>
+            <div class="ml-auto d-flex align-items-center" style="gap:.5rem;">
+                <button class="btn btn-sm btn-outline-secondary" id="cmp-use-editor-btn"
+                        title="Load the current editor CSV as Source">&#128228; Use Editor</button>
+                <button class="btn btn-sm btn-success px-3" id="cmp-run-btn">&#9654; Compare</button>
+                <span id="cmp-status" class="text-muted small"></span>
+            </div>
+        </div>
+
+        <!-- toolbar row 2: key column pills -->
+        <div class="cmp-toolbar-row2 bg-dark px-3 py-2 d-flex align-items-center" style="flex-shrink:0; gap:.6rem; border-bottom:1px solid #313244; flex-wrap:wrap;">
+            <span class="cmp-pill-label">Key cols:</span>
+            <div id="cmp-pill-bar" class="cmp-pill-bar"></div>
+            <div class="ml-auto d-flex" style="gap:.4rem;">
+                <button class="cmp-pill-ctrl-btn" id="cmp-select-all">All</button>
+                <button class="cmp-pill-ctrl-btn" id="cmp-clear-all">None</button>
+            </div>
+        </div>
+
+        <!-- summary cards (hidden until compare runs) -->
+        <div id="cmp-summary" class="cmp-summary" style="display:none;"></div>
+
+        <!-- result sections -->
+        <div id="cmp-results" class="cmp-results"></div>
+    </div>
+
+</div><!-- /tab-content -->
+
+<!-- ===== SQL Help Drawer ===== -->
+<div id="sql-help-overlay" class="help-overlay"></div>
+<div id="sql-help-drawer"  class="help-drawer" aria-label="SQL Help">
+    <div class="help-header">
+        <span>&#10067; SQL Cheatsheet</span>
+        <div class="d-flex align-items-center">
+            <input type="text" id="sql-help-search" class="form-control form-control-sm"
+                   placeholder="Search examples…" style="width:200px;">
+            <button id="sql-help-close" class="btn btn-sm btn-outline-light ml-2">&times; Close</button>
+        </div>
+    </div>
+    <div id="sql-help-body" class="help-body"></div>
+</div>
+
+<script type="module" src="js/csvApp.js?v=8"></script>
+</body>
+</html>
