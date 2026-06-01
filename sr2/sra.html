@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Recorder</title>
+    <style>
+        :root {
+            --bg:        #0b0b18;
+            --surface:   rgba(16,16,30,0.96);
+            --surface2:  rgba(26,26,46,0.9);
+            --accent:    #e94560;
+            --glow:      rgba(233,69,96,0.4);
+            --success:   #00d4aa;
+            --warning:   #ffd166;
+            --text:      #e2e2f0;
+            --muted:     #7c7c9a;
+            --border:    rgba(255,255,255,0.09);
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── Page hint ── */
+        .page-hint {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center; pointer-events: none;
+            color: rgba(255,255,255,0.06);
+            font-size: 1.1rem; line-height: 2;
+        }
+        .page-hint span { font-size: 3rem; display: block; }
+
+        /* ── Pop-out button ── */
+        #btn-popout {
+            background: rgba(139,92,246,0.18);
+            color: #a78bfa;
+            border: 1px solid rgba(139,92,246,0.4);
+        }
+        #btn-popout:hover { background: rgba(139,92,246,0.3); }
+        #btn-popout.active {
+            background: rgba(139,92,246,0.35);
+            border-color: #a78bfa;
+            color: #fff;
+        }
+
+        /* ── Countdown overlay ── */
+        #cd-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.84);
+            display: none; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 14px; z-index: 10000;
+        }
+        #cd-overlay.show { display: flex; }
+        #cd-num {
+            font-size: 9rem; font-weight: 900; line-height: 1;
+            color: var(--accent);
+            animation: pop 1s ease-in-out infinite;
+        }
+        @keyframes pop { 0%{transform:scale(1.2)} 100%{transform:scale(0.85);opacity:0.4} }
+        #cd-overlay p { color: #aaa; font-size: 1rem; }
+
+        /* ══════════════════════════════════════
+           FLOATING PANEL
+        ══════════════════════════════════════ */
+        #floater {
+            position: fixed;
+            bottom: 28px; right: 28px;
+            width: 420px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            box-shadow: 0 12px 48px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 9000;
+            overflow: hidden;
+            transition: box-shadow 0.2s;
+        }
+        #floater.dragging { box-shadow: 0 24px 64px rgba(0,0,0,0.85); }
+
+        /* ── Compact bar ── */
+        #fl-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            cursor: grab;
+        }
+        #fl-bar:active { cursor: grabbing; }
+
+        /* cam circle in bar */
+        .fl-cam-circle {
+            width: 52px; height: 52px;
+            border-radius: 50%;
+            overflow: hidden;
+            flex-shrink: 0;
+            background: #1a1a2e;
+            border: 2px solid rgba(255,255,255,0.12);
+            position: relative;
+        }
+        .fl-cam-circle video {
+            width: 100%; height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+            display: block;
+        }
+        .fl-cam-circle .cam-off-icon {
+            position: absolute; inset: 0;
+            display: flex; align-items: center; justify-content: center;
+            color: var(--muted);
+        }
+
+        /* status + timer */
+        .fl-info {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+        .fl-status-row {
+            display: flex; align-items: center; gap: 6px;
+        }
+        .status-dot {
+            width: 9px; height: 9px; border-radius: 50%;
+            background: var(--muted); flex-shrink: 0;
+        }
+        .status-dot.recording {
+            background: var(--accent);
+            box-shadow: 0 0 7px var(--glow);
+            animation: blink 1.2s ease-in-out infinite;
+        }
+        .status-dot.paused { background: var(--warning); }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+        #s-label {
+            font-size: 0.72rem; font-weight: 700;
+            letter-spacing: 0.09em; text-transform: uppercase;
+            color: var(--muted);
+        }
+        #s-label.recording { color: var(--accent); }
+        #s-label.paused    { color: var(--warning); }
+        #timer {
+            font-family: 'Courier New', monospace;
+            font-size: 1.05rem; font-weight: 700;
+            color: var(--text);
+        }
+
+        /* icon buttons in bar */
+        .fl-btns { display: flex; gap: 5px; }
+        .icon-btn {
+            width: 38px; height: 38px;
+            border-radius: 50%;
+            border: none; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            transition: transform 0.13s, opacity 0.13s;
+            flex-shrink: 0;
+        }
+        .icon-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none !important; }
+        .icon-btn:not(:disabled):hover { transform: scale(1.12); }
+        .icon-btn:not(:disabled):active { transform: scale(0.95); }
+
+        #btn-start  { background: linear-gradient(135deg,#e94560,#b8283e); color:#fff; box-shadow: 0 3px 12px var(--glow); }
+        #btn-pause  { background: linear-gradient(135deg,#ffd166,#f4a020); color:#1a1a1a; }
+        #btn-stop   { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+        #btn-expand { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+        #btn-expand.active { color: var(--text); border-color: rgba(255,255,255,0.25); }
+
+        /* ── Expand/collapse settings panel ── */
+        #fl-settings {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.32s cubic-bezier(0.4,0,0.2,1);
+        }
+        #fl-settings.open { max-height: 640px; }
+
+        .fl-inner {
+            padding: 0 14px 16px;
+            display: flex; flex-direction: column; gap: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        /* screen preview */
+        #screen-prev-wrap {
+            position: relative;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+            border: 1px solid var(--border);
+            margin-top: 14px;
+        }
+        #screen-prev-wrap video {
+            width: 100%; height: 100%; object-fit: contain; display: none;
+        }
+        .prev-ph {
+            position: absolute; inset: 0;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 7px; color: var(--muted); font-size: 0.75rem;
+        }
+        .prev-ph svg { opacity: 0.2; }
+
+        /* ── Settings rows ── */
+        .settings-row {
+            display: flex; gap: 12px; align-items: flex-start;
+        }
+        .setting-group {
+            flex: 1;
+        }
+        .setting-group > label, .setting-label {
+            font-size: 0.7rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.09em;
+            color: var(--muted);
+            display: block; margin-bottom: 7px;
+        }
+
+        /* position picker — mini screen mockup */
+        .pos-mockup {
+            width: 88px; height: 56px;
+            border: 1.5px solid rgba(255,255,255,0.15);
+            border-radius: 5px;
+            position: relative;
+            background: rgba(255,255,255,0.03);
+        }
+        .pos-dot {
+            width: 18px; height: 18px;
+            border-radius: 50%;
+            border: 1.5px solid rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.06);
+            position: absolute;
+            cursor: pointer;
+            transition: background 0.15s, border-color 0.15s, transform 0.15s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .pos-dot:hover { background: rgba(255,255,255,0.15); transform: scale(1.1); }
+        .pos-dot.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 8px var(--glow); }
+        .pos-dot[data-p="top-left"]     { top: 4px; left: 4px; }
+        .pos-dot[data-p="top-right"]    { top: 4px; right: 4px; }
+        .pos-dot[data-p="bottom-left"]  { bottom: 4px; left: 4px; }
+        .pos-dot[data-p="bottom-right"] { bottom: 4px; right: 4px; }
+
+        /* size buttons */
+        .size-btns { display: flex; gap: 5px; }
+        .size-btn {
+            padding: 5px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--surface2);
+            color: var(--muted);
+            font-size: 0.78rem; font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .size-btn:hover { border-color: rgba(255,255,255,0.25); color: var(--text); }
+        .size-btn.active { background: rgba(0,212,170,0.15); border-color: var(--success); color: var(--success); }
+
+        /* toggles */
+        .toggles { display: flex; gap: 6px; flex-wrap: wrap; }
+        .tog {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 6px 12px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 50px;
+            cursor: pointer;
+            font-size: 0.75rem; font-weight: 600;
+            color: var(--muted);
+            transition: all 0.15s;
+            user-select: none;
+        }
+        .tog.on { background: rgba(0,212,170,0.12); border-color: var(--success); color: var(--success); }
+        .tog:hover:not(.on) { border-color: rgba(255,255,255,0.2); color: var(--text); }
+
+        /* filename */
+        .filename-row {
+            display: flex; align-items: center; gap: 7px;
+        }
+        .filename-row label { font-size: 0.72rem; color: var(--muted); white-space: nowrap; }
+        .filename-row input {
+            flex: 1;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 7px;
+            color: var(--text);
+            padding: 7px 10px;
+            font-size: 0.82rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .filename-row input:focus { border-color: #8b5cf6; }
+        .filename-row span { font-size: 0.72rem; color: var(--muted); }
+
+        /* dl section */
+        #dl-section {
+            display: none;
+            padding: 10px 12px;
+            background: rgba(0,212,170,0.07);
+            border: 1px solid rgba(0,212,170,0.22);
+            border-radius: 9px;
+            text-align: center;
+        }
+        #dl-section.show { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        #dl-section span { color: var(--success); font-size: 0.82rem; }
+
+        /* shortcuts info */
+        .shortcuts-tip {
+            font-size: 0.7rem; color: var(--muted); line-height: 1.6;
+        }
+        kbd {
+            background: rgba(255,255,255,0.07);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            padding: 0 4px;
+            font-size: 0.68rem; color: var(--text); font-family: inherit;
+        }
+
+        /* action buttons (small text style) */
+        .act-btn {
+            display: inline-flex; align-items: center; gap: 5px;
+            padding: 6px 14px;
+            border-radius: 50px; border: 1px solid var(--border);
+            background: transparent; color: var(--muted);
+            font-size: 0.76rem; font-weight: 600;
+            cursor: pointer; transition: all 0.15s;
+        }
+        .act-btn:hover { border-color: rgba(255,255,255,0.25); color: var(--text); }
+    </style>
+</head>
+<body>
+
+<div class="page-hint">
+    <span>&#9210;</span>
+    Screen Recorder is floating →<br>
+    Drag it anywhere on screen
+</div>
+
+<div id="cd-overlay">
+    <div id="cd-num">3</div>
+    <p>Recording starts in…</p>
+</div>
+
+<canvas id="composite-canvas" style="display:none"></canvas>
+<a id="dl-link" style="display:none"></a>
+
+<!-- ═══════════════════════════════════════ FLOATING PANEL ═══ -->
+<div id="floater">
+
+    <!-- Compact always-visible bar -->
+    <div id="fl-bar">
+
+        <!-- Cam circle -->
+        <div class="fl-cam-circle">
+            <div class="cam-off-icon" id="cam-mini-off">
+                <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+                    <path d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/>
+                    <line x1="3" y1="3" x2="21" y2="21"/>
+                </svg>
+            </div>
+            <video id="cam-mini" autoplay muted playsinline style="display:none"></video>
+        </div>
+
+        <!-- Status + timer -->
+        <div class="fl-info">
+            <div class="fl-status-row">
+                <div class="status-dot" id="s-dot"></div>
+                <span id="s-label">Ready</span>
+            </div>
+            <span id="timer">00:00</span>
+        </div>
+
+        <!-- Record / Pause / Stop -->
+        <div class="fl-btns">
+            <button class="icon-btn" id="btn-start" title="Record  Ctrl+Shift+R">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg>
+            </button>
+            <button class="icon-btn" id="btn-pause" disabled title="Pause  Space">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" id="pause-icon">
+                    <rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>
+                </svg>
+            </button>
+            <button class="icon-btn" id="btn-stop" disabled title="Stop">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+            </button>
+        </div>
+
+        <!-- Pop out to always-on-top window -->
+        <button class="icon-btn" id="btn-popout" title="Pop out — floats above all windows">
+            <svg width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path d="M15 3h6v6M10 14L21 3M9 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-4"/>
+            </svg>
+        </button>
+
+        <!-- Expand / collapse settings -->
+        <button class="icon-btn" id="btn-expand" title="Settings">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <circle cx="12" cy="12" r="3"/>
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+            </svg>
+        </button>
+    </div>
+
+    <!-- ── Expandable settings ── -->
+    <div id="fl-settings">
+        <div class="fl-inner">
+
+            <!-- Screen preview -->
+            <div id="screen-prev-wrap">
+                <div class="prev-ph" id="screen-ph">
+                    <svg width="38" height="38" fill="none" stroke="currentColor" stroke-width="1.3" viewBox="0 0 24 24">
+                        <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+                    </svg>
+                    <span>Screen preview</span>
+                </div>
+                <video id="screen-vid" autoplay muted playsinline></video>
+            </div>
+
+            <!-- Cam position + size -->
+            <div class="settings-row">
+                <div class="setting-group">
+                    <label>Cam overlay position</label>
+                    <div class="pos-mockup" id="pos-mockup">
+                        <div class="pos-dot" data-p="top-left"     title="Top left"></div>
+                        <div class="pos-dot" data-p="top-right"    title="Top right"></div>
+                        <div class="pos-dot" data-p="bottom-left"  title="Bottom left"></div>
+                        <div class="pos-dot active" data-p="bottom-right" title="Bottom right"></div>
+                    </div>
+                </div>
+                <div class="setting-group">
+                    <label>Cam size (px)</label>
+                    <div class="size-btns">
+                        <button class="size-btn" data-s="120">S<br><span style="font-size:0.6rem;font-weight:400">120</span></button>
+                        <button class="size-btn active" data-s="160">M<br><span style="font-size:0.6rem;font-weight:400">160</span></button>
+                        <button class="size-btn" data-s="220">L<br><span style="font-size:0.6rem;font-weight:400">220</span></button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Toggles -->
+            <div class="toggles">
+                <div class="tog on" id="tog-cam">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>
+                    Camera
+                </div>
+                <div class="tog on" id="tog-cam-rec">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/></svg>
+                    Cam in Video
+                </div>
+                <div class="tog on" id="tog-mic">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0014 0M12 21v-4M8 21h8"/></svg>
+                    Mic
+                </div>
+                <div class="tog" id="tog-cd">
+                    <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+                    3s Countdown
+                </div>
+            </div>
+
+            <!-- Filename -->
+            <div class="filename-row">
+                <label for="fname">File:</label>
+                <input type="text" id="fname" placeholder="screenRecording" />
+                <span>.webm</span>
+            </div>
+
+            <!-- Download / playback -->
+            <div id="dl-section">
+                <span>&#10003; Recording saved</span>
+                <button class="act-btn" id="btn-playback" style="display:none">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+                    Play back
+                </button>
+            </div>
+
+            <!-- Shortcuts tip -->
+            <div class="shortcuts-tip">
+                <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> start/stop &nbsp;·&nbsp;
+                <kbd>Space</kbd> pause/resume &nbsp;·&nbsp;
+                &#127911; Use headset to avoid echo
+            </div>
+
+        </div>
+    </div>
+</div><!-- #floater -->
+
+<script>
+(function () {
+    // ── Query param filename ─────────────────────────────────────
+    const qp = {};
+    location.search.substr(1).split('&').forEach(p => {
+        const [k, v] = p.split('=');
+        if (k) qp[k] = decodeURIComponent(v || '');
+    });
+    const defaultName = qp.f || 'screenRecording';
+
+    // ── Document Picture-in-Picture (always-on-top mini window) ─────
+    // Copies the compact bar into a tiny PiP window that floats above
+    // every tab and every native app — just like Google Meet controls.
+    // Falls back to a small window.open popup on browsers without the API.
+    let pipWindow = null;
+
+    async function openPip() {
+        const btnPopout = document.getElementById('btn-popout');
+
+        // ── Close if already open ──
+        if (pipWindow && !pipWindow.closed) {
+            pipWindow.close();
+            pipWindow = null;
+            btnPopout.classList.remove('active');
+            btnPopout.title = 'Pop out — floats above all windows';
+            // Move cam video back to main page
+            syncCamToMain();
+            return;
+        }
+
+        // ── Document PiP (Chrome 116+) ──
+        if ('documentPictureInPicture' in window) {
+            try {
+                pipWindow = await window.documentPictureInPicture.requestWindow({
+                    width: 380, height: 82,
+                    disallowReturnToOpener: false,
+                });
+
+                // Clone styles into the PiP document
+                [...document.styleSheets].forEach(ss => {
+                    try {
+                        const style = pipWindow.document.createElement('style');
+                        style.textContent = [...ss.cssRules].map(r => r.cssText).join('\n');
+                        pipWindow.document.head.appendChild(style);
+                    } catch (_) {}
+                });
+
+                // Extra styles for the PiP window body
+                const extraStyle = pipWindow.document.createElement('style');
+                extraStyle.textContent = `
+                    body { margin:0; background: #0b0b18; overflow:hidden; }
+                    #fl-bar { border-radius: 0; cursor: default !important; }
+                    #fl-bar:active { cursor: default !important; }
+                    #btn-expand, #btn-popout { display: none !important; }
+                `;
+                pipWindow.document.head.appendChild(extraStyle);
+
+                // Move the bar DOM node into the PiP window
+                const bar = document.getElementById('fl-bar');
+                pipWindow.document.body.appendChild(bar);
+
+                // Cam video srcObject must be re-assigned after reparenting
+                syncCamToPip();
+
+                btnPopout.classList.add('active');
+                btnPopout.title = 'Return controls to this tab';
+
+                // When PiP closes, bring bar back
+                pipWindow.addEventListener('pagehide', () => {
+                    document.getElementById('floater').insertAdjacentElement('afterbegin', bar);
+                    syncCamToMain();
+                    pipWindow = null;
+                    btnPopout.classList.remove('active');
+                    btnPopout.title = 'Pop out — floats above all windows';
+                });
+
+                return;
+            } catch (e) {
+                console.warn('Document PiP failed, falling back:', e);
+            }
+        }
+
+        // ── Fallback: small always-on-top popup ──
+        const pw = window.open('', 'srRecorderPip',
+            'width=390,height=88,resizable=no,scrollbars=no,toolbar=no,menubar=no,location=no,status=no,alwaysOnTop=1'
+        );
+        if (!pw) { alert('Allow popups for this page to use the floating controls.'); return; }
+        pipWindow = pw;
+
+        // Build a minimal page that mirrors controls via BroadcastChannel
+        pw.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8">
+        <title>Screen Recorder</title>
+        <style>
+            :root{--accent:#e94560;--glow:rgba(233,69,96,0.4);--warning:#ffd166;--muted:#7c7c9a;--text:#e2e2f0;--surface2:rgba(26,26,46,0.9);--border:rgba(255,255,255,0.09);}
+            *{box-sizing:border-box;margin:0;padding:0;}
+            body{background:#0b0b18;font-family:'Segoe UI',system-ui,sans-serif;color:var(--text);height:88px;overflow:hidden;display:flex;align-items:center;padding:0 10px;gap:10px;}
+            .dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex-shrink:0;}
+            .dot.recording{background:var(--accent);box-shadow:0 0 7px var(--glow);animation:blink 1.2s infinite;}
+            .dot.paused{background:var(--warning);}
+            @keyframes blink{0%,100%{opacity:1}50%{opacity:0.25}}
+            #lbl{font-size:0.7rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);}
+            #lbl.recording{color:var(--accent);}#lbl.paused{color:var(--warning);}
+            #tmr{font-family:'Courier New',monospace;font-size:1rem;font-weight:700;min-width:48px;}
+            .info{display:flex;flex-direction:column;gap:2px;flex:1;}
+            .row{display:flex;align-items:center;gap:5px;}
+            .ib{width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .13s,opacity .13s;}
+            .ib:disabled{opacity:.3;cursor:not-allowed;}
+            .ib:not(:disabled):hover{transform:scale(1.1);}
+            #bs{background:linear-gradient(135deg,#e94560,#b8283e);color:#fff;box-shadow:0 3px 12px var(--glow);}
+            #bp{background:linear-gradient(135deg,#ffd166,#f4a020);color:#1a1a1a;}
+            #bst{background:var(--surface2);color:var(--text);border:1px solid var(--border);}
+        </style></head><body>
+        <div class="row"><div class="dot" id="dot"></div></div>
+        <div class="info"><div class="row"><div class="dot" id="dot2"></div><span id="lbl">READY</span></div><span id="tmr">00:00</span></div>
+        <button class="ib" id="bs" title="Record"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="8"/></svg></button>
+        <button class="ib" id="bp" disabled title="Pause"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" id="pi"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg></button>
+        <button class="ib" id="bst" disabled title="Stop"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg></button>
+        <script>
+        const ch = new BroadcastChannel('sr_pip');
+        document.getElementById('bs').onclick  = () => ch.postMessage('start');
+        document.getElementById('bp').onclick  = () => ch.postMessage('pause');
+        document.getElementById('bst').onclick = () => ch.postMessage('stop');
+        ch.onmessage = ({data}) => {
+            if (data.type === 'state') {
+                const {state, timer, startDis, pauseDis, stopDis} = data;
+                document.getElementById('dot2').className = 'dot ' + state;
+                const lbl = document.getElementById('lbl');
+                lbl.className = state;
+                lbl.textContent = {recording:'REC',paused:'PAUSED',ready:'READY',done:'DONE'}[state] || state.toUpperCase();
+                document.getElementById('tmr').textContent = timer;
+                document.getElementById('bs').disabled  = startDis;
+                document.getElementById('bp').disabled  = pauseDis;
+                document.getElementById('bst').disabled = stopDis;
+                document.getElementById('pi').innerHTML = data.pauseIcon;
+            }
+        };
+        window.onbeforeunload = () => ch.postMessage('pip_closed');
+        <\/script></body></html>`);
+        pw.document.close();
+
+        btnPopout.classList.add('active');
+        btnPopout.title = 'Close floating window';
+
+        pw.onbeforeunload = () => {
+            pipWindow = null;
+            btnPopout.classList.remove('active');
+            btnPopout.title = 'Pop out — floats above all windows';
+        };
+    }
+
+    // Helper: re-assign cam srcObject after bar moves between documents
+    function syncCamToPip() {
+        if (!pipWindow) return;
+        const v = pipWindow.document.getElementById('cam-mini');
+        if (v && camStream) { v.srcObject = camStream; v.play().catch(() => {}); }
+    }
+    function syncCamToMain() {
+        const v = document.getElementById('cam-mini');
+        if (v && camStream) { v.srcObject = camStream; v.play().catch(() => {}); }
+    }
+
+    // BroadcastChannel for fallback popup
+    const pipCh = new BroadcastChannel('sr_pip');
+    pipCh.onmessage = ({ data }) => {
+        if (data === 'start')      { if (!document.getElementById('btn-start').disabled) startRecording(); }
+        else if (data === 'pause') { togglePause(); }
+        else if (data === 'stop')  { stopRecording(); }
+        else if (data === 'pip_closed') {
+            pipWindow = null;
+            const btnPopout = document.getElementById('btn-popout');
+            btnPopout.classList.remove('active');
+            btnPopout.title = 'Pop out — floats above all windows';
+        }
+    };
+
+    function broadcastState() {
+        const pauseIcon = document.getElementById('pause-icon');
+        pipCh.postMessage({
+            type: 'state',
+            state: document.getElementById('s-label').className || 'ready',
+            timer: document.getElementById('timer').textContent,
+            startDis:  document.getElementById('btn-start').disabled,
+            pauseDis:  document.getElementById('btn-pause').disabled,
+            stopDis:   document.getElementById('btn-stop').disabled,
+            pauseIcon: pauseIcon ? pauseIcon.innerHTML : '',
+        });
+    }
+
+    // ── State ────────────────────────────────────────────────────
+    let mediaRecorder  = null;
+    let screenStream   = null;
+    let camStream      = null;
+    let audioStream    = null;
+    let animId         = null;
+    let timerInterval  = null;
+    let elapsed        = 0;
+    let isPaused       = false;
+    let recordedUrl    = null;
+
+    let useCam         = true;
+    let camInRec       = true;
+    let useMic         = true;
+    let useCountdown   = false;
+    let camOverlayPos  = 'bottom-right';   // top-left | top-right | bottom-left | bottom-right
+    let camOverlaySize = 160;              // diameter in canvas pixels
+
+    // ── DOM ──────────────────────────────────────────────────────
+    const floater     = document.getElementById('floater');
+    const flBar       = document.getElementById('fl-bar');
+    const flSettings  = document.getElementById('fl-settings');
+    const btnExpand   = document.getElementById('btn-expand');
+    const btnStart    = document.getElementById('btn-start');
+    const btnPause    = document.getElementById('btn-pause');
+    const btnStop     = document.getElementById('btn-stop');
+    const sDot        = document.getElementById('s-dot');
+    const sLabel      = document.getElementById('s-label');
+    const timerEl     = document.getElementById('timer');
+    const camMini     = document.getElementById('cam-mini');
+    const camMiniOff  = document.getElementById('cam-mini-off');
+    const screenVid   = document.getElementById('screen-vid');
+    const screenPh    = document.getElementById('screen-ph');
+    const canvas      = document.getElementById('composite-canvas');
+    const dlLink      = document.getElementById('dl-link');
+    const dlSection   = document.getElementById('dl-section');
+    const btnPlayback = document.getElementById('btn-playback');
+    const fnameInput  = document.getElementById('fname');
+    const cdOverlay   = document.getElementById('cd-overlay');
+    const cdNum       = document.getElementById('cd-num');
+
+    fnameInput.value = defaultName;
+
+    // ── roundRect polyfill ────────────────────────────────────────
+    if (!CanvasRenderingContext2D.prototype.roundRect) {
+        CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+            this.beginPath();
+            this.moveTo(x + r, y);
+            this.arcTo(x+w, y,   x+w, y+h, r);
+            this.arcTo(x+w, y+h, x,   y+h, r);
+            this.arcTo(x,   y+h, x,   y,   r);
+            this.arcTo(x,   y,   x+w, y,   r);
+            this.closePath();
+        };
+    }
+
+    // ── Drag ─────────────────────────────────────────────────────
+    let dragging = false, dragOX = 0, dragOY = 0;
+    flBar.addEventListener('mousedown', e => {
+        if (e.target.closest('button')) return;
+        dragging = true;
+        const r = floater.getBoundingClientRect();
+        dragOX = e.clientX - r.left;
+        dragOY = e.clientY - r.top;
+        floater.style.transition = 'box-shadow 0.2s';
+        floater.classList.add('dragging');
+        e.preventDefault();
+    });
+    document.addEventListener('mousemove', e => {
+        if (!dragging) return;
+        let nx = e.clientX - dragOX;
+        let ny = e.clientY - dragOY;
+        nx = Math.max(0, Math.min(nx, window.innerWidth  - floater.offsetWidth));
+        ny = Math.max(0, Math.min(ny, window.innerHeight - floater.offsetHeight));
+        floater.style.left   = nx + 'px';
+        floater.style.top    = ny + 'px';
+        floater.style.right  = 'auto';
+        floater.style.bottom = 'auto';
+    });
+    document.addEventListener('mouseup', () => {
+        dragging = false;
+        floater.classList.remove('dragging');
+    });
+
+    // ── Expand / collapse ─────────────────────────────────────────
+    let expanded = false;
+    btnExpand.addEventListener('click', () => {
+        expanded = !expanded;
+        flSettings.classList.toggle('open', expanded);
+        btnExpand.classList.toggle('active', expanded);
+    });
+
+    // ── Status ───────────────────────────────────────────────────
+    function setStatus(state) {
+        sDot.className = 'status-dot ' + state;
+        sLabel.className = state;
+        const map = { recording: 'REC', paused: 'PAUSED', ready: 'READY', done: 'DONE' };
+        sLabel.textContent = map[state] || state.toUpperCase();
+        broadcastState();
+    }
+
+    // ── Timer ────────────────────────────────────────────────────
+    function fmt(s) {
+        return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0');
+    }
+    function startTimer() {
+        elapsed = 0; timerEl.textContent = '00:00';
+        timerInterval = setInterval(() => {
+            if (!isPaused) { timerEl.textContent = fmt(++elapsed); broadcastState(); }
+        }, 1000);
+    }
+    function stopTimer() { clearInterval(timerInterval); timerInterval = null; }
+
+    // ── Countdown ────────────────────────────────────────────────
+    function runCountdown(n) {
+        return new Promise(resolve => {
+            let c = n;
+            cdNum.textContent = c;
+            cdOverlay.classList.add('show');
+            const iv = setInterval(() => {
+                c--;
+                if (c <= 0) { clearInterval(iv); cdOverlay.classList.remove('show'); resolve(); }
+                else cdNum.textContent = c;
+            }, 1000);
+        });
+    }
+
+    // ── Camera ───────────────────────────────────────────────────
+    async function startCamPreview() {
+        try {
+            camStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            camMini.srcObject = camStream;
+            camMini.style.display = 'block';
+            camMiniOff.style.display = 'none';
+            await camMini.play();
+        } catch (e) {
+            console.warn('Camera unavailable:', e);
+            useCam = false;
+            document.getElementById('tog-cam').classList.remove('on');
+            document.getElementById('tog-cam-rec').classList.remove('on');
+            camInRec = false;
+        }
+    }
+    function stopCamPreview() {
+        if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; }
+        camMini.style.display = 'none';
+        camMini.srcObject = null;
+        camMiniOff.style.display = 'flex';
+    }
+
+    // ── Canvas composite (screen + circular cam overlay) ─────────
+    function camOverlayCoords(cw, ch, size) {
+        const pad = 24;
+        return {
+            'top-left':     { x: pad,          y: pad },
+            'top-right':    { x: cw-size-pad,  y: pad },
+            'bottom-left':  { x: pad,          y: ch-size-pad },
+            'bottom-right': { x: cw-size-pad,  y: ch-size-pad },
+        }[camOverlayPos] || { x: cw-size-pad, y: ch-size-pad };
+    }
+
+    function drawComposite(sVid, cVid, ctx) {
+        if (!sVid.videoWidth) {
+            animId = requestAnimationFrame(() => drawComposite(sVid, cVid, ctx));
+            return;
+        }
+        canvas.width  = sVid.videoWidth;
+        canvas.height = sVid.videoHeight;
+
+        function loop() {
+            // Draw full screen
+            ctx.drawImage(sVid, 0, 0, canvas.width, canvas.height);
+
+            if (cVid && cVid.videoWidth) {
+                const size = camOverlaySize;
+                const { x, y } = camOverlayCoords(canvas.width, canvas.height, size);
+                const cx = x + size / 2;
+                const cy = y + size / 2;
+                const r  = size / 2;
+
+                // Center-crop source to square (avoids stretching)
+                const sw   = cVid.videoWidth;
+                const sh   = cVid.videoHeight;
+                const side = Math.min(sw, sh);
+                const sx   = (sw - side) / 2;
+                const sy   = (sh - side) / 2;
+
+                // Shadow
+                ctx.save();
+                ctx.shadowColor = 'rgba(0,0,0,0.6)';
+                ctx.shadowBlur  = 12;
+                ctx.beginPath();
+                ctx.arc(cx, cy, r + 2, 0, Math.PI * 2);
+                ctx.fillStyle = 'transparent';
+                ctx.fill();
+                ctx.restore();
+
+                // Circular clip + draw (not mirrored — natural for viewers)
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx.clip();
+                ctx.drawImage(cVid, sx, sy, side, side, x, y, size, size);
+                ctx.restore();
+
+                // Border ring
+                ctx.beginPath();
+                ctx.arc(cx, cy, r, 0, Math.PI * 2);
+                ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+                ctx.lineWidth   = 3;
+                ctx.stroke();
+            }
+
+            animId = requestAnimationFrame(loop);
+        }
+        loop();
+    }
+
+    // ── Main recording ────────────────────────────────────────────
+    async function startRecording() {
+        try {
+            dlSection.classList.remove('show');
+            btnPlayback.style.display = 'none';
+            if (recordedUrl) { URL.revokeObjectURL(recordedUrl); recordedUrl = null; }
+
+            if (useCountdown) await runCountdown(3);
+
+            screenStream = await navigator.mediaDevices.getDisplayMedia({
+                video: { cursor: 'always' },
+                audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 44100 }
+            });
+
+            // Show screen preview in settings panel
+            screenVid.srcObject = screenStream;
+            screenVid.style.display = 'block';
+            screenPh.style.display  = 'none';
+
+            let recStream;
+
+            if (camInRec && camStream) {
+                // Off-screen video elements for canvas drawing
+                const sv = document.createElement('video');
+                sv.srcObject = screenStream; sv.muted = true;
+                await sv.play();
+
+                const cv = document.createElement('video');
+                cv.srcObject = camStream; cv.muted = true;
+                await cv.play();
+
+                const ctx = canvas.getContext('2d');
+                drawComposite(sv, cv, ctx);
+                recStream = canvas.captureStream(30);
+            } else {
+                const [vt] = screenStream.getVideoTracks();
+                recStream = new MediaStream([vt]);
+                // Also add system audio track if present
+                screenStream.getAudioTracks().forEach(at => recStream.addTrack(at));
+            }
+
+            if (useMic) {
+                try {
+                    audioStream = await navigator.mediaDevices.getUserMedia({
+                        audio: { echoCancellation: true, noiseSuppression: true }
+                    });
+                    audioStream.getAudioTracks().forEach(at => recStream.addTrack(at));
+                } catch (e) { console.warn('Mic unavailable:', e); }
+            }
+
+            screenStream.getTracks().forEach(t => t.addEventListener('ended', () => {
+                if (mediaRecorder && mediaRecorder.state !== 'inactive') stopRecording();
+            }));
+
+            const mimeType = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+                .find(t => MediaRecorder.isTypeSupported(t)) || '';
+
+            const chunks = [];
+            mediaRecorder = new MediaRecorder(recStream, mimeType ? { mimeType } : {});
+            mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+            mediaRecorder.onstop = () => {
+                // Clean up only after all chunks are flushed
+                if (screenStream) { screenStream.getTracks().forEach(t => t.stop()); screenStream = null; }
+                if (audioStream)  { audioStream.getTracks().forEach(t => t.stop());  audioStream  = null; }
+                if (animId)       { cancelAnimationFrame(animId); animId = null; }
+
+                screenVid.style.display = 'none';
+                screenVid.srcObject = null;
+                screenPh.style.display = 'flex';
+
+                const blob = new Blob(chunks, { type: 'video/webm' });
+                recordedUrl = URL.createObjectURL(blob);
+                dlLink.href     = recordedUrl;
+                dlLink.download = (fnameInput.value.trim() || defaultName) + '.webm';
+                dlLink.click();
+
+                dlSection.classList.add('show');
+                btnPlayback.style.display = 'inline-flex';
+                btnPlayback.onclick = () => {
+                    const w = window.open('', '_blank');
+                    w.document.write(`<!DOCTYPE html><html><body style="margin:0;background:#000">
+                        <video src="${recordedUrl}" controls autoplay style="width:100%;max-height:100vh;display:block"></video>
+                    </body></html>`);
+                };
+
+                setStatus('done');
+                resetButtons();
+                // Auto-expand to show the download button
+                if (!expanded) {
+                    expanded = true;
+                    flSettings.classList.add('open');
+                    btnExpand.classList.add('active');
+                }
+            };
+
+            mediaRecorder.start(200);
+            startTimer();
+            setStatus('recording');
+            btnStart.disabled = true;
+            btnPause.disabled = false;
+            btnStop.disabled  = false;
+
+            // Auto-collapse while recording to stay out of the way
+            if (expanded) {
+                expanded = false;
+                flSettings.classList.remove('open');
+                btnExpand.classList.remove('active');
+            }
+
+        } catch (e) {
+            console.error(e);
+            if (e.name !== 'NotAllowedError') alert('Could not start recording:\n' + e.message);
+            resetButtons();
+        }
+    }
+
+    function stopRecording() {
+        if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+        stopTimer();
+        isPaused = false;
+        mediaRecorder.requestData();
+        mediaRecorder.stop();
+    }
+
+    function resetButtons() {
+        btnStart.disabled = false;
+        btnPause.disabled = true;
+        btnStop.disabled  = true;
+        document.getElementById('pause-icon').innerHTML =
+            '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+        broadcastState();
+    }
+
+    function togglePause() {
+        if (!mediaRecorder) return;
+        if (isPaused) {
+            mediaRecorder.resume(); isPaused = false; setStatus('recording');
+            document.getElementById('pause-icon').innerHTML =
+                '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+        } else {
+            mediaRecorder.pause(); isPaused = true; setStatus('paused');
+            document.getElementById('pause-icon').innerHTML = '<polygon points="5,3 19,12 5,21"/>';
+        }
+        broadcastState();
+    }
+
+    // ── Cam position picker ───────────────────────────────────────
+    document.querySelectorAll('.pos-dot').forEach(dot => {
+        dot.addEventListener('click', () => {
+            document.querySelectorAll('.pos-dot').forEach(d => d.classList.remove('active'));
+            dot.classList.add('active');
+            camOverlayPos = dot.dataset.p;
+        });
+    });
+
+    // ── Cam size picker ───────────────────────────────────────────
+    document.querySelectorAll('.size-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.size-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            camOverlaySize = parseInt(btn.dataset.s, 10);
+        });
+    });
+
+    // ── Toggle handlers ───────────────────────────────────────────
+    document.getElementById('tog-cam').addEventListener('click', function () {
+        useCam = !useCam;
+        this.classList.toggle('on', useCam);
+        if (useCam) startCamPreview(); else stopCamPreview();
+    });
+    document.getElementById('tog-cam-rec').addEventListener('click', function () {
+        camInRec = !camInRec;
+        this.classList.toggle('on', camInRec);
+    });
+    document.getElementById('tog-mic').addEventListener('click', function () {
+        useMic = !useMic;
+        this.classList.toggle('on', useMic);
+    });
+    document.getElementById('tog-cd').addEventListener('click', function () {
+        useCountdown = !useCountdown;
+        this.classList.toggle('on', useCountdown);
+    });
+
+    // ── Button events ─────────────────────────────────────────────
+    btnStart.addEventListener('click', startRecording);
+    btnPause.addEventListener('click', togglePause);
+    btnStop.addEventListener('click', stopRecording);
+    document.getElementById('btn-popout').addEventListener('click', openPip);
+
+    // ── Keyboard shortcuts ────────────────────────────────────────
+    document.addEventListener('keydown', e => {
+        if (e.ctrlKey && e.shiftKey && e.key === 'R') {
+            e.preventDefault();
+            btnStart.disabled ? stopRecording() : startRecording();
+        }
+        if (e.code === 'Space' && !btnPause.disabled && document.activeElement.tagName !== 'INPUT') {
+            e.preventDefault();
+            togglePause();
+        }
+    });
+
+    // ── Init ──────────────────────────────────────────────────────
+    startCamPreview();
+})();
+</script>
+</body>
+</html>
