@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nebula Logger — Production Best Practices</title>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+    <style>
+        /* ── Base ─────────────────────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --accent:      #5B4FE8;
+            --accent-light:#ede9ff;
+            --bg:          #ffffff;
+            --bg-alt:      #f8f9fc;
+            --border:      #e2e8f0;
+            --text:        #1e293b;
+            --muted:       #64748b;
+            --success:     #22c55e;
+            --warning:     #f59e0b;
+            --danger:      #ef4444;
+            --code-bg:     #1e1e2e;
+            --code-fg:     #cdd6f4;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            font-size: 16px;
+            color: var(--text);
+            background: var(--bg);
+            line-height: 1.7;
+        }
+
+        /* ── Nav ──────────────────────────────────────────────────── */
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: #fff;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 0 2rem;
+            height: 56px;
+            box-shadow: 0 1px 4px rgba(0,0,0,.06);
+        }
+
+        .nav-brand {
+            font-weight: 800;
+            font-size: 1rem;
+            color: var(--accent);
+            text-decoration: none;
+            white-space: nowrap;
+            letter-spacing: -.02em;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: .25rem;
+            flex-wrap: wrap;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--muted);
+            text-decoration: none;
+            font-size: .85rem;
+            padding: .3rem .7rem;
+            border-radius: 6px;
+            transition: background .15s, color .15s;
+        }
+
+        .nav-links a:hover {
+            background: var(--accent-light);
+            color: var(--accent);
+        }
+
+        /* ── Hero ─────────────────────────────────────────────────── */
+        .hero {
+            background: linear-gradient(135deg, #f0edff 0%, #eef2ff 60%, #f8f9fc 100%);
+            padding: 4rem 2rem 3rem;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hero h1 {
+            font-size: clamp(2rem, 5vw, 3rem);
+            font-weight: 900;
+            letter-spacing: -.04em;
+            line-height: 1.15;
+            color: var(--text);
+        }
+
+        .hero h1 em {
+            font-style: italic;
+            color: var(--accent);
+        }
+
+        .hero p {
+            margin-top: .75rem;
+            color: var(--muted);
+            font-size: 1.05rem;
+        }
+
+        .stat-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .6rem;
+            justify-content: center;
+            margin-top: 1.75rem;
+        }
+
+        .stat-badge {
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            padding: .35rem 1rem;
+            font-size: .82rem;
+            font-weight: 600;
+            color: var(--text);
+            box-shadow: 0 1px 3px rgba(0,0,0,.05);
+        }
+
+        .stat-badge.accent {
+            background: var(--accent);
+            color: #fff;
+            border-color: var(--accent);
+        }
+
+        /* ── Layout ───────────────────────────────────────────────── */
+        .page {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 1.5rem 4rem;
+        }
+
+        /* ── Section wrapper ──────────────────────────────────────── */
+        .section {
+            padding: 3.5rem 0 2rem;
+            border-bottom: 1px solid var(--border);
+            position: relative;
+        }
+
+        .section:last-child { border-bottom: none; }
+
+        .section-watermark {
+            position: absolute;
+            top: 2.5rem;
+            right: 0;
+            font-size: 5.5rem;
+            font-weight: 900;
+            color: rgba(91,79,232,.06);
+            line-height: 1;
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .section-title {
+            font-size: 1.6rem;
+            font-weight: 800;
+            letter-spacing: -.03em;
+            color: var(--text);
+            margin-bottom: 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+        }
+
+        .section-title .icon { font-size: 1.4rem; }
+
+        /* ── Prose ────────────────────────────────────────────────── */
+        p { margin-bottom: 1rem; color: var(--text); }
+
+        h3 {
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin: 1.5rem 0 .6rem;
+            color: var(--text);
+        }
+
+        ul, ol {
+            padding-left: 0;
+            list-style: none;
+            margin-bottom: 1rem;
+        }
+
+        ul li, ol li {
+            padding: .25rem 0 .25rem 1.4rem;
+            position: relative;
+            color: var(--text);
+            font-size: .95rem;
+        }
+
+        ul li::before {
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: var(--accent);
+            font-weight: 700;
+        }
+
+        ol { counter-reset: ol-counter; }
+        ol li { counter-increment: ol-counter; }
+        ol li::before {
+            content: counter(ol-counter);
+            position: absolute;
+            left: 0;
+            width: 1.1rem;
+            height: 1.1rem;
+            background: var(--accent);
+            color: #fff;
+            font-size: .72rem;
+            font-weight: 700;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            top: .35rem;
+        }
+
+        /* ── Cards ────────────────────────────────────────────────── */
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 1.25rem;
+            margin-top: 1.25rem;
+        }
+
+        .card {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.4rem 1.5rem;
+            background: #fff;
+            box-shadow: 0 1px 4px rgba(0,0,0,.05);
+        }
+
+        .card-icon { font-size: 1.8rem; margin-bottom: .6rem; }
+        .card h3 { margin-top: 0; }
+
+        .card.bp {
+            border-top: 3px solid var(--success);
+        }
+
+        .card.bp h3::before {
+            content: "✓ ";
+            color: var(--success);
+        }
+
+        /* ── Callouts ─────────────────────────────────────────────── */
+        .callout {
+            border-left: 4px solid var(--accent);
+            background: var(--accent-light);
+            border-radius: 0 8px 8px 0;
+            padding: 1rem 1.2rem;
+            margin: 1rem 0;
+            font-size: .95rem;
+        }
+
+        .callout.success {
+            border-color: var(--success);
+            background: #f0fdf4;
+        }
+
+        .callout.warning {
+            border-color: var(--warning);
+            background: #fffbeb;
+        }
+
+        .callout.danger {
+            border-color: var(--danger);
+            background: #fff1f2;
+        }
+
+        .callout strong { display: block; margin-bottom: .3rem; font-size: .9rem; }
+
+        /* ── Alert Flow ───────────────────────────────────────────── */
+        .flow {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: .5rem;
+            background: var(--bg-alt);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 1rem 1.25rem;
+            font-size: .9rem;
+            font-weight: 600;
+            color: var(--text);
+            margin: 1rem 0;
+        }
+
+        .flow-step {
+            background: var(--accent);
+            color: #fff;
+            padding: .3rem .8rem;
+            border-radius: 6px;
+            font-size: .82rem;
+        }
+
+        .flow-arrow { color: var(--muted); font-size: 1rem; }
+
+        /* ── Code blocks ──────────────────────────────────────────── */
+        pre {
+            background: var(--code-bg);
+            color: var(--code-fg);
+            border-radius: 10px;
+            padding: 1.25rem 1.4rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+            font-size: .82rem;
+            line-height: 1.65;
+        }
+
+        pre code {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            background: none;
+            color: inherit;
+            padding: 0;
+            font-size: inherit;
+        }
+
+        code {
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            background: #f1f5f9;
+            color: var(--accent);
+            padding: .1rem .35rem;
+            border-radius: 4px;
+            font-size: .82rem;
+        }
+
+        /* comment style inside pre */
+        .cm { color: #6272a4; }
+
+        /* ── Tables ───────────────────────────────────────────────── */
+        .table-wrap { overflow-x: auto; margin: 1rem 0; border-radius: 10px; border: 1px solid var(--border); }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .9rem;
+        }
+
+        thead th {
+            background: var(--accent);
+            color: #fff;
+            padding: .75rem 1rem;
+            text-align: left;
+            font-weight: 700;
+            font-size: .85rem;
+        }
+
+        tbody td {
+            padding: .65rem 1rem;
+            border-bottom: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        tbody tr:last-child td { border-bottom: none; }
+        tbody tr:nth-child(even) td { background: var(--bg-alt); }
+
+        .badge {
+            display: inline-block;
+            padding: .2rem .65rem;
+            border-radius: 999px;
+            font-size: .78rem;
+            font-weight: 600;
+        }
+
+        .badge-warn  { background: #fef9c3; color: #92400e; }
+        .badge-info  { background: #dbeafe; color: #1d4ed8; }
+        .badge-debug { background: #f3e8ff; color: #7e22ce; }
+        .badge-fine  { background: #dcfce7; color: #14532d; }
+        .badge-error { background: #fee2e2; color: #991b1b; }
+        .badge-good  { background: #dcfce7; color: #14532d; }
+        .badge-req   { background: var(--accent); color: #fff; }
+
+        /* ── Diff / inline example labels ─────────────────────────── */
+        .good-bad { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; margin: .75rem 0; }
+        @media (max-width: 600px) { .good-bad { grid-template-columns: 1fr; } }
+
+        .good-bad pre { margin: 0; }
+        .label { font-size: .78rem; font-weight: 700; margin-bottom: .25rem; }
+        .label.good { color: var(--success); }
+        .label.bad  { color: var(--danger); }
+
+        /* ── Footer ───────────────────────────────────────────────── */
+        footer {
+            border-top: 1px solid var(--border);
+            background: var(--bg-alt);
+            padding: 1.5rem 2rem;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            gap: .5rem;
+            font-size: .82rem;
+            color: var(--muted);
+        }
+
+        footer strong { color: var(--text); }
+    </style>
+</head>
+<body>
+
+<!-- ── Navigation ──────────────────────────────────────────────────── -->
+<nav>
+    <a class="nav-brand" href="#">⚡ Nebula Logger Guide</a>
+    <ul class="nav-links">
+        <li><a href="#overview">Overview</a></li>
+        <li><a href="#logging-levels">Log Levels</a></li>
+        <li><a href="#structured-logging">Structured Logging</a></li>
+        <li><a href="#security">Security</a></li>
+        <li><a href="#retention">Retention</a></li>
+        <li><a href="#alerting">Alerting</a></li>
+        <li><a href="#wrapper">Wrapper Pattern</a></li>
+        <li><a href="#standards">Enterprise Standards</a></li>
+    </ul>
+</nav>
+
+<!-- ── Hero ────────────────────────────────────────────────────────── -->
+<header class="hero">
+    <h1><em>Nebula Logger</em> — Production Best Practices</h1>
+    <p>Salesforce Enterprise Logging Standards &amp; Observability Patterns</p>
+    <div class="stat-row">
+        <span class="stat-badge">8 Topic Areas</span>
+        <span class="stat-badge">30+ Best Practices</span>
+        <span class="stat-badge">Apex · Flow · LWC</span>
+        <span class="stat-badge accent">Enterprise Grade</span>
+        <span class="stat-badge">Security First</span>
+    </div>
+</header>
+
+<!-- ── Page body ────────────────────────────────────────────────────── -->
+<div class="page">
+
+    <!-- 01 Overview -->
+    <section class="section" id="overview">
+        <span class="section-watermark">01</span>
+        <h2 class="section-title"><span class="icon">🔭</span> Overview</h2>
+
+        <p>
+            Nebula Logger should be treated as an enterprise <strong>observability platform</strong>,
+            not a replacement for <code>System.debug()</code>. It captures meaningful business and
+            operational events while minimising noise and storage consumption.
+        </p>
+
+        <div class="callout success">
+            <strong>Goal</strong>
+            Capture meaningful business and operational events while minimising noise
+            and storage consumption. Every log entry should answer: what happened, why
+            it matters, and what action (if any) is required.
+        </div>
+
+        <div class="card-grid">
+            <div class="card">
+                <div class="card-icon">📊</div>
+                <h3>Observability</h3>
+                <ul>
+                    <li>Business-process tracing</li>
+                    <li>Integration health monitoring</li>
+                    <li>Performance baselines</li>
+                    <li>Audit trails</li>
+                </ul>
+            </div>
+            <div class="card">
+                <div class="card-icon">⚙️</div>
+                <h3>Where to Use It</h3>
+                <ul>
+                    <li>Apex triggers &amp; classes</li>
+                    <li>Flows &amp; Process Builders</li>
+                    <li>LWC components</li>
+                    <li>Integration services</li>
+                </ul>
+            </div>
+            <div class="card">
+                <div class="card-icon">🚫</div>
+                <h3>When NOT to Use It</h3>
+                <ul>
+                    <li>Temporary development traces</li>
+                    <li>Verbose loop iterations</li>
+                    <li>Pure debug noise</li>
+                    <li>Already-handled info events</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- 02 Logging Levels -->
+    <section class="section" id="logging-levels">
+        <span class="section-watermark">02</span>
+        <h2 class="section-title"><span class="icon">🎚️</span> Recommended Logging Levels</h2>
+
+        <p>
+            Set logging levels per environment through Nebula Logger's custom metadata.
+            Misconfigured levels are the most common cause of runaway storage costs.
+        </p>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Environment</th>
+                        <th>Recommended Level</th>
+                        <th>Rationale</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Production</td>
+                        <td><span class="badge badge-warn">WARN / ERROR</span></td>
+                        <td>Minimise storage; capture actionable events only</td>
+                    </tr>
+                    <tr>
+                        <td>UAT</td>
+                        <td><span class="badge badge-info">INFO</span></td>
+                        <td>Business-flow visibility during acceptance testing</td>
+                    </tr>
+                    <tr>
+                        <td>QA</td>
+                        <td><span class="badge badge-debug">DEBUG</span></td>
+                        <td>Detailed tracing for testers</td>
+                    </tr>
+                    <tr>
+                        <td>Developer Sandbox</td>
+                        <td><span class="badge badge-fine">FINE / FINEST</span></td>
+                        <td>Maximum verbosity during active development</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="callout warning">
+            <strong>⚠️ Warning</strong>
+            Avoid <code>DEBUG</code> or lower globally in Production. Even when troubleshooting,
+            enable verbose logging only for targeted users or transactions, and revert immediately.
+        </div>
+    </section>
+
+    <!-- 03 Structured Logging -->
+    <section class="section" id="structured-logging">
+        <span class="section-watermark">03</span>
+        <h2 class="section-title"><span class="icon">🏗️</span> Structured Logging</h2>
+
+        <p>
+            Use <strong>scenarios</strong>, <strong>tags</strong>, and <strong>related records</strong>
+            to create logs that are searchable, reportable, and meaningful to operations teams
+            without reading source code.
+        </p>
+
+<pre><code><span class="cm">// Set the business scenario for every entry in this transaction</span>
+Logger.setScenario('OrderFulfillment');
+
+Logger.error('Payment Failed')
+    .addTag('Payments')
+    .addTag('Stripe')
+    .setRecord(orderRecord);
+
+Logger.info('Order Created')
+    .setScenario('OrderFulfillment')
+    .addTag('Orders')
+    .setRecord(newOrder);
+
+Logger.saveLog();
+</code></pre>
+
+        <h3>Recommended Tags</h3>
+        <div class="card-grid">
+            <div class="card">
+                <div class="card-icon">🏷️</div>
+                <h3>Domain Tags</h3>
+                <ul>
+                    <li>Integration</li>
+                    <li>Flow</li>
+                    <li>Apex</li>
+                    <li>LWC</li>
+                    <li>Security</li>
+                    <li>Payments</li>
+                    <li>CPQ</li>
+                </ul>
+            </div>
+            <div class="card">
+                <div class="card-icon">🚨</div>
+                <h3>Severity Tags</h3>
+                <ul>
+                    <li>P1 — Production outage</li>
+                    <li>P2 — Major degradation</li>
+                    <li>P3 — Minor impact</li>
+                    <li>P4 — Cosmetic / informational</li>
+                </ul>
+            </div>
+            <div class="card">
+                <div class="card-icon">✅</div>
+                <h3>Tag Best Practices</h3>
+                <ul>
+                    <li>Use a defined taxonomy — no free text</li>
+                    <li>Apply at least one domain tag per entry</li>
+                    <li>Apply severity tags to ERROR entries</li>
+                    <li>Review tag list quarterly</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- 04 Security -->
+    <section class="section" id="security">
+        <span class="section-watermark">04</span>
+        <h2 class="section-title"><span class="icon">🔐</span> Security Guidelines</h2>
+
+        <div class="callout danger">
+            <strong>❌ Never Log</strong>
+            Passwords · OAuth tokens · Session IDs · Credit card data · SSNs · HIPAA PHI ·
+            Encryption keys · Any PII not strictly necessary for debugging.
+        </div>
+
+        <div class="good-bad">
+            <div>
+                <p class="label good">✅ Good</p>
+<pre><code><span class="cm">// Log the event, not the secret</span>
+Logger.warn('Token validation failed for user');
+
+Logger.error('Payment declined', ex)
+    .addTag('Payments')
+    .setRecord(orderRecord);
+</code></pre>
+            </div>
+            <div>
+                <p class="label bad">❌ Bad</p>
+<pre><code><span class="cm">// Never expose credentials in log messages</span>
+Logger.warn('Token=' + accessToken);
+
+Logger.error('CC=' + cardNumber
+    + ' CVV=' + cvv);
+</code></pre>
+            </div>
+        </div>
+
+        <h3>Additional Security Controls</h3>
+        <div class="card-grid">
+            <div class="card bp">
+                <h3>Data Masking</h3>
+                <ul>
+                    <li>Mask fields in your wrapper before passing to Nebula</li>
+                    <li>Use Nebula's field-level masking metadata where available</li>
+                </ul>
+            </div>
+            <div class="card bp">
+                <h3>Access Control</h3>
+                <ul>
+                    <li>Restrict <code>Log__c</code> visibility to Ops &amp; Support profiles</li>
+                    <li>Do not expose log records in community or Experience portals</li>
+                </ul>
+            </div>
+            <div class="card bp">
+                <h3>Compliance Review</h3>
+                <ul>
+                    <li>Annual review of logged fields against GDPR / HIPAA requirements</li>
+                    <li>Document data classes stored in logs for your DPA register</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- 05 Retention -->
+    <section class="section" id="retention">
+        <span class="section-watermark">05</span>
+        <h2 class="section-title"><span class="icon">🗄️</span> Retention &amp; Purging</h2>
+
+        <p>
+            Unbounded log growth is one of the most common causes of Salesforce data-storage
+            overages. Define explicit retention windows per environment and automate purge jobs
+            from day one.
+        </p>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Environment</th>
+                        <th>Retention Window</th>
+                        <th>Purge Mechanism</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Production</td>
+                        <td>30–60 Days</td>
+                        <td>Scheduled Apex job + Nebula Purge Plugin</td>
+                    </tr>
+                    <tr>
+                        <td>UAT</td>
+                        <td>30 Days</td>
+                        <td>Scheduled Apex job</td>
+                    </tr>
+                    <tr>
+                        <td>Sandbox</td>
+                        <td>90 Days</td>
+                        <td>Manual or scheduled Apex job</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="callout">
+            <strong>💡 Recommended Purge Setup</strong>
+            Schedule <code>LogBatchPurger</code> to run nightly. Monitor
+            <code>Log__c</code> record counts via a simple Flow-based alert when
+            row count exceeds your threshold.
+        </div>
+
+        <h3>Storage Monitoring Checklist</h3>
+        <ol>
+            <li>Create a dashboard tile for <code>Log__c</code> record count</li>
+            <li>Set a Flow alert at 80% of your target retention ceiling</li>
+            <li>Review purge-job logs weekly for the first month post-go-live</li>
+            <li>Document your retention policy in your org's data dictionary</li>
+        </ol>
+    </section>
+
+    <!-- 06 Alerting -->
+    <section class="section" id="alerting">
+        <span class="section-watermark">06</span>
+        <h2 class="section-title"><span class="icon">🔔</span> Alerting Strategy</h2>
+
+        <p>
+            Nebula Logger integrates with Platform Events to trigger real-time
+            notifications. Use this pipeline for every P1/P2 ERROR entry.
+        </p>
+
+        <div class="flow">
+            <span class="flow-step">ERROR log saved</span>
+            <span class="flow-arrow">→</span>
+            <span class="flow-step">Platform Event fired</span>
+            <span class="flow-arrow">→</span>
+            <span class="flow-step">Flow subscription</span>
+            <span class="flow-arrow">→</span>
+            <span class="flow-step">Slack / Teams / Email</span>
+        </div>
+
+        <div class="card-grid">
+            <div class="card">
+                <div class="card-icon">🚨</div>
+                <h3>Alert On</h3>
+                <ul>
+                    <li>Unhandled exceptions</li>
+                    <li>Integration failures</li>
+                    <li>Authentication failures</li>
+                    <li>Payment processing failures</li>
+                    <li>Batch job failures</li>
+                    <li>P1 / P2 tagged entries</li>
+                </ul>
+            </div>
+            <div class="card">
+                <div class="card-icon">🔕</div>
+                <h3>Do Not Alert On</h3>
+                <ul>
+                    <li>INFO or DEBUG messages</li>
+                    <li>Minor / expected warnings</li>
+                    <li>Retry attempts before final failure</li>
+                    <li>Non-actionable system noise</li>
+                </ul>
+            </div>
+            <div class="card bp">
+                <h3>Alert Quality Rules</h3>
+                <ul>
+                    <li>Every alert must be actionable</li>
+                    <li>Include record ID and scenario in the message</li>
+                    <li>Route by tag to the right team channel</li>
+                    <li>Review &amp; tune alert thresholds monthly</li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- 07 Wrapper -->
+    <section class="section" id="wrapper">
+        <span class="section-watermark">07</span>
+        <h2 class="section-title"><span class="icon">📦</span> Logging Wrapper Pattern</h2>
+
+        <p>
+            Wrap Nebula Logger in a centralised class so all callers receive
+            consistent tagging, masking, and <code>saveLog()</code> behaviour.
+            This also isolates upgrade effort to a single file.
+        </p>
+
+<pre><code>public class AppLogger {
+
+    <span class="cm">/**
+     * Log an error with the related SObject record.
+     * All enterprise error logs are tagged and saved immediately.
+     */</span>
+    public static void error(
+        String message,
+        Exception ex,
+        SObject record
+    ) {
+        Logger.error(message, ex)
+            .setRecord(record)
+            .addTag('Enterprise')
+            .addTag('P1');
+
+        Logger.saveLog();
+    }
+
+    public static void warn(String message) {
+        Logger.warn(message)
+            .addTag('Enterprise');
+
+        Logger.saveLog();
+    }
+
+    public static void info(String scenario, String message, SObject record) {
+        Logger.setScenario(scenario);
+        Logger.info(message)
+            .setRecord(record)
+            .addTag('Enterprise');
+
+        Logger.saveLog();
+    }
+}
+</code></pre>
+
+        <div class="callout success">
+            <strong>Benefits of the Wrapper Pattern</strong>
+            Centralised masking · Consistent tagging · Easier framework upgrades ·
+            Single <code>saveLog()</code> point · Simplified mocking in unit tests.
+        </div>
+
+        <h3>Usage</h3>
+<pre><code><span class="cm">// From any Apex class or trigger</span>
+try {
+    processOrder(order);
+    AppLogger.info('OrderFulfillment', 'Order processed', order);
+} catch (Exception ex) {
+    AppLogger.error('Order processing failed', ex, order);
+}
+</code></pre>
+    </section>
+
+    <!-- 08 Standards -->
+    <section class="section" id="standards">
+        <span class="section-watermark">08</span>
+        <h2 class="section-title"><span class="icon">📋</span> Enterprise Logging Standards</h2>
+
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Production Standard</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Default Log Level</td>
+                        <td>WARN</td>
+                        <td><span class="badge badge-req">Mandatory</span></td>
+                    </tr>
+                    <tr>
+                        <td>Alert Threshold</td>
+                        <td>ERROR</td>
+                        <td><span class="badge badge-req">Mandatory</span></td>
+                    </tr>
+                    <tr>
+                        <td>Retention Policy</td>
+                        <td>30–60 Days</td>
+                        <td><span class="badge badge-req">Mandatory</span></td>
+                    </tr>
+                    <tr>
+                        <td>Tagging</td>
+                        <td>At least one domain tag per entry</td>
+                        <td><span class="badge badge-req">Mandatory</span></td>
+                    </tr>
+                    <tr>
+                        <td>Automated Purging</td>
+                        <td>Nightly scheduled job</td>
+                        <td><span class="badge badge-req">Mandatory</span></td>
+                    </tr>
+                    <tr>
+                        <td>Wrapper Class</td>
+                        <td>All callers use <code>AppLogger</code></td>
+                        <td><span class="badge badge-good">Recommended</span></td>
+                    </tr>
+                    <tr>
+                        <td>Sensitive Data</td>
+                        <td>Zero PII / credentials in log messages</td>
+                        <td><span class="badge badge-req">Mandatory</span></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="callout success" style="margin-top:2rem;">
+            <strong>✅ Key Takeaway</strong>
+            Production logs should answer four questions:
+            <ul style="margin-top:.5rem;">
+                <li>What business process started?</li>
+                <li>What business process completed?</li>
+                <li>What failed — and why?</li>
+                <li>What action is required?</li>
+            </ul>
+            If a log entry cannot help answer one of these questions,
+            it probably does not belong in Production.
+        </div>
+    </section>
+
+</div><!-- /.page -->
+
+<!-- ── Footer ───────────────────────────────────────────────────────── -->
+<footer>
+    <span><strong>Nebula Logger</strong> — Production Best Practices Guide</span>
+    <span>Salesforce Enterprise Observability Standards · Updated 2026</span>
+</footer>
+
+</body>
+</html>
