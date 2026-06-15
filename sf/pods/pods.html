@@ -1,0 +1,1448 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salesforce POD Status Viewer</title>
+    <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <style>
+    /* ── Theme tokens ─────────────────────────────────────────────────────── */
+    :root {
+      --bg-primary:    #0f172a;
+      --bg-secondary:  #1e293b;
+      --bg-tertiary:   #334155;
+      --bg-input:      #1e293b;
+      --border:        #475569;
+      --text-primary:  #f1f5f9;
+      --text-secondary:#94a3b8;
+      --text-muted:    #64748b;
+      --accent:        #3b82f6;
+      --accent-hover:  #2563eb;
+      --accent-light:  rgba(59,130,246,.12);
+      --success:       #10b981;
+      --danger:        #ef4444;
+      --splitter-line: #475569;
+      --splitter-glow: #3b82f6;
+      --pod-hover:     #334155;
+      --pod-active:    rgba(59,130,246,.15);
+      --shadow-md:     0 4px 12px rgba(0,0,0,.4);
+    }
+
+    [data-theme="light"] {
+      --bg-primary:    #f0f4f8;
+      --bg-secondary:  #ffffff;
+      --bg-tertiary:   #f1f5f9;
+      --bg-input:      #ffffff;
+      --border:        #e2e8f0;
+      --text-primary:  #0f172a;
+      --text-secondary:#475569;
+      --text-muted:    #94a3b8;
+      --accent:        #2563eb;
+      --accent-hover:  #1d4ed8;
+      --accent-light:  rgba(37,99,235,.08);
+      --success:       #059669;
+      --danger:        #dc2626;
+      --splitter-line: #cbd5e1;
+      --splitter-glow: #2563eb;
+      --pod-hover:     #f1f5f9;
+      --pod-active:    rgba(37,99,235,.08);
+      --shadow-md:     0 4px 12px rgba(0,0,0,.1);
+    }
+
+    /* ── Reset / base ────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', Roboto, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: background .25s, color .25s;
+    }
+
+    /* ── Header ──────────────────────────────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      box-shadow: var(--shadow-md);
+      z-index: 20;
+      transition: background .25s, border-color .25s;
+    }
+
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo {
+      width: 34px;
+      height: 34px;
+      background: linear-gradient(135deg, #00a1e0 0%, #0070d2 100%);
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 13px;
+      color: #fff;
+      letter-spacing: -.3px;
+      flex-shrink: 0;
+      box-shadow: 0 2px 8px rgba(0,112,210,.4);
+    }
+
+    .header-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -.3px;
+    }
+
+    .header-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 1px;
+    }
+
+    .btn-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      transition: all .2s;
+      flex-shrink: 0;
+    }
+    .btn-icon:hover { background: var(--accent); color: #fff; border-color: var(--accent); transform: scale(1.06); }
+
+    /* ── Main split layout ───────────────────────────────────────────────── */
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Left pane ───────────────────────────────────────────────────────── */
+    .left-pane {
+      width: 320px;
+      min-width: 220px;
+      max-width: 640px;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-secondary);
+      flex-shrink: 0;
+      overflow: hidden;
+      transition: background .25s;
+    }
+
+    .left-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .left-scroll::-webkit-scrollbar { width: 4px; }
+    .left-scroll::-webkit-scrollbar-track { background: transparent; }
+    .left-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ── Form pieces ─────────────────────────────────────────────────────── */
+    .section-label {
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-muted);
+      margin-bottom: 7px;
+    }
+
+    .input-row { display: flex; gap: 7px; }
+
+    .pod-input {
+      flex: 1;
+      padding: 9px 11px;
+      border-radius: 8px;
+      border: 1.5px solid var(--border);
+      background: var(--bg-input);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+      font-weight: 600;
+      letter-spacing: .06em;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s, background .25s;
+    }
+    .pod-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-light);
+    }
+    .pod-input::placeholder { color: var(--text-muted); font-weight: 400; }
+
+    .btn-primary {
+      padding: 9px 15px;
+      border-radius: 8px;
+      border: none;
+      background: var(--accent);
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+      white-space: nowrap;
+    }
+    .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,.45); }
+    .btn-primary:active { transform: translateY(0); box-shadow: none; }
+
+    /* ── URL display ─────────────────────────────────────────────────────── */
+    .url-display {
+      padding: 9px 11px;
+      border-radius: 8px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      font-size: 12px;
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+      color: var(--accent);
+      word-break: break-all;
+      line-height: 1.6;
+      transition: all .2s;
+    }
+    .url-display.empty { color: var(--text-muted); font-style: italic; font-family: inherit; }
+
+    /* ── File actions ────────────────────────────────────────────────────── */
+    .file-row { display: flex; gap: 7px; }
+
+    .btn-secondary {
+      flex: 1;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1.5px solid var(--border);
+      background: transparent;
+      color: var(--text-secondary);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      transition: all .2s;
+    }
+    .btn-secondary:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+
+    #fileInput { display: none; }
+
+    /* ── Divider ─────────────────────────────────────────────────────────── */
+    .left-divider { height: 1px; background: var(--border); margin: 0 -16px; }
+
+    /* ── Saved pods list ─────────────────────────────────────────────────── */
+    .pods-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .pods-badge {
+      font-size: 10px;
+      color: var(--text-muted);
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      padding: 1px 6px;
+      border-radius: 10px;
+    }
+
+    .btn-ghost-xs {
+      padding: 3px 8px;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 10.5px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .btn-ghost-xs:hover { border-color: var(--danger); color: var(--danger); background: rgba(239,68,68,.08); }
+
+    .pods-empty {
+      text-align: center;
+      padding: 22px 14px;
+      color: var(--text-muted);
+      font-size: 12.5px;
+      line-height: 1.6;
+      border: 1.5px dashed var(--border);
+      border-radius: 9px;
+    }
+    .pods-empty-icon { font-size: 22px; margin-bottom: 6px; display: block; }
+
+    .pod-item {
+      display: flex;
+      align-items: center;
+      padding: 9px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      margin-bottom: 3px;
+      gap: 9px;
+      transition: all .15s;
+    }
+    .pod-item:hover { background: var(--pod-hover); border-color: var(--border); }
+    .pod-item.active { background: var(--pod-active); border-color: var(--accent); }
+
+    .pod-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+      transition: background .2s, box-shadow .2s;
+    }
+    .pod-item.active .pod-dot { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+    .pod-name {
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+      flex: 1;
+    }
+
+    .pod-time {
+      font-size: 10px;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .pod-del {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      line-height: 1;
+      opacity: 0;
+      transition: all .15s;
+      flex-shrink: 0;
+    }
+    .pod-item:hover .pod-del { opacity: 1; }
+    .pod-del:hover { background: var(--danger); color: #fff; }
+
+    /* ── Splitter ────────────────────────────────────────────────────────── */
+    .splitter {
+      width: 10px;
+      background: var(--bg-secondary);
+      cursor: col-resize;
+      position: relative;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      transition: background .2s;
+    }
+
+    .splitter-track {
+      position: absolute;
+      top: 0; bottom: 0;
+      left: 4px;
+      width: 2px;
+      background: var(--splitter-line);
+      border-radius: 1px;
+      transition: all .2s;
+    }
+
+    .splitter:hover .splitter-track,
+    .splitter.dragging .splitter-track {
+      background: var(--splitter-glow);
+      width: 3px;
+      left: 3.5px;
+      box-shadow: 0 0 10px var(--splitter-glow);
+    }
+
+    .splitter-grip {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .grip-dot {
+      width: 3px;
+      height: 3px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: background .2s, transform .2s;
+    }
+    .splitter:hover .grip-dot,
+    .splitter.dragging .grip-dot { background: var(--splitter-glow); transform: scaleX(1.3); }
+
+    /* ── Right pane ──────────────────────────────────────────────────────── */
+    .right-pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg-primary);
+      min-width: 0;
+      transition: background .25s;
+    }
+
+    .address-bar {
+      display: flex;
+      align-items: center;
+      padding: 7px 12px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border);
+      gap: 8px;
+      flex-shrink: 0;
+      transition: background .25s, border-color .25s;
+    }
+
+    .address-icon { color: var(--text-muted); flex-shrink: 0; }
+
+    .address-url {
+      flex: 1;
+      font-size: 12px;
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+      color: var(--text-secondary);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      transition: color .25s;
+    }
+    .address-url a { color: var(--accent); text-decoration: none; }
+    .address-url a:hover { text-decoration: underline; }
+
+    /* ── Right pane body ─────────────────────────────────────────────────── */
+    .right-body {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 40px 24px;
+    }
+    .right-body::-webkit-scrollbar { width: 4px; }
+    .right-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* ── Empty state ─────────────────────────────────────────────────────── */
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      color: var(--text-muted);
+      text-align: center;
+      width: 100%;
+      padding: 60px 0;
+    }
+    .empty-state-ring {
+      width: 80px; height: 80px;
+      border-radius: 50%;
+      border: 2px dashed var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px;
+      animation: pulse 3s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:.5;transform:scale(1)} 50%{opacity:1;transform:scale(1.05)} }
+    .empty-state-title { font-size: 18px; font-weight: 600; color: var(--text-secondary); }
+    .empty-state-hint  { font-size: 13px; line-height: 1.6; max-width: 280px; }
+
+    /* ── POD card ────────────────────────────────────────────────────────── */
+    .pod-card {
+      width: 100%;
+      max-width: 540px;
+      animation: cardIn .3s cubic-bezier(.34,1.4,.64,1);
+    }
+    @keyframes cardIn { from { opacity:0; transform:translateY(18px) scale(.97); } to { opacity:1; transform:none; } }
+
+    .pod-card-hero {
+      background: linear-gradient(135deg, #0070d2 0%, #032d60 100%);
+      border-radius: 16px 16px 0 0;
+      padding: 32px 28px 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .pod-card-hero::before {
+      content:'';
+      position:absolute;
+      inset:0;
+      background: radial-gradient(ellipse at 80% 20%, rgba(0,161,224,.35) 0%, transparent 60%);
+    }
+    .pod-card-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,.15);
+      border: 1px solid rgba(255,255,255,.2);
+      border-radius: 20px;
+      padding: 4px 11px;
+      font-size: 11px;
+      font-weight: 600;
+      color: rgba(255,255,255,.85);
+      letter-spacing: .05em;
+      margin-bottom: 14px;
+    }
+    .badge-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 6px #10b981;
+      animation: blink 2s ease-in-out infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    .pod-card-name {
+      font-family: 'SF Mono','Fira Code',Consolas,monospace;
+      font-size: 42px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: -.02em;
+      line-height: 1;
+      margin-bottom: 6px;
+      position: relative;
+    }
+    .pod-card-label {
+      font-size: 13px;
+      color: rgba(255,255,255,.6);
+      position: relative;
+    }
+
+    .pod-card-body {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 16px 16px;
+      padding: 22px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      transition: background .25s, border-color .25s;
+    }
+
+    .pod-url-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 13px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      transition: border-color .2s;
+    }
+    .pod-url-row:hover { border-color: var(--accent); }
+    .pod-url-text {
+      flex: 1;
+      font-family: 'SF Mono','Fira Code',Consolas,monospace;
+      font-size: 12px;
+      color: var(--accent);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .copy-btn {
+      padding: 4px 9px;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-size: 11px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all .15s;
+      flex-shrink: 0;
+    }
+    .copy-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-light); }
+    .copy-btn.copied { border-color: var(--success); color: var(--success); background: rgba(16,185,129,.08); }
+
+    .btn-launch {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 14px 20px;
+      border-radius: 10px;
+      border: none;
+      background: linear-gradient(135deg, #0070d2 0%, #032d60 100%);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .2s;
+      box-shadow: 0 4px 14px rgba(0,112,210,.35);
+      letter-spacing: .01em;
+    }
+    .btn-launch:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,112,210,.5); }
+    .btn-launch:active { transform: translateY(0); box-shadow: 0 4px 14px rgba(0,112,210,.35); }
+
+    .pod-meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .pod-meta-item {
+      padding: 11px 13px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      transition: background .25s, border-color .25s;
+    }
+    .pod-meta-key {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+    .pod-meta-val {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-primary);
+      font-family: 'SF Mono','Fira Code',Consolas,monospace;
+    }
+
+    .pod-tip {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: flex-start;
+      gap: 7px;
+      padding: 10px 13px;
+      border-radius: 8px;
+      border: 1px dashed var(--border);
+      line-height: 1.5;
+    }
+    .pod-tip svg { flex-shrink: 0; margin-top: 1px; color: var(--accent); }
+
+    /* ── Live instance details ───────────────────────────────────────────── */
+    .live-section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 11px;
+    }
+    .live-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--text-muted);
+    }
+    .live-fetch-badge {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10.5px;
+      color: var(--text-muted);
+    }
+    .mini-spinner {
+      width: 10px; height: 10px;
+      border: 1.5px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .65s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .status-pill.ok       { background: rgba(16,185,129,.12); color: #10b981; border: 1px solid rgba(16,185,129,.3); }
+    .status-pill.incident { background: rgba(239,68,68,.12);  color: #ef4444; border: 1px solid rgba(239,68,68,.3); }
+    .status-pill.degraded { background: rgba(245,158,11,.12); color: #f59e0b; border: 1px solid rgba(245,158,11,.3); }
+    .status-pill-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: blink 2s ease-in-out infinite; }
+
+    .live-grid {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      transition: border-color .25s;
+    }
+    .live-row {
+      display: flex;
+      align-items: flex-start;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      gap: 12px;
+      transition: background .15s, border-color .25s;
+    }
+    .live-row:last-child { border-bottom: none; }
+    .live-row:hover { background: var(--bg-tertiary); }
+    .live-row-key {
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      color: var(--text-muted);
+      min-width: 128px;
+      flex-shrink: 0;
+      padding-top: 2px;
+    }
+    .live-row-val {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-primary);
+      line-height: 1.5;
+    }
+    .live-row-val.mono {
+      font-family: 'SF Mono','Fira Code',Consolas,monospace;
+      font-size: 12.5px;
+    }
+    .product-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+    .product-tag {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--accent-light);
+      color: var(--accent);
+      border: 1px solid rgba(59,130,246,.2);
+    }
+
+    /* skeleton shimmer */
+    .skel {
+      display: inline-block;
+      border-radius: 4px;
+      background: linear-gradient(90deg,
+        var(--bg-tertiary) 25%, var(--border) 50%, var(--bg-tertiary) 75%);
+      background-size: 400% 100%;
+      animation: shimmer 1.4s ease infinite;
+    }
+    @keyframes shimmer { to { background-position: -400% 0; } }
+    .skel-h { height: 13px; }
+    .skel-sm  { width: 80px; }
+    .skel-md  { width: 140px; }
+    .skel-lg  { width: 200px; }
+
+    .live-error {
+      font-size: 12px;
+      color: var(--danger);
+      padding: 10px 13px;
+      border: 1px dashed rgba(239,68,68,.35);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .hidden { display: none !important; }
+
+    /* ── Toast ───────────────────────────────────────────────────────────── */
+    .toast-wrap {
+      position: fixed;
+      bottom: 18px;
+      right: 18px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      pointer-events: none;
+    }
+
+    .toast {
+      padding: 9px 14px;
+      border-radius: 8px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+      font-size: 13px;
+      font-weight: 500;
+      box-shadow: var(--shadow-md);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      animation: toastIn .28s ease, toastOut .28s ease 2.72s forwards;
+      pointer-events: auto;
+    }
+    .toast.success { border-left: 3px solid var(--success); }
+    .toast.error   { border-left: 3px solid var(--danger); }
+    .toast.info    { border-left: 3px solid var(--accent); }
+
+    .toast-icon { font-size: 13px; font-weight: 700; flex-shrink: 0; }
+
+    @keyframes toastIn  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
+  <header class="header">
+    <div class="header-brand">
+      <div class="logo">SF</div>
+      <div>
+        <div class="header-title">Salesforce POD Status</div>
+        <div class="header-sub">Trust Status Viewer</div>
+      </div>
+    </div>
+    <button class="btn-icon" id="themeToggle" title="Toggle theme">🌙</button>
+  </header>
+
+  <!-- ── Split layout ────────────────────────────────────────────────────── -->
+  <main class="main">
+
+    <!-- Left pane -->
+    <div class="left-pane" id="leftPane">
+      <div class="left-scroll">
+
+        <!-- Input -->
+        <section>
+          <div class="section-label">Salesforce POD</div>
+          <div class="input-row">
+            <input id="podInput" class="pod-input" type="text"
+              placeholder="e.g. CAN25" autocomplete="off" spellcheck="false">
+            <button id="openBtn" class="btn-primary">Open</button>
+          </div>
+        </section>
+
+        <!-- URL preview -->
+        <section>
+          <div class="section-label">Status URL</div>
+          <div id="urlDisplay" class="url-display empty">Enter a POD above to see the URL</div>
+        </section>
+
+        <!-- File actions -->
+        <section>
+          <div class="section-label">Import / Export</div>
+          <div class="file-row">
+            <button class="btn-secondary" id="uploadBtn">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+              </svg>
+              Upload JSON
+            </button>
+            <button class="btn-secondary" id="downloadBtn">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download JSON
+            </button>
+          </div>
+          <input type="file" id="fileInput" accept=".json">
+        </section>
+
+        <div class="left-divider"></div>
+
+        <!-- Saved pods -->
+        <section>
+          <div class="pods-header">
+            <div class="section-label" style="margin-bottom:0">Saved PODs</div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <span class="pods-badge" id="podsCount">0</span>
+              <button class="btn-ghost-xs" id="clearAllBtn">Clear all</button>
+            </div>
+          </div>
+          <div id="podsList"></div>
+        </section>
+
+      </div>
+    </div>
+
+    <!-- Splitter -->
+    <div class="splitter" id="splitter" title="Drag to resize panes">
+      <div class="splitter-track"></div>
+      <div class="splitter-grip">
+        <div class="grip-dot"></div>
+        <div class="grip-dot"></div>
+        <div class="grip-dot"></div>
+        <div class="grip-dot"></div>
+        <div class="grip-dot"></div>
+        <div class="grip-dot"></div>
+      </div>
+    </div>
+
+    <!-- Right pane -->
+    <div class="right-pane">
+
+      <div class="address-bar">
+        <svg class="address-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="2" y1="12" x2="22" y2="12"/>
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+        </svg>
+        <div class="address-url" id="addressUrl">
+          <span style="color:var(--text-muted)">No POD selected</span>
+        </div>
+        <button class="btn-icon" id="openExtBtn" title="Open in new tab" style="width:28px;height:28px;font-size:11px">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="right-body" id="rightBody">
+
+        <!-- Empty state -->
+        <div class="empty-state" id="emptyState">
+          <div class="empty-state-ring">🌐</div>
+          <div class="empty-state-title">No POD Selected</div>
+          <div class="empty-state-hint">Enter a Salesforce POD name on the left and click <strong>Open</strong> — or pick one from your saved list.</div>
+        </div>
+
+        <!-- POD card (hidden until a pod is selected) -->
+        <div class="pod-card hidden" id="podCard">
+          <div class="pod-card-hero">
+            <div class="pod-card-badge">
+              <span class="badge-dot"></span>
+              Salesforce Trust
+            </div>
+            <div class="pod-card-name" id="cardPodName">—</div>
+            <div class="pod-card-label">Salesforce Instance</div>
+          </div>
+          <div class="pod-card-body">
+
+            <div class="pod-url-row">
+              <div class="pod-url-text" id="cardUrl"></div>
+              <button class="copy-btn" id="copyUrlBtn">Copy</button>
+            </div>
+
+            <button class="btn-launch" id="launchBtn">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                <polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+              </svg>
+              Open in Browser
+            </button>
+
+            <div class="pod-meta-grid" id="cardMetaGrid"></div>
+
+            <!-- Live instance details from Trust API -->
+            <div>
+              <div class="live-section-header">
+                <div class="live-section-title">Instance Details</div>
+                <div class="live-fetch-badge" id="fetchBadge"></div>
+              </div>
+              <div id="liveDetailsWrap"></div>
+            </div>
+
+            <div class="pod-tip">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              <span>Live data via <strong>api.status.salesforce.com</strong>. Click <em>Open in Browser</em> for full status, incidents, and history.</span>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Toast container -->
+  <div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+// ── Constants ───────────────────────────────────────────────────────────────
+const PODS_KEY   = 'sf-pods-v2';
+const THEME_KEY  = 'sf-theme';
+const ACTIVE_KEY = 'sf-active-pod';
+
+// ── State ───────────────────────────────────────────────────────────────────
+let pods = [];
+let activePod = null;
+let currentUrl = null;
+
+// ── DOM ─────────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const podInput      = $('podInput');
+const openBtn       = $('openBtn');
+const urlDisplay    = $('urlDisplay');
+const podsList      = $('podsList');
+const podsCount     = $('podsCount');
+const themeToggle   = $('themeToggle');
+const uploadBtn     = $('uploadBtn');
+const downloadBtn   = $('downloadBtn');
+const fileInput     = $('fileInput');
+const clearAllBtn   = $('clearAllBtn');
+const emptyState    = $('emptyState');
+const podCard       = $('podCard');
+const cardPodName   = $('cardPodName');
+const cardUrl       = $('cardUrl');
+const copyUrlBtn    = $('copyUrlBtn');
+const launchBtn     = $('launchBtn');
+const cardMetaGrid  = $('cardMetaGrid');
+const addressUrl    = $('addressUrl');
+const openExtBtn    = $('openExtBtn');
+const splitter      = $('splitter');
+const leftPane      = $('leftPane');
+
+// ── Utils ───────────────────────────────────────────────────────────────────
+const buildUrl    = pod => `https://status.salesforce.com/instances/${pod}`;
+const isValidPod  = pod => /^[A-Za-z0-9]{2,14}$/.test(pod);
+const fmtTime     = ts  => {
+  const d = new Date(ts);
+  return d.toLocaleDateString(undefined, { month:'short', day:'numeric' })
+    + ' ' + d.toLocaleTimeString(undefined, { hour:'2-digit', minute:'2-digit' });
+};
+
+// ── Toast ───────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const icons = { success:'✓', error:'✕', info:'i' };
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span class="toast-icon">${icons[type]}</span>${msg}`;
+  $('toastWrap').appendChild(el);
+  setTimeout(() => el.remove(), 3100);
+}
+
+// ── Theme ───────────────────────────────────────────────────────────────────
+function setTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  themeToggle.textContent = t === 'dark' ? '🌙' : '☀️';
+  localStorage.setItem(THEME_KEY, t);
+}
+
+themeToggle.addEventListener('click', () => {
+  setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
+
+// ── POD persistence ─────────────────────────────────────────────────────────
+function savePods() { localStorage.setItem(PODS_KEY, JSON.stringify(pods)); }
+
+function loadPods() {
+  try {
+    const raw = localStorage.getItem(PODS_KEY);
+    const data = raw ? JSON.parse(raw) : [];
+    pods = data.map(p => typeof p === 'string' ? { name: p, ts: Date.now() } : p);
+  } catch { pods = []; }
+}
+
+function addPod(name) {
+  pods = pods.filter(p => p.name !== name);
+  pods.unshift({ name, ts: Date.now() });
+  savePods();
+  renderPods();
+}
+
+function removePod(name) {
+  pods = pods.filter(p => p.name !== name);
+  savePods();
+  renderPods();
+  if (activePod === name) clearFrame();
+}
+
+// ── Render pods list ────────────────────────────────────────────────────────
+function renderPods() {
+  podsCount.textContent = pods.length;
+
+  if (pods.length === 0) {
+    podsList.innerHTML = `
+      <div class="pods-empty">
+        <span class="pods-empty-icon">📋</span>
+        No saved PODs yet.<br>Enter a POD above to get started.
+      </div>`;
+    return;
+  }
+
+  podsList.innerHTML = pods.map(p => `
+    <div class="pod-item${activePod === p.name ? ' active' : ''}"
+         data-pod="${p.name}" role="button" tabindex="0" aria-label="Open ${p.name}">
+      <div class="pod-dot"></div>
+      <div class="pod-name">${p.name}</div>
+      <div class="pod-time">${fmtTime(p.ts)}</div>
+      <button class="pod-del" data-del="${p.name}" title="Remove ${p.name}" aria-label="Remove ${p.name}">×</button>
+    </div>`).join('');
+
+  podsList.querySelectorAll('.pod-item').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target.closest('.pod-del')) return;
+      loadIntoFrame(el.dataset.pod);
+    });
+    el.addEventListener('keydown', e => {
+      if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('.pod-del')) {
+        loadIntoFrame(el.dataset.pod);
+      }
+    });
+  });
+
+  podsList.querySelectorAll('.pod-del').forEach(btn => {
+    btn.addEventListener('click', e => { e.stopPropagation(); removePod(btn.dataset.del); });
+  });
+}
+
+// ── Pod type inference ───────────────────────────────────────────────────────
+function inferPodRegion(pod) {
+  if (/^NA/i.test(pod))  return { region: 'North America', flag: '🇺🇸', type: 'Production' };
+  if (/^CS/i.test(pod))  return { region: 'North America', flag: '🇺🇸', type: 'Sandbox' };
+  if (/^EU/i.test(pod))  return { region: 'Europe',        flag: '🇪🇺', type: 'Production' };
+  if (/^AP/i.test(pod))  return { region: 'Asia Pacific',  flag: '🌏', type: 'Production' };
+  if (/^IN/i.test(pod))  return { region: 'India',         flag: '🇮🇳', type: 'Production' };
+  if (/^AU/i.test(pod))  return { region: 'Australia',     flag: '🇦🇺', type: 'Production' };
+  if (/^UM/i.test(pod))  return { region: 'North America', flag: '🇺🇸', type: 'Sandbox' };
+  if (/^CAN/i.test(pod)) return { region: 'Canada',        flag: '🇨🇦', type: 'Production' };
+  if (/^SG/i.test(pod))  return { region: 'Singapore',     flag: '🇸🇬', type: 'Production' };
+  if (/^UK/i.test(pod))  return { region: 'United Kingdom',flag: '🇬🇧', type: 'Production' };
+  if (/^DE/i.test(pod))  return { region: 'Germany',       flag: '🇩🇪', type: 'Production' };
+  if (/^JP/i.test(pod))  return { region: 'Japan',         flag: '🇯🇵', type: 'Production' };
+  if (/^BR/i.test(pod))  return { region: 'Brazil',        flag: '🇧🇷', type: 'Production' };
+  return { region: 'Unknown', flag: '🌐', type: 'Instance' };
+}
+
+// ── Live fetch helpers ───────────────────────────────────────────────────────
+// (fetchBadge and liveDetailsWrap resolved lazily via $ at call time)
+
+function skelRow(keyLabel) {
+  return `<div class="live-row">
+    <div class="live-row-key">${keyLabel}</div>
+    <div class="live-row-val"><span class="skel skel-h skel-md"></span></div>
+  </div>`;
+}
+
+function showSkeleton() {
+  $('fetchBadge').innerHTML = `<div class="mini-spinner"></div> Fetching…`;
+  $('liveDetailsWrap').innerHTML = `<div class="live-grid">
+    ${skelRow('Version')}${skelRow('Region')}${skelRow('Maint. Window')}${skelRow('Products')}
+  </div>`;
+}
+
+function statusClass(status) {
+  if (!status) return 'ok';
+  const s = status.toLowerCase();
+  if (s === 'ok' || s === 'available') return 'ok';
+  if (s.includes('incident') || s.includes('disruption')) return 'incident';
+  return 'degraded';
+}
+
+function statusLabel(status) {
+  if (!status) return 'Available';
+  const s = status.toLowerCase();
+  if (s === 'ok' || s === 'available') return 'Available';
+  if (s.includes('incident')) return 'Incident';
+  if (s.includes('disruption')) return 'Disruption';
+  if (s.includes('degraded')) return 'Degraded';
+  return status;
+}
+
+// Pretty-print a service key from the API (e.g. "coreService" → "Core Service")
+function fmtServiceKey(key) {
+  return key
+    .replace(/([A-Z])/g, ' $1')
+    .replace(/^./, s => s.toUpperCase())
+    .replace(/\bAnd\b/g, '&')
+    .trim();
+}
+
+function renderLiveDetails(data) {
+  const sc = statusClass(data.status);
+  const sl = statusLabel(data.status);
+
+  // Services: show core ones first, then up to 8 others
+  const allServices = data.Services || data.services || [];
+  const core   = allServices.filter(s => s.isCore);
+  const others = allServices.filter(s => !s.isCore).sort((a,b) => (a.order||999)-(b.order||999));
+  const shown  = [...core, ...others].slice(0, 12);
+  const services = shown.length
+    ? shown.map(s => `<span class="product-tag">${fmtServiceKey(s.key)}</span>`).join('')
+    : '<span class="product-tag">Core Service</span>';
+
+  // maintenanceWindow is a plain string: "Sundays 12:00 AM - 4:00 AM PST"
+  const mwLine = typeof data.maintenanceWindow === 'string'
+    ? data.maintenanceWindow
+    : '—';
+
+  const updatedAgo = data.updatedAt
+    ? `Updated ${new Date(data.updatedAt).toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})}`
+    : '';
+
+  $('liveDetailsWrap').innerHTML = `
+    <div class="status-pill ${sc}">
+      <span class="status-pill-dot"></span>
+      ${sl}${updatedAgo ? ` · <span style="font-weight:400;font-size:10.5px;opacity:.8">${updatedAgo}</span>` : ''}
+    </div>
+    <div class="live-grid">
+      <div class="live-row">
+        <div class="live-row-key">Version</div>
+        <div class="live-row-val mono">${data.releaseVersion || '—'}</div>
+      </div>
+      <div class="live-row">
+        <div class="live-row-key">Release Number</div>
+        <div class="live-row-val mono">${data.releaseNumber || '—'}</div>
+      </div>
+      <div class="live-row">
+        <div class="live-row-key">Region</div>
+        <div class="live-row-val">${data.location || data.region || '—'}</div>
+      </div>
+      <div class="live-row">
+        <div class="live-row-key">Environment</div>
+        <div class="live-row-val" style="text-transform:capitalize">${data.environment || '—'}</div>
+      </div>
+      <div class="live-row">
+        <div class="live-row-key">Maint. Window</div>
+        <div class="live-row-val">${mwLine}</div>
+      </div>
+      <div class="live-row">
+        <div class="live-row-key">Services</div>
+        <div class="live-row-val"><div class="product-tags">${services}</div></div>
+      </div>
+    </div>`;
+  $('fetchBadge').innerHTML = `<span style="color:var(--success)">✓ Live</span>`;
+}
+
+function renderLiveError(msg) {
+  $('liveDetailsWrap').innerHTML = `<div class="live-error">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    ${msg}
+  </div>`;
+  $('fetchBadge').innerHTML = `<span style="color:var(--danger)">Unavailable</span>`;
+}
+
+// Cache so switching back to a pod doesn't re-fetch
+const instanceCache = {};
+
+async function fetchInstanceDetails(pod) {
+  if (instanceCache[pod]) { renderLiveDetails(instanceCache[pod]); $('fetchBadge').innerHTML=`<span style="color:var(--success)">✓ Cached</span>`; return; }
+  showSkeleton();
+  try {
+    const res = await fetch(`https://api.status.salesforce.com/v1/instances/${pod.toUpperCase()}/status`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    instanceCache[pod] = data;
+    renderLiveDetails(data);
+  } catch (e) {
+    renderLiveError(`Could not load live data: ${e.message}`);
+  }
+}
+
+// ── Show POD card ────────────────────────────────────────────────────────────
+function showPodCard(pod) {
+  const url  = buildUrl(pod);
+  const info = inferPodRegion(pod);
+  const savedEntry = pods.find(p => p.name === pod);
+  const savedAt = savedEntry ? fmtTime(savedEntry.ts) : '—';
+
+  cardPodName.textContent = pod;
+  cardUrl.textContent = url;
+  addressUrl.innerHTML = `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+
+  cardMetaGrid.innerHTML = [
+    { k: 'Region',   v: `${info.flag} ${info.region}` },
+    { k: 'Type',     v: info.type },
+    { k: 'Saved',    v: savedAt },
+    { k: 'Protocol', v: 'HTTPS' },
+  ].map(m => `
+    <div class="pod-meta-item">
+      <div class="pod-meta-key">${m.k}</div>
+      <div class="pod-meta-val">${m.v}</div>
+    </div>`).join('');
+
+  emptyState.classList.add('hidden');
+  podCard.classList.remove('hidden');
+  // force re-animation
+  podCard.style.animation = 'none';
+  podCard.offsetHeight;
+  podCard.style.animation = '';
+
+  fetchInstanceDetails(pod);
+}
+
+function clearCard() {
+  emptyState.classList.remove('hidden');
+  podCard.classList.add('hidden');
+  addressUrl.innerHTML = `<span style="color:var(--text-muted)">No POD selected</span>`;
+  currentUrl = null;
+}
+
+// ── Load POD ─────────────────────────────────────────────────────────────────
+function loadIntoFrame(pod) {
+  const url = buildUrl(pod);
+  activePod = pod;
+  currentUrl = url;
+  podInput.value = pod;
+  setUrlDisplay(pod);
+  showPodCard(pod);
+  renderPods();
+  localStorage.setItem(ACTIVE_KEY, pod);
+}
+
+function clearFrame() {
+  clearCard();
+  activePod = null;
+}
+
+// ── Copy URL ─────────────────────────────────────────────────────────────────
+copyUrlBtn.addEventListener('click', () => {
+  if (!currentUrl) return;
+  navigator.clipboard.writeText(currentUrl).then(() => {
+    copyUrlBtn.textContent = 'Copied!';
+    copyUrlBtn.classList.add('copied');
+    setTimeout(() => { copyUrlBtn.textContent = 'Copy'; copyUrlBtn.classList.remove('copied'); }, 2000);
+  });
+});
+
+// ── Launch button ─────────────────────────────────────────────────────────────
+launchBtn.addEventListener('click', () => {
+  if (currentUrl) window.open(currentUrl, '_blank', 'noopener');
+});
+
+// ── URL display ─────────────────────────────────────────────────────────────
+function setUrlDisplay(pod) {
+  if (!pod) {
+    urlDisplay.textContent = 'Enter a POD above to see the URL';
+    urlDisplay.classList.add('empty');
+  } else {
+    urlDisplay.textContent = buildUrl(pod);
+    urlDisplay.classList.remove('empty');
+  }
+}
+
+// ── Open ────────────────────────────────────────────────────────────────────
+function handleOpen() {
+  const pod = podInput.value.trim().toUpperCase();
+  if (!pod) { toast('Please enter a Salesforce POD name', 'error'); podInput.focus(); return; }
+  if (!isValidPod(pod)) { toast(`"${pod}" doesn't look like a valid POD`, 'error'); podInput.focus(); return; }
+  addPod(pod);
+  loadIntoFrame(pod);
+  toast(`Opened ${pod}`, 'success');
+}
+
+openBtn.addEventListener('click', handleOpen);
+podInput.addEventListener('keydown', e => { if (e.key === 'Enter') handleOpen(); });
+podInput.addEventListener('input', () => setUrlDisplay(podInput.value.trim().toUpperCase() || null));
+
+// ── Address-bar external link button ─────────────────────────────────────────
+openExtBtn.addEventListener('click', () => {
+  currentUrl ? window.open(currentUrl, '_blank', 'noopener') : toast('No POD selected yet', 'info');
+});
+
+// ── Clear all ────────────────────────────────────────────────────────────────
+clearAllBtn.addEventListener('click', () => {
+  if (!pods.length) return;
+  if (confirm(`Remove all ${pods.length} saved POD(s)?`)) {
+    pods = []; savePods(); renderPods(); clearFrame();
+    toast('All PODs cleared', 'info');
+  }
+});
+
+// ── Upload JSON ──────────────────────────────────────────────────────────────
+uploadBtn.addEventListener('click', () => fileInput.click());
+
+fileInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = evt => {
+    try {
+      const data = JSON.parse(evt.target.result);
+      let items = [];
+      const normalize = item =>
+        typeof item === 'string'
+          ? { name: item.trim().toUpperCase(), ts: Date.now() }
+          : { name: String(item.name || item.pod || '').trim().toUpperCase(), ts: item.ts || Date.now() };
+
+      if (Array.isArray(data))          items = data.map(normalize);
+      else if (Array.isArray(data.pods)) items = data.pods.map(normalize);
+      else throw new Error('Expected an array or { pods: [...] }');
+
+      const valid = items.filter(p => p.name && isValidPod(p.name));
+      if (!valid.length) { toast('No valid PODs found in file', 'error'); return; }
+
+      const existing = new Set(pods.map(p => p.name));
+      const fresh = valid.filter(p => !existing.has(p.name));
+      pods = [...fresh, ...pods];
+      savePods(); renderPods();
+      toast(`Imported ${fresh.length} new POD(s) from ${file.name}`, 'success');
+    } catch (err) {
+      toast(`Parse error: ${err.message}`, 'error');
+    }
+    fileInput.value = '';
+  };
+  reader.readAsText(file);
+});
+
+// ── Download JSON ────────────────────────────────────────────────────────────
+downloadBtn.addEventListener('click', () => {
+  if (!pods.length) { toast('No PODs to export', 'info'); return; }
+  const payload = { pods: pods.map(p => ({ name: p.name, ts: p.ts })) };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `sf-pods-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast(`Exported ${pods.length} POD(s)`, 'success');
+});
+
+// ── Splitter drag ────────────────────────────────────────────────────────────
+let dragging = false, startX = 0, startW = 0;
+
+splitter.addEventListener('mousedown', e => {
+  dragging = true; startX = e.clientX; startW = leftPane.offsetWidth;
+  splitter.classList.add('dragging');
+  document.body.style.cssText += 'cursor:col-resize;user-select:none;';
+  e.preventDefault();
+});
+
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  const w = Math.min(Math.max(startW + e.clientX - startX, 220), 680);
+  leftPane.style.width = w + 'px';
+});
+
+document.addEventListener('mouseup', () => {
+  if (!dragging) return;
+  dragging = false;
+  splitter.classList.remove('dragging');
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+});
+
+// Touch support
+splitter.addEventListener('touchstart', e => {
+  dragging = true; startX = e.touches[0].clientX; startW = leftPane.offsetWidth;
+  splitter.classList.add('dragging');
+  e.preventDefault();
+}, { passive: false });
+
+document.addEventListener('touchmove', e => {
+  if (!dragging) return;
+  const w = Math.min(Math.max(startW + e.touches[0].clientX - startX, 220), 680);
+  leftPane.style.width = w + 'px';
+}, { passive: true });
+
+document.addEventListener('touchend', () => { dragging = false; splitter.classList.remove('dragging'); });
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+setTheme(localStorage.getItem(THEME_KEY) || 'dark');
+loadPods();
+renderPods();
+
+const last = localStorage.getItem(ACTIVE_KEY);
+if (last && pods.some(p => p.name === last)) loadIntoFrame(last);
+</script>
+
+</body>
+</html>
