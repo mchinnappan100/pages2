@@ -2019,11 +2019,26 @@ fileInput.addEventListener('change', e => {
       const valid = items.filter(p => p.name && isValidPod(p.name));
       if (!valid.length) { toast('No valid PODs found in file', 'error'); return; }
 
-      const existing = new Set(pods.map(p => p.name));
-      const fresh = valid.filter(p => !existing.has(p.name));
-      pods = [...fresh, ...pods];
+      // Merge: update label on existing pods, prepend genuinely new ones
+      let added = 0, updated = 0;
+      valid.forEach(incoming => {
+        const idx = pods.findIndex(p => p.name === incoming.name);
+        if (idx === -1) {
+          pods.unshift(incoming);
+          added++;
+        } else {
+          // Always overwrite label from file (even if blank → clears it)
+          if (pods[idx].label !== incoming.label) {
+            pods[idx].label = incoming.label;
+            updated++;
+          }
+        }
+      });
       savePods(); renderPods();
-      toast(`Imported ${fresh.length} new POD(s) from ${file.name}`, 'success');
+      const parts = [];
+      if (added)   parts.push(`${added} new`);
+      if (updated) parts.push(`${updated} label${updated > 1 ? 's' : ''} updated`);
+      toast(`Imported from ${file.name}: ${parts.join(', ') || 'no changes'}`, 'success');
     } catch (err) {
       toast(`Parse error: ${err.message}`, 'error');
     }
