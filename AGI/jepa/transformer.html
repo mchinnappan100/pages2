@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attention Is All You Need — The Transformer</title>
+<link rel="icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,500;0,700;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:#f4f1eb; --bg-card:#ffffff; --text:#1a1612; --muted:#7a7268;
+    --accent1:#c84b2f; --accent2:#2d5f8a; --accent3:#3a7d52; --accent4:#8a5c2d;
+    --border:rgba(26,22,18,0.1);
+    --pill-basic:#eef4f9; --pill-basic-text:#2d5f8a;
+    --pill-inter:#eef6f1; --pill-inter-text:#3a7d52;
+    --pill-adv:#fdf0ec;   --pill-adv-text:#c84b2f;
+    --pill-bp:#fef8ef;    --pill-bp-text:#8a5c2d;
+  }
+  html{scroll-behavior:smooth;}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;font-size:15px;line-height:1.7;min-height:100vh;}
+  nav{position:sticky;top:0;background:rgba(244,241,235,0.92);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);z-index:100;display:flex;align-items:center;justify-content:space-between;padding:0 2.5rem;height:60px;}
+  .nav-brand{font-family:'Fraunces',serif;font-size:1.25rem;font-weight:700;color:var(--text);letter-spacing:-0.02em;display:flex;align-items:center;gap:8px;}
+  .nav-logo{width:28px;height:28px;background:var(--accent1);border-radius:6px;display:flex;align-items:center;justify-content:center;color:white;font-size:0.8rem;font-weight:700;}
+  .nav-links{display:flex;gap:0.25rem;list-style:none;flex-wrap:wrap;}
+  .nav-links a{text-decoration:none;color:var(--muted);font-size:0.78rem;font-weight:500;padding:6px 10px;border-radius:20px;transition:all 0.2s;letter-spacing:0.03em;text-transform:uppercase;}
+  .nav-links a:hover{color:var(--text);background:var(--border);}
+  .theme-btn{background:none;border:1.5px solid var(--border);border-radius:20px;padding:5px 12px;cursor:pointer;font-size:0.8rem;color:var(--muted);font-family:'DM Sans',sans-serif;transition:all 0.2s;}
+  .theme-btn:hover{color:var(--text);border-color:var(--muted);}
+
+  .hero{max-width:1100px;margin:0 auto;padding:5rem 2.5rem 3rem;display:grid;grid-template-columns:1fr 1fr;gap:3rem;align-items:center;}
+  .hero-eyebrow{font-size:0.75rem;font-weight:500;text-transform:uppercase;letter-spacing:0.12em;color:var(--accent1);margin-bottom:1rem;}
+  .hero h1{font-family:'Fraunces',serif;font-size:clamp(2.5rem,4vw,3.8rem);font-weight:700;line-height:1.05;letter-spacing:-0.03em;color:var(--text);}
+  .hero h1 em{font-style:italic;color:var(--accent1);}
+  .hero-desc{margin-top:1.5rem;color:var(--muted);font-size:1rem;max-width:420px;line-height:1.75;}
+  .hero-tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:2rem;}
+  .hero-tag{display:inline-block;padding:6px 14px;border-radius:100px;font-size:0.78rem;font-weight:500;border:1.5px solid;}
+  .tag-basic{background:var(--pill-basic);color:var(--pill-basic-text);border-color:var(--pill-basic-text);}
+  .tag-inter{background:var(--pill-inter);color:var(--pill-inter-text);border-color:var(--pill-inter-text);}
+  .tag-adv{background:var(--pill-adv);color:var(--pill-adv-text);border-color:var(--pill-adv-text);}
+  .tag-bp{background:var(--pill-bp);color:var(--pill-bp-text);border-color:var(--pill-bp-text);}
+  .hero-visual{display:flex;flex-direction:column;gap:12px;}
+  .stat-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:1.25rem;}
+  .stat-card .num{font-family:'Fraunces',serif;font-size:2rem;font-weight:700;color:var(--text);line-height:1;}
+  .stat-card .label{font-size:0.78rem;color:var(--muted);margin-top:4px;}
+  .stat-card.accent{background:var(--accent1);border-color:var(--accent1);}
+  .stat-card.accent .num,.stat-card.accent .label{color:white;}
+
+  .section{max-width:1100px;margin:0 auto;padding:3rem 2.5rem;}
+  .section-header{display:flex;align-items:center;gap:1rem;margin-bottom:2.5rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border);}
+  .section-badge{font-size:0.7rem;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;padding:5px 14px;border-radius:100px;}
+  .section-title{font-family:'Fraunces',serif;font-size:1.75rem;font-weight:700;letter-spacing:-0.02em;color:var(--text);}
+  .section-num{font-family:'Fraunces',serif;font-size:3rem;font-weight:300;color:var(--border);margin-left:auto;line-height:1;}
+
+  .cards-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:20px;}
+  .card{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:1.5rem;position:relative;overflow:hidden;transition:transform 0.2s,box-shadow 0.2s;}
+  .card:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,0,0,0.06);}
+  .card-accent{position:absolute;top:0;left:0;right:0;height:3px;border-radius:16px 16px 0 0;}
+  .accent-basic{background:var(--accent2);} .accent-inter{background:var(--accent3);} .accent-adv{background:var(--accent1);} .accent-bp{background:var(--accent4);}
+  .card-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:1rem;font-size:1.2rem;}
+  .icon-basic{background:var(--pill-basic);} .icon-inter{background:var(--pill-inter);} .icon-adv{background:var(--pill-adv);} .icon-bp{background:var(--pill-bp);}
+  .card h3{font-family:'Fraunces',serif;font-size:1.05rem;font-weight:700;letter-spacing:-0.01em;margin-bottom:0.5rem;color:var(--text);}
+  .card p{font-size:0.88rem;color:var(--muted);line-height:1.65;margin-bottom:1rem;}
+  .card-topics{display:flex;flex-direction:column;gap:6px;}
+  .topic-item{display:flex;align-items:flex-start;gap:8px;font-size:0.82rem;color:var(--text);line-height:1.5;}
+  .topic-dot{width:5px;height:5px;border-radius:50%;margin-top:7px;flex-shrink:0;}
+  .dot-basic{background:var(--accent2);} .dot-inter{background:var(--accent3);} .dot-adv{background:var(--accent1);} .dot-bp{background:var(--accent4);}
+
+  .card-example{margin-top:1rem;border-top:1px dashed var(--border);padding-top:0.85rem;}
+  .example-toggle{background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:6px;font-size:0.75rem;font-weight:500;text-transform:uppercase;letter-spacing:0.08em;padding:0;color:var(--muted);transition:color 0.2s;}
+  .example-toggle:hover{color:var(--text);}
+  .toggle-icon{display:inline-block;font-size:0.7rem;transition:transform 0.25s;}
+  .example-body{display:none;margin-top:0.75rem;}
+  .example-body.visible{display:block;}
+  .example-code{background:#f7f4ee;border:1px solid var(--border);border-radius:8px;padding:0.75rem 1rem;font-family:'Courier New',monospace;font-size:0.75rem;color:#3a3530;line-height:1.6;white-space:pre-wrap;word-break:break-word;margin-bottom:0.5rem;}
+  .example-note{font-size:0.78rem;color:var(--muted);line-height:1.55;}
+  .example-steps{display:flex;flex-direction:column;gap:5px;margin-bottom:0.5rem;}
+  .example-step{display:flex;gap:8px;font-size:0.78rem;color:var(--text);line-height:1.5;align-items:flex-start;}
+  .step-num{min-width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.65rem;font-weight:500;color:white;flex-shrink:0;margin-top:1px;}
+  .sn-basic{background:var(--accent2);} .sn-inter{background:var(--accent3);} .sn-adv{background:var(--accent1);} .sn-bp{background:var(--accent4);}
+
+  .eq-block{background:var(--bg-card);border:1px solid var(--border);border-left:4px solid var(--accent2);border-radius:0 12px 12px 0;padding:1.25rem 1.75rem;margin:1.5rem 0;}
+  .eq-label{font-size:0.72rem;font-weight:500;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent2);margin-bottom:0.5rem;}
+  .eq-formula{font-family:'Courier New',monospace;font-size:0.95rem;color:var(--text);line-height:1.6;}
+  .eq-note{font-size:0.8rem;color:var(--muted);margin-top:0.5rem;line-height:1.5;}
+
+  .bp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;}
+  .bp-item{background:var(--bg-card);border:1px solid var(--border);border-left:4px solid var(--accent4);border-radius:0 12px 12px 0;padding:1.25rem 1.5rem;}
+  .bp-item h4{font-size:0.9rem;font-weight:500;color:var(--text);margin-bottom:0.35rem;display:flex;align-items:center;gap:8px;}
+  .bp-check{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;background:var(--accent3);border-radius:50%;color:white;font-size:0.65rem;flex-shrink:0;}
+  .bp-item p{font-size:0.82rem;color:var(--muted);line-height:1.6;}
+  .bp-example{margin-top:0.75rem;background:#f7f4ee;border-radius:6px;padding:0.6rem 0.85rem;font-size:0.78rem;color:#3a3530;font-family:'Courier New',monospace;line-height:1.6;white-space:pre-wrap;}
+
+  .compare-wrap{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;overflow:hidden;overflow-x:auto;margin-bottom:2rem;}
+  table{width:100%;border-collapse:collapse;font-size:0.85rem;}
+  thead th{background:#f8f6f2;padding:12px 16px;text-align:left;font-weight:500;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);border-bottom:1px solid var(--border);}
+  tbody td{padding:11px 16px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:top;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover td{background:#faf8f5;}
+  .highlight-row td{background:#f0f9f4;}
+  .badge{display:inline-block;font-size:0.7rem;font-weight:500;padding:3px 10px;border-radius:100px;}
+  .b-basic{background:var(--pill-basic);color:var(--pill-basic-text);} .b-inter{background:var(--pill-inter);color:var(--pill-inter-text);} .b-adv{background:var(--pill-adv);color:var(--pill-adv-text);} .b-bp{background:var(--pill-bp);color:var(--pill-bp-text);}
+
+  .quote-block{background:var(--bg-card);border:1px solid var(--border);border-left:4px solid var(--accent1);border-radius:0 12px 12px 0;padding:1.5rem 2rem;margin:2rem 0;}
+  .quote-block p{font-family:'Fraunces',serif;font-size:1rem;font-style:italic;color:var(--text);line-height:1.6;}
+  .quote-block cite{display:block;margin-top:0.75rem;font-size:0.8rem;color:var(--muted);font-style:normal;}
+
+  .divider{max-width:1100px;margin:0 auto;padding:0 2.5rem;border:none;border-top:1px solid var(--border);}
+  footer{border-top:1px solid var(--border);padding:2rem 2.5rem;max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;}
+  footer p{font-size:0.8rem;color:var(--muted);}
+  .footer-logo{font-family:'Fraunces',serif;font-size:1rem;font-weight:700;color:var(--muted);}
+
+  html.dark{--bg:#0f1117;--bg-card:#1a1d27;--text:#e8e4dc;--muted:#8a8378;--border:rgba(232,228,220,0.1);--pill-basic:#1a2535;--pill-basic-text:#6ea3d0;--pill-inter:#1a2820;--pill-inter-text:#6ab88a;--pill-adv:#2a1a16;--pill-adv-text:#e07a5f;--pill-bp:#261e10;--pill-bp-text:#c49a50;}
+  html.dark body{background:var(--bg);}
+  html.dark nav{background:rgba(15,17,23,0.92);}
+  html.dark .example-code,.dark .bp-example{background:#0d0f18;color:#c9c5bc;border-color:var(--border);}
+  html.dark .eq-block{background:#1a1d27;}
+  html.dark thead th{background:#13151f;}
+  html.dark tbody tr:hover td{background:#1e2130;}
+  html.dark .highlight-row td{background:#1a2820!important;}
+
+  @media(max-width:768px){
+    .hero{grid-template-columns:1fr;padding:3rem 1.25rem;}
+    .hero-visual{display:none;}
+    .section{padding:2rem 1.25rem;}
+    nav{padding:0 1.25rem;}
+    .nav-links{display:none;}
+    footer{flex-direction:column;gap:1rem;text-align:center;}
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand"><div class="nav-logo">T</div>Transformer</div>
+  <ul class="nav-links">
+    <li><a href="#motivation">Motivation</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#attention">Attention</a></li>
+    <li><a href="#training">Training</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#comparison">Comparison</a></li>
+    <li><a href="https://arxiv.org/abs/1706.03762" target="_blank" rel="noopener">📄 Paper</a></li>
+    <li><a href="./transformer-qa.html">Test Your Skills</a></li>
+  </ul>
+  <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙 Dark</button>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div>
+    <p class="hero-eyebrow">Vaswani et al. · NeurIPS 2017 · Google Brain</p>
+    <h1><em>Attention</em><br>Is All<br>You Need</h1>
+    <p class="hero-desc">The Transformer — the architecture that replaced RNNs and CNNs for sequence modeling, enabling GPT, BERT, and every modern large language model that followed.</p>
+    <div class="hero-tags">
+      <span class="hero-tag tag-basic">Architecture</span>
+      <span class="hero-tag tag-inter">Attention</span>
+      <span class="hero-tag tag-adv">Results</span>
+      <span class="hero-tag tag-bp">Training</span>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="stat-row">
+      <div class="stat-card accent"><div class="num">28.4</div><div class="label">BLEU EN-DE (new SOTA 2017)</div></div>
+      <div class="stat-card"><div class="num">41.8</div><div class="label">BLEU EN-FR (new SOTA 2017)</div></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-card"><div class="num">12h</div><div class="label">Base model training (8 P100 GPUs)</div></div>
+      <div class="stat-card"><div class="num">O(1)</div><div class="label">Sequential operations (vs O(n) RNN)</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- MOTIVATION -->
+<hr class="divider">
+<section class="section" id="motivation">
+  <div class="section-header">
+    <span class="section-badge tag-basic">Level 01</span>
+    <h2 class="section-title">Motivation — Why Replace RNNs?</h2>
+    <span class="section-num">01</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">🐢</div>
+      <h3>The Sequential Bottleneck</h3>
+      <p>Recurrent models compute hidden states one step at a time: h_t depends on h_{t-1}. This <strong>inherently sequential nature precludes parallelization</strong> — critical at longer sequences.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>h_t = f(h_{t-1}, x_t) — must process in order</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>O(n) sequential operations — cannot parallelize across positions</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Memory constraints limit batch size for long sequences</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>LSTM/GRU mitigate but don't eliminate the problem</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">📏</div>
+      <h3>Long-Range Dependency Problem</h3>
+      <p>In RNNs, relating two positions n steps apart requires n sequential operations. Information from early positions must survive through long chains of transformations — prone to vanishing gradients.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>RNN maximum path length: O(n) — hard for distant dependencies</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>CNN (dilated): O(log_k n) — better, but still grows with distance</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Transformer: O(1) — every position directly attends to every other</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>"making...more difficult" — verb relates directly to complement</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">💡</div>
+      <h3>The Core Idea</h3>
+      <p>Replace sequential processing entirely with <strong>attention mechanisms</strong> — allowing every position to directly attend to every other position in a single step, regardless of distance.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>"The Transformer is the first transduction model relying entirely on self-attention"</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>No recurrence, no convolution — attention only</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Fully parallelizable — all positions processed simultaneously</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Enables training in 12 hours vs. weeks for comparable RNN systems</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">🔍</div>
+      <h3>Interpretability Bonus</h3>
+      <p>Attention mechanisms produce weights over all input positions — making it possible to visualise what the model attends to, providing insight into learned linguistic structure.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Different attention heads capture different syntactic/semantic roles</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Head 1: subject-verb agreement; Head 2: anaphora resolution, etc.</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Figure 3 shows heads correctly tracking "making...more difficult"</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Not a black box — attention weights are inspectable</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<hr class="divider">
+<section class="section" id="architecture">
+  <div class="section-header">
+    <span class="section-badge tag-inter">Level 02</span>
+    <h2 class="section-title">Model Architecture</h2>
+    <span class="section-num">02</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">🏗️</div>
+      <h3>Encoder Stack</h3>
+      <p>N = 6 identical layers. Each layer has <strong>two sub-layers</strong>: multi-head self-attention + position-wise feed-forward network. Residual connections + layer norm around each.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Sub-layer 1: Multi-Head Self-Attention</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Sub-layer 2: Position-wise Feed-Forward Network</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Each sub-layer: LayerNorm(x + Sublayer(x))</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>All sub-layers output dimension d_model = 512</div>
+      </div>
+      <div class="card-example">
+        <button class="example-toggle" onclick="toggleExample(this)"><span class="toggle-icon">▶</span> See Example</button>
+        <div class="example-body">
+          <div class="example-code">Encoder Layer (repeated N=6 times):
+  Input x (shape: seq_len × d_model=512)
+    ↓
+  [Sub-layer 1]
+  MultiHeadAttention(x, x, x)   # self-attention
+  + Residual(x) → LayerNorm
+    ↓
+  [Sub-layer 2]
+  FFN(x) = ReLU(xW₁+b₁)W₂+b₂
+  + Residual(x) → LayerNorm
+    ↓
+  Output (seq_len × 512)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">🔓</div>
+      <h3>Decoder Stack</h3>
+      <p>N = 6 identical layers with <strong>three sub-layers</strong>. The extra third sub-layer performs cross-attention over the encoder output. Self-attention is masked to prevent attending to future positions.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Sub-layer 1: Masked Multi-Head Self-Attention</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Sub-layer 2: Multi-Head Cross-Attention (queries from decoder, keys/values from encoder)</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Sub-layer 3: Position-wise Feed-Forward Network</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Masking: future positions set to −∞ before softmax</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">➕</div>
+      <h3>Residual Connections &amp; Layer Norm</h3>
+      <p>Every sub-layer output is added back to its input (residual / skip connection) and normalised. This enables training of deep networks by preventing vanishing gradients.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Formula: output = LayerNorm(x + Sublayer(x))</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Residual connections: gradient highways through the network</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Layer normalisation: stabilises activations across positions</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Applied identically in both encoder and decoder</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">📡</div>
+      <h3>Positional Encoding</h3>
+      <p>Since the model has no recurrence or convolution, position information must be explicitly injected. Sinusoidal positional encodings are added to the input embeddings.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>PE(pos, 2i) = sin(pos / 10000^(2i/d_model))</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>PE(pos, 2i+1) = cos(pos / 10000^(2i/d_model))</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Same dimension d_model as embeddings — can be summed</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Enables relative-position reasoning: PE(pos+k) is linear function of PE(pos)</div>
+      </div>
+      <div class="card-example">
+        <button class="example-toggle" onclick="toggleExample(this)"><span class="toggle-icon">▶</span> See Example</button>
+        <div class="example-body">
+          <div class="example-code">Position 0: [sin(0/1), cos(0/1), sin(0/100), ...]
+Position 1: [sin(1/1), cos(1/1), sin(1/100), ...]
+Position 2: [sin(2/1), cos(2/1), sin(2/100), ...]
+
+Each position gets a unique "fingerprint" vector.
+The sinusoidal pattern means relative offsets
+are preserved as linear transformations.
+Learned PE gives nearly identical results (Table 3).</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">⚡</div>
+      <h3>Feed-Forward Networks</h3>
+      <p>Each encoder/decoder layer contains a position-wise FFN applied identically to each position. Two linear transformations with a ReLU in between — like two conv layers with kernel size 1.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>FFN(x) = max(0, xW₁ + b₁)W₂ + b₂</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Input/output dimension: d_model = 512</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Inner (hidden) dimension: d_ff = 2048</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>"Same weights across positions, different weights per layer"</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">🔤</div>
+      <h3>Embeddings &amp; Output</h3>
+      <p>Learned embeddings convert tokens to d_model-dimensional vectors. A shared weight matrix is used for input embeddings, output embeddings, and the pre-softmax linear transformation.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Input/output tokens → d_model = 512 vectors via learned embedding</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Weight sharing: 3 matrices share the same weights (reduces parameters)</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Embedding weights scaled by sqrt(d_model) before adding positional encoding</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Decoder output → Linear → Softmax → token probabilities</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ATTENTION -->
+<hr class="divider">
+<section class="section" id="attention">
+  <div class="section-header">
+    <span class="section-badge tag-adv">Level 03</span>
+    <h2 class="section-title">Attention Mechanisms</h2>
+    <span class="section-num">03</span>
+  </div>
+
+  <div class="eq-block">
+    <div class="eq-label">Scaled Dot-Product Attention</div>
+    <div class="eq-formula">Attention(Q, K, V) = softmax( QKᵀ / √d_k ) · V</div>
+    <div class="eq-note">Q = queries (d_k dim), K = keys (d_k dim), V = values (d_v dim). Scale by 1/√d_k prevents softmax saturation at large d_k values.</div>
+  </div>
+
+  <div class="eq-block">
+    <div class="eq-label">Multi-Head Attention</div>
+    <div class="eq-formula">MultiHead(Q, K, V) = Concat(head₁, ..., headₕ) · Wᴼ
+head_i = Attention(Q·Wᵢᴼ, K·Wᵢᴷ, V·Wᵢᵛ)</div>
+    <div class="eq-note">h = 8 heads, d_k = d_v = d_model/h = 64. Each head projects to a different subspace and attends independently.</div>
+  </div>
+
+  <div class="cards-grid" style="margin-top:2rem;">
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">🔢</div>
+      <h3>Why Scale by 1/√d_k?</h3>
+      <p>For large d_k, dot products grow large in magnitude, pushing softmax into regions with extremely small gradients — causing vanishing gradients during training.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Dot products of random unit vectors have variance proportional to d_k</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Dividing by √d_k normalises variance back to ~1</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Prevents softmax from becoming a one-hot selector</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Additive attention doesn't suffer this — no scaling needed there</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">🎭</div>
+      <h3>Why Multi-Head?</h3>
+      <p>A single attention head averages over all subspaces. Multi-head attention allows the model to jointly attend to information from <strong>different representation subspaces</strong> at different positions.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>h = 8 heads, each attending to a 64-dimensional subspace</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Head 1 might track subject-verb agreement</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Head 2 might track coreference resolution</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Outputs concatenated then projected through W^O</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">1️⃣</div>
+      <h3>Encoder Self-Attention</h3>
+      <p>Queries, keys, and values all come from the previous encoder layer output. Each position can attend to all positions in the previous layer — full bidirectional context.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Q = K = V = previous encoder layer output</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Every position can attend to every other position</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Builds up rich contextual representations</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>No masking — full access to input sequence</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">🔗</div>
+      <h3>Encoder-Decoder Cross-Attention</h3>
+      <p>Queries come from the decoder's previous layer; keys and values come from the encoder output. Every decoder position can attend to all encoder positions — classic seq2seq alignment.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Q = decoder layer output; K = V = encoder final output</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Decoder "looks up" relevant source positions for each target token</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Replaces the attention mechanism in classic seq2seq (Bahdanau 2015)</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Generalises alignment beyond a single attention vector</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">🎭</div>
+      <h3>Masked Decoder Self-Attention</h3>
+      <p>Decoder self-attention is masked to prevent each position from attending to future positions — preserving the auto-regressive property required for generation.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Future positions set to −∞ before softmax → effectively 0 weight</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>At position i: can attend to positions 0..i only</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Ensures output token i only depends on tokens 0..i-1</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Enables parallel training while maintaining generation order</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">📊</div>
+      <h3>Attention Head Ablation</h3>
+      <p>Table 3 shows that the number of heads matters: too few or too many both hurt performance. Eight heads is optimal for the base model.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>h=1: BLEU 24.9 (−0.9 vs base)</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>h=4: BLEU 25.5</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>h=8: BLEU 25.8 ← optimal</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>h=16: BLEU 25.8 (same)</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>h=32: BLEU 25.4 (−0.4, degraded)</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- TRAINING -->
+<hr class="divider">
+<section class="section" id="training">
+  <div class="section-header">
+    <span class="section-badge tag-bp">Training</span>
+    <h2 class="section-title">Training Details &amp; Hyperparameters</h2>
+    <span class="section-num">04</span>
+  </div>
+
+  <div class="eq-block">
+    <div class="eq-label">Learning Rate Schedule</div>
+    <div class="eq-formula">lrate = d_model⁻⁰·⁵ · min(step⁻⁰·⁵,  step · warmup_steps⁻¹·⁵)</div>
+    <div class="eq-note">Linear warmup for first warmup_steps=4000 steps, then inverse-square-root decay. d_model=512, so peak LR ≈ 0.001 at step 4000.</div>
+  </div>
+
+  <div class="cards-grid" style="margin-top:2rem;">
+
+    <div class="card">
+      <div class="card-accent accent-bp"></div>
+      <div class="card-icon icon-bp">⚙️</div>
+      <h3>Base vs Big Model</h3>
+      <p>Two model configurations were evaluated, demonstrating that larger models consistently improve both perplexity and BLEU score.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-bp"></span><strong>Base:</strong> d_model=512, d_ff=2048, h=8, N=6, P_drop=0.1 → 65M params</div>
+        <div class="topic-item"><span class="topic-dot dot-bp"></span><strong>Big:</strong> d_model=1024, d_ff=4096, h=16, N=6, P_drop=0.3 → 213M params</div>
+        <div class="topic-item"><span class="topic-dot dot-bp"></span>Base: 100K steps, ~12 hours on 8 P100s</div>
+        <div class="topic-item"><span class="topic-dot dot-bp"></span>Big: 300K steps, ~3.5 days on 8 P100s</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-bp"></div>
+      <div class="card-icon icon-bp">🎯</div>
+      <h3>Regularisation</h3>
+      <p>Two regularisation techniques are used: residual dropout and label smoothing. Together they prevent overfitting and improve BLEU scores.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-bp"></span><strong>Residual Dropout:</strong> P_drop=0.1 applied to each sub-layer output before residual addition</div>
+        <div class="topic-item"><span class="topic-dot dot-bp"></span>Also applied to embedding+positional encoding sums</div>
+        <div class="topic-item"><span class="topic-dot dot-bp"></span><strong>Label Smoothing:</strong> ε_ls=0.1 — "hurts perplexity but improves BLEU"</div>
+        <div class="topic-item"><span class="topic-dot dot-bp"></span>P_drop=0.0 ablation: BLEU drops from 25.8 → 24.6</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-bp"></div>
+      <div class="card-icon icon-bp">🔧</div>
+      <h3>Optimizer</h3>
+      <p>Adam with a custom learning rate schedule that warms up linearly then decays — essential for stable training of the Transformer architecture.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-bp"></span>Adam: β₁=0.9, β₂=0.98, ε=10⁻⁹</div>
+        <div class="topic-item"><span class="topic-dot dot-bp"></span>warmup_steps = 4000</div>
+        <div class="topic-item"><span class="topic-dot dot-bp"></span>Linear warmup prevents instability in early training</div>
+        <div class="topic-item"><span class="topic-dot dot-bp"></span>Inverse-sqrt decay prevents overfitting at convergence</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-bp"></div>
+      <div class="card-icon icon-bp">📦</div>
+      <h3>Data &amp; Inference</h3>
+      <p>Trained on standard WMT 2014 EN-DE and EN-FR datasets with byte-pair encoding. Inference uses beam search with checkpoint averaging.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-bp"></span>EN-DE: 4.5M sentence pairs, ~37K BPE vocab (shared src/tgt)</div>
+        <div class="topic-item"><span class="topic-dot dot-bp"></span>EN-FR: 36M sentences, 32K word-piece vocab</div>
+        <div class="topic-item"><span class="topic-dot dot-bp"></span>Beam size = 4, length penalty α = 0.6</div>
+        <div class="topic-item"><span class="topic-dot dot-bp"></span>Checkpoint averaging: last 5 (base) or last 20 (big)</div>
+      </div>
+    </div>
+
+  </div>
+
+  <h3 style="font-family:'Fraunces',serif;font-size:1.1rem;margin:2.5rem 0 1rem;color:var(--text);">Key Ablation Findings (Table 3)</h3>
+  <div class="bp-grid">
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> More layers = better (up to N=6)</h4>
+      <p>N=2 → BLEU 23.7; N=4 → 25.3; N=6 → 25.8; N=8 → 25.5. Deeper is better, but diminishing returns.</p>
+      <div class="bp-example">N=2: 23.7  N=4: 25.3  N=6: 25.8 ✅  N=8: 25.5</div>
+    </div>
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Larger d_model and d_ff improve quality</h4>
+      <p>d_model=256 → BLEU 24.5; d_model=1024 → 26.0. Similarly d_ff=1024 → 25.4; d_ff=4096 → 26.2.</p>
+      <div class="bp-example">d_model 256: 24.5  512: 25.8  1024: 26.0 ✅</div>
+    </div>
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Reducing key size d_k hurts quality</h4>
+      <p>d_k=16 → BLEU 25.1; d_k=32 → 25.4; d_k=64 → 25.8. Smaller keys make compatibility harder to determine.</p>
+      <div class="bp-example">d_k=16: 25.1  d_k=32: 25.4  d_k=64: 25.8 ✅</div>
+    </div>
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Sinusoidal ≈ learned positional encoding</h4>
+      <p>Sinusoidal PE: BLEU 25.8, PPL 4.92. Learned PE: BLEU 25.7, PPL 4.92. Nearly identical — sinusoidal chosen for potential extrapolation.</p>
+      <div class="bp-example">Sinusoidal: 25.8 BLEU, 4.92 PPL ✅
+Learned:     25.7 BLEU, 4.92 PPL</div>
+    </div>
+  </div>
+</section>
+
+<!-- RESULTS -->
+<hr class="divider">
+<section class="section" id="results">
+  <div class="section-header">
+    <span class="section-badge tag-adv">Results</span>
+    <h2 class="section-title">Experimental Results</h2>
+    <span class="section-num">05</span>
+  </div>
+
+  <h3 style="font-family:'Fraunces',serif;font-size:1.1rem;margin-bottom:1rem;color:var(--text);">Machine Translation BLEU Scores (Table 2)</h3>
+  <div class="compare-wrap">
+    <table>
+      <thead><tr><th>Model</th><th>BLEU EN-DE</th><th>BLEU EN-FR</th><th>Training Cost (FLOPs)</th></tr></thead>
+      <tbody>
+        <tr><td>GNMT + RL</td><td>24.6</td><td>39.92</td><td>2.3×10¹⁹</td></tr>
+        <tr><td>ConvS2S</td><td>25.16</td><td>40.46</td><td>9.6×10¹⁸</td></tr>
+        <tr><td>MoE</td><td>26.03</td><td>40.56</td><td>2.0×10¹⁹</td></tr>
+        <tr><td>ConvS2S Ensemble</td><td>26.36</td><td>41.29</td><td>7.7×10¹⁹</td></tr>
+        <tr class="highlight-row"><td><strong>Transformer (base)</strong></td><td><strong>27.3</strong></td><td><strong>38.1</strong></td><td><strong>3.3×10¹⁸</strong></td></tr>
+        <tr class="highlight-row"><td><strong>Transformer (big)</strong></td><td><strong>28.4</strong></td><td><strong>41.8</strong></td><td><strong>2.3×10¹⁹</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:0.82rem;color:var(--muted);margin-bottom:2rem;">Transformer (big) outperforms all prior single models and ensembles on EN-DE, and matches or beats them on EN-FR at a fraction of the compute cost.</p>
+
+  <div class="quote-block">
+    <p>"The big transformer model outperforms the best previously reported models on EN-DE by more than 2.0 BLEU, establishing a new state-of-the-art BLEU score of 28.4."</p>
+    <cite>— Vaswani et al., Attention Is All You Need (NeurIPS 2017)</cite>
+  </div>
+</section>
+
+<!-- COMPARISON -->
+<hr class="divider">
+<section class="section" id="comparison">
+  <div class="section-header">
+    <h2 class="section-title">Layer Type Comparison (Table 1)</h2>
+    <span class="section-num">06</span>
+  </div>
+  <div class="compare-wrap">
+    <table>
+      <thead><tr><th>Layer Type</th><th>Complexity per Layer</th><th>Sequential Ops</th><th>Max Path Length</th></tr></thead>
+      <tbody>
+        <tr><td>Self-Attention</td><td>O(n² · d)</td><td><strong>O(1)</strong></td><td><strong>O(1)</strong></td></tr>
+        <tr><td>Recurrent (RNN/LSTM)</td><td>O(n · d²)</td><td>O(n)</td><td>O(n)</td></tr>
+        <tr><td>Convolutional</td><td>O(k · n · d²)</td><td>O(1)</td><td>O(log_k n)</td></tr>
+        <tr><td>Self-Attention (restricted, r)</td><td>O(r · n · d)</td><td>O(1)</td><td>O(n/r)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:0.82rem;color:var(--muted);">n = sequence length, d = dimension, k = convolution kernel size, r = restriction neighbourhood. Self-attention wins on sequential operations and maximum path length — the two axes that matter most for training speed and long-range dependencies.</p>
+</section>
+
+<footer>
+  <div class="footer-logo">Transformer Guide</div>
+  <p>Based on <a href="https://arxiv.org/abs/1706.03762" target="_blank" rel="noopener" style="color:var(--accent1);text-decoration:none;">"Attention Is All You Need"</a> · Vaswani et al. · NeurIPS 2017</p>
+</footer>
+
+<script>
+(function(){if(localStorage.getItem('jepa_theme')==='dark'){document.documentElement.classList.add('dark');document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('theme-btn');if(b)b.textContent='☀️ Light';});}})();
+function toggleTheme(){const d=document.documentElement.classList.toggle('dark');localStorage.setItem('jepa_theme',d?'dark':'light');document.getElementById('theme-btn').textContent=d?'☀️ Light':'🌙 Dark';}
+function toggleExample(btn){var body=btn.nextElementSibling;var isOpen=body.classList.contains('visible');body.classList.toggle('visible',!isOpen);btn.innerHTML=(isOpen?'<span class="toggle-icon">▶</span> See Example':'<span class="toggle-icon" style="transform:rotate(90deg)">▶</span> Hide Example');}
+</script>
+</body>
+</html>
