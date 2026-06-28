@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>I-JEPA — Self-Supervised Learning from Images</title>
+<link rel="icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,500;0,700;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f4f1eb; --bg-card: #ffffff; --text: #1a1612; --muted: #7a7268;
+    --accent1: #c84b2f; --accent2: #2d5f8a; --accent3: #3a7d52; --accent4: #8a5c2d;
+    --border: rgba(26,22,18,0.1);
+    --pill-basic: #eef4f9; --pill-basic-text: #2d5f8a;
+    --pill-inter: #eef6f1;  --pill-inter-text: #3a7d52;
+    --pill-adv:   #fdf0ec;  --pill-adv-text:   #c84b2f;
+    --pill-bp:    #fef8ef;  --pill-bp-text:    #8a5c2d;
+  }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; font-size: 15px; line-height: 1.7; min-height: 100vh; }
+
+  nav {
+    position: sticky; top: 0; background: rgba(244,241,235,0.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border); z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2.5rem; height: 60px;
+  }
+  .nav-brand { font-family: 'Fraunces', serif; font-size: 1.25rem; font-weight: 700; color: var(--text); letter-spacing: -0.02em; display: flex; align-items: center; gap: 8px; }
+  .nav-logo { width: 28px; height: 28px; background: var(--accent1); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-size: 0.8rem; font-weight: 700; }
+  .nav-links { display: flex; gap: 0.25rem; list-style: none; }
+  .nav-links a { text-decoration: none; color: var(--muted); font-size: 0.8rem; font-weight: 500; padding: 6px 12px; border-radius: 20px; transition: all 0.2s; letter-spacing: 0.03em; text-transform: uppercase; }
+  .nav-links a:hover { color: var(--text); background: var(--border); }
+
+  .hero { max-width: 1100px; margin: 0 auto; padding: 5rem 2.5rem 3rem; display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center; }
+  .hero-eyebrow { font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.12em; color: var(--accent1); margin-bottom: 1rem; }
+  .hero h1 { font-family: 'Fraunces', serif; font-size: clamp(2.5rem,4vw,3.8rem); font-weight: 700; line-height: 1.05; letter-spacing: -0.03em; color: var(--text); }
+  .hero h1 em { font-style: italic; color: var(--accent1); }
+  .hero-desc { margin-top: 1.5rem; color: var(--muted); font-size: 1rem; max-width: 420px; line-height: 1.75; }
+  .hero-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2rem; }
+  .hero-tag { display: inline-block; padding: 6px 14px; border-radius: 100px; font-size: 0.78rem; font-weight: 500; border: 1.5px solid; }
+  .tag-basic { background: var(--pill-basic); color: var(--pill-basic-text); border-color: var(--pill-basic-text); }
+  .tag-inter { background: var(--pill-inter); color: var(--pill-inter-text); border-color: var(--pill-inter-text); }
+  .tag-adv   { background: var(--pill-adv);   color: var(--pill-adv-text);   border-color: var(--pill-adv-text); }
+  .tag-bp    { background: var(--pill-bp);    color: var(--pill-bp-text);    border-color: var(--pill-bp-text); }
+  .hero-visual { display: flex; flex-direction: column; gap: 12px; }
+  .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stat-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 1.25rem; }
+  .stat-card .num { font-family: 'Fraunces', serif; font-size: 2rem; font-weight: 700; color: var(--text); line-height: 1; }
+  .stat-card .label { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+  .stat-card.accent { background: var(--accent1); border-color: var(--accent1); }
+  .stat-card.accent .num, .stat-card.accent .label { color: white; }
+
+  .section { max-width: 1100px; margin: 0 auto; padding: 3rem 2.5rem; }
+  .section-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 2.5rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border); }
+  .section-badge { font-size: 0.7rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.1em; padding: 5px 14px; border-radius: 100px; }
+  .section-title { font-family: 'Fraunces', serif; font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+  .section-num { font-family: 'Fraunces', serif; font-size: 3rem; font-weight: 300; color: var(--border); margin-left: auto; line-height: 1; }
+
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+  .card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; padding: 1.5rem; position: relative; overflow: hidden; transition: transform 0.2s, box-shadow 0.2s; }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.06); }
+  .card-accent { position: absolute; top: 0; left: 0; right: 0; height: 3px; border-radius: 16px 16px 0 0; }
+  .accent-basic { background: var(--accent2); }
+  .accent-inter { background: var(--accent3); }
+  .accent-adv   { background: var(--accent1); }
+  .accent-bp    { background: var(--accent4); }
+  .card-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; margin-bottom: 1rem; font-size: 1.2rem; }
+  .icon-basic { background: var(--pill-basic); }
+  .icon-inter { background: var(--pill-inter); }
+  .icon-adv   { background: var(--pill-adv); }
+  .icon-bp    { background: var(--pill-bp); }
+  .card h3 { font-family: 'Fraunces', serif; font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; margin-bottom: 0.5rem; color: var(--text); }
+  .card p { font-size: 0.88rem; color: var(--muted); line-height: 1.65; margin-bottom: 1rem; }
+  .card-topics { display: flex; flex-direction: column; gap: 6px; }
+  .topic-item { display: flex; align-items: flex-start; gap: 8px; font-size: 0.82rem; color: var(--text); line-height: 1.5; }
+  .topic-dot { width: 5px; height: 5px; border-radius: 50%; margin-top: 7px; flex-shrink: 0; }
+  .dot-basic { background: var(--accent2); }
+  .dot-inter { background: var(--accent3); }
+  .dot-adv   { background: var(--accent1); }
+  .dot-bp    { background: var(--accent4); }
+
+  .card-example { margin-top: 1rem; border-top: 1px dashed var(--border); padding-top: 0.85rem; }
+  .example-toggle { background: none; border: none; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 0.75rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.08em; padding: 0; color: var(--muted); transition: color 0.2s; }
+  .example-toggle:hover { color: var(--text); }
+  .toggle-icon { display: inline-block; font-size: 0.7rem; transition: transform 0.25s; }
+  .example-body { display: none; margin-top: 0.75rem; }
+  .example-body.visible { display: block; }
+  .example-scenario { font-size: 0.8rem; font-style: italic; color: var(--muted); margin-bottom: 0.6rem; padding-left: 0.75rem; border-left: 2px solid var(--border); line-height: 1.55; }
+  .example-code { background: #f7f4ee; border: 1px solid var(--border); border-radius: 8px; padding: 0.75rem 1rem; font-family: 'Courier New', monospace; font-size: 0.75rem; color: #3a3530; line-height: 1.6; white-space: pre-wrap; word-break: break-word; margin-bottom: 0.5rem; }
+  .example-note { font-size: 0.78rem; color: var(--muted); line-height: 1.55; }
+  .example-steps { display: flex; flex-direction: column; gap: 5px; margin-bottom: 0.5rem; }
+  .example-step { display: flex; gap: 8px; font-size: 0.78rem; color: var(--text); line-height: 1.5; align-items: flex-start; }
+  .step-num { min-width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 500; color: white; flex-shrink: 0; margin-top: 1px; }
+  .sn-basic { background: var(--accent2); }
+  .sn-inter { background: var(--accent3); }
+  .sn-adv   { background: var(--accent1); }
+  .sn-bp    { background: var(--accent4); }
+
+  .bp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+  .bp-item { background: var(--bg-card); border: 1px solid var(--border); border-left: 4px solid var(--accent4); border-radius: 0 12px 12px 0; padding: 1.25rem 1.5rem; }
+  .bp-item h4 { font-size: 0.9rem; font-weight: 500; color: var(--text); margin-bottom: 0.35rem; display: flex; align-items: center; gap: 8px; }
+  .bp-check { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; background: var(--accent3); border-radius: 50%; color: white; font-size: 0.65rem; flex-shrink: 0; }
+  .bp-item p { font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
+  .bp-example { margin-top: 0.75rem; background: #f7f4ee; border-radius: 6px; padding: 0.6rem 0.85rem; font-size: 0.78rem; color: #3a3530; font-family: 'Courier New', monospace; line-height: 1.6; white-space: pre-wrap; }
+
+  .compare-wrap { background: var(--bg-card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; margin-bottom: 2rem; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  thead th { background: #f8f6f2; padding: 12px 16px; text-align: left; font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); border-bottom: 1px solid var(--border); }
+  tbody td { padding: 11px 16px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: #faf8f5; }
+  .badge { display: inline-block; font-size: 0.7rem; font-weight: 500; padding: 3px 10px; border-radius: 100px; }
+  .b-basic { background: var(--pill-basic); color: var(--pill-basic-text); }
+  .b-inter { background: var(--pill-inter); color: var(--pill-inter-text); }
+  .b-adv   { background: var(--pill-adv);   color: var(--pill-adv-text); }
+  .b-bp    { background: var(--pill-bp);    color: var(--pill-bp-text); }
+
+  .quote-block { background: var(--bg-card); border: 1px solid var(--border); border-left: 4px solid var(--accent1); border-radius: 0 12px 12px 0; padding: 1.5rem 2rem; margin: 2rem 0; }
+  .quote-block p { font-family: 'Fraunces', serif; font-size: 1rem; font-style: italic; color: var(--text); line-height: 1.6; }
+  .quote-block cite { display: block; margin-top: 0.75rem; font-size: 0.8rem; color: var(--muted); font-style: normal; }
+
+  .divider { max-width: 1100px; margin: 0 auto; padding: 0 2.5rem; border: none; border-top: 1px solid var(--border); }
+  footer { border-top: 1px solid var(--border); padding: 2rem 2.5rem; max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; }
+  footer p { font-size: 0.8rem; color: var(--muted); }
+  .footer-logo { font-family: 'Fraunces', serif; font-size: 1rem; font-weight: 700; color: var(--muted); }
+
+  @media (max-width: 768px) {
+    .hero { grid-template-columns: 1fr; padding: 3rem 1.25rem; }
+    .hero-visual { display: none; }
+    .section { padding: 2rem 1.25rem; }
+    nav { padding: 0 1.25rem; }
+    .nav-links { display: none; }
+    footer { flex-direction: column; gap: 1rem; text-align: center; }
+  }
+
+  /* Dark theme */
+  html.dark {
+    --bg: #0f1117;
+    --bg-card: #1a1d27;
+    --text: #e8e4dc;
+    --muted: #8a8378;
+    --border: rgba(232,228,220,0.1);
+    --pill-basic: #1a2535; --pill-basic-text: #6ea3d0;
+    --pill-inter: #1a2820; --pill-inter-text: #6ab88a;
+    --pill-adv:   #2a1a16; --pill-adv-text:   #e07a5f;
+    --pill-bp:    #261e10; --pill-bp-text:    #c49a50;
+  }
+  html.dark body { background: var(--bg); }
+  html.dark nav { background: rgba(15,17,23,0.92); }
+  .highlight-row td { background: #f0f9f4; }
+  html.dark .example-code { background: #0d0f18; color: #c9c5bc; border-color: var(--border); }
+  html.dark .bp-example { background: #0d0f18; color: #c9c5bc; }
+  html.dark thead th { background: #13151f; }
+  html.dark tbody tr:hover td { background: #1e2130; }
+  html.dark .q-option { background: #13151f; }
+  html.dark .q-option:hover { background: #1e2130; }
+  html.dark .q-textarea { background: #13151f; }
+  html.dark .highlight-row td { background: #1a2820 !important; }
+
+  .theme-btn {
+    background: none; border: 1.5px solid var(--border); border-radius: 20px;
+    padding: 5px 12px; cursor: pointer; font-size: 0.8rem; color: var(--muted);
+    font-family: 'DM Sans', sans-serif; transition: all 0.2s; display: flex; align-items: center; gap: 5px;
+  }
+  .theme-btn:hover { color: var(--text); border-color: var(--muted); }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <div class="nav-logo">J</div>
+    I-JEPA Guide
+  </div>
+  <ul class="nav-links">
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#masking">Masking</a></li>
+    <li><a href="#results">Results</a></li>
+    <li><a href="#ablations">Ablations</a></li>
+    <li><a href="#comparison">Comparison</a></li>
+    <li><a href="https://arxiv.org/pdf/2301.08243" target="_blank" rel="noopener">📄 Paper</a></li>
+    <li><a href="./jepa-qa.html">Test Your Skills</a></li>
+  </ul>
+  <button class="theme-btn" onclick="toggleTheme()" id="theme-btn">🌙 Dark</button>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div>
+    <p class="hero-eyebrow">ICCV 2023 · Meta AI / FAIR</p>
+    <h1>Self-Supervised<br><em>I-JEPA</em><br>Deep Dive</h1>
+    <p class="hero-desc">Image-based Joint-Embedding Predictive Architecture — learning semantic image representations by predicting in abstract representation space, not pixel space.</p>
+    <div class="hero-tags">
+      <span class="hero-tag tag-basic">Concepts</span>
+      <span class="hero-tag tag-inter">Architecture</span>
+      <span class="hero-tag tag-adv">Results</span>
+      <span class="hero-tag tag-bp">Ablations</span>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="stat-row">
+      <div class="stat-card accent">
+        <div class="num">10×</div>
+        <div class="label">More compute-efficient than MAE ViT-H/14</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">79.3</div>
+        <div class="label">Top-1 ImageNet linear (ViT-H/14)</div>
+      </div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="num">72h</div>
+        <div class="label">ViT-H/14 on 16 A100s</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">0</div>
+        <div class="label">Hand-crafted augmentations needed</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- OVERVIEW -->
+<hr class="divider">
+<section class="section" id="overview">
+  <div class="section-header">
+    <span class="section-badge tag-basic">Level 01</span>
+    <h2 class="section-title">Core Concepts &amp; Background</h2>
+    <span class="section-num">01</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">🎯</div>
+      <h3>What is I-JEPA?</h3>
+      <p>I-JEPA (Image-based Joint-Embedding Predictive Architecture) is a non-generative self-supervised method for learning semantic image representations without hand-crafted data augmentations.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Predicts representations of target blocks from a context block</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Operates entirely in abstract representation space — not pixels</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Published at ICCV 2023 by Meta AI / FAIR</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Instantiates LeCun's 2022 JEPA framework for images</div>
+      </div>
+      <div class="card-example">
+        <button class="example-toggle" onclick="toggleExample(this)"><span class="toggle-icon">▶</span> See Example</button>
+        <div class="example-body">
+          <p class="example-scenario">Given a photo of a dog: the model sees a large context region (most of the image) and must predict the abstract representation of 4 small hidden target patches — e.g., the paw, the ear, part of the background, and the tail.</p>
+          <p class="example-note">Key: it predicts what the target encoder would output for those patches, not what the pixels look like. Texture details can vary; pose and object identity cannot.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">🏗️</div>
+      <h3>The JEPA Framework (LeCun 2022)</h3>
+      <p>Joint-Embedding Predictive Architecture: a predictor maps the embedding of one view to the embedding of another, conditioned on a latent variable. Loss is computed in embedding space, not input space.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Conceptual origin: "A path towards autonomous machine intelligence"</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Latent variable z conditions the prediction (masking positions in I-JEPA)</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Loss: L(ŝ_y, s_y) = ‖g_φ(s_x, z) − f_θ̄(y)‖²</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>No need to reconstruct unpredictable low-level details</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">⚖️</div>
+      <h3>Three SSL Families</h3>
+      <p>Self-supervised learning methods divide into three families, each with fundamental tradeoffs that I-JEPA is designed to overcome.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span><strong>Invariance-based:</strong> SimCLR, DINO, iBOT — high semantic quality but augmentation bias</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span><strong>Generative / mask-denoising:</strong> MAE, BEiT — pixel space, multi-modal friendly, lower off-the-shelf semantics</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span><strong>JEPA / predictive:</strong> I-JEPA — representation space, no augmentation bias, high semantics</div>
+      </div>
+      <div class="card-example">
+        <button class="example-toggle" onclick="toggleExample(this)"><span class="toggle-icon">▶</span> See Example</button>
+        <div class="example-body">
+          <div class="example-code">Invariance-based (DINO):
+  Augment image → two views
+  Maximize similarity of embeddings
+  ✅ High semantic quality
+  ❌ Color jitter biases against counting tasks
+
+Generative (MAE):
+  Mask patches → predict pixel values
+  ✅ No augmentation needed
+  ❌ Model wastes capacity on texture
+
+I-JEPA:
+  Mask patches → predict patch embeddings
+  ✅ No augmentation needed
+  ✅ Focuses on semantic content only</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">🧠</div>
+      <h3>Why Representation Space Matters</h3>
+      <p>Predicting in pixel space forces the model to handle unpredictable low-level details — noise, texture, exact lighting. Predicting in representation space allows these to be naturally discarded.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Pixel: must predict exact RGB values — wastes model capacity</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Representation: predict semantic content — object, pose, position</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Ablation shows: pixel targets → 40.7 Top-1; repr. targets → 66.9 Top-1</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>RCDM visualizations confirm: model captures pose, not texture</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">🚫</div>
+      <h3>No Augmentations — Why It Matters</h3>
+      <p>View-invariant methods require hand-crafted augmentations (color jitter, random crops, flips) that encode domain priors — and inadvertently hurt tasks that depend on those very properties.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Color jitter: hurts color-dependent tasks</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Random crops: hurts spatial/counting tasks — object count discarded</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>I-JEPA: no augmentations → no such bias; outperforms DINO on Clevr/Count</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Enables broader application: video, audio, multimodal without redesigning augmentations</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">🔄</div>
+      <h3>Collapse Prevention via EMA</h3>
+      <p>A key challenge in joint-embedding methods is representational collapse — all embeddings becoming identical. I-JEPA prevents this elegantly using an Exponential Moving Average target encoder.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Target encoder θ̄ ← τθ̄ + (1−τ)θ</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>τ starts at 0.996, slowly increases to 1.0</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Target encoder never trained by gradient — provides stable targets</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>No negative pairs, contrastive losses, or clustering required</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<hr class="divider">
+<section class="section" id="architecture">
+  <div class="section-header">
+    <span class="section-badge tag-inter">Level 02</span>
+    <h2 class="section-title">Architecture &amp; Training</h2>
+    <span class="section-num">02</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">🔧</div>
+      <h3>Three Components</h3>
+      <p>I-JEPA consists of a context encoder, a target encoder (EMA copy), and a predictor. All three are Vision Transformers (ViT).</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><strong>Context encoder f_θ:</strong> Processes the visible context block → patch representations s_x</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><strong>Target encoder f_θ̄:</strong> EMA copy; processes full image → target representations s_y</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><strong>Predictor g_φ:</strong> Narrow transformer; maps s_x + mask tokens → predicted ŝ_y for each target block</div>
+      </div>
+      <div class="card-example">
+        <button class="example-toggle" onclick="toggleExample(this)"><span class="toggle-icon">▶</span> See Example</button>
+        <div class="example-body">
+          <div class="example-code">Context Encoder  (ViT-L/16, full depth)
+  Input:  image patches in context region Bx
+  Output: s_x = {s_xj}_{j∈Bx}
+  Trained by: gradient descent (AdamW)
+
+Target Encoder   (ViT-L/16, EMA copy)
+  Input:  ALL image patches
+  Output: s_y = {s_y1, ..., s_yN}
+  Trained by: θ̄ ← 0.996·θ̄ + 0.004·θ
+
+Predictor        (ViT, 12 layers, dim 384)
+  Input:  s_x + positional mask tokens {m_j}
+  Output: ŝ_y(i) for each target block B_i
+  Trained by: gradient descent (AdamW)</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">📐</div>
+      <h3>The Predictor — Bottleneck Design</h3>
+      <p>The predictor is a lightweight ViT with a narrower embedding dimension (384 vs 1024 for ViT-L). This bottleneck is not a limitation — it's a crucial design choice.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Predictor dim 384 (bottleneck) → 70.7 Top-1</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Predictor dim 1024 (full) → 68.4 Top-1</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Bottleneck prevents encoder from taking prediction shortcuts</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Forces encoder to build rich, abstract representations</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Depth: 6 layers (ViT-B), 12 layers (ViT-L/H), 16 layers (ViT-G)</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">📉</div>
+      <h3>Loss Function</h3>
+      <p>Average L2 distance in representation space across all M target blocks. No contrastive term, no reconstruction term, no clustering.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Loss = (1/M) Σᵢ Σ_{j∈Bᵢ} ‖ŝ_yj − s_yj‖²</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>M=4 independent target block predictions per image</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Gradients flow to context encoder θ and predictor φ only</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Target encoder θ̄ receives no gradient — only EMA updates</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">⚙️</div>
+      <h3>Training Hyperparameters</h3>
+      <p>AdamW optimizer with linear LR warmup and cosine decay. Weight decay is annealed from low to high during training.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Optimizer: AdamW, batch size 2048</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>LR: warm 1e-4→1e-3 (15 epochs) then cosine decay to 1e-6</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Weight decay: linearly increased 0.04 → 0.4 during training</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>EMA momentum: 0.996 → 1.0 over training</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>No [cls] token — average-pooled patches for evaluation</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">🔍</div>
+      <h3>Target Masking: Output Not Input</h3>
+      <p>A critical design choice: masking is applied to the OUTPUT of the target encoder, not its input. The target encoder sees the full unmasked image.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Mask output → target encoder processes clean, unmasked input</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Produces higher-quality target representations</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Ablation: output masking → 67.3; input masking → 56.1 (ViT-H/16)</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Contrast with MAE: applies masking before the encoder</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">🎨</div>
+      <h3>RCDM Visualizations</h3>
+      <p>Predictor outputs are decoded to pixels via a frozen Retrieval-Conditioned Diffusion Model (RCDM) to visualize what the predictor "thinks" about the masked regions.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Multiple samples from same context → vary in texture, consistent in pose</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Confirms model captures semantic structure, not pixel noise</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Consistent qualities: captured by the model</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Variable qualities: discarded as unpredictable low-level detail</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- MASKING STRATEGY -->
+<hr class="divider">
+<section class="section" id="masking">
+  <div class="section-header">
+    <span class="section-badge tag-adv">Level 03</span>
+    <h2 class="section-title">Masking Strategy</h2>
+    <span class="section-num">03</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">🎯</div>
+      <h3>Multi-Block Target Masking</h3>
+      <p>4 independent target blocks are sampled per image, each covering 15–20% of the image area. This creates a rich, multi-faceted prediction task.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>M = 4 target blocks per image</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Scale: 15–20% of image (0.15, 0.2)</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Aspect ratio: 0.75 to 1.5 (near-square)</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Blocks are semantically large enough to require abstract reasoning</div>
+      </div>
+      <div class="card-example">
+        <button class="example-toggle" onclick="toggleExample(this)"><span class="toggle-icon">▶</span> See Example</button>
+        <div class="example-body">
+          <div class="example-code">224×224 image → 196 patches (14×14 grid)
+4 target blocks, each ~0.17 × 196 ≈ 33 patches
+Total masked: ~132/196 patches (67%)
+
+But: context block covers 85–100% of image
+→ context is large and informative
+→ prediction is hard but solvable</div>
+          <p class="example-note">The combination of large context + semantically-sized targets forces the model to reason about object structure, not just interpolate adjacent pixels.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">🔲</div>
+      <h3>Context Block Design</h3>
+      <p>A single context block covers 85–100% of the image (minus the target regions). The large informative context prevents trivial solutions.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Scale: 0.85–1.0 of image area</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Unit (square) aspect ratio</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Overlapping regions with target blocks removed from context</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Ablation: context scale 0.40–1.0 → 31.2; 0.85–1.0 → 54.2 Top-1</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">📊</div>
+      <h3>Target Scale Is Critical</h3>
+      <p>The scale of target blocks determines whether the task requires semantic reasoning or can be solved with local texture interpolation.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Scale (0.075, 0.2): too small → trivially solvable → 19.2 Top-1</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Scale (0.15, 0.2): sweet spot → 54.2 Top-1</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Scale (0.2, 0.3): too large → not enough context → 33.6 Top-1</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Blocks must be large enough to require understanding object structure</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">🔢</div>
+      <h3>Number of Target Blocks</h3>
+      <p>More target blocks forces the model to be predictive about more of the image simultaneously, dramatically improving representation quality.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>1 target block → 9.0 Top-1</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>2 target blocks → 22.0 Top-1</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>3 target blocks → 48.5 Top-1</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>4 target blocks → 54.2 Top-1 ✓ chosen design</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">❌</div>
+      <h3>Why Other Masking Strategies Fail</h3>
+      <p>Ablations show that the specific multi-block strategy is crucial — rasterized, random, or single-block approaches produce drastically worse results.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Rasterized (quadrant) targets → 15.5 Top-1 (vs 54.2)</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Single large block → 20.2 Top-1</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Random masking (60%) → 17.6 Top-1</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Small targets are trivially predictable by interpolation</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Random masking: too easy; individual patches lack semantic content</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">🎲</div>
+      <h3>Mask Tokens for Position</h3>
+      <p>Positional embeddings are used as mask tokens {m_j} for the target block positions. The predictor uses these to know which locations to predict.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Each mask token m_j encodes positional embedding for patch j</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Predictor input: s_x (context embeddings) + {m_j}_{j∈Bᵢ} (target positions)</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Applied independently M=4 times per image</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Enables conditional prediction: "predict patch at position j given context"</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- RESULTS -->
+<hr class="divider">
+<section class="section" id="results">
+  <div class="section-header">
+    <span class="section-badge tag-adv">Results</span>
+    <h2 class="section-title">Experimental Results</h2>
+    <span class="section-num">04</span>
+  </div>
+
+  <h3 style="font-family:'Fraunces',serif;font-size:1.1rem;margin-bottom:1rem;color:var(--text);">ImageNet Linear Evaluation (Top-1 Accuracy)</h3>
+  <div class="compare-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Architecture</th><th>Epochs</th><th>Top-1 (%)</th></tr></thead>
+      <tbody>
+        <tr><td>MAE</td><td>ViT-B/16</td><td>1600</td><td>68.0</td></tr>
+        <tr><td>MAE</td><td>ViT-L/16</td><td>1600</td><td>76.0</td></tr>
+        <tr><td>MAE</td><td>ViT-H/14</td><td>1600</td><td>77.2</td></tr>
+        <tr><td>data2vec</td><td>ViT-L/16</td><td>1600</td><td>77.3</td></tr>
+        <tr><td>CAE</td><td>ViT-L/16</td><td>1600</td><td>78.1</td></tr>
+        <tr class="highlight-row"><td><strong>I-JEPA</strong></td><td>ViT-B/16</td><td>600</td><td><strong>72.9</strong></td></tr>
+        <tr class="highlight-row"><td><strong>I-JEPA</strong></td><td>ViT-L/16</td><td>600</td><td><strong>77.5</strong></td></tr>
+        <tr class="highlight-row"><td><strong>I-JEPA</strong></td><td>ViT-H/14</td><td>300</td><td><strong>79.3</strong></td></tr>
+        <tr class="highlight-row"><td><strong>I-JEPA</strong></td><td>ViT-H/16₄₄₈</td><td>300</td><td><strong>81.1</strong></td></tr>
+        <tr><td>DINO</td><td>ViT-B/8</td><td>300</td><td>80.1</td></tr>
+        <tr><td>iBOT</td><td>ViT-L/16</td><td>250</td><td>81.0</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 style="font-family:'Fraunces',serif;font-size:1.1rem;margin-bottom:1rem;margin-top:2rem;color:var(--text);">Transfer Learning &amp; Spatial Tasks</h3>
+  <div class="compare-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Arch</th><th>CIFAR-100</th><th>Places205</th><th>iNat18</th><th>Clevr/Count</th><th>Clevr/Dist</th></tr></thead>
+      <tbody>
+        <tr><td>MAE</td><td>ViT-H/14</td><td>77.3</td><td>55.0</td><td>32.9</td><td>90.5</td><td>72.4</td></tr>
+        <tr><td>DINO</td><td>ViT-B/8</td><td>84.9</td><td>57.9</td><td>55.9</td><td>86.6</td><td>53.4</td></tr>
+        <tr><td>iBOT</td><td>ViT-L/16</td><td>88.3</td><td>60.4</td><td>57.3</td><td>85.7</td><td>62.8</td></tr>
+        <tr class="highlight-row"><td><strong>I-JEPA</strong></td><td>ViT-H/14</td><td><strong>87.5</strong></td><td><strong>58.4</strong></td><td><strong>47.6</strong></td><td>86.7</td><td><strong>72.4</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:0.82rem;color:var(--muted);margin-top:0.5rem;">I-JEPA strongly outperforms MAE on all semantic transfer tasks, and strongly outperforms DINO/iBOT on depth prediction (Clevr/Dist) — where augmentation bias hurts view-invariant methods.</p>
+
+  <div class="cards-grid" style="margin-top:2rem;">
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">⚡</div>
+      <h3>Compute Efficiency</h3>
+      <p>I-JEPA is dramatically more efficient than alternatives — enabling large-model pretraining that was previously cost-prohibitive.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>>10× more efficient than MAE ViT-H/14</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>2.5× faster than iBOT ViT-S/16 for equivalent or better quality</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>ViT-H/14 on ImageNet in &lt;72h on 16 A100s</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Only ~7% overhead vs MAE per iteration, but ~5× fewer iterations needed</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">📈</div>
+      <h3>Scalability</h3>
+      <p>I-JEPA scales predictably with larger models and datasets, with no diminishing returns in the tested range.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>IN-1K → IN-22K: CIFAR-100 87.5 → 89.5, iNat18 47.6 → 50.5</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>ViT-H → ViT-G: further gains on semantic tasks</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>Larger patch size (ViT-G/16) slightly hurts local prediction tasks</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span>No signs of saturation; architecture continues to benefit from scale</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ABLATIONS -->
+<hr class="divider">
+<section class="section" id="ablations">
+  <div class="section-header">
+    <span class="section-badge tag-bp">Best Practices</span>
+    <h2 class="section-title">Key Ablation Findings</h2>
+    <span class="section-num">05</span>
+  </div>
+  <div class="bp-grid">
+
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Multi-block targets (4 blocks, 15–20% scale)</h4>
+      <p>The masking strategy is the most critical design choice. Multi-block targets dramatically outperform all alternatives.</p>
+      <div class="bp-example">Multi-block (0.15,0.2) × 4  → 54.2 Top-1 ✅
+Rasterized (quadrant) × 3  → 15.5 Top-1 ❌
+Single block (0.6) × 1     → 20.2 Top-1 ❌
+Random (0.6) × 1           → 17.6 Top-1 ❌</div>
+    </div>
+
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Predict representations, not pixels</h4>
+      <p>Operating in representation space is the core conceptual advantage over generative methods.</p>
+      <div class="bp-example">Target-encoder output (repr.)  → 66.9 Top-1 ✅
+Pixel space prediction        → 40.7 Top-1 ❌
+                                 (ViT-L/16, 500 epochs)</div>
+    </div>
+
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Mask after (not before) the target encoder</h4>
+      <p>The target encoder must see the full, unmasked image to produce high-quality targets.</p>
+      <div class="bp-example">Mask output of encoder  → 67.3 Top-1 ✅
+Mask input to encoder   → 56.1 Top-1 ❌
+                           (ViT-H/16, 300 epochs)</div>
+    </div>
+
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Use a bottleneck predictor (dim 384)</h4>
+      <p>A narrower predictor forces the encoder to build richer representations by preventing shortcut learning.</p>
+      <div class="bp-example">Predictor dim 384 (bottleneck) → 70.7 Top-1 ✅
+Predictor dim 1024 (full)     → 68.4 Top-1 ❌
+                                 (ViT-L/16)</div>
+    </div>
+
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Deep predictor (12+ layers for large models)</h4>
+      <p>The predictor needs enough capacity to solve the spatial prediction task without becoming a bottleneck.</p>
+      <div class="bp-example">Predictor depth 6   → 64.0 Top-1
+Predictor depth 12  → 66.9 Top-1 ✅
+                       (ViT-L/16, 500 epochs)</div>
+    </div>
+
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Anneal weight decay (0.04 → 0.4)</h4>
+      <p>Increasing weight decay during training improves linear probe performance, while fixed weight decay slightly favors semi-supervised.</p>
+      <div class="bp-example">WD 0.04→0.4 (annealed) → 77.8 linear eval ✅
+WD fixed 0.05          → 76.4 linear eval
+WD fixed 0.05          → 70.7 semi-supervised ✅</div>
+    </div>
+
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Large, informative context block (85–100%)</h4>
+      <p>A large context ensures the prediction task is well-conditioned and solvable, not just random guessing.</p>
+      <div class="bp-example">Context scale (0.40, 1.0) → 31.2 Top-1 ❌
+Context scale (0.65, 1.0) → 47.1 Top-1
+Context scale (0.85, 1.0) → 54.2 Top-1 ✅</div>
+    </div>
+
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Target scale sweet spot (0.15–0.2)</h4>
+      <p>Too small: trivially predictable by interpolation. Too large: not enough context. The sweet spot forces semantic reasoning.</p>
+      <div class="bp-example">Scale (0.075, 0.2) → 19.2 Top-1 (too small)
+Scale (0.15, 0.2)  → 54.2 Top-1 ✅ sweet spot
+Scale (0.2, 0.3)   → 33.6 Top-1 (too large)</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- COMPARISON TABLE -->
+<hr class="divider">
+<section class="section" id="comparison">
+  <div class="section-header">
+    <h2 class="section-title">Method Comparison Reference</h2>
+    <span class="section-num">06</span>
+  </div>
+  <div class="compare-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Method</th>
+          <th>Family</th>
+          <th>Prediction Target</th>
+          <th>Augmentations</th>
+          <th>Collapse Prevention</th>
+          <th>Off-Shelf Semantics</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>I-JEPA</strong></td>
+          <td><span class="badge b-inter">JEPA</span></td>
+          <td>Representation space</td>
+          <td>None</td>
+          <td>EMA target encoder</td>
+          <td>High ✅</td>
+        </tr>
+        <tr>
+          <td>MAE</td>
+          <td><span class="badge b-basic">Generative</span></td>
+          <td>Pixel space</td>
+          <td>None</td>
+          <td>Not applicable (decoder)</td>
+          <td>Low ❌</td>
+        </tr>
+        <tr>
+          <td>BEiT</td>
+          <td><span class="badge b-basic">Generative</span></td>
+          <td>dVAE tokens</td>
+          <td>None (but needs external tokenizer)</td>
+          <td>Discrete tokens</td>
+          <td>Medium</td>
+        </tr>
+        <tr>
+          <td>data2vec</td>
+          <td><span class="badge b-inter">Predictive</span></td>
+          <td>Representation space</td>
+          <td>None</td>
+          <td>EMA target</td>
+          <td>High ✅</td>
+        </tr>
+        <tr>
+          <td>DINO</td>
+          <td><span class="badge b-adv">Invariance</span></td>
+          <td>Global embedding match</td>
+          <td>Required (heavy)</td>
+          <td>Centering + sharpening</td>
+          <td>Very High ✅</td>
+        </tr>
+        <tr>
+          <td>iBOT</td>
+          <td><span class="badge b-adv">Invariance</span></td>
+          <td>Patch tokens + global</td>
+          <td>Required (heavy)</td>
+          <td>DINO + online tokenizer</td>
+          <td>Very High ✅</td>
+        </tr>
+        <tr>
+          <td>SimCLR</td>
+          <td><span class="badge b-adv">Contrastive</span></td>
+          <td>Contrastive similarity</td>
+          <td>Required</td>
+          <td>Negative pairs</td>
+          <td>High ✅</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="quote-block">
+    <p>"The goal of I-JEPA is to produce representations that are useful across a wide variety of tasks, without relying on hand-crafted data augmentations that encode task-specific priors."</p>
+    <cite>— Assran et al., I-JEPA (ICCV 2023)</cite>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-logo">I-JEPA Guide</div>
+  <p>Based on <a href="https://arxiv.org/pdf/2301.08243" target="_blank" rel="noopener" style="color:var(--accent2);text-decoration:none;">"Self-Supervised Learning from Images with a Joint-Embedding Predictive Architecture"</a> · ICCV 2023 · Meta AI / FAIR</p>
+</footer>
+
+<script>
+// Theme
+(function(){
+  if(localStorage.getItem('jepa_theme')==='dark'){
+    document.documentElement.classList.add('dark');
+    document.addEventListener('DOMContentLoaded',()=>{const b=document.getElementById('theme-btn');if(b)b.textContent='☀️ Light';});
+  }
+})();
+function toggleTheme(){
+  const isDark=document.documentElement.classList.toggle('dark');
+  localStorage.setItem('jepa_theme',isDark?'dark':'light');
+  document.getElementById('theme-btn').textContent=isDark?'☀️ Light':'🌙 Dark';
+}
+
+function toggleExample(btn) {
+  var body = btn.nextElementSibling;
+  var isOpen = body.classList.contains('visible');
+  body.classList.toggle('visible', !isOpen);
+  btn.innerHTML = (isOpen
+    ? '<span class="toggle-icon">▶</span> See Example'
+    : '<span class="toggle-icon" style="transform:rotate(90deg)">▶</span> Hide Example');
+}
+</script>
+</body>
+</html>
