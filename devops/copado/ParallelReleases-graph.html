@@ -1,0 +1,421 @@
+
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Git branching strategy — Multiple release branches</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50:  '#EEEDFE',
+              100: '#CECBF6',
+              200: '#AFA9EC',
+              400: '#7F77DD',
+              600: '#534AB7',
+              800: '#3C3489',
+              900: '#26215C',
+            },
+            teal: {
+              50:  '#E1F5EE',
+              400: '#1D9E75',
+              600: '#0F6E56',
+              800: '#085041',
+            },
+            amber: {
+              50:  '#FAEEDA',
+              400: '#BA7517',
+              600: '#854F0B',
+            },
+            coral: {
+              50:  '#FAECE7',
+              400: '#D85A30',
+              600: '#993C1D',
+            },
+            slate: {
+              850: '#1a1f2e',
+              900: '#131720',
+              950: '#0c0f16',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root { --transition: 0.2s ease; }
+
+    /* Mermaid diagram container overrides */
+    #mermaid-container svg {
+      width: 100% !important;
+      height: auto !important;
+      min-height: 280px;
+    }
+
+    /* Branch pill badges */
+    .branch-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 10px;
+      border-radius: 9999px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+    .branch-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* Animated loader */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loader { animation: spin 0.9s linear infinite; }
+
+    /* Subtle grid bg for hero */
+    .hero-grid {
+      background-image:
+        linear-gradient(rgba(127,119,221,0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(127,119,221,0.07) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+    .dark .hero-grid {
+      background-image:
+        linear-gradient(rgba(127,119,221,0.12) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(127,119,221,0.12) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+
+    /* Scroll-in animation */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.5s ease both; }
+    .delay-1 { animation-delay: 0.1s; }
+    .delay-2 { animation-delay: 0.2s; }
+    .delay-3 { animation-delay: 0.3s; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .fade-up { animation: none; }
+    }
+  </style>
+</head>
+
+<body class="bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 font-sans transition-colors duration-200 min-h-screen">
+
+  <!-- ── HEADER ─────────────────────────────────────────────── -->
+  <header class="sticky top-0 z-50 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur-sm">
+    <div class="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-2.5">
+        <!-- Git icon -->
+        <svg viewBox="0 0 24 24" class="w-5 h-5 text-brand-600 dark:text-brand-400" fill="currentColor">
+          <path d="M21.71 11.29l-9-9a1 1 0 0 0-1.41 0l-9 9a1 1 0 0 0 0 1.41l9 9a1 1 0 0 0 1.41 0l9-9a1 1 0 0 0 0-1.41zM14 14.5V12h-4v3H8v-4a1 1 0 0 1 1-1h5V7.5l3.5 3.5-3.5 3.5z"/>
+        </svg>
+        <span class="text-sm font-semibold tracking-tight text-slate-900 dark:text-slate-100">Copado DevOps</span>
+        <span class="text-slate-300 dark:text-slate-600 text-sm">·</span>
+        <span class="text-sm text-slate-500 dark:text-slate-400">Git branching strategy</span>
+      </div>
+
+      <!-- Theme toggle -->
+      <button id="theme-toggle" aria-label="Toggle dark mode"
+        class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium
+               bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300
+               hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors">
+        <span id="theme-icon" class="text-base leading-none">🌙</span>
+        <span id="theme-label">Dark</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── HERO ───────────────────────────────────────────────── -->
+  <section class="hero-grid border-b border-slate-200 dark:border-slate-800">
+    <div class="max-w-5xl mx-auto px-5 py-12 fade-up">
+      <div class="flex items-start gap-4">
+        <div class="shrink-0 mt-0.5 w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-900 flex items-center justify-center text-brand-600 dark:text-brand-300">
+          <!-- Branch icon -->
+          <svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>
+          </svg>
+        </div>
+        <div>
+          <p class="text-xs font-mono font-medium text-brand-600 dark:text-brand-400 uppercase tracking-widest mb-1">Option 2</p>
+          <h1 class="text-2xl font-semibold text-slate-900 dark:text-white tracking-tight leading-snug">
+            Multiple release branches
+          </h1>
+          <p class="mt-1.5 text-slate-500 dark:text-slate-400 text-sm">
+            Useful when sharing QA / UAT environments across release trains
+          </p>
+        </div>
+      </div>
+
+      <!-- Key points -->
+      <ul class="mt-7 grid sm:grid-cols-2 gap-2.5 fade-up delay-1">
+        <li class="flex items-start gap-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+          <span class="text-brand-400 mt-0.5 shrink-0">▸</span>
+          Single set of environments, multiple release branches in Git
+        </li>
+        <li class="flex items-start gap-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+          <span class="text-brand-400 mt-0.5 shrink-0">▸</span>
+          July release stabilises while August development continues
+        </li>
+        <li class="flex items-start gap-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+          <span class="text-teal-600 dark:text-teal-400 mt-0.5 shrink-0">▸</span>
+          <code class="font-mono text-teal-700 dark:text-teal-300">hotfix/*</code> branches bypass all release trains
+        </li>
+        <li class="flex items-start gap-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/60 rounded-xl px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+          <span class="text-brand-400 mt-0.5 shrink-0">▸</span>
+          Similar to GitFlow, implemented within Copado branching
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ── BRANCH MAP ──────────────────────────────────────────── -->
+  <section class="max-w-5xl mx-auto px-5 pt-10 pb-6 fade-up delay-2">
+    <h2 class="text-xs font-mono font-medium text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Branch map</h2>
+    <div class="flex flex-wrap gap-2">
+      <span class="branch-badge bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+        <span class="branch-dot bg-slate-500"></span>main → Production
+      </span>
+      <span class="branch-badge bg-brand-50 dark:bg-brand-900/50 text-brand-800 dark:text-brand-200 border border-brand-200 dark:border-brand-700">
+        <span class="branch-dot bg-brand-500"></span>release/2026.07 → July release
+      </span>
+      <span class="branch-badge bg-brand-50 dark:bg-brand-900/50 text-brand-800 dark:text-brand-200 border border-brand-200 dark:border-brand-700">
+        <span class="branch-dot bg-brand-400"></span>release/2026.08 → August release
+      </span>
+      <span class="branch-badge bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 border border-amber-200 dark:border-amber-700">
+        <span class="branch-dot bg-amber-500"></span>hotfix/* → Emergency fixes
+      </span>
+      <span class="branch-badge bg-teal-50 dark:bg-teal-900/20 text-teal-800 dark:text-teal-200 border border-teal-200 dark:border-teal-700">
+        <span class="branch-dot bg-teal-500"></span>feature/* → User stories
+      </span>
+    </div>
+  </section>
+
+  <!-- ── DIAGRAM ─────────────────────────────────────────────── -->
+  <section class="max-w-5xl mx-auto px-5 pb-10 fade-up delay-3">
+    <h2 class="text-xs font-mono font-medium text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Git graph</h2>
+
+    <div class="rounded-2xl border border-slate-200 dark:border-slate-700/60 bg-slate-50 dark:bg-slate-900 overflow-hidden">
+      <!-- Diagram toolbar -->
+      <div class="flex items-center justify-between px-5 py-3 border-b border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-800/40">
+        <div class="flex items-center gap-1.5">
+          <span class="w-2.5 h-2.5 rounded-full bg-red-400 opacity-70"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-amber-400 opacity-70"></span>
+          <span class="w-2.5 h-2.5 rounded-full bg-green-400 opacity-70"></span>
+        </div>
+        <span class="text-xs font-mono text-slate-400 dark:text-slate-500">gitGraph · Copado release model</span>
+        <span class="text-xs text-slate-400 dark:text-slate-600">mermaid.js</span>
+      </div>
+
+      <!-- Loading state -->
+      <div id="loading" class="flex flex-col items-center justify-center py-16 gap-3 text-slate-400 dark:text-slate-500">
+        <svg class="loader w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+        </svg>
+        <span class="text-xs font-mono">Rendering diagram…</span>
+      </div>
+
+      <!-- Mermaid output -->
+      <div id="mermaid-container" class="px-4 py-6 hidden overflow-x-auto"></div>
+    </div>
+  </section>
+
+  <!-- ── PROMOTION PATH ─────────────────────────────────────── -->
+  <section class="max-w-5xl mx-auto px-5 pb-14">
+    <h2 class="text-xs font-mono font-medium text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4">Promotion path — example</h2>
+    <div class="flex flex-wrap items-center gap-2 text-sm font-mono">
+      <span class="branch-badge bg-teal-50 dark:bg-teal-900/20 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-700 text-xs">
+        <span class="branch-dot bg-teal-500"></span>feature/US-101
+      </span>
+      <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      <span class="branch-badge bg-brand-50 dark:bg-brand-900/50 text-brand-800 dark:text-brand-200 border border-brand-200 dark:border-brand-700 text-xs">
+        <span class="branch-dot bg-brand-500"></span>release/2026.07
+      </span>
+      <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+      <span class="branch-badge bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 text-xs">
+        <span class="branch-dot bg-slate-500"></span>main (Production deploy)
+      </span>
+    </div>
+
+    <!-- Hotfix note -->
+    <div class="mt-5 flex items-start gap-3 rounded-xl border border-amber-200 dark:border-amber-700/50 bg-amber-50 dark:bg-amber-900/10 px-4 py-3">
+      <span class="text-amber-500 mt-0.5 shrink-0 text-base">⚡</span>
+      <div class="text-sm text-amber-800 dark:text-amber-200">
+        <span class="font-medium">Hotfix bypass:</span>
+        <code class="font-mono text-xs ml-1 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40">hotfix/*</code>
+        merges directly into <code class="font-mono text-xs ml-1 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40">main</code>
+        and is backported into any active release branch, skipping all QA / UAT gates.
+      </div>
+    </div>
+  </section>
+
+  <!-- ── FOOTER ─────────────────────────────────────────────── -->
+  <footer class="border-t border-slate-200 dark:border-slate-800 text-center py-5">
+    <p class="text-xs text-slate-400 dark:text-slate-600 font-mono">Copado DevOps · Multiple release branches · GitFlow model</p>
+  </footer>
+
+  <!-- ── SCRIPTS ─────────────────────────────────────────────── -->
+  <script type="module">
+    import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+
+    // ── Theme ──────────────────────────────────────────────────
+    const html = document.documentElement;
+    const btn  = document.getElementById('theme-toggle');
+    const icon = document.getElementById('theme-icon');
+    const lbl  = document.getElementById('theme-label');
+
+    let dark = localStorage.getItem('theme') === 'dark'
+      || (!localStorage.getItem('theme') && matchMedia('(prefers-color-scheme: dark)').matches);
+
+    function applyTheme(d) {
+      dark = d;
+      html.classList.toggle('dark', d);
+      icon.textContent = d ? '☀️' : '🌙';
+      lbl.textContent  = d ? 'Light' : 'Dark';
+      localStorage.setItem('theme', d ? 'dark' : 'light');
+    }
+
+    applyTheme(dark);
+    btn.addEventListener('click', () => {
+      applyTheme(!dark);
+      renderDiagram();
+    });
+
+    // ── Mermaid ────────────────────────────────────────────────
+    const DIAGRAM = `gitGraph LR:
+  commit id: "init"
+
+  branch release/2026.07
+  checkout release/2026.07
+  commit id: "Jul RC1"
+  commit id: "Jul RC2"
+
+  branch feature/US-101
+  checkout feature/US-101
+  commit id: "US-101 dev"
+  commit id: "US-101 done"
+
+  checkout release/2026.07
+  merge feature/US-101 id: "Merge US-101" type: HIGHLIGHT
+
+  commit id: "Jul stabilise"
+
+  checkout main
+  merge release/2026.07 id: "Jul → main" type: HIGHLIGHT
+
+  branch release/2026.08
+  checkout release/2026.08
+  commit id: "Aug RC1"
+
+  branch feature/US-202
+  checkout feature/US-202
+  commit id: "US-202 dev"
+  commit id: "US-202 done"
+
+  checkout release/2026.08
+  merge feature/US-202 id: "Merge US-202"
+  commit id: "Aug stabilise"
+
+  branch hotfix/HF-001
+  checkout hotfix/HF-001
+  commit id: "Emergency fix" type: REVERSE
+
+  checkout main
+  merge hotfix/HF-001 id: "HF → main" type: REVERSE
+
+  checkout release/2026.08
+  merge hotfix/HF-001 id: "HF backport"
+
+  checkout main
+  merge release/2026.08 id: "Aug → main" type: HIGHLIGHT`;
+
+    async function renderDiagram() {
+      const container = document.getElementById('mermaid-container');
+      const loading   = document.getElementById('loading');
+
+      container.classList.add('hidden');
+      loading.classList.remove('hidden');
+      container.innerHTML = '';
+
+      const isDark = html.classList.contains('dark');
+
+      await document.fonts.ready;
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'base',
+        fontFamily: '"Inter", ui-sans-serif, system-ui',
+        themeVariables: {
+          darkMode: isDark,
+          fontSize: '13px',
+          fontFamily: '"Inter", ui-sans-serif',
+
+          // Commit nodes
+          commitLabelBackground: isDark ? '#1e2435' : '#f8f8fc',
+          commitLabelColor:      isDark ? '#c9c7e8' : '#3C3489',
+          commitLabelFontSize:   '11px',
+
+          tagLabelBackground: isDark ? '#3C3489' : '#EEEDFE',
+          tagLabelColor:      isDark ? '#CECBF6' : '#3C3489',
+          tagLabelBorder:     isDark ? '#7F77DD' : '#534AB7',
+
+          // Branch colors (up to 8 branches)
+          git0: isDark ? '#888CAD' : '#64698a',   // main — neutral slate
+          git1: isDark ? '#9d95f5' : '#534AB7',   // release/2026.07 — brand purple
+          git2: isDark ? '#7F77DD' : '#7F77DD',   // release/2026.08 — lighter purple
+          git3: isDark ? '#EF9F27' : '#BA7517',   // hotfix — amber
+          git4: isDark ? '#1D9E75' : '#0F6E56',   // feature/US-101 — teal
+          git5: isDark ? '#5DCAA5' : '#1D9E75',   // feature/US-202 — lighter teal
+          git6: isDark ? '#F09595' : '#A32D2D',
+          git7: isDark ? '#FAC775' : '#854F0B',
+
+          gitBranchLabel0: isDark ? '#131720' : '#ffffff',
+          gitBranchLabel1: isDark ? '#131720' : '#ffffff',
+          gitBranchLabel2: isDark ? '#131720' : '#ffffff',
+          gitBranchLabel3: isDark ? '#131720' : '#ffffff',
+          gitBranchLabel4: isDark ? '#131720' : '#ffffff',
+          gitBranchLabel5: isDark ? '#131720' : '#ffffff',
+
+          gitInv0: isDark ? '#e2e1f7' : '#26215C',
+          gitInv1: isDark ? '#e2e1f7' : '#26215C',
+          gitInv2: isDark ? '#e2e1f7' : '#26215C',
+          gitInv3: isDark ? '#faeeda' : '#412402',
+          gitInv4: isDark ? '#e1f5ee' : '#04342C',
+          gitInv5: isDark ? '#e1f5ee' : '#085041',
+
+          lineColor: isDark ? '#4a5068' : '#c5c3e0',
+          textColor: isDark ? '#c2c0d4' : '#3d3a5c',
+        },
+      });
+
+      try {
+        const id = 'git-graph-' + Date.now();
+        const { svg } = await mermaid.render(id, DIAGRAM);
+        container.innerHTML = svg;
+        loading.classList.add('hidden');
+        container.classList.remove('hidden');
+      } catch (err) {
+        loading.innerHTML = `<p class="text-red-500 text-xs font-mono px-6">Render error: ${err.message}</p>`;
+      }
+    }
+
+    renderDiagram();
+  </script>
+</body>
+</html>
