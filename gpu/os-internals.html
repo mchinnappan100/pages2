@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OS Internals — Linux</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet" />
+<style>
+:root[data-theme="dark"] {
+  --bg: #0b0f1a; --sidebar: #080c14; --surface: #111827; --surface2: #1a2235;
+  --border: #1f2d45; --accent: #f59e0b; --accent2: #ef4444; --accent3: #10b981;
+  --accent4: #00d4ff; --text: #e2e8f0; --text-muted: #64748b; --text-dim: #94a3b8;
+  --red: #ef4444; --green: #22c55e; --yellow: #eab308;
+  --code-bg: #060a12; --hero-bg: linear-gradient(135deg,#1a1000 0%,#0f1520 50%,#0b0f1a 100%);
+}
+:root[data-theme="light"] {
+  --bg: #fffbeb; --sidebar: #fef3c7; --surface: #ffffff; --surface2: #fde68a;
+  --border: #fcd34d; --accent: #d97706; --accent2: #dc2626; --accent3: #059669;
+  --accent4: #0284c7; --text: #0f172a; --text-muted: #64748b; --text-dim: #475569;
+  --red: #dc2626; --green: #16a34a; --yellow: #ca8a04;
+  --code-bg: #1e293b; --hero-bg: linear-gradient(135deg,#fef3c7 0%,#fff7ed 60%,#ecfdf5 100%);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { font-family: 'DM Sans',sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; font-size: 15px; line-height: 1.7; }
+nav { width: 270px; min-width: 270px; background: var(--sidebar); border-right: 1px solid var(--border); position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; z-index: 100; }
+.nav-brand { padding: 28px 24px 20px; border-bottom: 1px solid var(--border); }
+.nav-brand .icon { width: 44px; height: 44px; background: linear-gradient(135deg,#f59e0b,#ef4444); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 10px; }
+.nav-brand h2 { font-family: 'Syne',sans-serif; font-weight: 800; font-size: 1.05rem; color: var(--text); }
+.nav-brand p { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; letter-spacing: 0.04em; text-transform: uppercase; }
+nav ul { list-style: none; padding: 16px 12px; flex: 1; }
+nav ul li a { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; color: var(--text-dim); text-decoration: none; font-size: 0.84rem; font-weight: 500; transition: all 0.18s; margin-bottom: 2px; }
+nav ul li a:hover, nav ul li a.active { background: var(--surface); color: var(--accent); }
+nav ul li a .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+nav ul li a:hover .dot, nav ul li a.active .dot { background: var(--accent); }
+.nav-section-label { font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); padding: 14px 12px 4px; font-family: 'JetBrains Mono',monospace; }
+.theme-btn { margin: 12px; padding: 8px 14px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); font-size: 0.78rem; cursor: pointer; font-family: 'JetBrains Mono',monospace; display: flex; align-items: center; gap: 8px; transition: all 0.18s; }
+.theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+.book-nav { padding: 10px 14px; }
+.book-nav a { display: block; padding: 6px 10px; border-radius: 6px; background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim); text-decoration: none; font-size: 0.75rem; margin-bottom: 4px; transition: all 0.15s; }
+.book-nav a:hover, .book-nav a.current { border-color: var(--accent); color: var(--accent); }
+main { flex: 1; overflow-x: hidden; }
+.hero { background: var(--hero-bg); border-bottom: 1px solid var(--border); padding: 72px 64px 60px; position: relative; overflow: hidden; }
+.hero::before { content: ''; position: absolute; top: -80px; right: -60px; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle,rgba(245,158,11,0.1) 0%,transparent 70%); pointer-events: none; }
+.hero-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px; background: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.3); border-radius: 20px; font-size: 0.75rem; font-family: 'JetBrains Mono',monospace; color: var(--accent); margin-bottom: 24px; letter-spacing: 0.05em; text-transform: uppercase; }
+.hero h1 { font-family: 'Syne',sans-serif; font-weight: 800; font-size: 2.8rem; line-height: 1.1; letter-spacing: -0.03em; margin-bottom: 16px; color: var(--text); }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.hero p { font-size: 1rem; color: var(--text-dim); max-width: 640px; line-height: 1.7; margin-bottom: 36px; }
+.hero-stats { display: flex; gap: 40px; flex-wrap: wrap; }
+.hero-stat .num { font-family: 'Syne',sans-serif; font-size: 1.9rem; font-weight: 800; color: var(--accent); display: block; line-height: 1; }
+.hero-stat .lbl { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px; font-family: 'JetBrains Mono',monospace; }
+.section { padding: 64px 64px 0; }
+.section-header { display: flex; align-items: center; gap: 14px; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+.level-badge { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-family: 'Syne',sans-serif; font-weight: 800; font-size: 1.1rem; color: #000; flex-shrink: 0; }
+.badge-01 { background: linear-gradient(135deg,#f59e0b,#d97706); }
+.badge-02 { background: linear-gradient(135deg,#ef4444,#dc2626); }
+.badge-03 { background: linear-gradient(135deg,#10b981,#059669); }
+.badge-04 { background: linear-gradient(135deg,#00d4ff,#0099cc); }
+.badge-05 { background: linear-gradient(135deg,#7c3aed,#a855f7); }
+.badge-06 { background: linear-gradient(135deg,#f97316,#ea580c); }
+.section-header-text h2 { font-family: 'Syne',sans-serif; font-size: 1.55rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
+.section-header-text p { font-size: 0.8rem; color: var(--text-muted); font-family: 'JetBrains Mono',monospace; margin-top: 2px; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(340px,1fr)); gap: 24px; margin-bottom: 64px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: border-color 0.2s,transform 0.2s; }
+.card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.card-head { padding: 22px 24px 16px; display: flex; gap: 14px; align-items: flex-start; }
+.card-icon { font-size: 1.8rem; flex-shrink: 0; line-height: 1; }
+.card-head h3 { font-family: 'Syne',sans-serif; font-size: 1.05rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.card-head p { font-size: 0.82rem; color: var(--text-dim); line-height: 1.6; }
+.card-list { padding: 0 24px 16px; list-style: none; }
+.card-list li { font-size: 0.82rem; color: var(--text-dim); padding: 5px 0; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 8px; }
+.card-list li:last-child { border-bottom: none; }
+.card-list li::before { content: '›'; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+.code-block { background: var(--code-bg); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 32px; overflow: hidden; }
+.code-block-header { padding: 10px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.code-block-header .lang { font-family: 'JetBrains Mono',monospace; font-size: 0.72rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
+.code-block-header .dots { display: flex; gap: 6px; }
+.code-block-header .dots span { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #ef4444; } .dot-y { background: #f59e0b; } .dot-g { background: #22c55e; }
+.code-block pre { padding: 20px 24px; font-family: 'JetBrains Mono',monospace; font-size: 0.78rem; line-height: 1.8; color: #7dd3fc; overflow-x: auto; white-space: pre; }
+.code-block pre .cm { color: #475569; }
+.code-block pre .kw { color: #a78bfa; }
+.code-block pre .st { color: #34d399; }
+.code-block pre .nm { color: #fbbf24; }
+.code-block pre .fn { color: #60a5fa; }
+.arch-diagram { background: var(--code-bg); border: 1px solid var(--border); border-radius: 14px; padding: 28px 32px; margin-bottom: 32px; font-family: 'JetBrains Mono',monospace; font-size: 0.76rem; color: #7dd3fc; line-height: 1.8; white-space: pre; overflow-x: auto; }
+.arch-diagram .h { color: var(--accent); font-weight: 700; }
+.arch-diagram .b { color: #60a5fa; }
+.arch-diagram .g { color: var(--accent3); }
+.arch-diagram .y { color: var(--accent4); }
+.arch-diagram .c { color: #475569; }
+.info-box { border-radius: 10px; padding: 18px 22px; margin-bottom: 24px; border-left: 3px solid; }
+.info-box.tip { background: rgba(16,185,129,0.08); border-color: var(--accent3); }
+.info-box.note { background: rgba(245,158,11,0.08); border-color: var(--accent); }
+.info-box.warn { background: rgba(239,68,68,0.08); border-color: var(--accent2); }
+.info-box .label { font-family: 'JetBrains Mono',monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; margin-bottom: 6px; }
+.info-box.tip .label { color: var(--accent3); }
+.info-box.note .label { color: var(--accent); }
+.info-box.warn .label { color: var(--accent2); }
+.info-box p { font-size: 0.84rem; color: var(--text-dim); line-height: 1.65; }
+.prose { max-width: 820px; margin-bottom: 40px; }
+.prose h3 { font-family: 'Syne',sans-serif; font-size: 1.15rem; font-weight: 700; color: var(--text); margin: 28px 0 10px; }
+.prose p { font-size: 0.9rem; color: var(--text-dim); line-height: 1.75; margin-bottom: 14px; }
+.prose ul { padding-left: 20px; margin-bottom: 14px; }
+.prose ul li { font-size: 0.88rem; color: var(--text-dim); margin-bottom: 6px; }
+.prose code { font-family: 'JetBrains Mono',monospace; font-size: 0.8em; background: var(--surface2); padding: 2px 6px; border-radius: 4px; color: var(--accent); }
+.table-wrap { overflow-x: auto; margin-bottom: 48px; border-radius: 12px; border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+thead th { background: var(--surface2); padding: 12px 18px; text-align: left; font-family: 'JetBrains Mono',monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+tbody tr { border-bottom: 1px solid var(--border); transition: background 0.15s; }
+tbody tr:hover { background: var(--surface); }
+tbody tr:last-child { border-bottom: none; }
+tbody td { padding: 12px 18px; color: var(--text-dim); }
+tbody td:first-child { font-weight: 600; color: var(--text); font-family: 'JetBrains Mono',monospace; font-size: 0.78rem; }
+footer { background: var(--sidebar); border-top: 1px solid var(--border); padding: 28px 64px; font-size: 0.78rem; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+footer span { font-family: 'JetBrains Mono',monospace; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+@media (max-width: 900px) { .hero { padding: 40px 24px; } .hero h1 { font-size: 1.9rem; } .section { padding: 40px 24px 0; } nav { display: none; } .card-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <div class="icon">🐧</div>
+    <h2>OS Internals</h2>
+    <p>Book · Chapter 4</p>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Toggle Theme</button>
+  <div class="book-nav">
+    <div style="font-size:0.66rem;color:var(--text-muted);padding:4px 10px 8px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:0.08em;">Book Chapters</div>
+    <a href="ml-systems.html">① ML Systems</a>
+    <a href="gpu-programming.html">② GPU Programming</a>
+    <a href="ml-framework-internals.html">③ Framework Internals</a>
+    <a href="os-internals.html" class="current">④ OS Internals</a>
+    <a href="transformers.html">⑤ Transformers</a>
+  </div>
+  <ul>
+    <li class="nav-section-label">Chapter 4</li>
+    <li><a href="#processes"><span class="dot"></span>Processes &amp; Threads</a></li>
+    <li><a href="#memory"><span class="dot"></span>Virtual Memory</a></li>
+    <li><a href="#syscalls"><span class="dot"></span>System Calls</a></li>
+    <li><a href="#io"><span class="dot"></span>I/O &amp; Storage</a></li>
+    <li><a href="#scheduler"><span class="dot"></span>CPU Scheduler</a></li>
+    <li><a href="#numa"><span class="dot"></span>NUMA &amp; CPU Affinity</a></li>
+    <li><a href="#ipc"><span class="dot"></span>IPC &amp; Shared Memory</a></li>
+  </ul>
+</nav>
+
+<main>
+<div class="hero">
+  <div class="hero-badge">Book 4 of 5 · OS Internals</div>
+  <h1>OS Internals<br><em>Linux</em></h1>
+  <p>The Linux kernel mechanisms that every ML systems engineer must understand — virtual memory, NUMA topology, huge pages, RDMA, and the scheduler — all explained with relevance to ML workloads.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">~30M</span><span class="lbl">Lines of C (kernel)</span></div>
+    <div class="hero-stat"><span class="num">CFS</span><span class="lbl">Default Scheduler</span></div>
+    <div class="hero-stat"><span class="num">THP</span><span class="lbl">Transparent Huge Pages</span></div>
+    <div class="hero-stat"><span class="num">io_uring</span><span class="lbl">Async I/O</span></div>
+  </div>
+</div>
+
+<!-- 01 PROCESSES & THREADS -->
+<section class="section" id="processes">
+  <div class="section-header">
+    <div class="level-badge badge-01">01</div>
+    <div class="section-header-text">
+      <h2>Processes &amp; Threads</h2>
+      <p>task_struct, fork/exec, pthreads, and Python's GIL</p>
+    </div>
+  </div>
+
+  <div class="arch-diagram"><span class="h">Linux task_struct (process descriptor)</span>
+
+<span class="g">struct task_struct</span> {
+  <span class="b">pid_t       pid;</span>            <span class="c">← process ID (unique per thread)</span>
+  <span class="b">pid_t       tgid;</span>           <span class="c">← thread group ID (== PID of main thread)</span>
+  <span class="b">mm_struct  *mm;</span>             <span class="c">← virtual memory descriptor (shared in threads)</span>
+  <span class="b">files_struct *files;</span>        <span class="c">← open file descriptors</span>
+  <span class="b">fs_struct   *fs;</span>            <span class="c">← filesystem root / cwd</span>
+  <span class="b">signal_struct *signal;</span>      <span class="c">← signal handlers</span>
+  <span class="b">sched_entity se;</span>           <span class="c">← CFS scheduling entity</span>
+  <span class="b">cpumask_t   cpus_mask;</span>      <span class="c">← CPU affinity</span>
+  <span class="y">state;  flags;  priority;   comm[16];</span>
+}
+
+<span class="c">fork()  → copy task_struct, copy-on-write page tables
+clone() → share mm/files/etc (creates a thread)</span></div>
+
+  <div class="prose">
+    <h3>Python GIL and ML DataLoaders</h3>
+    <p>CPython has a Global Interpreter Lock (GIL) — only one thread runs Python bytecode at a time. This is why PyTorch's DataLoader uses <em>processes</em> (<code>multiprocessing</code>) not threads for workers. Workers are forked processes with separate address spaces; they communicate via a shared-memory queue (using <code>mmap</code> + semaphores) to avoid serialisation overhead.</p>
+    <p>PyTorch 2.0+ uses <code>multiprocessing.get_context("forkserver")</code> on Linux by default to avoid fork-induced CUDA context corruption in child processes.</p>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Process vs thread for parallel work</span><div class="dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+    <pre><span class="kw">import</span> multiprocessing <span class="kw">as</span> mp
+<span class="kw">import</span> threading, os
+
+<span class="cm"># Threads: share address space, subject to GIL for Python, not for C extensions</span>
+<span class="kw">def</span> <span class="fn">cpu_bound_python</span>():
+    <span class="cm"># GIL prevents true parallelism — use processes</span>
+    result = sum(range(<span class="nm">10**7</span>))
+
+<span class="cm"># Processes: separate address space, true parallelism, higher fork cost</span>
+ctx = mp.get_context(<span class="st">"forkserver"</span>)   <span class="cm"># safe with CUDA</span>
+
+<span class="kw">def</span> <span class="fn">worker_fn</span>(rank, shared_array):
+    os.sched_setaffinity(<span class="nm">0</span>, {rank})   <span class="cm"># pin to CPU core</span>
+    shared_array[rank] = rank ** <span class="nm">2</span>
+
+shared = mp.Array(<span class="st">"i"</span>, <span class="nm">8</span>)
+procs  = [ctx.Process(target=worker_fn, args=(i, shared)) <span class="kw">for</span> i <span class="kw">in</span> range(<span class="nm">8</span>)]
+[p.start() <span class="kw">for</span> p <span class="kw">in</span> procs]
+[p.join()  <span class="kw">for</span> p <span class="kw">in</span> procs]
+print(list(shared))  <span class="cm"># [0, 1, 4, 9, 16, 25, 36, 49]</span></pre>
+  </div>
+</section>
+
+<!-- 02 VIRTUAL MEMORY -->
+<section class="section" id="memory">
+  <div class="section-header">
+    <div class="level-badge badge-02">02</div>
+    <div class="section-header-text">
+      <h2>Virtual Memory</h2>
+      <p>Page tables, huge pages, mmap, and NUMA-aware allocation</p>
+    </div>
+  </div>
+
+  <div class="arch-diagram"><span class="h">Virtual Address Space (64-bit Linux process)</span>
+
+<span class="b">0xFFFF FFFF FFFF FFFF</span>  <span class="y">kernel space</span>  (128 TB)
+...
+<span class="g">0x7FFF FFFF FFFF FFFF</span>  <span class="c">top of user space</span>
+<span class="b">│</span>  <span class="g">stack</span>      <span class="c">↓ grows down</span>
+<span class="b">│</span>  <span class="y">mmap region</span> <span class="c">(shared libs, file mappings, anonymous mmap)</span>
+<span class="b">│</span>  <span class="g">heap</span>        <span class="c">↑ grows up  (malloc / mmap)</span>
+<span class="b">│</span>  <span class="y">BSS</span>         <span class="c">zero-initialised globals</span>
+<span class="b">│</span>  <span class="g">data</span>        <span class="c">initialised globals</span>
+<span class="b">│</span>  <span class="y">text</span>        <span class="c">executable code (read-only)</span>
+<span class="b">0x0000 0000 0040 0000</span>  <span class="c">typical load address</span>
+
+<span class="c">Each 4 KB page has a Page Table Entry (PTE):
+  [Physical Frame Number | Dirty | Accessed | Present | R/W | U/S]</span></div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · mmap for zero-copy dataset loading</span><div class="dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+    <pre><span class="kw">import</span> mmap, os, struct
+<span class="kw">import</span> torch
+<span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Memory-map a binary file — kernel maps pages lazily on access</span>
+fd = os.open(<span class="st">"tokens.bin"</span>, os.O_RDONLY)
+size = os.fstat(fd).st_size
+mm = mmap.mmap(fd, size, mmap.MAP_PRIVATE, mmap.PROT_READ)
+os.close(fd)
+
+<span class="cm"># Wrap as numpy array — zero copy! Physical pages loaded on demand (demand paging)</span>
+data = np.frombuffer(mm, dtype=np.int32)
+
+<span class="cm"># For huge page support (2 MB pages = fewer TLB misses)</span>
+<span class="cm"># echo always > /sys/kernel/mm/transparent_hugepage/enabled</span>
+<span class="cm"># madvise(MADV_HUGEPAGE) on the mapping</span>
+
+mm.madvise(mmap.MADV_SEQUENTIAL)  <span class="cm"># hint: prefetch pages sequentially</span>
+
+<span class="cm"># Explicit page prefault (avoid first-access latency during training)</span>
+mm.madvise(mmap.MADV_WILLNEED)    <span class="cm"># kernel reads-ahead the entire file</span></pre>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head"><span class="card-icon">📄</span><div>
+        <h3>Huge Pages (THP)</h3>
+        <p>Standard pages are 4 KB; TLB (Translation Lookaside Buffer) entries are precious (~1500 on modern CPUs). Large model weight tensors accessed repeatedly during training benefit hugely from 2 MB transparent huge pages — fewer TLB misses → better throughput.</p>
+      </div></div>
+      <ul class="card-list">
+        <li>Enable: echo always > /sys/kernel/mm/transparent_hugepage/enabled</li>
+        <li>PyTorch allocator: PYTORCH_NO_CUDA_MEMORY_CACHING=0 + THPAllocator</li>
+        <li>madvise(MADV_HUGEPAGE) for specific mappings</li>
+        <li>hugetlbfs: pre-allocate 1 GB pages for maximum effect</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-icon">📌</span><div>
+        <h3>Pinned (Page-locked) Memory</h3>
+        <p>CUDA DMA engines can only transfer from <em>pinned</em> host memory (pages locked from being swapped out). <code>torch.zeros(n, pin_memory=True)</code> calls <code>cudaMallocHost</code> internally, enabling PCIe DMA without CPU involvement.</p>
+      </div></div>
+      <ul class="card-list">
+        <li>malloc → mmap anonymous → pin = three-step process</li>
+        <li>Pin cost is ~1 ms; saves ~1 ms per batch copy on repeated use</li>
+        <li>Don't over-pin: excessive pinning causes system memory pressure</li>
+        <li>Async copy: cudaMemcpyAsync on a non-default stream</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 03 SYSCALLS -->
+<section class="section" id="syscalls">
+  <div class="section-header">
+    <div class="level-badge badge-03">03</div>
+    <div class="section-header-text">
+      <h2>System Calls &amp; Context Switches</h2>
+      <p>The cost of kernel transitions and how to minimise them</p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>A syscall transitions the CPU from user mode (ring 3) to kernel mode (ring 0). Modern CPUs use <code>SYSCALL</code>/<code>SYSRET</code> instructions; each round-trip costs ~100–400 ns due to register save/restore, stack switching, and Spectre mitigations (KPTI page table flush on older kernels).</p>
+    <h3>Relevant Syscalls for ML Workloads</h3>
+    <ul>
+      <li><code>mmap / munmap</code> — allocate/free large memory regions (model weights)</li>
+      <li><code>madvise</code> — hint kernel about access patterns (MADV_SEQUENTIAL, MADV_HUGEPAGE)</li>
+      <li><code>read / pread</code> — data loading from NVMe/NFS</li>
+      <li><code>io_uring</code> — async I/O ring buffer, zero-syscall-per-op for batched I/O</li>
+      <li><code>futex</code> — fast userspace mutex (used by PyTorch's inter-process semaphores)</li>
+      <li><code>sched_setaffinity</code> — bind process to specific CPU cores</li>
+      <li><code>perf_event_open</code> — hardware performance counters</li>
+    </ul>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · strace to diagnose syscall overhead</span><div class="dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+    <pre><span class="cm"># Profile syscalls of a training process</span>
+<span class="cm"># $ strace -c -p $(pidof python) -e trace=mmap,read,write,futex</span>
+<span class="cm"># % time     seconds  usecs/call     calls  syscall</span>
+<span class="cm"># 62.14    0.482130        5831        82  mmap</span>
+<span class="cm"># 25.01    0.194211          18     10724  futex</span>
+<span class="cm">#  8.33    0.064726          18      3457  read</span>
+
+<span class="cm"># Diagnose with perf stat (hardware counters)</span>
+<span class="cm"># $ perf stat -e cache-misses,cache-references,instructions,cycles \</span>
+<span class="cm">#       python train.py 2>&1 | tail -20</span>
+
+<span class="kw">import</span> ctypes, os
+
+<span class="cm"># madvise from Python via ctypes</span>
+MADV_HUGEPAGE  = <span class="nm">14</span>
+MADV_DONTFORK  = <span class="nm">10</span>   <span class="cm"># don't copy-on-write in child (save fork cost)</span>
+libc = ctypes.CDLL(<span class="st">"libc.so.6"</span>, use_errno=<span class="nm">True</span>)
+
+<span class="kw">def</span> <span class="fn">madvise</span>(addr, length, advice):
+    ret = libc.madvise(ctypes.c_void_p(addr), ctypes.c_size_t(length), ctypes.c_int(advice))
+    <span class="kw">if</span> ret != <span class="nm">0</span>:
+        <span class="kw">raise</span> OSError(ctypes.get_errno(), os.strerror(ctypes.get_errno()))</pre>
+  </div>
+</section>
+
+<!-- 04 IO & STORAGE -->
+<section class="section" id="io">
+  <div class="section-header">
+    <div class="level-badge badge-04">04</div>
+    <div class="section-header-text">
+      <h2>I/O &amp; Storage for ML</h2>
+      <p>NVMe, RAID, io_uring, and high-throughput dataset loading</p>
+    </div>
+  </div>
+
+  <div class="arch-diagram"><span class="h">Linux Storage I/O Stack</span>
+
+<span class="b">Application (Python / PyTorch DataLoader)</span>
+    <span class="b">↓</span>  read() / io_uring / mmap
+<span class="g">VFS (Virtual File System)</span>
+    <span class="b">↓</span>  file_operations.read
+<span class="g">Page Cache</span>  <span class="c">← 4 KB pages cached in RAM; hit avoids disk I/O</span>
+    <span class="b">↓</span>  cache miss
+<span class="g">Block Layer</span>
+    <span class="b">├─</span> <span class="y">I/O Scheduler</span>  (mq-deadline / none for NVMe)
+    <span class="b">└─</span> <span class="y">Block Device Driver</span>
+    <span class="b">↓</span>
+<span class="g">NVMe Controller</span>  <span class="c">(PCIe 4.0 ×4 = 8 GB/s, ~20 µs latency)</span>
+    <span class="b">↓</span>
+<span class="y">NAND Flash / QLC / TLC</span>
+
+<span class="c">io_uring: submit 128 reads in one syscall, poll for completions — zero syscall per I/O</span></div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head"><span class="card-icon">⚡</span><div>
+        <h3>io_uring for Dataset Loading</h3>
+        <p>io_uring (Linux 5.1+) uses two ring buffers in shared memory between kernel and user space. Submit batch I/O requests with no syscalls; poll the completion ring without blocking. Ideal for loading many files concurrently in DataLoader workers.</p>
+      </div></div>
+      <ul class="card-list">
+        <li>liburing: C library for io_uring ergonomics</li>
+        <li>Throughput: up to 2× vs traditional pread for small random reads</li>
+        <li>SQPOLL mode: kernel thread polls submission ring (zero syscalls)</li>
+        <li>Python: use liburing via cffi or pread threads for simplicity</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-icon">🗄️</span><div>
+        <h3>Direct I/O &amp; Page Cache</h3>
+        <p>By default, reads go through the page cache. For training where each sample is accessed once (streaming), O_DIRECT bypasses the cache, avoids polluting RAM, and avoids copy from kernel buffer to userspace.</p>
+      </div></div>
+      <ul class="card-list">
+        <li>O_DIRECT: requires 512-byte aligned buffers</li>
+        <li>posix_fadvise(POSIX_FADV_SEQUENTIAL): prefetch pages ahead</li>
+        <li>posix_fadvise(POSIX_FADV_DONTNEED): drop pages after reading</li>
+        <li>GPUDirect Storage: DMA directly NVMe → GPU, bypasses CPU/RAM</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 05 SCHEDULER -->
+<section class="section" id="scheduler">
+  <div class="section-header">
+    <div class="level-badge badge-05">05</div>
+    <div class="section-header-text">
+      <h2>Linux CPU Scheduler</h2>
+      <p>CFS, real-time scheduling, and priorities for ML worker processes</p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>The <strong>Completely Fair Scheduler (CFS)</strong> uses a red-black tree ordered by <em>virtual runtime</em>. The task with the smallest vruntime is selected next. CFS aims to give each process exactly its fair share of CPU time weighted by <code>nice</code> priority.</p>
+    <h3>Tuning for ML</h3>
+    <ul>
+      <li><strong>GPU-bound training</strong>: CPU scheduler barely matters — GPU is the bottleneck. But DataLoader workers and communication threads benefit from lower niceness (higher priority).</li>
+      <li><strong>NUMA-aware scheduling</strong>: Keep a process's memory and its CPU core on the same NUMA node. Crossing NUMA nodes doubles memory latency.</li>
+      <li><strong>CPU isolation</strong> (<code>isolcpus</code>): Reserve cores solely for ML process, preventing OS jitter from preempting compute threads. Critical for latency-sensitive inference.</li>
+    </ul>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Shell · Scheduler tuning commands</span><div class="dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+    <pre><span class="cm"># Set realtime scheduling for inference server (FIFO, priority 50)</span>
+chrt -f -p <span class="nm">50</span> $PID
+
+<span class="cm"># Pin process to specific CPU cores (avoid NUMA crossing)</span>
+taskset -cp <span class="nm">0-7</span> $PID
+
+<span class="cm"># Set nice value (lower = higher priority; only root can go negative)</span>
+renice -n -<span class="nm">5</span> -p $PID
+
+<span class="cm"># View per-CPU stats and NUMA topology</span>
+numactl --hardware
+numastat -p $PID
+
+<span class="cm"># Run process on NUMA node 0 with memory allocated locally</span>
+numactl --cpunodebind=<span class="nm">0</span> --membind=<span class="nm">0</span> python train.py
+
+<span class="cm"># Check scheduler statistics</span>
+cat /proc/$PID/schedstat   <span class="cm"># run-time, wait-time, context switches</span>
+perf sched latency -p $PID</pre>
+  </div>
+</section>
+
+<!-- 06 NUMA -->
+<section class="section" id="numa">
+  <div class="section-header">
+    <div class="level-badge badge-06">06</div>
+    <div class="section-header-text">
+      <h2>NUMA &amp; CPU Affinity</h2>
+      <p>Non-uniform memory access topology and its impact on multi-GPU servers</p>
+    </div>
+  </div>
+
+  <div class="arch-diagram"><span class="h">Dual-socket NUMA topology (common on DGX A100)</span>
+
+<span class="g">NUMA Node 0</span>                    <span class="g">NUMA Node 1</span>
+<span class="b">┌────────────────────┐</span>         <span class="b">┌────────────────────┐</span>
+<span class="b">│</span> CPU 0-23  (24 cores)<span class="b">│</span>  <span class="y">QPI/UPI</span> <span class="b">│</span> CPU 24-47 (24 cores)<span class="b">│</span>
+<span class="b">│</span> <span class="g">RAM 0: 512 GB DRAM</span>  <span class="b">│</span><span class="y">━━━━━━━━━</span><span class="b">│</span> <span class="g">RAM 1: 512 GB DRAM</span>  <span class="b">│</span>
+<span class="b">│</span>                    <span class="b">│</span>         <span class="b">│</span>                    <span class="b">│</span>
+<span class="b">│</span> PCIe→ <span class="y">GPU 0-3</span>      <span class="b">│</span>         <span class="b">│</span> PCIe→ <span class="y">GPU 4-7</span>      <span class="b">│</span>
+<span class="b">└────────────────────┘</span>         <span class="b">└────────────────────┘</span>
+
+<span class="c">Local access: ~80 ns    Remote access (cross-QPI): ~140 ns
+Pin DataLoader workers for GPU 0-3 to NUMA 0 CPUs
+                  workers for GPU 4-7 to NUMA 1 CPUs</span></div>
+
+  <div class="info-box note">
+    <div class="label">ML Impact</div>
+    <p>On a multi-GPU server, PCIe-attached GPUs are physically connected to one CPU socket. If a DataLoader worker on NUMA node 1 reads data and sends it to a GPU on NUMA node 0, every transfer traverses the QPI link — doubling effective memory latency and halving bandwidth. Always bind workers to the same NUMA node as their target GPU. Check GPU → NUMA mapping with <code>cat /sys/bus/pci/devices/&lt;bdf&gt;/numa_node</code>.</p>
+  </div>
+</section>
+
+<!-- 07 IPC -->
+<section class="section" id="ipc">
+  <div class="section-header">
+    <div class="level-badge badge-01">07</div>
+    <div class="section-header-text">
+      <h2>IPC &amp; Shared Memory</h2>
+      <p>How PyTorch DataLoader workers share tensors without copying</p>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Shared memory tensor (PyTorch)</span><div class="dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+    <pre><span class="kw">import</span> torch
+<span class="kw">import</span> torch.multiprocessing <span class="kw">as</span> mp
+
+<span class="cm"># Share a tensor across processes via POSIX shared memory (shm_open + mmap)</span>
+tensor = torch.zeros(<span class="nm">1000</span>, <span class="nm">1000</span>)
+tensor.share_memory_()    <span class="cm"># moves backing store to /dev/shm</span>
+
+<span class="kw">def</span> <span class="fn">worker</span>(t):
+    t[<span class="nm">0</span>, <span class="nm">0</span>] = <span class="nm">42</span>         <span class="cm"># writes directly into shared region</span>
+
+p = mp.Process(target=worker, args=(tensor,))
+p.start(); p.join()
+print(tensor[<span class="nm">0</span>, <span class="nm">0</span>])    <span class="cm"># 42.0 — no serialisation!</span>
+
+<span class="cm"># CUDA IPC: share GPU tensor between processes</span>
+gpu_t = torch.zeros(<span class="nm">100</span>, device=<span class="st">"cuda"</span>)
+handle = gpu_t.storage().share_cuda_()    <span class="cm"># returns IPC handle</span>
+<span class="cm"># In child process: torch.Tensor._new_shared_cuda(handle)</span>
+
+<span class="cm"># Python 3.8+ multiprocessing.shared_memory for raw shared buffers</span>
+<span class="kw">from</span> multiprocessing <span class="kw">import</span> shared_memory
+shm = shared_memory.SharedMemory(create=<span class="nm">True</span>, size=<span class="nm">1024</span>*<span class="nm">1024</span>)
+buf = shm.buf     <span class="cm"># memoryview — zero-copy access from any process with the name</span></pre>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>IPC Mechanism</th><th>Latency</th><th>Bandwidth</th><th>Use Case</th></tr></thead>
+      <tbody>
+        <tr><td>Shared Memory (mmap)</td><td>~50 ns</td><td>RAM speed</td><td>DataLoader → training process batch transfer</td></tr>
+        <tr><td>CUDA IPC</td><td>~1 µs</td><td>NVLink</td><td>Share GPU buffer between two processes</td></tr>
+        <tr><td>Pipe (Unix socket)</td><td>~5 µs</td><td>~10 GB/s</td><td>Control messages, small tensors</td></tr>
+        <tr><td>NCCL (RDMA)</td><td>~2 µs</td><td>400 Gbps</td><td>Collective ops across training nodes</td></tr>
+        <tr><td>gRPC / ZeroMQ</td><td>~50 µs</td><td>~5 GB/s</td><td>Parameter server, inference serving</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div style="height:64px"></div>
+</section>
+
+<footer>
+  <span>Chapter 4 — OS Internals (Linux)</span>
+  <span>Part of the ML Engineering Book Series</span>
+</footer>
+</main>
+
+<script>
+function toggleTheme() {
+  const root = document.documentElement;
+  root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+}
+const sections = document.querySelectorAll('section[id]');
+const links = document.querySelectorAll('nav ul li a');
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const a = document.querySelector(`nav ul li a[href="#${e.target.id}"]`);
+      if (a) a.classList.add('active');
+    }
+  });
+}, { threshold: 0.3 });
+sections.forEach(s => io.observe(s));
+</script>
+</body>
+</html>

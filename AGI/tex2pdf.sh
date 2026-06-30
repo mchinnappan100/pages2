@@ -1,0 +1,1 @@
+node tex2pdf.js open-questions-ai.tex --open 2>&1

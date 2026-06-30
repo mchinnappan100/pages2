@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ML Framework Internals</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet" />
+<style>
+:root[data-theme="dark"] {
+  --bg: #0b0f1a; --sidebar: #080c14; --surface: #111827; --surface2: #1a2235;
+  --border: #1f2d45; --accent: #10b981; --accent2: #7c3aed; --accent3: #00d4ff;
+  --accent4: #f59e0b; --text: #e2e8f0; --text-muted: #64748b; --text-dim: #94a3b8;
+  --red: #ef4444; --green: #22c55e; --yellow: #eab308;
+  --code-bg: #060a12; --hero-bg: linear-gradient(135deg,#071a12 0%,#0b1420 50%,#0d0b1a 100%);
+}
+:root[data-theme="light"] {
+  --bg: #f8fafc; --sidebar: #f0fdf4; --surface: #ffffff; --surface2: #dcfce7;
+  --border: #bbf7d0; --accent: #059669; --accent2: #7c3aed; --accent3: #0284c7;
+  --accent4: #d97706; --text: #0f172a; --text-muted: #64748b; --text-dim: #475569;
+  --red: #dc2626; --green: #16a34a; --yellow: #ca8a04;
+  --code-bg: #1e293b; --hero-bg: linear-gradient(135deg,#dcfce7 0%,#f0fdf4 60%,#ede9fe 100%);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body { font-family: 'DM Sans',sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; font-size: 15px; line-height: 1.7; }
+nav { width: 270px; min-width: 270px; background: var(--sidebar); border-right: 1px solid var(--border); position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; z-index: 100; }
+.nav-brand { padding: 28px 24px 20px; border-bottom: 1px solid var(--border); }
+.nav-brand .icon { width: 44px; height: 44px; background: linear-gradient(135deg,#10b981,#0284c7); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 22px; margin-bottom: 10px; }
+.nav-brand h2 { font-family: 'Syne',sans-serif; font-weight: 800; font-size: 1.05rem; color: var(--text); }
+.nav-brand p { font-size: 0.72rem; color: var(--text-muted); margin-top: 2px; letter-spacing: 0.04em; text-transform: uppercase; }
+nav ul { list-style: none; padding: 16px 12px; flex: 1; }
+nav ul li a { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; color: var(--text-dim); text-decoration: none; font-size: 0.84rem; font-weight: 500; transition: all 0.18s; margin-bottom: 2px; }
+nav ul li a:hover, nav ul li a.active { background: var(--surface); color: var(--accent); }
+nav ul li a .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+nav ul li a:hover .dot, nav ul li a.active .dot { background: var(--accent); }
+.nav-section-label { font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); padding: 14px 12px 4px; font-family: 'JetBrains Mono',monospace; }
+.theme-btn { margin: 12px; padding: 8px 14px; border-radius: 8px; background: var(--surface); border: 1px solid var(--border); color: var(--text-dim); font-size: 0.78rem; cursor: pointer; font-family: 'JetBrains Mono',monospace; display: flex; align-items: center; gap: 8px; transition: all 0.18s; }
+.theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+.book-nav { padding: 10px 14px; }
+.book-nav a { display: block; padding: 6px 10px; border-radius: 6px; background: var(--surface2); border: 1px solid var(--border); color: var(--text-dim); text-decoration: none; font-size: 0.75rem; margin-bottom: 4px; transition: all 0.15s; }
+.book-nav a:hover, .book-nav a.current { border-color: var(--accent); color: var(--accent); }
+main { flex: 1; overflow-x: hidden; }
+.hero { background: var(--hero-bg); border-bottom: 1px solid var(--border); padding: 72px 64px 60px; position: relative; overflow: hidden; }
+.hero::before { content: ''; position: absolute; top: -80px; right: -60px; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle,rgba(16,185,129,0.08) 0%,transparent 70%); pointer-events: none; }
+.hero-badge { display: inline-flex; align-items: center; gap: 8px; padding: 6px 16px; background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25); border-radius: 20px; font-size: 0.75rem; font-family: 'JetBrains Mono',monospace; color: var(--accent); margin-bottom: 24px; letter-spacing: 0.05em; text-transform: uppercase; }
+.hero h1 { font-family: 'Syne',sans-serif; font-weight: 800; font-size: 2.8rem; line-height: 1.1; letter-spacing: -0.03em; margin-bottom: 16px; color: var(--text); }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.hero p { font-size: 1rem; color: var(--text-dim); max-width: 640px; line-height: 1.7; margin-bottom: 36px; }
+.hero-stats { display: flex; gap: 40px; flex-wrap: wrap; }
+.hero-stat .num { font-family: 'Syne',sans-serif; font-size: 1.9rem; font-weight: 800; color: var(--accent); display: block; line-height: 1; }
+.hero-stat .lbl { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-top: 4px; font-family: 'JetBrains Mono',monospace; }
+.section { padding: 64px 64px 0; }
+.section-header { display: flex; align-items: center; gap: 14px; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+.level-badge { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-family: 'Syne',sans-serif; font-weight: 800; font-size: 1.1rem; color: #000; flex-shrink: 0; }
+.badge-01 { background: linear-gradient(135deg,#10b981,#059669); }
+.badge-02 { background: linear-gradient(135deg,#00d4ff,#0099cc); }
+.badge-03 { background: linear-gradient(135deg,#7c3aed,#a855f7); }
+.badge-04 { background: linear-gradient(135deg,#f59e0b,#d97706); }
+.badge-05 { background: linear-gradient(135deg,#ec4899,#be185d); }
+.badge-06 { background: linear-gradient(135deg,#06b6d4,#0891b2); }
+.section-header-text h2 { font-family: 'Syne',sans-serif; font-size: 1.55rem; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
+.section-header-text p { font-size: 0.8rem; color: var(--text-muted); font-family: 'JetBrains Mono',monospace; margin-top: 2px; }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(340px,1fr)); gap: 24px; margin-bottom: 64px; }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; transition: border-color 0.2s,transform 0.2s; }
+.card:hover { border-color: var(--accent); transform: translateY(-2px); }
+.card-head { padding: 22px 24px 16px; display: flex; gap: 14px; align-items: flex-start; }
+.card-icon { font-size: 1.8rem; flex-shrink: 0; line-height: 1; }
+.card-head h3 { font-family: 'Syne',sans-serif; font-size: 1.05rem; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+.card-head p { font-size: 0.82rem; color: var(--text-dim); line-height: 1.6; }
+.card-list { padding: 0 24px 16px; list-style: none; }
+.card-list li { font-size: 0.82rem; color: var(--text-dim); padding: 5px 0; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; gap: 8px; }
+.card-list li:last-child { border-bottom: none; }
+.card-list li::before { content: '›'; color: var(--accent); font-weight: 700; flex-shrink: 0; }
+.code-block { background: var(--code-bg); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 32px; overflow: hidden; }
+.code-block-header { padding: 10px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.code-block-header .lang { font-family: 'JetBrains Mono',monospace; font-size: 0.72rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
+.code-block-header .dots { display: flex; gap: 6px; }
+.code-block-header .dots span { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #ef4444; } .dot-y { background: #f59e0b; } .dot-g { background: #22c55e; }
+.code-block pre { padding: 20px 24px; font-family: 'JetBrains Mono',monospace; font-size: 0.78rem; line-height: 1.8; color: #7dd3fc; overflow-x: auto; white-space: pre; }
+.code-block pre .cm { color: #475569; }
+.code-block pre .kw { color: #a78bfa; }
+.code-block pre .st { color: #34d399; }
+.code-block pre .nm { color: #fbbf24; }
+.code-block pre .fn { color: #60a5fa; }
+.arch-diagram { background: var(--code-bg); border: 1px solid var(--border); border-radius: 14px; padding: 28px 32px; margin-bottom: 32px; font-family: 'JetBrains Mono',monospace; font-size: 0.76rem; color: #7dd3fc; line-height: 1.8; white-space: pre; overflow-x: auto; }
+.arch-diagram .h { color: var(--accent); font-weight: 700; }
+.arch-diagram .b { color: var(--accent3); }
+.arch-diagram .g { color: #a78bfa; }
+.arch-diagram .y { color: var(--accent4); }
+.arch-diagram .c { color: #475569; }
+.info-box { border-radius: 10px; padding: 18px 22px; margin-bottom: 24px; border-left: 3px solid; }
+.info-box.tip { background: rgba(16,185,129,0.08); border-color: var(--accent); }
+.info-box.note { background: rgba(0,212,255,0.07); border-color: var(--accent3); }
+.info-box.warn { background: rgba(245,158,11,0.08); border-color: var(--accent4); }
+.info-box .label { font-family: 'JetBrains Mono',monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 700; margin-bottom: 6px; }
+.info-box.tip .label { color: var(--accent); }
+.info-box.note .label { color: var(--accent3); }
+.info-box.warn .label { color: var(--accent4); }
+.info-box p { font-size: 0.84rem; color: var(--text-dim); line-height: 1.65; }
+.prose { max-width: 820px; margin-bottom: 40px; }
+.prose h3 { font-family: 'Syne',sans-serif; font-size: 1.15rem; font-weight: 700; color: var(--text); margin: 28px 0 10px; }
+.prose p { font-size: 0.9rem; color: var(--text-dim); line-height: 1.75; margin-bottom: 14px; }
+.prose ul { padding-left: 20px; margin-bottom: 14px; }
+.prose ul li { font-size: 0.88rem; color: var(--text-dim); margin-bottom: 6px; }
+.prose code { font-family: 'JetBrains Mono',monospace; font-size: 0.8em; background: var(--surface2); padding: 2px 6px; border-radius: 4px; color: var(--accent); }
+footer { background: var(--sidebar); border-top: 1px solid var(--border); padding: 28px 64px; font-size: 0.78rem; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+footer span { font-family: 'JetBrains Mono',monospace; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+@media (max-width: 900px) { .hero { padding: 40px 24px; } .hero h1 { font-size: 1.9rem; } .section { padding: 40px 24px 0; } nav { display: none; } .card-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <div class="icon">⚙️</div>
+    <h2>Framework Internals</h2>
+    <p>Book · Chapter 3</p>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Toggle Theme</button>
+  <div class="book-nav">
+    <div style="font-size:0.66rem;color:var(--text-muted);padding:4px 10px 8px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:0.08em;">Book Chapters</div>
+    <a href="ml-systems.html">① ML Systems</a>
+    <a href="gpu-programming.html">② GPU Programming</a>
+    <a href="ml-framework-internals.html" class="current">③ Framework Internals</a>
+    <a href="os-internals.html">④ OS Internals</a>
+    <a href="transformers.html">⑤ Transformers</a>
+  </div>
+  <ul>
+    <li class="nav-section-label">Chapter 3</li>
+    <li><a href="#tensor"><span class="dot"></span>Tensor Internals</a></li>
+    <li><a href="#autograd"><span class="dot"></span>Autograd Engine</a></li>
+    <li><a href="#dispatch"><span class="dot"></span>Dispatch &amp; ATen</a></li>
+    <li><a href="#compile"><span class="dot"></span>torch.compile</a></li>
+    <li><a href="#dataloader"><span class="dot"></span>DataLoader &amp; Prefetch</a></li>
+    <li><a href="#optimizer"><span class="dot"></span>Optimiser Internals</a></li>
+  </ul>
+</nav>
+
+<main>
+<div class="hero">
+  <div class="hero-badge">Book 3 of 5 · Framework Internals</div>
+  <h1>ML Framework<br><em>Internals</em> with Python</h1>
+  <p>Dissect PyTorch from the inside: how tensors are stored, how autograd builds computation graphs, how the dispatcher routes ops, and how <code>torch.compile</code> generates optimised kernels.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">~3M</span><span class="lbl">Lines of C++</span></div>
+    <div class="hero-stat"><span class="num">2,000+</span><span class="lbl">ATen operators</span></div>
+    <div class="hero-stat"><span class="num">Dynamo</span><span class="lbl">Graph Capture</span></div>
+    <div class="hero-stat"><span class="num">Inductor</span><span class="lbl">Code Gen Backend</span></div>
+  </div>
+</div>
+
+<!-- 01 TENSOR INTERNALS -->
+<section class="section" id="tensor">
+  <div class="section-header">
+    <div class="level-badge badge-01">01</div>
+    <div class="section-header-text">
+      <h2>Tensor Internals</h2>
+      <p>How a PyTorch tensor is represented in memory</p>
+    </div>
+  </div>
+
+  <div class="arch-diagram"><span class="h">PyTorch Tensor Object Layout</span>
+
+<span class="b">Python Tensor</span>  (torch.Tensor)
+<span class="b">└── TensorImpl</span>  (C++ object on heap)
+    <span class="g">├── Storage</span>  ─── shared_ptr → raw data buffer (device + allocator)
+    <span class="g">│   └── data_ptr()</span>     <span class="c">← 256-byte aligned, owned by allocator</span>
+    <span class="g">├── sizes_</span>  [64, 128]   <span class="c">← shape as SmallVector</span>
+    <span class="g">├── strides_</span> [128, 1]  <span class="c">← row-major layout (contiguous)</span>
+    <span class="g">├── storage_offset_</span>  0 <span class="c">← offset into storage in elements</span>
+    <span class="g">├── dtype_</span>  BFloat16   <span class="c">← ScalarType enum</span>
+    <span class="g">├── device_</span> cuda:0     <span class="c">← Device struct</span>
+    <span class="g">└── autograd_meta_</span>    <span class="c">← null if no_grad, else AutogradMeta</span>
+        <span class="y">├── grad_fn_</span>      <span class="c">← Node* in computation graph</span>
+        <span class="y">├── grad_</span>         <span class="c">← accumulated gradient tensor</span>
+        <span class="y">└── requires_grad_</span><span class="c">← bool</span></div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Inspecting tensor internals</span><div class="dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+    <pre><span class="kw">import</span> torch
+
+x = torch.randn(<span class="nm">3</span>, <span class="nm">4</span>)
+
+<span class="cm"># Storage — the raw memory backing the tensor</span>
+print(x.storage())             <span class="cm"># shows raw float values</span>
+print(x.storage_offset())      <span class="cm"># 0 for contiguous</span>
+print(x.data_ptr())            <span class="cm"># address of first element</span>
+
+<span class="cm"># Strides reveal memory layout</span>
+print(x.stride())              <span class="cm"># (4, 1) — row-major</span>
+y = x.t()                      <span class="cm"># transpose: no copy!</span>
+print(y.stride())              <span class="cm"># (1, 4) — same storage, different strides</span>
+print(y.is_contiguous())       <span class="cm"># False</span>
+z = y.contiguous()             <span class="cm"># now copies, resets strides</span>
+
+<span class="cm"># Views share the same storage</span>
+a = torch.zeros(<span class="nm">12</span>)
+b = a.view(<span class="nm">3</span>, <span class="nm">4</span>)
+b[<span class="nm">0</span>, <span class="nm">0</span>] = <span class="nm">99</span>
+print(a[<span class="nm">0</span>])                   <span class="cm"># 99.0 — same data!</span>
+
+<span class="cm"># Element access via strides: a[i,j] = storage[offset + i*stride[0] + j*stride[1]]</span>
+idx = x.storage_offset() + <span class="nm">1</span>*x.stride(<span class="nm">0</span>) + <span class="nm">2</span>*x.stride(<span class="nm">1</span>)
+print(x[<span class="nm">1</span>, <span class="nm">2</span>] == x.storage()[idx])  <span class="cm"># True</span></pre>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head"><span class="card-icon">💾</span><div>
+        <h3>Memory Allocator</h3>
+        <p>PyTorch uses a <em>caching allocator</em> for CUDA memory. Rather than calling <code>cudaMalloc</code> on every allocation (slow), it maintains a pool of free blocks and reuses them. The allocator splits large blocks and coalesces small ones.</p>
+      </div></div>
+      <ul class="card-list">
+        <li>torch.cuda.memory_allocated(): live tensors</li>
+        <li>torch.cuda.memory_reserved(): caching allocator pool</li>
+        <li>torch.cuda.empty_cache(): release reserved back to CUDA</li>
+        <li>PYTORCH_NO_CUDA_MEMORY_CACHING=1 to disable</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-icon">🗜️</span><div>
+        <h3>Views vs Copies</h3>
+        <p>Operations like <code>reshape</code>, <code>transpose</code>, <code>squeeze</code>, <code>expand</code> return <em>views</em> — they share storage. Operations that require contiguity (e.g. <code>view</code> on a non-contiguous tensor) raise an error. Use <code>reshape</code> which automatically calls <code>contiguous</code> if needed.</p>
+      </div></div>
+      <ul class="card-list">
+        <li>view(): must be contiguous (raises otherwise)</li>
+        <li>reshape(): safe — may copy or return view</li>
+        <li>as_strided(): arbitrary strides, powerful but dangerous</li>
+        <li>expand(): broadcast without copy (stride=0)</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- 02 AUTOGRAD -->
+<section class="section" id="autograd">
+  <div class="section-header">
+    <div class="level-badge badge-02">02</div>
+    <div class="section-header-text">
+      <h2>Autograd Engine</h2>
+      <p>Dynamic computation graphs, backward passes, and custom gradient functions</p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>Every tensor with <code>requires_grad=True</code> carries a <code>grad_fn</code> — a pointer to the C++ <code>Node</code> that created it. When you call <code>.backward()</code>, PyTorch traverses the DAG in topological order, calling each node's <code>apply()</code> to accumulate gradients via the chain rule. The engine runs the backward pass in a thread pool, parallelising independent branches.</p>
+  </div>
+
+  <div class="arch-diagram"><span class="h">Computation Graph for  z = (x * y).sum()</span>
+
+   <span class="y">x (leaf)</span>    <span class="y">y (leaf)</span>
+      <span class="b">└──────┬──────┘</span>
+             <span class="g">MulBackward0</span>  <span class="c">← grad_fn of (x*y)</span>
+                   <span class="b">│</span>
+             <span class="g">SumBackward0</span>  <span class="c">← grad_fn of z</span>
+                   <span class="b">│</span>
+               <span class="y">z (root)</span>
+
+<span class="c">z.backward()  traverses upward, calling each Node.apply(grad_output)
+  SumBackward0.apply(ones) → passes ones to MulBackward0
+  MulBackward0.apply(ones) → x.grad += ones * y,  y.grad += ones * x</span></div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Custom autograd Function</span><div class="dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+    <pre><span class="kw">import</span> torch
+<span class="kw">from</span> torch.autograd <span class="kw">import</span> Function
+
+<span class="kw">class</span> <span class="fn">SigmoidFunction</span>(Function):
+    <span class="fn">@staticmethod</span>
+    <span class="kw">def</span> <span class="fn">forward</span>(ctx, x):
+        s = <span class="nm">1</span> / (<span class="nm">1</span> + torch.exp(-x))
+        ctx.save_for_backward(s)   <span class="cm"># save for reuse in backward</span>
+        <span class="kw">return</span> s
+
+    <span class="fn">@staticmethod</span>
+    <span class="kw">def</span> <span class="fn">backward</span>(ctx, grad_output):
+        s, = ctx.saved_tensors
+        <span class="kw">return</span> grad_output * s * (<span class="nm">1</span> - s)   <span class="cm"># chain rule: dL/dx = dL/ds * ds/dx</span>
+
+sigmoid = SigmoidFunction.apply
+
+x = torch.tensor([<span class="nm">1.0</span>, <span class="nm">2.0</span>], requires_grad=<span class="nm">True</span>)
+y = sigmoid(x)
+y.sum().backward()
+print(x.grad)   <span class="cm"># [0.1966, 0.1050]</span>
+
+<span class="cm"># Inspect the graph</span>
+print(y.grad_fn)              <span class="cm"># &lt;SigmoidFunctionBackward&gt;</span>
+print(y.grad_fn.next_functions)  <span class="cm"># [(AccumulateGrad for x, 0)]</span></pre>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Gradient hooks &amp; inspection</span><div class="dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+    <pre><span class="cm"># Register a hook to inspect/modify gradients mid-backprop</span>
+intermediate = model.encoder(x)
+intermediate.retain_grad()   <span class="cm"># keep grad for non-leaf</span>
+
+handle = intermediate.register_hook(
+    <span class="kw">lambda</span> grad: print(<span class="st">f"encoder grad norm: {grad.norm():.4f}"</span>)
+)
+
+loss.backward()
+print(intermediate.grad)
+
+handle.remove()   <span class="cm"># always remove hooks when done</span>
+
+<span class="cm"># Gradient clipping (common in transformer training)</span>
+torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=<span class="nm">1.0</span>)</pre>
+  </div>
+</section>
+
+<!-- 03 DISPATCH -->
+<section class="section" id="dispatch">
+  <div class="section-header">
+    <div class="level-badge badge-03">03</div>
+    <div class="section-header-text">
+      <h2>Dispatch &amp; ATen</h2>
+      <p>How torch.add(x, y) finds the right kernel at runtime</p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>PyTorch's operator dispatch is a <strong>multi-level key system</strong>. When you call <code>torch.add(x, y)</code>, the dispatcher looks at the tensor's <em>dispatch keys</em> (a bitset encoding device, dtype, autograd state, etc.) and routes to the highest-priority registered implementation. This layered system allows the same op name to work on CPU, CUDA, XLA, MPS, and fake/meta tensors with zero user-visible branching.</p>
+  </div>
+
+  <div class="arch-diagram"><span class="h">PyTorch Dispatcher Call Stack for torch.add(x_cuda, y_cuda)</span>
+
+<span class="b">Python</span>: torch.add(x, y)
+   <span class="b">↓</span>  Python binding → C++
+<span class="g">Dispatcher</span>: compute key set from tensors
+   <span class="b">↓</span>  key = Autograd | CUDA | BFloat16
+<span class="g">Autograd key</span>: record op in graph, call into next
+   <span class="b">↓</span>
+<span class="g">CUDA key</span>: select CUDA kernel (add_cuda_out)
+   <span class="b">↓</span>  ATen generated code
+<span class="y">cuBLAS / custom CUDA kernel</span>
+   <span class="b">↓</span>  returns result Tensor
+<span class="g">Autograd</span>: attach grad_fn = AddBackward0
+   <span class="b">↓</span>
+<span class="b">Python</span>: result tensor with requires_grad</div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Registering a custom operator</span><div class="dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+    <pre><span class="kw">import</span> torch
+<span class="kw">from</span> torch.library <span class="kw">import</span> Library, impl
+
+<span class="cm"># Declare the op schema</span>
+mylib = Library(<span class="st">"myops"</span>, <span class="st">"DEF"</span>)
+mylib.define(<span class="st">"mish(Tensor x) -> Tensor"</span>)
+
+<span class="cm"># CPU implementation</span>
+<span class="fn">@impl</span>(mylib, <span class="st">"mish"</span>, <span class="st">"CPU"</span>)
+<span class="kw">def</span> <span class="fn">mish_cpu</span>(x):
+    <span class="kw">return</span> x * torch.tanh(torch.nn.functional.softplus(x))
+
+<span class="cm"># CUDA implementation</span>
+<span class="fn">@impl</span>(mylib, <span class="st">"mish"</span>, <span class="st">"CUDA"</span>)
+<span class="kw">def</span> <span class="fn">mish_cuda</span>(x):
+    <span class="kw">return</span> x * torch.tanh(torch.nn.functional.softplus(x))   <span class="cm"># or call custom kernel</span>
+
+<span class="cm"># Autograd rule</span>
+<span class="fn">@impl</span>(mylib, <span class="st">"mish"</span>, <span class="st">"Autograd"</span>)
+<span class="kw">def</span> <span class="fn">mish_autograd</span>(x):
+    <span class="kw">return</span> torch.ops.myops.mish(x)   <span class="cm"># will be differentiated via autograd</span>
+
+<span class="cm"># Use it like a native op</span>
+x = torch.randn(<span class="nm">10</span>, requires_grad=<span class="nm">True</span>)
+y = torch.ops.myops.mish(x)
+y.sum().backward()</pre>
+  </div>
+</section>
+
+<!-- 04 COMPILE -->
+<section class="section" id="compile">
+  <div class="section-header">
+    <div class="level-badge badge-04">04</div>
+    <div class="section-header-text">
+      <h2>torch.compile Internals</h2>
+      <p>TorchDynamo graph capture → TorchInductor code generation</p>
+    </div>
+  </div>
+
+  <div class="arch-diagram"><span class="h">torch.compile Pipeline</span>
+
+<span class="b">Python source code  (model.forward)</span>
+   <span class="b">↓</span>  <span class="g">TorchDynamo</span> — Python bytecode interpreter hook
+<span class="y">FX Graph</span>  (torch.fx.GraphModule — pure ATen ops)
+   <span class="b">↓</span>  <span class="g">AOTAutograd</span> — ahead-of-time backward graph
+<span class="y">Joint fwd+bwd FX Graph</span>
+   <span class="b">↓</span>  <span class="g">TorchInductor</span> — code generation backend
+   <span class="b">├─→</span> <span class="y">Triton kernels</span>  (CUDA / ROCm)
+   <span class="b">└─→</span> <span class="y">C++ / OpenMP</span>   (CPU)
+   <span class="b">↓</span>
+<span class="g">Compiled callable</span>  (fast as a native library)</div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · torch.compile usage &amp; modes</span><div class="dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+    <pre><span class="kw">import</span> torch
+
+model = MyTransformer().cuda()
+
+<span class="cm"># Default: balance of compile time and runtime performance</span>
+compiled = torch.compile(model)
+
+<span class="cm"># max-autotune: tries many tile sizes, slowest compile, fastest run</span>
+compiled = torch.compile(model, mode=<span class="st">"max-autotune"</span>)
+
+<span class="cm"># reduce-overhead: CUDA graphs + minimal overhead  (fixed shapes)</span>
+compiled = torch.compile(model, mode=<span class="st">"reduce-overhead"</span>)
+
+<span class="cm"># Inspect the captured FX graph</span>
+<span class="kw">from</span> torch._dynamo <span class="kw">import</span> export
+graph_module, guards = export(model)(sample_input)
+graph_module.graph.print_tabular()
+
+<span class="cm"># Disable compilation for a specific function</span>
+<span class="fn">@torch.compiler.disable</span>
+<span class="kw">def</span> <span class="fn">my_debug_fn</span>(x):
+    <span class="kw">return</span> x.cpu().numpy()   <span class="cm"># can't compile numpy ops</span></pre>
+  </div>
+
+  <div class="info-box note">
+    <div class="label">How Dynamo works</div>
+    <p>TorchDynamo installs a Python frame evaluation hook (<code>PEP 523</code>). When a compiled function is called, Dynamo intercepts the bytecode execution, traces through it symbolically, and builds an FX graph of the ATen operations. If it hits Python code it can't trace (data-dependent control flow, NumPy, custom C extensions), it "breaks" the graph there and falls back to eager execution — called a <em>graph break</em>. Minimising graph breaks is key to getting full compilation benefit.</p>
+  </div>
+</section>
+
+<!-- 05 DATALOADER -->
+<section class="section" id="dataloader">
+  <div class="section-header">
+    <div class="level-badge badge-05">05</div>
+    <div class="section-header-text">
+      <h2>DataLoader &amp; Prefetching</h2>
+      <p>Multi-process data loading, memory-mapped datasets, and GPU prefetching</p>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · DataLoader internals &amp; tuning</span><div class="dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+    <pre><span class="kw">from</span> torch.utils.data <span class="kw">import</span> DataLoader, Dataset
+<span class="kw">import</span> torch
+
+<span class="kw">class</span> <span class="fn">TokenDataset</span>(Dataset):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, mmap_file):
+        <span class="cm"># Memory-mapped file: avoids loading entire dataset into RAM</span>
+        self.data = torch.from_file(mmap_file, dtype=torch.int32, shared=<span class="nm">True</span>)
+
+    <span class="kw">def</span> <span class="fn">__len__</span>(self): <span class="kw">return</span> len(self.data) // <span class="nm">2048</span>
+
+    <span class="kw">def</span> <span class="fn">__getitem__</span>(self, idx):
+        chunk = self.data[idx*<span class="nm">2048</span>:(idx+<span class="nm">1</span>)*<span class="nm">2048</span>]
+        <span class="kw">return</span> chunk[:-<span class="nm">1</span>], chunk[<span class="nm">1</span>:]  <span class="cm"># input, target</span>
+
+loader = DataLoader(
+    TokenDataset(<span class="st">"tokens.bin"</span>),
+    batch_size=<span class="nm">32</span>,
+    num_workers=<span class="nm">8</span>,           <span class="cm"># spawn 8 worker processes</span>
+    pin_memory=<span class="nm">True</span>,         <span class="cm"># page-lock CPU buffers for fast H2D</span>
+    persistent_workers=<span class="nm">True</span>, <span class="cm"># keep workers alive between epochs</span>
+    prefetch_factor=<span class="nm">4</span>,       <span class="cm"># pre-load 4 batches per worker</span>
+)
+
+<span class="cm"># Inside DataLoader: worker processes call __getitem__ in parallel,
+# fill a shared-memory queue, main process batches + pins + sends to GPU.</span></pre>
+  </div>
+</section>
+
+<!-- 06 OPTIMISER -->
+<section class="section" id="optimizer">
+  <div class="section-header">
+    <div class="level-badge badge-06">06</div>
+    <div class="section-header-text">
+      <h2>Optimiser Internals</h2>
+      <p>Adam, fused kernels, and per-parameter learning rate schedules</p>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Adam update — step-by-step</span><div class="dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div></div>
+    <pre><span class="cm"># What Adam.step() does internally for each parameter group</span>
+<span class="kw">def</span> <span class="fn">adam_step</span>(p, grad, m, v, t, lr, beta1, beta2, eps, wd):
+    <span class="cm"># Weight decay (decoupled AdamW style)</span>
+    p.mul_(<span class="nm">1</span> - lr * wd)
+    <span class="cm"># First moment (EMA of gradients)</span>
+    m.mul_(beta1).add_(grad, alpha=<span class="nm">1</span> - beta1)
+    <span class="cm"># Second moment (EMA of squared gradients)</span>
+    v.mul_(beta2).addcmul_(grad, grad, value=<span class="nm">1</span> - beta2)
+    <span class="cm"># Bias-corrected estimates</span>
+    m_hat = m / (<span class="nm">1</span> - beta1**t)
+    v_hat = v / (<span class="nm">1</span> - beta2**t)
+    <span class="cm"># Parameter update</span>
+    p.addcdiv_(m_hat, v_hat.sqrt().add_(eps), value=-lr)
+
+<span class="cm"># PyTorch's fused Adam runs ALL of the above in one CUDA kernel,
+# avoiding 5 separate memory passes over params + grads + states.</span>
+optim = torch.optim.AdamW(
+    model.parameters(), lr=<span class="nm">3e-4</span>, betas=(<span class="nm">0.9</span>, <span class="nm">0.95</span>), fused=<span class="nm">True</span>
+)</pre>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head"><span class="card-icon">📉</span><div>
+        <h3>LR Schedulers</h3>
+        <p>Cosine annealing with warmup is the standard for LLM training. PyTorch schedulers call <code>optimizer.param_groups[i]["lr"] = new_lr</code> each step.</p>
+      </div></div>
+      <ul class="card-list">
+        <li>Warmup: linearly ramp lr for first N steps to stabilise early training</li>
+        <li>Cosine decay: smoothly reduce from peak to min_lr over training horizon</li>
+        <li>OneCycleLR: fast convergence for shorter runs (super-convergence)</li>
+        <li>ReduceLROnPlateau: adaptive, driven by validation metric</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-icon">🧪</span><div>
+        <h3>Gradient Accumulation</h3>
+        <p>Simulate large effective batch sizes when GPU memory is limited. Accumulate gradients over N micro-batches before calling <code>optimizer.step()</code>. With DDP, disable gradient synchronisation during accumulation to avoid wasted AllReduce calls.</p>
+      </div></div>
+      <ul class="card-list">
+        <li>effective_batch = micro_batch × accum_steps × world_size</li>
+        <li>DDP: model.no_sync() context manager avoids premature AllReduce</li>
+        <li>Scale loss by 1/accum_steps before backward to keep gradient magnitudes correct</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="height:64px"></div>
+</section>
+
+<footer>
+  <span>Chapter 3 — ML Framework Internals</span>
+  <span>Part of the ML Engineering Book Series</span>
+</footer>
+</main>
+
+<script>
+function toggleTheme() {
+  const root = document.documentElement;
+  root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+}
+const sections = document.querySelectorAll('section[id]');
+const links = document.querySelectorAll('nav ul li a');
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const a = document.querySelector(`nav ul li a[href="#${e.target.id}"]`);
+      if (a) a.classList.add('active');
+    }
+  });
+}, { threshold: 0.3 });
+sections.forEach(s => io.observe(s));
+</script>
+</body>
+</html>

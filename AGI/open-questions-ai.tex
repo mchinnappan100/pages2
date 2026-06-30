@@ -1,0 +1,817 @@
+\documentclass[10pt,twocolumn]{article}
+
+% ---------------------------------------------------------------
+% Packages
+% ---------------------------------------------------------------
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{natbib}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{subcaption}
+
+% ---------------------------------------------------------------
+% Code listing style (PyTorch / Python)
+% ---------------------------------------------------------------
+\definecolor{codebg}{HTML}{F7F4EE}
+\definecolor{codegreen}{rgb}{0,0.5,0}
+\definecolor{codegray}{rgb}{0.45,0.45,0.45}
+\definecolor{codeblue}{HTML}{2d5f8a}
+\definecolor{codepurple}{HTML}{7a3e9d}
+
+\lstset{
+  backgroundcolor=\color{codebg},
+  basicstyle=\ttfamily\scriptsize,
+  breaklines=true,
+  captionpos=b,
+  commentstyle=\color{codegreen}\itshape,
+  keywordstyle=\color{codeblue}\bfseries,
+  stringstyle=\color{codepurple},
+  language=Python,
+  frame=single,
+  framesep=4pt,
+  showstringspaces=false,
+  tabsize=4,
+  xleftmargin=8pt,
+  xrightmargin=4pt,
+  numbers=none,
+}
+
+% ---------------------------------------------------------------
+% Theorem environments
+% ---------------------------------------------------------------
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+
+% ---------------------------------------------------------------
+% Hyperref setup
+% ---------------------------------------------------------------
+\hypersetup{
+  colorlinks=true,
+  linkcolor=codeblue,
+  citecolor=codeblue,
+  urlcolor=codeblue,
+}
+
+% ---------------------------------------------------------------
+% Title
+% ---------------------------------------------------------------
+\title{Open Questions in AI}
+\author{
+  Mohan Chinnappan \\
+  \texttt{mohan.chinnappan.n@gmail.com}
+}
+
+\date{June 2026}
+
+% ---------------------------------------------------------------
+\begin{document}
+% ---------------------------------------------------------------
+
+\maketitle
+
+% ---------------------------------------------------------------
+\begin{abstract}
+% ---------------------------------------------------------------
+Modern large language models (LLMs) achieve remarkable performance on a
+broad range of tasks, yet we lack a principled theory explaining
+\emph{why} they reason, generalise, or hallucinate the way they do.
+This paper surveys five grand open questions at the frontier of AI
+research: (1)~\textbf{mechanistic interpretability} — can we reverse-engineer
+neural networks into human-understandable circuits?; (2)~\textbf{world models
+and causality} — do LLMs learn implicit causal models, and can explicit
+world models do better?; (3)~\textbf{reasoning and computational depth} — are
+transformer reasoning abilities genuine, and what are their fundamental
+limits?; (4)~\textbf{representation collapse and JEPA} — does predicting in
+latent space rather than signal space produce more structured, interpretable
+representations?; and (5)~\textbf{modular AI} — will future general systems
+be monolithic or composed of specialised coordinated modules?  For each
+question we provide precise mathematical formulations, discuss the current
+state of knowledge, and illustrate key concepts with PyTorch code.  We
+argue that answering these questions requires not only scaling, but
+fundamentally new architectural inductive biases.
+\end{abstract}
+
+\textbf{Keywords:} interpretability, world models, JEPA, mechanistic
+interpretability, causal reasoning, sparse autoencoders, self-supervised
+learning, energy-based models.
+
+% ---------------------------------------------------------------
+\section{Introduction}
+% ---------------------------------------------------------------
+
+The past five years have witnessed extraordinary advances in AI: LLMs
+such as GPT-4 \citep{openai2023gpt4}, Gemini \citep{gemini2023}, and
+Claude \citep{anthropic2024claude} solve complex reasoning problems,
+write code, and pass professional examinations.  Despite this empirical
+success, we lack a complete theoretical understanding of \emph{why these
+systems work} and \emph{where they fundamentally fail}.
+
+This gap has produced entire research sub-fields: \emph{mechanistic
+interpretability} attempts to reverse-engineer neural network circuits
+\citep{olah2020zoom}; \emph{representation learning} studies the geometry of
+learned feature spaces \citep{elhage2022superposition}; \emph{world model
+research} asks whether models build causal models of their environments
+\citep{lecun2022path}; and \emph{scaling law research} asks whether the
+current paradigm can reach general intelligence \citep{hoffmann2022chinchilla}.
+
+We organise the open questions as follows.  Section~\ref{sec:interpretability}
+covers mechanistic interpretability.  Section~\ref{sec:worldmodels} covers
+world models and causality.  Section~\ref{sec:reasoning} covers reasoning
+and computational limits.  Section~\ref{sec:jepa} covers the JEPA
+architecture as a concrete alternative inductive bias.
+Section~\ref{sec:modular} discusses the modular AI hypothesis.
+Section~\ref{sec:conclusion} concludes with an integrated research agenda.
+
+% ---------------------------------------------------------------
+\section{Background: What an LLM Computes}
+\label{sec:background}
+% ---------------------------------------------------------------
+
+An autoregressive language model parameterised by $\theta$ computes
+
+\begin{equation}
+  P_\theta(y_1, \ldots, y_T) = \prod_{t=1}^{T} P_\theta(y_t \mid y_{<t})
+  \label{eq:lm}
+\end{equation}
+
+\noindent where $y_{<t} = (y_1, \ldots, y_{t-1})$ is the context.  Training
+minimises the negative log-likelihood:
+
+\begin{equation}
+  \mathcal{L}_{\text{NLL}}(\theta) = -\frac{1}{T}\sum_{t=1}^{T} \log P_\theta(y_t \mid y_{<t}).
+  \label{eq:nll}
+\end{equation}
+
+A transformer \citep{vaswani2017attention} implements this through $L$
+alternating self-attention and feed-forward layers.  Each self-attention
+head computes
+
+\begin{equation}
+  \text{Attn}(Q,K,V) = \text{softmax}\!\left(\frac{QK^\top}{\sqrt{d_k}}\right)V,
+  \label{eq:attention}
+\end{equation}
+
+\noindent where $Q = h W_Q$, $K = h W_K$, $V = h W_V$ are linear projections
+of the hidden state $h \in \mathbb{R}^{d_{\text{model}}}$.  The full
+residual-stream update is
+
+\begin{align}
+  h_\ell &= \text{LayerNorm}(h_{\ell-1} + \text{MHA}(h_{\ell-1})) \label{eq:res1}\\
+  h_\ell'&= \text{LayerNorm}(h_\ell + \text{FFN}(h_\ell)).\label{eq:res2}
+\end{align}
+
+\noindent Critically, Equation~\ref{eq:nll} contains no term that rewards
+physical understanding, causal reasoning, or goal-directed planning.
+Any such capability must \emph{emerge} from next-token prediction alone —
+and this is the root cause of all five open questions.
+
+\subsection{PyTorch: Basic Transformer Block}
+
+\begin{lstlisting}[caption={Single transformer layer in PyTorch.}]
+import torch, torch.nn as nn, math
+
+class TransformerBlock(nn.Module):
+    def __init__(self, d_model, n_heads, d_ff):
+        super().__init__()
+        self.attn = nn.MultiheadAttention(
+            d_model, n_heads, batch_first=True)
+        self.ff = nn.Sequential(
+            nn.Linear(d_model, d_ff),
+            nn.GELU(),
+            nn.Linear(d_ff, d_model))
+        self.ln1 = nn.LayerNorm(d_model)
+        self.ln2 = nn.LayerNorm(d_model)
+
+    def forward(self, x):
+        # x: (B, T, d_model)
+        h = self.ln1(x)
+        h, _ = self.attn(h, h, h)
+        x = x + h                      # Eq. (3)
+        x = x + self.ff(self.ln2(x))   # Eq. (4)
+        return x
+\end{lstlisting}
+
+% ---------------------------------------------------------------
+\section{Open Question 1: Mechanistic Interpretability}
+\label{sec:interpretability}
+% ---------------------------------------------------------------
+
+\begin{definition}[Mechanistic Interpretability]
+The program of \emph{mechanistic interpretability} aims to identify
+human-understandable algorithms implemented by the weights of a neural
+network — analogous to reverse-engineering a compiled binary into
+readable source code \citep{olah2020zoom}.
+\end{definition}
+
+\subsection{The Superposition Hypothesis}
+
+A key obstacle is \emph{polysemanticity}: single neurons respond to
+multiple, semantically unrelated concepts.  \citet{elhage2022superposition}
+propose the \textbf{superposition hypothesis}: a network of dimension
+$d$ can represent up to $n \gg d$ features by encoding them as
+near-orthogonal directions in $\mathbb{R}^d$, at the cost of
+inter-feature interference.
+
+\begin{proposition}[Superposition Capacity, informal]
+If features are sparse — each is active with probability $p \ll 1$ —
+then $n \approx d \cdot (-\log p)^{-1}$ features can be stored with
+interference below a threshold $\epsilon$.
+\end{proposition}
+
+The activation of a polysemantic neuron $j$ for input $\mathbf{x}$ is
+
+\begin{equation}
+  h_j = \text{ReLU}\!\left(\sum_{i} W_{ji} x_i + b_j\right),
+  \label{eq:neuron}
+\end{equation}
+
+\noindent where multiple features $i$ share weight $W_{ji}$, making
+clean attribution impossible.
+
+\subsection{Sparse Autoencoders}
+
+Sparse autoencoders (SAEs) \citep{bricken2023monosemanticity} decompose
+polysemantic activations into monosemantic features by solving
+
+\begin{align}
+  \mathbf{z} &= \text{ReLU}(W_e \mathbf{h} + \mathbf{b}_e)
+                \label{eq:sae_enc}\\
+  \hat{\mathbf{h}} &= W_d \mathbf{z} + \mathbf{b}_d
+                \label{eq:sae_dec}\\
+  \mathcal{L}_{\text{SAE}} &= \|\mathbf{h} - \hat{\mathbf{h}}\|_2^2
+                + \lambda \|\mathbf{z}\|_1,
+                \label{eq:sae_loss}
+\end{align}
+
+\noindent where $W_d \in \mathbb{R}^{d_{\text{model}} \times d_{\text{SAE}}}$
+with $d_{\text{SAE}} \gg d_{\text{model}}$.  Each column of $W_d$ is a
+candidate \emph{feature direction}.
+
+\begin{lstlisting}[caption={Sparse autoencoder for mechanistic interpretability.}]
+class SparseAutoencoder(nn.Module):
+    def __init__(self, d_model, d_sae):
+        super().__init__()
+        self.W_enc = nn.Linear(d_model, d_sae)
+        self.W_dec = nn.Linear(d_sae, d_model,
+                               bias=False)
+        self.b_enc = nn.Parameter(
+            torch.zeros(d_sae))
+
+    def forward(self, h):
+        # Eq. (5)
+        z = torch.relu(self.W_enc(h) + self.b_enc)
+        h_hat = self.W_dec(z)           # Eq. (6)
+        return h_hat, z
+
+def sae_loss(h, h_hat, z, lam=1e-3):
+    recon = (h - h_hat).pow(2).mean()  # Eq. (7)
+    sparse = lam * z.abs().mean()
+    return recon + sparse
+\end{lstlisting}
+
+\subsection{Linear Representation Hypothesis}
+
+The \textbf{linear representation hypothesis} posits that concepts are
+encoded as linear directions in activation space.  Formally, concept
+$c$ is encoded at layer $\ell$ if there exists $\mathbf{v}_c \in \mathbb{R}^d$
+such that
+
+\begin{equation}
+  \hat{c}(\mathbf{h}_\ell) = \text{sign}(\mathbf{v}_c^\top \mathbf{h}_\ell - \theta)
+  \label{eq:probe}
+\end{equation}
+
+\noindent achieves high accuracy.  Causal evidence requires that patching
+
+\begin{equation}
+  \mathbf{h}_\ell \leftarrow \mathbf{h}_\ell + \alpha \mathbf{v}_c
+  \label{eq:patch}
+\end{equation}
+
+\noindent changes the model's output in the direction predicted by concept $c$.
+
+\subsection{The Scaling Barrier}
+
+\begin{remark}
+Despite impressive progress, mechanistic interpretability faces a
+fundamental scaling barrier: manually annotating circuits for a model
+with $\sim 10^{12}$ parameters is computationally infeasible.
+Automated methods (SAEs, probing) cover only a small fraction of
+model behaviour, and there is no ground-truth evaluation criterion
+for whether an interpretation is ``correct.''
+\end{remark}
+
+% ---------------------------------------------------------------
+\section{Open Question 2: World Models and Causality}
+\label{sec:worldmodels}
+% ---------------------------------------------------------------
+
+\begin{definition}[World Model]
+A world model is a parametric function $f_\theta : \mathcal{S} \times
+\mathcal{A} \to \mathcal{S}$ that predicts future states from current
+states and actions, trained to minimise
+
+\begin{equation}
+  \mathcal{L}_{\text{WM}}(\theta) = \mathbb{E}_{(s_t, a_t, s_{t+1})}
+  \!\left[\|f_\theta(s_t, a_t) - s_{t+1}\|_2^2\right].
+  \label{eq:wm}
+\end{equation}
+\end{definition}
+
+\subsection{The Blurry Prediction Problem}
+
+When the target $s_{t+1}$ is stochastic and the prediction is made
+directly in signal space (pixels, tokens), the optimal predictor is
+the conditional mean
+
+\begin{equation}
+  \hat{s}_{t+1}^* = \mathbb{E}[s_{t+1} \mid s_t, a_t],
+  \label{eq:cond_mean}
+\end{equation}
+
+\noindent which is a blurry average of all possible futures.  If a ball
+can move left or right with equal probability, the optimal
+$\hat{s}^*$ is a ghost ball at the centre — physically impossible.
+
+\subsection{Causal Reasoning}
+
+Pearl's \citeyear{pearl2009causality} \textbf{do-calculus} distinguishes
+observational from interventional distributions:
+
+\begin{align}
+  \text{Observational:} &\quad P(Y \mid X = x) \label{eq:obs}\\
+  \text{Interventional:} &\quad P(Y \mid \text{do}(X = x)) \label{eq:int}\\
+  \text{Counterfactual:} &\quad P(Y_{X=x} \mid X = x', Y = y'). \label{eq:counter}
+\end{align}
+
+\noindent LLMs trained on observational text (Equation~\ref{eq:obs})
+cannot in general compute interventional or counterfactual quantities
+(Equations~\ref{eq:int}--\ref{eq:counter}) without explicit causal
+structure.
+
+\begin{lstlisting}[caption={Simple world model in PyTorch.}]
+class WorldModel(nn.Module):
+    def __init__(self, d_state, d_action, d_h):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(d_state + d_action, d_h),
+            nn.SiLU(),
+            nn.Linear(d_h, d_h),
+            nn.SiLU(),
+            nn.Linear(d_h, d_state))
+
+    def forward(self, s, a):
+        # s: (B, d_state), a: (B, d_action)
+        return self.net(torch.cat([s, a], -1))
+
+# Eq. (8): MSE loss in latent space
+loss_fn = nn.MSELoss()
+\end{lstlisting}
+
+\subsection{Emergent World Models in LLMs}
+
+\citet{li2023emergent} showed that a transformer trained on Othello move
+sequences develops an internal representation of the board state that
+can be recovered by linear probing.  This suggests LLMs do develop
+\emph{implicit} world models — but whether these are genuinely
+causal or merely correlational is an open question.
+
+% ---------------------------------------------------------------
+\section{Open Question 3: Reasoning and Computational Depth}
+\label{sec:reasoning}
+% ---------------------------------------------------------------
+
+\subsection{Transformers as Bounded-Depth Circuits}
+
+A transformer with $L$ layers computes a function of fixed depth:
+
+\begin{equation}
+  f_\theta = f_L \circ f_{L-1} \circ \cdots \circ f_1,
+  \quad \text{depth}(f_\theta) = O(L).
+  \label{eq:depth}
+\end{equation}
+
+\noindent \citet{merrill2023parallelism} proved that log-precision
+transformers cannot solve problems outside $\text{TC}^0$ in a single
+forward pass.  Problems requiring $\omega(L)$ sequential steps therefore
+cannot be solved by a single forward pass.
+
+\subsection{Chain-of-Thought as External Memory}
+
+Generating $T$ additional output tokens extends effective depth to
+$O(L \cdot T)$, explaining why chain-of-thought (CoT) prompting
+\citep{wei2022chain} dramatically improves multi-step reasoning.
+
+The per-token log probability under CoT is
+
+\begin{equation}
+  \log P_\theta(y_t \mid r_1, \ldots, r_k, y_{<t})
+  \label{eq:cot}
+\end{equation}
+
+\noindent where $r_1, \ldots, r_k$ are reasoning tokens.  The scratchpad
+allows the model to re-read intermediate computations as context.
+
+\subsection{Scaling Laws}
+
+\citet{hoffmann2022chinchilla} derived compute-optimal scaling laws:
+
+\begin{align}
+  \mathcal{L}(N, D) &\approx E + \frac{A}{N^{\alpha}} + \frac{B}{D^{\beta}}
+  \label{eq:scaling}
+\end{align}
+
+\noindent where $N$ is parameter count, $D$ is data tokens, and
+$\alpha, \beta \approx 0.34$.  The irreducible loss $E$ represents the
+entropy of natural language.
+
+\begin{remark}
+Emergent abilities \citep{wei2022emergent} appear as sharp transitions in
+performance at certain scale thresholds.  Whether these are genuine
+phase transitions or artifacts of the evaluation metric is debated.
+\end{remark}
+
+% ---------------------------------------------------------------
+\section{Open Question 4: JEPA and Representation Space Prediction}
+\label{sec:jepa}
+% ---------------------------------------------------------------
+
+\subsection{The JEPA Objective}
+
+The \textbf{Joint Embedding Predictive Architecture} (JEPA)
+\citep{lecun2022path,assran2023ijepa} replaces next-token prediction
+with prediction in latent representation space.  Given context $x$
+and target $y$, JEPA minimises
+
+\begin{align}
+  s_x &= E_x(x), \quad s_y = E_y(y) \label{eq:jepa_enc}\\
+  \hat{s}_y &= g(s_x, z) \label{eq:jepa_pred}\\
+  \mathcal{L}_{\text{JEPA}} &= \|g(s_x, z) - \text{sg}(s_y)\|_2^2,
+  \label{eq:jepa_loss}
+\end{align}
+
+\noindent where $\text{sg}(\cdot)$ is the stop-gradient operator,
+$E_y$ is an exponential moving average (EMA) of $E_x$, and $z$ is
+a latent variable encoding information about $y$ not present in $x$.
+
+\subsection{EMA Update and Collapse Prevention}
+
+The EMA update
+
+\begin{equation}
+  \bar{\theta} \leftarrow \tau \bar{\theta} + (1 - \tau) \theta,
+  \quad \tau \in [0.996, 1.0)
+  \label{eq:ema}
+\end{equation}
+
+\noindent provides a slowly-evolving, stable prediction target, preventing
+representational collapse without requiring contrastive negative pairs.
+
+\begin{lstlisting}[caption={JEPA with EMA target encoder.}]
+import copy
+
+class JEPA(nn.Module):
+    def __init__(self, enc, pred, tau=0.996):
+        super().__init__()
+        self.enc_x = enc
+        self.enc_y = copy.deepcopy(enc)
+        for p in self.enc_y.parameters():
+            p.requires_grad_(False)
+        self.predictor = pred
+        self.tau = tau
+
+    @torch.no_grad()
+    def ema_update(self):
+        # Eq. (14)
+        for po, pe in zip(
+                self.enc_x.parameters(),
+                self.enc_y.parameters()):
+            pe.data.mul_(self.tau).add_(
+                po.data, alpha=1 - self.tau)
+
+    def forward(self, x, y, z=None):
+        s_x = self.enc_x(x)             # Eq. (12)
+        with torch.no_grad():
+            s_y = self.enc_y(y)         # Eq. (12)
+        s_hat = (self.predictor(s_x, z)
+                 if z is not None
+                 else self.predictor(s_x))
+        return (s_hat - s_y.detach()
+                ).pow(2).mean()         # Eq. (13)
+\end{lstlisting}
+
+\subsection{VICReg: Preventing Collapse via Regularisation}
+
+VICReg \citep{bardes2022vicreg} prevents collapse without negative pairs
+through three explicit regularisation terms:
+
+\begin{align}
+  \mathcal{L}_{\text{VICReg}} &= \lambda\, \underbrace{\|z_1 - z_2\|_2^2}_{\text{invariance}}
+  + \mu\, \underbrace{v(z_1, z_2)}_{\text{variance}}
+  + \nu\, \underbrace{c(z_1, z_2)}_{\text{covariance}}
+  \label{eq:vicreg}
+\end{align}
+
+\noindent where $v(z) = \sum_j \max(0, \gamma - \text{Std}(z_j))$ and
+$c(z) = \sum_{i \neq j} [C(z)]_{ij}^2 / d$ with
+$C(z) = z^\top z / (N-1)$ the normalised covariance matrix.
+
+\subsection{H-JEPA: Hierarchical World Model}
+
+The \textbf{Hierarchical JEPA} stacks $K$ JEPA levels at increasing
+temporal scale and abstraction:
+
+\begin{align}
+  s^{(k)}_t &= \text{Pool}(s^{(k-1)}_t), \quad k = 2, \ldots, K
+  \label{eq:hjepa_pool}\\
+  \hat{s}^{(k)}_{t+1} &= g^{(k)}(s^{(k)}_t, a^{(k)}_t, z^{(k)})
+  \label{eq:hjepa_pred}\\
+  \mathcal{L}^{(k)} &= \|\hat{s}^{(k)}_{t+1} - \text{sg}(s^{(k)}_{t+1})\|_2^2.
+  \label{eq:hjepa_loss}
+\end{align}
+
+\noindent Level $k=1$ makes fine-grained short-horizon predictions;
+level $k=K$ makes abstract long-horizon predictions suitable for
+high-level planning.
+
+\subsection{What JEPA Does Not Solve}
+
+\begin{remark}
+JEPA substantially improves world model quality and enables gradient-based
+planning (Section~\ref{sec:modular}).  However, it does \emph{not} solve
+interpretability: a latent vector $[0.34, -1.82, 0.77, \ldots] \in \mathbb{R}^d$
+is no more interpretable than an LLM hidden state.  The learned latent
+space may be more structured, but it is still distributed and not
+symbolically grounded.
+\end{remark}
+
+% ---------------------------------------------------------------
+\section{Open Question 5: Modular AI and Gradient-Based Planning}
+\label{sec:modular}
+% ---------------------------------------------------------------
+
+\subsection{The Six-Module Architecture}
+
+\citet{lecun2022path} proposes replacing a monolithic LLM with six
+specialised modules: Configurator, Perception, World Model (H-JEPA),
+Short-Term Memory, Cost Module, and Actor.  The Actor performs
+\textbf{inference-by-optimisation}:
+
+\begin{equation}
+  a^* = \arg\min_{a_{0:H}} \sum_{t=0}^{H} c(s_t, a_t),
+  \quad s_{t+1} = f_\theta(s_t, a_t),
+  \label{eq:planning}
+\end{equation}
+
+\noindent where the world model $f_\theta$ is fully differentiable,
+so $\nabla_{a_{0:H}} \mathcal{L}$ can be computed by backpropagation —
+planning without real-world trial and error.
+
+\begin{lstlisting}[caption={Gradient-based planning through a world model.}]
+def plan(world_model, cost_fn, s0,
+         horizon=10, n_steps=100, lr=1e-2):
+    """
+    Solve Eq. (18) by gradient descent.
+    world_model: (s, a) -> s_next
+    cost_fn:     s      -> scalar
+    """
+    d_a = s0.shape[-1]  # action dim = state dim
+    actions = torch.zeros(
+        horizon, d_a, requires_grad=True)
+    opt = torch.optim.Adam([actions], lr=lr)
+    for _ in range(n_steps):
+        s, total_cost = s0, 0.0
+        for t in range(horizon):
+            s = world_model(s, actions[t])
+            total_cost = total_cost + cost_fn(s)
+        opt.zero_grad()
+        total_cost.backward()   # grads thru WM
+        opt.step()
+    return actions.detach()
+\end{lstlisting}
+
+\subsection{Information Efficiency of Self-Supervised Learning}
+
+Self-supervised learning provides approximately $10^5$ bits of training
+signal per sample (one bit per masked patch), compared to $\sim 10$ bits
+per sample for supervised learning (one class label).  This
+$10^4\times$ advantage makes SSL the natural training paradigm for
+world models.
+
+\subsection{Comparison of Approaches}
+
+Table~\ref{tab:comparison} compares architectures across the five open
+questions.
+
+\begin{table}[h]
+\centering
+\caption{Architecture comparison across open questions.
+\checkmark~= addressed, $\sim$~= partially addressed, $\times$~= unsolved.}
+\label{tab:comparison}
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+\textbf{Architecture} & \textbf{Interp.} & \textbf{WM} & \textbf{Causal} & \textbf{Plan} & \textbf{Halluc.} \\
+\midrule
+LLM (GPT)      & $\times$ & $\sim$ & $\times$ & $\sim$ & $\times$ \\
+LLM + RLHF     & $\times$ & $\sim$ & $\times$ & $\sim$ & $\sim$   \\
+I-JEPA         & $\sim$   & $\sim$ & $\times$ & $\times$ & N/A    \\
+H-JEPA         & $\sim$   & \checkmark & $\sim$ & \checkmark & N/A \\
+H-JEPA+Modules & $\sim$   & \checkmark & $\sim$ & \checkmark & $\sim$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ---------------------------------------------------------------
+\section{An Integrated Research Agenda}
+\label{sec:agenda}
+% ---------------------------------------------------------------
+
+Drawing together the five open questions, we identify a set of
+high-priority research directions:
+
+\begin{enumerate}[leftmargin=1.5em]
+\item \textbf{Automated circuit discovery at scale.}
+  Scaling SAEs and automated probing to $10^{12}$-parameter models
+  requires new algorithmic efficiency — the bottleneck is not
+  expressiveness but compute.
+
+\item \textbf{Causal inductive biases.}
+  Training objectives that explicitly reward interventional reasoning
+  (Equation~\ref{eq:int}), rather than purely observational next-token
+  prediction (Equation~\ref{eq:lm}).
+
+\item \textbf{Structured latent spaces.}
+  Designing latent spaces with explicit structural priors — e.g.,
+  factored representations, object-centric slots — so that semantic
+  dimensions are interpretable by construction.
+
+\item \textbf{Hierarchical world models.}
+  Validating H-JEPA on embodied planning tasks that require
+  long-horizon reasoning across multiple abstraction levels.
+
+\item \textbf{Evaluation benchmarks.}
+  Ground-truth evaluation criteria for interpretability claims,
+  causal model quality, and planning performance in open-ended
+  environments.
+\end{enumerate}
+
+% ---------------------------------------------------------------
+\section{Conclusion}
+\label{sec:conclusion}
+% ---------------------------------------------------------------
+
+We have surveyed five grand open questions at the frontier of AI
+research.  Current LLMs achieve remarkable performance but lack
+interpretable circuits, explicit causal models, and robust planning
+capabilities.  Architectures such as JEPA and H-JEPA address the
+world model and planning questions but do not resolve interpretability.
+Modular systems combining explicit world models, memory, and
+gradient-based planners represent a promising direction, but require
+new training algorithms, evaluation methods, and theoretical foundations.
+
+The central message is that answering these questions requires not
+only scaling existing architectures, but fundamentally reconsidering
+the inductive biases of learning systems — moving from pure
+next-token prediction toward architectures that explicitly represent
+states, transitions, and causal structure.
+
+% ---------------------------------------------------------------
+\section*{Acknowledgements}
+% ---------------------------------------------------------------
+
+The author thanks the mechanistic interpretability and self-supervised
+learning communities for making their code and models publicly available.
+
+% ---------------------------------------------------------------
+% References
+% ---------------------------------------------------------------
+\bibliographystyle{plainnat}
+\begin{thebibliography}{99}
+
+\bibitem[Anthropic(2024)]{anthropic2024claude}
+Anthropic (2024).
+\newblock The Claude 3 model family: Opus, Sonnet, Haiku.
+\newblock \emph{Technical Report}, Anthropic.
+
+\bibitem[Assran et~al.(2023)]{assran2023ijepa}
+Assran, M., Duval, Q., Misra, I., Bojanowski, P., Vincent, P., Rabbat, M.,
+  LeCun, Y., and Ballas, N. (2023).
+\newblock Self-supervised learning from images with a joint-embedding predictive
+  architecture.
+\newblock In \emph{CVPR 2023}.
+
+\bibitem[Bardes et~al.(2022)]{bardes2022vicreg}
+Bardes, A., Ponce, J., and LeCun, Y. (2022).
+\newblock {VICReg}: Variance-invariance-covariance regularization for
+  self-supervised learning.
+\newblock In \emph{ICLR 2022}.
+
+\bibitem[Bricken et~al.(2023)]{bricken2023monosemanticity}
+Bricken, T., Templeton, A., Batson, J., Chen, B., Jermyn, A., Conerly, T.,
+  Turner, N., Anil, C., Denison, C., Askell, A., et~al. (2023).
+\newblock Towards monosemanticity: Decomposing language models with dictionary
+  learning.
+\newblock \emph{Transformer Circuits Thread}.
+
+\bibitem[Elhage et~al.(2022)]{elhage2022superposition}
+Elhage, N., Hume, T., Olsson, C., Schiefer, N., Henighan, T., Kravec, S.,
+  Hatfield-Dodds, Z., Lasenby, R., Drain, D., Chen, C., et~al. (2022).
+\newblock Toy models of superposition.
+\newblock \emph{Transformer Circuits Thread}.
+
+\bibitem[Gemini Team(2023)]{gemini2023}
+Gemini Team (2023).
+\newblock Gemini: A family of highly capable multimodal models.
+\newblock \emph{Technical Report}, Google DeepMind.
+
+\bibitem[Hoffmann et~al.(2022)]{hoffmann2022chinchilla}
+Hoffmann, J., Borgeaud, S., Mensch, A., Buchatskaya, E., Cai, T., Rutherford,
+  E., Casas, D., Hendricks, L.~A., Welbl, J., Clark, A., et~al. (2022).
+\newblock Training compute-optimal large language models.
+\newblock In \emph{NeurIPS 2022}.
+
+\bibitem[LeCun(2022)]{lecun2022path}
+LeCun, Y. (2022).
+\newblock A path towards autonomous machine intelligence.
+\newblock \emph{OpenReview}, version 0.9.2.
+
+\bibitem[Li et~al.(2023)]{li2023emergent}
+Li, K., Hopkins, A.~K., Bau, D., Vi\'{e}gas, F., Pfister, H., and Wattenberg,
+  M. (2023).
+\newblock Emergent world representations: Exploring a sequence model trained on
+  a synthetic task.
+\newblock In \emph{ICLR 2023}.
+
+\bibitem[Merrill and Sabharwal(2023)]{merrill2023parallelism}
+Merrill, W. and Sabharwal, A. (2023).
+\newblock The parallelism tradeoff: Limitations of log-precision transformers.
+\newblock \emph{Transactions of the Association for Computational Linguistics},
+  11:531--545.
+
+\bibitem[Nakkiran et~al.(2021)]{nakkiran2021doubledescent}
+Nakkiran, P., Kaplun, G., Bansal, Y., Yang, T., Barak, B., and Sutskever, I.
+  (2021).
+\newblock Deep double descent: Where bigger models and more data hurt.
+\newblock In \emph{ICLR 2020}.
+
+\bibitem[Olah et~al.(2020)]{olah2020zoom}
+Olah, C., Cammarata, N., Schubert, L., Goh, G., Petrov, M., and Carter, S.
+  (2020).
+\newblock Zoom in: An introduction to circuits.
+\newblock \emph{Distill}, \url{https://distill.pub/2020/circuits/zoom-in}.
+
+\bibitem[OpenAI(2023)]{openai2023gpt4}
+OpenAI (2023).
+\newblock {GPT-4} technical report.
+\newblock \emph{arXiv preprint arXiv:2303.08774}.
+
+\bibitem[Ouyang et~al.(2022)]{ouyang2022instructgpt}
+Ouyang, L., Wu, J., Jiang, X., Almeida, D., Wainwright, C.~L., Mishkin, P.,
+  Zhang, C., Agarwal, S., Slama, K., Ray, A., et~al. (2022).
+\newblock Training language models to follow instructions with human feedback.
+\newblock In \emph{NeurIPS 2022}.
+
+\bibitem[Pearl(2009)]{pearl2009causality}
+Pearl, J. (2009).
+\newblock \emph{Causality: Models, Reasoning, and Inference}.
+\newblock Cambridge University Press, 2nd edition.
+
+\bibitem[Vaswani et~al.(2017)]{vaswani2017attention}
+Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez,
+  A.~N., Kaiser, L., and Polosukhin, I. (2017).
+\newblock Attention is all you need.
+\newblock In \emph{NeurIPS 2017}.
+
+\bibitem[Wang et~al.(2022)]{wang2022ioi}
+Wang, K., Variengien, A., Conmy, A., Shlegeris, B., and Steinhardt, J. (2022).
+\newblock Interpretability in the wild: a circuit for indirect object
+  identification in {GPT-2} small.
+\newblock In \emph{ICLR 2023}.
+
+\bibitem[Wei et~al.(2022a)]{wei2022chain}
+Wei, J., Wang, X., Schuurmans, D., Bosma, M., Chi, E., Le, Q., and Zhou, D.
+  (2022a).
+\newblock Chain-of-thought prompting elicits reasoning in large language models.
+\newblock In \emph{NeurIPS 2022}.
+
+\bibitem[Wei et~al.(2022b)]{wei2022emergent}
+Wei, J., Tay, Y., Bommasani, R., Raffel, C., Zoph, B., Borgeaud, S., Yogatama,
+  D., Bosma, M., Zhou, D., Miculivicius, D., et~al. (2022b).
+\newblock Emergent abilities of large language models.
+\newblock \emph{Transactions on Machine Learning Research}.
+
+\end{thebibliography}
+
+\end{document}
