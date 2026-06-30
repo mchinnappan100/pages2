@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Building a Transformer with PyTorch — Chapter 5.1</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet" />
+<style>
+:root[data-theme="dark"] {
+  --bg:#0b0f1a; --sidebar:#080c14; --surface:#111827; --surface2:#1a2235;
+  --border:#1f2d45; --accent:#f472b6; --accent2:#a78bfa; --accent3:#34d399;
+  --accent4:#fbbf24; --text:#e2e8f0; --text-muted:#64748b; --text-dim:#94a3b8;
+  --red:#ef4444; --green:#22c55e; --yellow:#eab308;
+  --code-bg:#060a12;
+  --hero-bg:linear-gradient(135deg,#12060e 0%,#0d0a1a 55%,#0b0f1a 100%);
+}
+:root[data-theme="light"] {
+  --bg:#fdf4ff; --sidebar:#fae8ff; --surface:#ffffff; --surface2:#f3e8ff;
+  --border:#e9d5ff; --accent:#be185d; --accent2:#7c3aed; --accent3:#059669;
+  --accent4:#d97706; --text:#0f172a; --text-muted:#64748b; --text-dim:#475569;
+  --red:#dc2626; --green:#16a34a; --yellow:#ca8a04;
+  --code-bg:#1e293b;
+  --hero-bg:linear-gradient(135deg,#fae8ff 0%,#ede9fe 60%,#f0fdf4 100%);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;font-size:15px;line-height:1.7}
+
+/* ── SIDEBAR ── */
+nav{width:272px;min-width:272px;background:var(--sidebar);border-right:1px solid var(--border);position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;z-index:100}
+.nav-brand{padding:26px 22px 18px;border-bottom:1px solid var(--border)}
+.nav-brand .icon{width:44px;height:44px;background:linear-gradient(135deg,#f472b6,#a78bfa);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:10px}
+.nav-brand h2{font-family:'Syne',sans-serif;font-weight:800;font-size:.98rem;color:var(--text)}
+.nav-brand p{font-size:.7rem;color:var(--text-muted);margin-top:2px;letter-spacing:.04em;text-transform:uppercase}
+nav ul{list-style:none;padding:14px 10px;flex:1}
+nav ul li a{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;color:var(--text-dim);text-decoration:none;font-size:.83rem;font-weight:500;transition:all .18s;margin-bottom:2px}
+nav ul li a:hover,nav ul li a.active{background:var(--surface);color:var(--accent)}
+nav ul li a .dot{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0;transition:background .18s}
+nav ul li a:hover .dot,nav ul li a.active .dot{background:var(--accent)}
+.nav-section-label{font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);padding:12px 12px 4px;font-family:'JetBrains Mono',monospace}
+.theme-btn{margin:10px;padding:7px 13px;border-radius:8px;background:var(--surface);border:1px solid var(--border);color:var(--text-dim);font-size:.77rem;cursor:pointer;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:7px;transition:all .18s}
+.theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+.book-nav{padding:8px 12px}
+.book-nav-title{font-size:.63rem;color:var(--text-muted);padding:4px 8px 7px;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.08em}
+.book-nav a{display:block;padding:5px 9px;border-radius:6px;background:var(--surface2);border:1px solid var(--border);color:var(--text-dim);text-decoration:none;font-size:.73rem;margin-bottom:3px;transition:all .15s}
+.book-nav a:hover,.book-nav a.current{border-color:var(--accent);color:var(--accent)}
+
+/* ── MAIN ── */
+main{flex:1;overflow-x:hidden}
+
+.hero{background:var(--hero-bg);border-bottom:1px solid var(--border);padding:72px 64px 58px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-90px;right:-60px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(244,114,182,.08) 0%,transparent 70%);pointer-events:none}
+.hero::after{content:'';position:absolute;bottom:-60px;left:35%;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(167,139,250,.07) 0%,transparent 70%);pointer-events:none}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:5px 15px;background:rgba(244,114,182,.1);border:1px solid rgba(244,114,182,.25);border-radius:20px;font-size:.73rem;font-family:'JetBrains Mono',monospace;color:var(--accent);margin-bottom:22px;letter-spacing:.06em;text-transform:uppercase}
+.hero h1{font-family:'Syne',sans-serif;font-weight:800;font-size:2.7rem;line-height:1.1;letter-spacing:-.03em;margin-bottom:14px;color:var(--text)}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero p{font-size:.98rem;color:var(--text-dim);max-width:640px;line-height:1.75;margin-bottom:34px}
+.hero-stats{display:flex;gap:38px;flex-wrap:wrap}
+.hero-stat .num{font-family:'Syne',sans-serif;font-size:1.85rem;font-weight:800;color:var(--accent);display:block;line-height:1}
+.hero-stat .lbl{font-size:.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-top:5px;font-family:'JetBrains Mono',monospace}
+
+.section{padding:62px 64px 0}
+.section-header{display:flex;align-items:center;gap:14px;margin-bottom:38px;padding-bottom:18px;border-bottom:1px solid var(--border)}
+.level-badge{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:#000;flex-shrink:0}
+.b01{background:linear-gradient(135deg,#f472b6,#be185d)}
+.b02{background:linear-gradient(135deg,#a78bfa,#7c3aed)}
+.b03{background:linear-gradient(135deg,#34d399,#059669)}
+.b04{background:linear-gradient(135deg,#60a5fa,#2563eb)}
+.b05{background:linear-gradient(135deg,#fbbf24,#d97706)}
+.b06{background:linear-gradient(135deg,#f87171,#dc2626)}
+.b07{background:linear-gradient(135deg,#4ade80,#16a34a)}
+.b08{background:linear-gradient(135deg,#67e8f9,#0891b2)}
+.section-header-text h2{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;letter-spacing:-.02em;color:var(--text)}
+.section-header-text p{font-size:.78rem;color:var(--text-muted);font-family:'JetBrains Mono',monospace;margin-top:2px}
+
+/* ── CODE BLOCK ── */
+.code-block{background:var(--code-bg);border:1px solid var(--border);border-radius:12px;margin-bottom:30px;overflow:hidden}
+.code-block-header{padding:9px 17px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.code-block-header .lang{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em}
+.code-block-header .dots{display:flex;gap:5px}
+.code-block-header .dots span{width:10px;height:10px;border-radius:50%}
+.dr{background:#ef4444}.dy{background:#f59e0b}.dg{background:#22c55e}
+.code-block pre{padding:18px 22px;font-family:'JetBrains Mono',monospace;font-size:.77rem;line-height:1.82;color:#7dd3fc;overflow-x:auto;white-space:pre}
+.code-block pre .cm{color:#475569}
+.code-block pre .kw{color:#c4b5fd}
+.code-block pre .st{color:#34d399}
+.code-block pre .nm{color:#fbbf24}
+.code-block pre .fn{color:#60a5fa}
+.code-block pre .de{color:#f472b6;font-weight:600}
+.code-block pre .cl{color:#f9a8d4;font-weight:700}
+
+/* output block */
+.output-block{background:#0a0e16;border:1px solid var(--border);border-top:none;border-radius:0 0 12px 12px;padding:14px 22px;font-family:'JetBrains Mono',monospace;font-size:.73rem;line-height:1.75;color:#94a3b8;white-space:pre;overflow-x:auto;margin-bottom:30px;margin-top:-30px}
+.output-block .ok{color:#34d399}
+.output-block .hi{color:#fbbf24}
+
+/* arch diagram */
+.arch-diagram{background:var(--code-bg);border:1px solid var(--border);border-radius:14px;padding:26px 30px;margin-bottom:30px;font-family:'JetBrains Mono',monospace;font-size:.75rem;color:#7dd3fc;line-height:1.85;white-space:pre;overflow-x:auto}
+.arch-diagram .h{color:var(--accent);font-weight:700}
+.arch-diagram .b{color:#60a5fa}
+.arch-diagram .g{color:var(--accent3)}
+.arch-diagram .y{color:var(--accent4)}
+.arch-diagram .p{color:var(--accent2)}
+.arch-diagram .c{color:#475569}
+
+/* info box */
+.info-box{border-radius:10px;padding:17px 21px;margin-bottom:22px;border-left:3px solid}
+.info-box.tip{background:rgba(52,211,153,.08);border-color:var(--accent3)}
+.info-box.note{background:rgba(244,114,182,.07);border-color:var(--accent)}
+.info-box.warn{background:rgba(251,191,36,.08);border-color:var(--accent4)}
+.info-box .label{font-family:'JetBrains Mono',monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:6px}
+.info-box.tip .label{color:var(--accent3)}
+.info-box.note .label{color:var(--accent)}
+.info-box.warn .label{color:var(--accent4)}
+.info-box p{font-size:.83rem;color:var(--text-dim);line-height:1.65}
+
+/* prose */
+.prose{max-width:840px;margin-bottom:38px}
+.prose h3{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:700;color:var(--text);margin:26px 0 9px}
+.prose p{font-size:.89rem;color:var(--text-dim);line-height:1.78;margin-bottom:13px}
+.prose ul{padding-left:18px;margin-bottom:13px}
+.prose ul li{font-size:.87rem;color:var(--text-dim);margin-bottom:6px;line-height:1.65}
+.prose code{font-family:'JetBrains Mono',monospace;font-size:.79em;background:var(--surface2);padding:2px 6px;border-radius:4px;color:var(--accent)}
+
+/* card grid */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:22px;margin-bottom:60px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:border-color .2s,transform .2s}
+.card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.card-head{padding:20px 22px 14px;display:flex;gap:13px;align-items:flex-start}
+.card-icon{font-size:1.75rem;flex-shrink:0;line-height:1}
+.card-head h3{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;color:var(--text);margin-bottom:5px}
+.card-head p{font-size:.81rem;color:var(--text-dim);line-height:1.6}
+.card-list{padding:0 22px 14px;list-style:none}
+.card-list li{font-size:.81rem;color:var(--text-dim);padding:5px 0;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:8px}
+.card-list li:last-child{border-bottom:none}
+.card-list li::before{content:'›';color:var(--accent);font-weight:700;flex-shrink:0}
+
+/* table */
+.table-wrap{overflow-x:auto;margin-bottom:46px;border-radius:12px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead th{background:var(--surface2);padding:11px 17px;text-align:left;font-family:'JetBrains Mono',monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
+tbody tr:hover{background:var(--surface)}
+tbody tr:last-child{border-bottom:none}
+tbody td{padding:11px 17px;color:var(--text-dim)}
+tbody td:first-child{font-weight:600;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.77rem}
+
+/* tensor shape badge */
+.shape{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:.72em;background:rgba(244,114,182,.12);border:1px solid rgba(244,114,182,.25);color:var(--accent);padding:1px 7px;border-radius:4px;white-space:nowrap}
+
+/* bp grid */
+.bp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:18px;margin-bottom:60px}
+.bp-card{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:18px 20px}
+.bp-card h4{font-family:'Syne',sans-serif;font-size:.9rem;font-weight:700;color:var(--text);margin-bottom:9px;display:flex;align-items:center;gap:8px}
+.bp-card h4::before{content:'✓';color:var(--accent)}
+.bp-card p{font-size:.79rem;color:var(--text-dim);line-height:1.65}
+
+footer{background:var(--sidebar);border-top:1px solid var(--border);padding:26px 64px;font-size:.77rem;color:var(--text-muted);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+footer span{font-family:'JetBrains Mono',monospace}
+footer a{color:var(--accent);text-decoration:none}
+
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+
+@media(max-width:900px){
+  .hero{padding:38px 22px 46px}
+  .hero h1{font-size:1.8rem}
+  .section{padding:38px 22px 0}
+  nav{display:none}
+  .card-grid{grid-template-columns:1fr}
+  footer{padding:22px}
+}
+</style>
+</head>
+<body>
+
+<!-- ── SIDEBAR ── -->
+<nav>
+  <div class="nav-brand">
+    <div class="icon">🏗️</div>
+    <h2>Building a Transformer</h2>
+    <p>Book · Chapter 5.1</p>
+  </div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Toggle Theme</button>
+  <div class="book-nav">
+    <div class="book-nav-title">All Books</div>
+    <a href="portal.html">⬡ Portal</a>
+    <a href="ml-systems.html">① ML Systems</a>
+    <a href="gpu-programming.html">② GPU Programming</a>
+    <a href="ml-framework-internals.html">③ Framework Internals</a>
+    <a href="os-internals.html">④ OS Internals</a>
+    <a href="gil-processes-threads.html">④.① GIL &amp; Concurrency</a>
+    <a href="linux-threads-processes.html">④.② Linux Threads &amp; Processes</a>
+    <a href="transformers.html">⑤ Transformers</a>
+    <a href="building-transformer-with-pytorch.html" class="current">⑤.① Building a Transformer</a>
+  </div>
+  <ul>
+    <li class="nav-section-label">Chapter 5.1</li>
+    <li><a href="#overview"><span class="dot"></span>Architecture Overview</a></li>
+    <li><a href="#positional"><span class="dot"></span>Positional Encoding</a></li>
+    <li><a href="#encoder-layer"><span class="dot"></span>Encoder Layer</a></li>
+    <li><a href="#encoder"><span class="dot"></span>Transformer Encoder</a></li>
+    <li><a href="#decoder-layer"><span class="dot"></span>Decoder Layer</a></li>
+    <li><a href="#decoder"><span class="dot"></span>Transformer Decoder</a></li>
+    <li><a href="#full-model"><span class="dot"></span>Full Encoder–Decoder Model</a></li>
+    <li><a href="#masks"><span class="dot"></span>Masking Utilities</a></li>
+    <li><a href="#forward-pass"><span class="dot"></span>Forward Pass Demo</a></li>
+    <li><a href="#next-steps"><span class="dot"></span>Next Steps</a></li>
+  </ul>
+</nav>
+
+<!-- ── MAIN ── -->
+<main>
+
+<div class="hero">
+  <div class="hero-badge">Book 5.1 · Language Modeling Supplement</div>
+  <h1>Building a <em>Transformer</em><br>from Scratch with PyTorch</h1>
+  <p>
+    A component-by-component walkthrough of a complete Encoder–Decoder Transformer in PyTorch —
+    positional encoding, multi-head attention, residual connections, causal masking,
+    and a full forward pass with real output shapes.
+    Directly derived from <a href="transformers/mc_transformer.ipynb" style="color:var(--accent);text-decoration:none;font-family:'JetBrains Mono',monospace;font-size:.9em"><code>transformers/mc_transformer.ipynb</code> ↗</a>.
+  </p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">5</span><span class="lbl">Classes</span></div>
+    <div class="hero-stat"><span class="num">3+3</span><span class="lbl">Enc + Dec Layers</span></div>
+    <div class="hero-stat"><span class="num">512</span><span class="lbl">d_model</span></div>
+    <div class="hero-stat"><span class="num">8</span><span class="lbl">Attn Heads</span></div>
+  </div>
+</div>
+
+
+<!-- ══ 01 OVERVIEW ══ -->
+<section class="section" id="overview">
+  <div class="section-header">
+    <div class="level-badge b01">01</div>
+    <div class="section-header-text">
+      <h2>Architecture Overview</h2>
+      <p>What we are building and how the five classes fit together</p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>We build a classic <strong>Encoder–Decoder Transformer</strong> as introduced in <em>"Attention is All You Need"</em> (Vaswani et al., 2017). The encoder reads a source sequence and produces context vectors; the decoder generates a target sequence one token at a time, attending to both its own previous outputs and the encoder context.</p>
+    <p>The implementation is split into five classes that mirror the original paper's structure precisely:</p>
+  </div>
+
+  <div class="arch-diagram"><span class="h">Encoder–Decoder Transformer — Class Map</span>
+
+<span class="g">Source tokens</span>  [src_seq_len, batch]
+       <span class="b">↓</span>  nn.Embedding × √d_model
+<span class="p">PositionalEncoding</span>  <span class="c">← sinusoidal pe added to embedding</span>
+       <span class="b">↓</span>
+<span class="p">TransformerEncoder</span>  (stack of N layers)
+  <span class="b">└──</span> <span class="p">TransformerEncoderLayer</span>  × N
+        <span class="g">Multi-Head Self-Attention</span>  + Add&amp;Norm
+        <span class="g">Feed-Forward Network</span>        + Add&amp;Norm
+       <span class="b">↓</span>
+<span class="y">memory</span>  [src_seq_len, batch, d_model]
+       <span class="b">↓</span> ─────────────────────────────────────────────────────┐
+<span class="g">Target tokens</span>  [tgt_seq_len, batch]                              <span class="b">│</span>
+       <span class="b">↓</span>  nn.Embedding × √d_model                               <span class="b">│</span>
+<span class="p">PositionalEncoding</span>                                              <span class="b">│</span>
+       <span class="b">↓</span>                                                         <span class="b">│</span>
+<span class="p">TransformerDecoder</span>  (stack of M layers)                        <span class="b">│</span>
+  <span class="b">└──</span> <span class="p">TransformerDecoderLayer</span>  × M                             <span class="b">│</span>
+        <span class="g">Masked Self-Attention</span>       + Add&amp;Norm                  <span class="b">│</span>
+        <span class="g">Cross-Attention (Q←tgt, K/V←memory)</span>  + Add&amp;Norm  ◄──────┘
+        <span class="g">Feed-Forward Network</span>        + Add&amp;Norm
+       <span class="b">↓</span>
+<span class="y">nn.Linear</span>  → logits  [tgt_seq_len, batch, tgt_vocab_size]</div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Class</th><th>Role</th><th>Key PyTorch APIs</th></tr></thead>
+      <tbody>
+        <tr><td>PositionalEncoding</td><td>Add position signal to embeddings</td><td>register_buffer, sin/cos</td></tr>
+        <tr><td>TransformerEncoderLayer</td><td>Single encoder block</td><td>nn.MultiheadAttention, nn.GELU, LayerNorm</td></tr>
+        <tr><td>TransformerEncoder</td><td>Stack of N encoder layers</td><td>Custom loop (not nn.TransformerEncoder)</td></tr>
+        <tr><td>TransformerDecoderLayer</td><td>Single decoder block (masked + cross attn)</td><td>nn.MultiheadAttention ×2</td></tr>
+        <tr><td>TransformerDecoder</td><td>Stack of M decoder layers</td><td>Custom loop</td></tr>
+        <tr><td>Transformer</td><td>Full model combining all above</td><td>xavier_uniform_ init</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+
+<!-- ══ 02 POSITIONAL ENCODING ══ -->
+<section class="section" id="positional">
+  <div class="section-header">
+    <div class="level-badge b02">02</div>
+    <div class="section-header-text">
+      <h2>Positional Encoding</h2>
+      <p>Injecting token-order information via sinusoidal functions</p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>The Transformer has no recurrence or convolution, so it needs a way to know where each token sits in the sequence. <strong>Positional encoding</strong> adds a fixed, deterministic signal to the embedding of each token. The signal at position <code>pos</code> and dimension <code>i</code> is:</p>
+    <p style="font-family:'JetBrains Mono',monospace;font-size:.88rem;background:var(--surface2);padding:12px 16px;border-radius:8px;border:1px solid var(--border);color:var(--accent);margin-bottom:16px">PE[pos, 2i]   = sin(pos / 10000^(2i/d_model))<br>PE[pos, 2i+1] = cos(pos / 10000^(2i/d_model))</p>
+    <p>Even dimensions use sine; odd dimensions use cosine. This gives every position a unique fingerprint, and the relative position between two tokens can be expressed as a linear function of these encodings — allowing the model to generalise to unseen lengths.</p>
+    <p>The encoding is <em>not learned</em> — it is computed once, stored as a <code>register_buffer</code> (part of model state but not a learnable parameter), and added to every embedding at forward-pass time.</p>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="lang">Python · PositionalEncoding</span>
+      <div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div>
+    </div>
+    <pre><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+<span class="kw">import</span> math
+
+<span class="kw">class</span> <span class="cl">PositionalEncoding</span>(nn.Module):
+    <span class="de">"""Sinusoidal positional encoding added to token embeddings."""</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, d_model, dropout=<span class="nm">0.1</span>, max_len=<span class="nm">5000</span>):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        <span class="cm"># pe: (max_len, d_model) — one encoding vector per position</span>
+        pe       = torch.zeros(max_len, d_model)
+        position = torch.arange(<span class="nm">0</span>, max_len, dtype=torch.float).unsqueeze(<span class="nm">1</span>)  <span class="cm"># (max_len, 1)</span>
+
+        <span class="cm"># div_term = 1 / 10000^(2i/d_model)  — geometric frequency progression</span>
+        div_term = torch.exp(
+            torch.arange(<span class="nm">0</span>, d_model, <span class="nm">2</span>).float() * (-math.log(<span class="nm">10000.0</span>) / d_model)
+        )
+
+        pe[:, <span class="nm">0</span>::<span class="nm">2</span>] = torch.sin(position * div_term)   <span class="cm"># even dims ← sin</span>
+        pe[:, <span class="nm">1</span>::<span class="nm">2</span>] = torch.cos(position * div_term)   <span class="cm"># odd  dims ← cos</span>
+
+        <span class="cm"># Shape: (max_len, 1, d_model) — broadcast over batch in forward()</span>
+        pe = pe.unsqueeze(<span class="nm">0</span>).transpose(<span class="nm">0</span>, <span class="nm">1</span>)
+        self.register_buffer(<span class="st">'pe'</span>, pe)   <span class="cm"># saved with model, not trainable</span>
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        <span class="cm"># x: (seq_len, batch, d_model)</span>
+        x = x + self.pe[:x.size(<span class="nm">0</span>), :]   <span class="cm"># broadcast: pe is (seq_len, 1, d_model)</span>
+        <span class="kw">return</span> self.dropout(x)</pre>
+  </div>
+
+  <div class="arch-diagram"><span class="h">Positional Encoding — construction</span>
+
+<span class="b">position</span>  = [0, 1, 2, …, max_len-1]  shape (max_len, 1)
+<span class="b">div_term</span>  = [1/10000^(0/d), 1/10000^(2/d), …]  shape (d_model/2,)
+
+<span class="g">pe[pos, 0]</span> = sin(pos · div_term[0])     <span class="c">← long wavelength (slow oscillation)</span>
+<span class="g">pe[pos, 1]</span> = cos(pos · div_term[0])
+<span class="g">pe[pos, 2]</span> = sin(pos · div_term[1])     <span class="c">← shorter wavelength</span>
+<span class="g">pe[pos, 3]</span> = cos(pos · div_term[1])
+...
+<span class="g">pe[pos, d-2]</span> = sin(pos · div_term[d/2-1]) <span class="c">← very short wavelength</span>
+<span class="g">pe[pos, d-1]</span> = cos(pos · div_term[d/2-1])
+
+<span class="y">register_buffer('pe', pe)</span>  <span class="c">← saved in state_dict, moved with .to(device), not gradient tracked</span>
+
+<span class="h">forward:</span>
+  x  ← token_embedding(tokens) * √d_model    <span class="c">shape (T, B, d_model)</span>
+  x ← x + pe[:T, :]                          <span class="c">broadcast over B</span>
+  x ← Dropout(x)</div>
+
+  <div class="info-box tip">
+    <div class="label">Why √d_model scaling?</div>
+    <p>The embedding weights are initialised with small values; without scaling, the positional encoding (values in [−1, 1]) would dominate the embedding signal. Multiplying embeddings by <code>√d_model</code> brings their typical L2 norm to the same order as the positional encoding vectors, letting the model balance both signals.</p>
+  </div>
+</section>
+
+
+<!-- ══ 03 ENCODER LAYER ══ -->
+<section class="section" id="encoder-layer">
+  <div class="section-header">
+    <div class="level-badge b03">03</div>
+    <div class="section-header-text">
+      <h2>Transformer Encoder Layer</h2>
+      <p>Multi-head self-attention + feed-forward + residual + LayerNorm</p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>One encoder layer has two sub-layers, each wrapped with a <strong>residual connection</strong> and <strong>LayerNorm</strong>:</p>
+    <ul>
+      <li><strong>Multi-Head Self-Attention</strong> — every token attends to every other token in the source. Output size equals input size.</li>
+      <li><strong>Position-wise FFN</strong> — two linear layers with a GELU activation. Expands to <code>dim_feedforward</code> (typically 4×d_model) then back to <code>d_model</code>.</li>
+    </ul>
+    <p>The <em>pre-norm</em> vs <em>post-norm</em> convention matters. This implementation uses <strong>post-norm</strong> (original paper): residual first, then LayerNorm. Modern GPT-style models typically use pre-norm (LayerNorm before the sub-layer) for better training stability.</p>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="lang">Python · TransformerEncoderLayer</span>
+      <div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div>
+    </div>
+    <pre><span class="kw">class</span> <span class="cl">TransformerEncoderLayer</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, d_model, nhead, dim_feedforward=<span class="nm">2048</span>, dropout=<span class="nm">0.1</span>):
+        super().__init__()
+        <span class="cm"># ── Sub-layer 1: Multi-Head Self-Attention ────────────────────</span>
+        <span class="cm"># batch_first=False → inputs are (seq_len, batch, d_model)</span>
+        self.self_attn = nn.MultiheadAttention(
+            d_model, nhead, dropout=dropout, batch_first=<span class="nm">False</span>
+        )
+        <span class="cm"># ── Sub-layer 2: Position-wise FFN ───────────────────────────</span>
+        self.linear1    = nn.Linear(d_model, dim_feedforward)
+        self.dropout    = nn.Dropout(dropout)
+        self.linear2    = nn.Linear(dim_feedforward, d_model)
+        self.activation = nn.GELU()
+        <span class="cm"># ── Layer Norms (post-norm style) ─────────────────────────────</span>
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+        <span class="cm"># ── Dropout on residual paths ─────────────────────────────────</span>
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, src, src_mask=<span class="nm">None</span>, src_key_padding_mask=<span class="nm">None</span>):
+        <span class="cm"># src: (T, B, d_model)</span>
+        <span class="cm"># Sub-layer 1 — Self-Attention</span>
+        src2, attn_weights = self.self_attn(
+            src, src, src,                        <span class="cm"># Q=K=V=src (self-attention)</span>
+            attn_mask=src_mask,                   <span class="cm"># optional additive mask</span>
+            key_padding_mask=src_key_padding_mask <span class="cm"># mask padding tokens</span>
+        )
+        src = self.norm1(src + self.dropout1(src2))  <span class="cm"># residual + LayerNorm</span>
+
+        <span class="cm"># Sub-layer 2 — FFN</span>
+        src2 = self.linear2(
+            self.dropout(self.activation(self.linear1(src)))
+        )
+        src = self.norm2(src + self.dropout2(src2))  <span class="cm"># residual + LayerNorm</span>
+        <span class="kw">return</span> src</pre>
+  </div>
+
+  <div class="arch-diagram"><span class="h">Encoder Layer — Data flow (T = seq_len, B = batch, D = d_model)</span>
+
+<span class="b">src</span>  <span class="c">(T, B, D)</span>
+  <span class="b">├──────────────────────────────────────────┐</span>  <span class="c">residual</span>
+  <span class="b">↓</span>                                          <span class="b">│</span>
+<span class="g">MultiheadAttention</span>  Q=K=V=src              <span class="b">│</span>
+  out  <span class="c">(T, B, D)</span>                           <span class="b">│</span>
+  Dropout                                   <span class="b">│</span>
+  <span class="b">└─────────────────── + ────────────────────┘</span>
+  <span class="b">↓</span>
+<span class="g">LayerNorm</span>  <span class="c">(T, B, D)</span>
+  <span class="b">├──────────────────────────────────────────┐</span>  <span class="c">residual</span>
+  <span class="b">↓</span>                                          <span class="b">│</span>
+<span class="g">Linear(D → 4D)  →  GELU  →  Dropout  →  Linear(4D → D)</span>
+  Dropout                                   <span class="b">│</span>
+  <span class="b">└─────────────────── + ────────────────────┘</span>
+  <span class="b">↓</span>
+<span class="g">LayerNorm</span>  <span class="c">(T, B, D)  ← output of encoder layer</span></div>
+</section>
+
+
+<!-- ══ 04 ENCODER ══ -->
+<section class="section" id="encoder">
+  <div class="section-header">
+    <div class="level-badge b04">04</div>
+    <div class="section-header-text">
+      <h2>Transformer Encoder</h2>
+      <p>Stacking N identical encoder layers with optional final LayerNorm</p>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="lang">Python · TransformerEncoder</span>
+      <div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div>
+    </div>
+    <pre><span class="kw">class</span> <span class="cl">TransformerEncoder</span>(nn.Module):
+    <span class="de">"""Stacks num_layers copies of encoder_layer sequentially."""</span>
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, encoder_layer, num_layers, norm=<span class="nm">None</span>):
+        super().__init__()
+        self.encoder_layer = encoder_layer   <span class="cm"># single shared layer instance</span>
+        self.num_layers    = num_layers
+        self.norm          = norm            <span class="cm"># optional final LayerNorm</span>
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, src, mask=<span class="nm">None</span>, src_key_padding_mask=<span class="nm">None</span>):
+        output = src
+        <span class="kw">for</span> _ <span class="kw">in</span> range(self.num_layers):
+            output = self.encoder_layer(
+                output,
+                src_mask=mask,
+                src_key_padding_mask=src_key_padding_mask
+            )
+        <span class="kw">if</span> self.norm <span class="kw">is not None</span>:
+            output = self.norm(output)
+        <span class="kw">return</span> output   <span class="cm"># (T_src, B, d_model)  — the "memory" for the decoder</span></pre>
+  </div>
+
+  <div class="info-box note">
+    <div class="label">Shared vs Independent Layers</div>
+    <p>This implementation reuses the <em>same</em> <code>encoder_layer</code> instance in the loop, meaning all layers <strong>share weights</strong>. The standard Transformer uses <em>independent</em> layers (one <code>nn.ModuleList</code> entry per layer, each with its own parameters). To get independent layers, use <code>nn.ModuleList([copy.deepcopy(encoder_layer) for _ in range(num_layers)])</code> and iterate over it. Weight sharing reduces parameter count but also reduces model capacity.</p>
+  </div>
+</section>
+
+
+<!-- ══ 05 DECODER LAYER ══ -->
+<section class="section" id="decoder-layer">
+  <div class="section-header">
+    <div class="level-badge b05">05</div>
+    <div class="section-header-text">
+      <h2>Transformer Decoder Layer</h2>
+      <p>Masked self-attention + cross-attention + FFN</p>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>The decoder layer adds a crucial third sub-layer — <strong>cross-attention</strong> — on top of the two sub-layers from the encoder:</p>
+    <ul>
+      <li><strong>Masked Multi-Head Self-Attention</strong> — the decoder attends to itself, but a <em>causal mask</em> blocks each position from seeing future positions. This enforces the autoregressive property: when generating token <em>t</em>, the decoder only sees tokens 1 … t−1.</li>
+      <li><strong>Multi-Head Cross-Attention</strong> — queries come from the decoder, keys and values come from the encoder's <code>memory</code>. This is how the decoder reads the source sequence.</li>
+      <li><strong>Position-wise FFN</strong> — identical to the encoder FFN.</li>
+    </ul>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="lang">Python · TransformerDecoderLayer</span>
+      <div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div>
+    </div>
+    <pre><span class="kw">class</span> <span class="cl">TransformerDecoderLayer</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, d_model, nhead, dim_feedforward=<span class="nm">2048</span>, dropout=<span class="nm">0.1</span>):
+        super().__init__()
+        <span class="cm"># ── Sub-layer 1: Masked Self-Attention ───────────────────────</span>
+        self.self_attn     = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=<span class="nm">False</span>)
+        <span class="cm"># ── Sub-layer 2: Cross-Attention  (Q←tgt, K/V←memory) ───────</span>
+        self.multihead_attn = nn.MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=<span class="nm">False</span>)
+        <span class="cm"># ── Sub-layer 3: FFN ─────────────────────────────────────────</span>
+        self.linear1    = nn.Linear(d_model, dim_feedforward)
+        self.dropout    = nn.Dropout(dropout)
+        self.linear2    = nn.Linear(dim_feedforward, d_model)
+        self.activation = nn.GELU()
+        <span class="cm"># ── Three LayerNorms ─────────────────────────────────────────</span>
+        self.norm1 = nn.LayerNorm(d_model)   <span class="cm"># after self-attn</span>
+        self.norm2 = nn.LayerNorm(d_model)   <span class="cm"># after cross-attn</span>
+        self.norm3 = nn.LayerNorm(d_model)   <span class="cm"># after FFN</span>
+        self.dropout1 = nn.Dropout(dropout)
+        self.dropout2 = nn.Dropout(dropout)
+        self.dropout3 = nn.Dropout(dropout)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, tgt, memory,
+                tgt_mask=<span class="nm">None</span>, memory_mask=<span class="nm">None</span>,
+                tgt_key_padding_mask=<span class="nm">None</span>, memory_key_padding_mask=<span class="nm">None</span>):
+        <span class="cm"># Sub-layer 1: Masked Self-Attention</span>
+        tgt2, _ = self.self_attn(
+            tgt, tgt, tgt,                         <span class="cm"># Q=K=V=tgt</span>
+            attn_mask=tgt_mask,                    <span class="cm"># causal mask blocks future positions</span>
+            key_padding_mask=tgt_key_padding_mask
+        )
+        tgt = self.norm1(tgt + self.dropout1(tgt2))
+
+        <span class="cm"># Sub-layer 2: Cross-Attention</span>
+        tgt2, _ = self.multihead_attn(
+            tgt, memory, memory,                   <span class="cm"># Q=tgt, K=V=encoder memory</span>
+            attn_mask=memory_mask,
+            key_padding_mask=memory_key_padding_mask
+        )
+        tgt = self.norm2(tgt + self.dropout2(tgt2))
+
+        <span class="cm"># Sub-layer 3: FFN</span>
+        tgt2 = self.linear2(self.dropout(self.activation(self.linear1(tgt))))
+        tgt  = self.norm3(tgt + self.dropout3(tgt2))
+        <span class="kw">return</span> tgt</pre>
+  </div>
+
+  <div class="arch-diagram"><span class="h">Decoder Layer — Data flow</span>
+
+<span class="b">tgt</span>  <span class="c">(T_tgt, B, D)</span>                      <span class="y">memory</span>  <span class="c">(T_src, B, D)  from encoder</span>
+  <span class="b">├───────────────────────────────┐</span>
+  <span class="b">↓</span>                               <span class="b">│</span>  residual
+<span class="g">Masked MultiheadAttention</span>  Q=K=V=tgt
+  causal tgt_mask blocks future  <span class="b">│</span>
+  <span class="b">└──────────── + ────────────────┘</span>  →  LayerNorm
+  <span class="b">├───────────────────────────────┐</span>
+  <span class="b">↓</span>  Q ← tgt                      <span class="b">│</span>  residual
+<span class="g">Cross MultiheadAttention</span>  K=V=memory  ←── <span class="y">memory</span>
+  decoder reads encoder context  <span class="b">│</span>
+  <span class="b">└──────────── + ────────────────┘</span>  →  LayerNorm
+  <span class="b">├───────────────────────────────┐</span>
+  <span class="b">↓</span>                               <span class="b">│</span>  residual
+<span class="g">FFN</span>  Linear→GELU→Dropout→Linear  <span class="b">│</span>
+  <span class="b">└──────────── + ────────────────┘</span>  →  LayerNorm
+  <span class="b">↓</span>
+<span class="g">output</span>  <span class="c">(T_tgt, B, D)</span></div>
+</section>
+
+
+<!-- ══ 06 DECODER ══ -->
+<section class="section" id="decoder">
+  <div class="section-header">
+    <div class="level-badge b06">06</div>
+    <div class="section-header-text">
+      <h2>Transformer Decoder</h2>
+      <p>Stacking M decoder layers with shared memory threading through each</p>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="lang">Python · TransformerDecoder</span>
+      <div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div>
+    </div>
+    <pre><span class="kw">class</span> <span class="cl">TransformerDecoder</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, decoder_layer, num_layers, norm=<span class="nm">None</span>):
+        super().__init__()
+        self.decoder_layer = decoder_layer
+        self.num_layers    = num_layers
+        self.norm          = norm
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, tgt, memory,
+                tgt_mask=<span class="nm">None</span>, memory_mask=<span class="nm">None</span>,
+                tgt_key_padding_mask=<span class="nm">None</span>, memory_key_padding_mask=<span class="nm">None</span>):
+        output = tgt
+        <span class="kw">for</span> _ <span class="kw">in</span> range(self.num_layers):
+            output = self.decoder_layer(
+                output, memory,                     <span class="cm"># memory is same at every layer</span>
+                tgt_mask=tgt_mask,
+                memory_mask=memory_mask,
+                tgt_key_padding_mask=tgt_key_padding_mask,
+                memory_key_padding_mask=memory_key_padding_mask
+            )
+        <span class="kw">if</span> self.norm <span class="kw">is not None</span>:
+            output = self.norm(output)
+        <span class="kw">return</span> output   <span class="cm"># (T_tgt, B, d_model)</span></pre>
+  </div>
+</section>
+
+
+<!-- ══ 07 FULL MODEL ══ -->
+<section class="section" id="full-model">
+  <div class="section-header">
+    <div class="level-badge b07">07</div>
+    <div class="section-header-text">
+      <h2>Full Encoder–Decoder Transformer</h2>
+      <p>Assembling all components and adding Xavier weight initialisation</p>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="lang">Python · Transformer (full model)</span>
+      <div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div>
+    </div>
+    <pre><span class="kw">class</span> <span class="cl">Transformer</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, ntoken_src, ntoken_tgt, d_model, nhead,
+                 dim_feedforward, num_encoder_layers, num_decoder_layers, dropout=<span class="nm">0.1</span>):
+        super().__init__()
+        self.d_model = d_model
+
+        <span class="cm"># ── Encoder side ──────────────────────────────────────────────</span>
+        self.encoder_embedding  = nn.Embedding(ntoken_src, d_model)
+        self.pos_encoder        = PositionalEncoding(d_model, dropout)
+        enc_layer               = TransformerEncoderLayer(d_model, nhead, dim_feedforward, dropout)
+        self.transformer_encoder = TransformerEncoder(enc_layer, num_encoder_layers, nn.LayerNorm(d_model))
+
+        <span class="cm"># ── Decoder side ──────────────────────────────────────────────</span>
+        self.decoder_embedding  = nn.Embedding(ntoken_tgt, d_model)
+        self.pos_decoder        = PositionalEncoding(d_model, dropout)
+        dec_layer               = TransformerDecoderLayer(d_model, nhead, dim_feedforward, dropout)
+        self.transformer_decoder = TransformerDecoder(dec_layer, num_decoder_layers, nn.LayerNorm(d_model))
+
+        <span class="cm"># ── Output projection: d_model → target vocab logits ──────────</span>
+        self.output_projection = nn.Linear(d_model, ntoken_tgt)
+        self._init_weights()
+
+    <span class="kw">def</span> <span class="fn">_init_weights</span>(self):
+        <span class="cm"># Xavier uniform initialises 2-D+ weight tensors to avoid</span>
+        <span class="cm"># vanishing / exploding gradients at the start of training.</span>
+        <span class="kw">for</span> p <span class="kw">in</span> self.parameters():
+            <span class="kw">if</span> p.dim() > <span class="nm">1</span>:
+                nn.init.xavier_uniform_(p)
+
+    <span class="kw">def</span> <span class="fn">_bool_to_additive_mask</span>(self, mask, device, dtype):
+        <span class="cm"># Convert boolean padding mask (True=pad) to float additive mask (-inf=pad).</span>
+        <span class="kw">if</span> mask <span class="kw">is None</span>: <span class="kw">return None</span>
+        <span class="kw">if</span> mask.dtype == torch.bool:
+            <span class="kw">return</span> torch.where(mask,
+                torch.tensor(float(<span class="st">'-inf'</span>), device=device, dtype=dtype),
+                torch.tensor(<span class="nm">0.0</span>, device=device, dtype=dtype))
+        <span class="kw">return</span> mask
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, src, tgt,
+                src_mask=<span class="nm">None</span>, tgt_mask=<span class="nm">None</span>,
+                src_key_padding_mask=<span class="nm">None</span>, tgt_key_padding_mask=<span class="nm">None</span>,
+                memory_key_padding_mask=<span class="nm">None</span>):
+        <span class="cm"># ── Encode source ─────────────────────────────────────────────</span>
+        src    = self.encoder_embedding(src) * math.sqrt(self.d_model)
+        src    = self.pos_encoder(src)
+        memory = self.transformer_encoder(
+            src,
+            mask=src_mask,
+            src_key_padding_mask=self._bool_to_additive_mask(
+                src_key_padding_mask, src.device, torch.float)
+        )
+        <span class="cm"># ── Decode target ─────────────────────────────────────────────</span>
+        tgt    = self.decoder_embedding(tgt) * math.sqrt(self.d_model)
+        tgt    = self.pos_decoder(tgt)
+        output = self.transformer_decoder(
+            tgt, memory,
+            tgt_mask=tgt_mask,
+            tgt_key_padding_mask=self._bool_to_additive_mask(
+                tgt_key_padding_mask, tgt.device, torch.float),
+            memory_key_padding_mask=self._bool_to_additive_mask(
+                memory_key_padding_mask, memory.device, torch.float)
+        )
+        <span class="cm"># ── Project to vocabulary logits ──────────────────────────────</span>
+        <span class="kw">return</span> self.output_projection(output)  <span class="cm"># (T_tgt, B, ntoken_tgt)</span></pre>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-head"><span class="card-icon">⚖️</span><div>
+        <h3>Xavier Uniform Init</h3>
+        <p>Initialises every 2-D parameter with <code>nn.init.xavier_uniform_</code>. Sets the gain so that the variance of activations and gradients is preserved through each layer, preventing explosion or vanishing at initialisation.</p>
+      </div></div>
+      <ul class="card-list">
+        <li>Formula: U(−a, a) where a = gain × √(6 / (fan_in + fan_out))</li>
+        <li>Assumes linear activation (not exact for GELU, but still effective)</li>
+        <li>Skips 1-D tensors (biases, LayerNorm weight/bias)</li>
+        <li>Alternative: Kaiming (He) init is preferred for ReLU-heavy networks</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-head"><span class="card-icon">🔀</span><div>
+        <h3>Boolean → Additive Mask Conversion</h3>
+        <p>PyTorch's <code>nn.MultiheadAttention</code> accepts either a boolean mask or a float additive mask. When mixing both (e.g., one boolean padding mask and no attention mask), it emits a deprecation warning. The <code>_bool_to_additive_mask</code> helper converts <code>True → -inf</code>, <code>False → 0.0</code> to keep all masks as floats.</p>
+      </div></div>
+      <ul class="card-list">
+        <li>Attention weight for -inf position → 0 after softmax</li>
+        <li>0.0 position → unaffected (multiplied by exp(0) = 1)</li>
+        <li>PyTorch 2.1+: use is_causal=True for causal mask (avoids materialising matrix)</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+
+<!-- ══ 08 MASKS ══ -->
+<section class="section" id="masks">
+  <div class="section-header">
+    <div class="level-badge b08">08</div>
+    <div class="section-header-text">
+      <h2>Masking Utilities</h2>
+      <p>Causal mask and padding mask — what they look like and why they are needed</p>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="lang">Python · generate_square_subsequent_mask &amp; create_padding_mask</span>
+      <div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div>
+    </div>
+    <pre><span class="kw">def</span> <span class="fn">generate_square_subsequent_mask</span>(size):
+    <span class="de">"""Upper-triangular -inf mask — prevents attending to future tokens."""</span>
+    <span class="cm"># Step 1: lower-triangular boolean matrix (True where attention IS allowed)</span>
+    mask = (torch.triu(torch.ones(size, size)) == <span class="nm">1</span>).transpose(<span class="nm">0</span>, <span class="nm">1</span>)
+    <span class="cm"># Step 2: convert: allowed → 0.0,  blocked → -inf</span>
+    mask = mask.float()\
+               .masked_fill(mask == <span class="nm">0</span>, float(<span class="st">'-inf'</span>))\
+               .masked_fill(mask == <span class="nm">1</span>, float(<span class="nm">0.0</span>))
+    <span class="kw">return</span> mask   <span class="cm"># shape (size, size)</span>
+
+
+<span class="kw">def</span> <span class="fn">create_padding_mask</span>(seq, pad_idx):
+    <span class="de">"""Boolean mask: True where the token is a padding token."""</span>
+    <span class="cm"># seq: (seq_len, batch) with batch_first=False convention</span>
+    <span class="cm"># MultiheadAttention expects key_padding_mask: (batch, seq_len)</span>
+    <span class="kw">if</span> seq.dim() == <span class="nm">2</span> <span class="kw">and</span> seq.size(<span class="nm">0</span>) > seq.size(<span class="nm">1</span>):
+        padding_mask = (seq == pad_idx).transpose(<span class="nm">0</span>, <span class="nm">1</span>)  <span class="cm"># → (batch, seq_len)</span>
+    <span class="kw">else</span>:
+        padding_mask = (seq == pad_idx)
+    <span class="kw">return</span> padding_mask   <span class="cm"># dtype=bool</span></pre>
+  </div>
+
+  <div class="arch-diagram"><span class="h">Causal mask for tgt_seq_len = 7  (generate_square_subsequent_mask(7))</span>
+
+        <span class="c">t0    t1    t2    t3    t4    t5    t6   ← key positions</span>
+<span class="b">t0</span>  [  0.0  -inf  -inf  -inf  -inf  -inf  -inf ]  <span class="c">← t0 sees only itself</span>
+<span class="b">t1</span>  [  0.0   0.0  -inf  -inf  -inf  -inf  -inf ]  <span class="c">← t1 sees t0, t1</span>
+<span class="b">t2</span>  [  0.0   0.0   0.0  -inf  -inf  -inf  -inf ]
+<span class="b">t3</span>  [  0.0   0.0   0.0   0.0  -inf  -inf  -inf ]
+<span class="b">t4</span>  [  0.0   0.0   0.0   0.0   0.0  -inf  -inf ]
+<span class="b">t5</span>  [  0.0   0.0   0.0   0.0   0.0   0.0  -inf ]
+<span class="b">t6</span>  [  0.0   0.0   0.0   0.0   0.0   0.0   0.0 ]  <span class="c">← sees all previous</span>
+
+<span class="c">Added to raw attention logits before softmax:
+  exp(-inf) = 0.0  →  blocked positions get zero attention weight</span>
+
+<span class="h">Padding mask for a batch of 2, max_len = 5  (second sequence padded)</span>
+
+<span class="c">        t0     t1     t2     t3     t4</span>
+<span class="g">seq 0</span>  [False  False  False  False  False]  <span class="c">← no padding</span>
+<span class="g">seq 1</span>  [False  False  False  <span class="y">True</span>   <span class="y">True</span> ]  <span class="c">← positions 3,4 are &lt;pad&gt; tokens</span></div>
+
+  <div class="info-box tip">
+    <div class="label">Mask shapes summary</div>
+    <p><strong>tgt_mask</strong> (causal): <span class="shape">(T_tgt, T_tgt)</span> — square, one row per query position. Added to attention logits before softmax. <strong>key_padding_mask</strong>: <span class="shape">(batch, seq_len)</span> — one row per sequence in the batch. True means "ignore this key". When both are used, convert both to float additive form to avoid the PyTorch deprecation warning.</p>
+  </div>
+</section>
+
+
+<!-- ══ 09 FORWARD PASS ══ -->
+<section class="section" id="forward-pass">
+  <div class="section-header">
+    <div class="level-badge b01">09</div>
+    <div class="section-header-text">
+      <h2>Forward Pass Demo</h2>
+      <p>Instantiating the model, building masks, and running end-to-end</p>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="lang">Python · Vocabulary &amp; data setup</span>
+      <div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div>
+    </div>
+    <pre><span class="kw">import</span> torch, torch.nn <span class="kw">as</span> nn
+
+<span class="cm"># ── Toy vocabulary (10 tokens each) ────────────────────────────────</span>
+SRC_VOCAB = {<span class="st">'&lt;pad&gt;'</span>:<span class="nm">0</span>, <span class="st">'&lt;unk&gt;'</span>:<span class="nm">1</span>, <span class="st">'&lt;bos&gt;'</span>:<span class="nm">2</span>, <span class="st">'&lt;eos&gt;'</span>:<span class="nm">3</span>,
+             <span class="st">'hello'</span>:<span class="nm">4</span>, <span class="st">'world'</span>:<span class="nm">5</span>, <span class="st">'how'</span>:<span class="nm">6</span>, <span class="st">'are'</span>:<span class="nm">7</span>, <span class="st">'you'</span>:<span class="nm">8</span>, <span class="st">'?'</span>:<span class="nm">9</span>}
+TGT_VOCAB = {<span class="st">'&lt;pad&gt;'</span>:<span class="nm">0</span>, <span class="st">'&lt;unk&gt;'</span>:<span class="nm">1</span>, <span class="st">'&lt;bos&gt;'</span>:<span class="nm">2</span>, <span class="st">'&lt;eos&gt;'</span>:<span class="nm">3</span>,
+             <span class="st">'hi'</span>:<span class="nm">4</span>, <span class="st">'there'</span>:<span class="nm">5</span>, <span class="st">'i'</span>:<span class="nm">6</span>, <span class="st">'am'</span>:<span class="nm">7</span>, <span class="st">'fine'</span>:<span class="nm">8</span>, <span class="st">'.'</span>:<span class="nm">9</span>}
+
+<span class="cm"># ── Source: "hello how are you ?"  shape (5, 1) ─────────────────────</span>
+src_tokens = torch.tensor([[<span class="nm">4</span>, <span class="nm">6</span>, <span class="nm">7</span>, <span class="nm">8</span>, <span class="nm">9</span>]]).T   <span class="cm"># (seq_len=5, batch=1)</span>
+
+<span class="cm"># ── Target: "&lt;bos&gt; hi there i am fine ."  shape (7, 1) ──────────────</span>
+tgt_tokens = torch.tensor([[<span class="nm">2</span>, <span class="nm">4</span>, <span class="nm">5</span>, <span class="nm">6</span>, <span class="nm">7</span>, <span class="nm">8</span>, <span class="nm">9</span>]]).T  <span class="cm"># (seq_len=7, batch=1)</span>
+
+<span class="cm"># ── Model hyperparameters ────────────────────────────────────────────</span>
+model = Transformer(
+    ntoken_src=len(SRC_VOCAB), ntoken_tgt=len(TGT_VOCAB),
+    d_model=<span class="nm">512</span>, nhead=<span class="nm">8</span>, dim_feedforward=<span class="nm">2048</span>,
+    num_encoder_layers=<span class="nm">3</span>, num_decoder_layers=<span class="nm">3</span>, dropout=<span class="nm">0.1</span>
+)
+total_params = sum(p.numel() <span class="kw">for</span> p <span class="kw">in</span> model.parameters())
+print(f<span class="st">f"Total parameters: {total_params:,}"</span>)</pre>
+  </div>
+
+  <div class="code-block" style="margin-top:-30px">
+    <div class="code-block-header">
+      <span class="lang">Python · Build masks &amp; run forward pass</span>
+      <div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div>
+    </div>
+    <pre><span class="cm"># ── Masks ─────────────────────────────────────────────────────────</span>
+tgt_seq_len = tgt_tokens.size(<span class="nm">0</span>)
+
+<span class="cm"># Causal mask: prevents decoder from seeing future tokens</span>
+tgt_mask = generate_square_subsequent_mask(tgt_seq_len)
+<span class="cm"># shape: (7, 7)</span>
+
+<span class="cm"># Padding masks (no actual padding in this toy example → all False)</span>
+src_padding = create_padding_mask(src_tokens, SRC_VOCAB[<span class="st">'&lt;pad&gt;'</span>])
+tgt_padding = create_padding_mask(tgt_tokens, TGT_VOCAB[<span class="st">'&lt;pad&gt;'</span>])
+
+<span class="cm"># ── Forward pass ──────────────────────────────────────────────────</span>
+model.eval()
+<span class="kw">with</span> torch.no_grad():
+    logits = model(
+        src=src_tokens,
+        tgt=tgt_tokens,
+        tgt_mask=tgt_mask,
+        src_key_padding_mask=src_padding,
+        tgt_key_padding_mask=tgt_padding,
+        memory_key_padding_mask=src_padding,  <span class="cm"># encoder output also padded by src</span>
+    )
+
+<span class="cm"># ── Inspect output ────────────────────────────────────────────────</span>
+print(f<span class="st">f"Output logits shape: {logits.shape}"</span>)
+<span class="cm"># → torch.Size([7, 1, 10])  (tgt_seq_len, batch, tgt_vocab_size)</span>
+
+predicted_ids    = logits.argmax(dim=-<span class="nm">1</span>)       <span class="cm"># greedy decode</span>
+idx_to_tok       = {v: k <span class="kw">for</span> k, v <span class="kw">in</span> TGT_VOCAB.items()}
+decoded          = [idx_to_tok[i.item()] <span class="kw">for</span> i <span class="kw">in</span> predicted_ids[:, <span class="nm">0</span>]]
+print(<span class="st">f"Decoded (untrained): {decoded}"</span>)</pre>
+  </div>
+
+  <div class="output-block"><span class="ok">Transformer model instantiated successfully!</span>
+<span class="hi">Output logits shape:</span>  torch.Size([7, 1, 10])
+<span class="hi">Decoded (untrained):</span>  ['there', 'there', 'hi', 'there', 'there', 'there', 'there']
+<span class="cm"># ↑ random because weights are not trained — correct shape confirms
+# the architecture is wired up correctly end-to-end.</span></div>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Tensor</th><th>Shape</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>src_tokens</td><td class="shape">(5, 1)</td><td>Source token IDs — (seq_len, batch)</td></tr>
+        <tr><td>tgt_tokens</td><td class="shape">(7, 1)</td><td>Target token IDs — (seq_len, batch)</td></tr>
+        <tr><td>encoder output (memory)</td><td class="shape">(5, 1, 512)</td><td>Context vectors from encoder</td></tr>
+        <tr><td>tgt_mask</td><td class="shape">(7, 7)</td><td>Causal additive mask for decoder self-attention</td></tr>
+        <tr><td>src_padding</td><td class="shape">(1, 5)</td><td>Boolean padding mask — (batch, seq_len)</td></tr>
+        <tr><td>logits (output)</td><td class="shape">(7, 1, 10)</td><td>Per-position vocab logits from decoder</td></tr>
+        <tr><td>predicted_ids</td><td class="shape">(7, 1)</td><td>Greedy argmax over vocab dim</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+
+<!-- ══ 10 NEXT STEPS ══ -->
+<section class="section" id="next-steps">
+  <div class="section-header">
+    <div class="level-badge b02">10</div>
+    <div class="section-header-text">
+      <h2>Next Steps</h2>
+      <p>Training loop, inference, and production upgrades</p>
+    </div>
+  </div>
+
+  <div class="bp-grid">
+    <div class="bp-card">
+      <h4>Training Loop</h4>
+      <p>Implement teacher forcing: feed ground-truth shifted-right tokens as <code>tgt</code> during training. Compute <code>CrossEntropyLoss</code> on <code>logits.view(-1, vocab_size)</code> against <code>labels.view(-1)</code>. Use AdamW with cosine LR schedule and gradient clipping at 1.0.</p>
+    </div>
+    <div class="bp-card">
+      <h4>Autoregressive Inference</h4>
+      <p>At inference time, start <code>tgt = [&lt;bos&gt;]</code> and loop: run forward pass, sample/argmax the last position's logit, append the predicted token to <code>tgt</code>, repeat until <code>&lt;eos&gt;</code> or max length. Use KV-cache to avoid recomputing past keys/values.</p>
+    </div>
+    <div class="bp-card">
+      <h4>Replace Shared Layer with ModuleList</h4>
+      <p>The current encoder/decoder reuses one layer instance for all N layers, meaning all layers share the same weights. For full expressivity, replace with <code>nn.ModuleList([copy.deepcopy(layer) for _ in range(N)])</code> so each layer has independent parameters.</p>
+    </div>
+    <div class="bp-card">
+      <h4>Switch to Pre-Norm</h4>
+      <p>Modern transformers (GPT, LLaMA) apply LayerNorm <em>before</em> each sub-layer (pre-norm) rather than after (post-norm). Pre-norm improves training stability for deep models without requiring careful learning-rate warmup. Change <code>norm(x + sublayer(x))</code> to <code>x + sublayer(norm(x))</code>.</p>
+    </div>
+    <div class="bp-card">
+      <h4>RoPE Instead of Sinusoidal PE</h4>
+      <p>Rotary Position Embedding (RoPE) encodes relative positions by rotating query and key vectors before computing attention. It generalises better to unseen lengths and is used by LLaMA, Mistral, and most modern LLMs. See Chapter 5 → Positional Encoding for the full RoPE implementation.</p>
+    </div>
+    <div class="bp-card">
+      <h4>Flash Attention</h4>
+      <p>Replace <code>nn.MultiheadAttention</code> with <code>F.scaled_dot_product_attention(..., is_causal=True)</code> (PyTorch 2.0+). This dispatches to Flash Attention automatically, reducing attention memory from O(N²) to O(N) and speeding up training by 2–4×.</p>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header">
+      <span class="lang">Python · Minimal training step (next step from the notebook)</span>
+      <div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div>
+    </div>
+    <pre><span class="cm"># ── Teacher-forcing training step ─────────────────────────────────</span>
+model.train()
+optimizer = torch.optim.AdamW(model.parameters(), lr=<span class="nm">1e-4</span>, weight_decay=<span class="nm">0.01</span>)
+criterion = nn.CrossEntropyLoss(ignore_index=TGT_VOCAB[<span class="st">'&lt;pad&gt;'</span>])
+
+<span class="cm"># src: (T_src, B)    full source sequence
+# tgt_input:  (T_tgt-1, B)  = tgt[:-1]  ← teacher-forced decoder input
+# tgt_labels: (T_tgt-1, B)  = tgt[1:]   ← what the model must predict</span>
+tgt_input  = tgt_tokens[:-<span class="nm">1</span>]   <span class="cm"># "&lt;bos&gt; hi there i am fine"</span>
+tgt_labels = tgt_tokens[<span class="nm">1</span>:]    <span class="cm"># "hi there i am fine ."</span>
+
+tgt_mask_train = generate_square_subsequent_mask(tgt_input.size(<span class="nm">0</span>))
+
+logits = model(
+    src=src_tokens, tgt=tgt_input,
+    tgt_mask=tgt_mask_train,
+    src_key_padding_mask=create_padding_mask(src_tokens, <span class="nm">0</span>),
+    tgt_key_padding_mask=create_padding_mask(tgt_input, <span class="nm">0</span>),
+    memory_key_padding_mask=create_padding_mask(src_tokens, <span class="nm">0</span>),
+)
+<span class="cm"># logits: (T_tgt-1, B, vocab_size)  →  flatten for cross-entropy</span>
+loss = criterion(
+    logits.reshape(-<span class="nm">1</span>, len(TGT_VOCAB)),   <span class="cm"># (T_tgt-1 * B, vocab)</span>
+    tgt_labels.reshape(-<span class="nm">1</span>)                 <span class="cm"># (T_tgt-1 * B,)</span>
+)
+
+optimizer.zero_grad()
+loss.backward()
+torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=<span class="nm">1.0</span>)
+optimizer.step()
+print(f<span class="st">f"loss: {loss.item():.4f}"</span>)</pre>
+  </div>
+
+  <div style="height:64px"></div>
+</section>
+
+<footer>
+  <span>Chapter 5.1 — Building a Transformer with PyTorch · <a href="transformers/mc_transformer.ipynb" style="color:var(--accent);text-decoration:none">mc_transformer.ipynb ↗</a></span>
+  <span><a href="transformers.html">← Chapter 5: Transformers</a> · <a href="portal.html">Portal</a></span>
+</footer>
+
+</main>
+
+<script>
+function toggleTheme() {
+  const root = document.documentElement;
+  root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+}
+const sections = document.querySelectorAll('section[id]');
+const links    = document.querySelectorAll('nav ul li a');
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const a = document.querySelector(`nav ul li a[href="#${e.target.id}"]`);
+      if (a) a.classList.add('active');
+    }
+  });
+}, { threshold: 0.25 });
+sections.forEach(s => io.observe(s));
+</script>
+</body>
+</html>
