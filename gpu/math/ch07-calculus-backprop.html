@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ch 07 · Calculus &amp; Backpropagation</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="math-book.css"/>
+</head>
+<body>
+<nav>
+  <div class="nav-brand"><div class="icon">∑</div><h2>LLM Math</h2><p>Chapter 7 of 10</p></div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Theme</button>
+  <div class="book-nav">
+    <div class="book-nav-title">All Chapters</div>
+    <a href="ch01-linear-algebra-foundations.html">① Vectors &amp; LA Foundations</a>
+    <a href="ch02-matrix-operations.html">② Matrix Operations</a>
+    <a href="ch03-eigenvalues-svd.html">③ Eigenvalues &amp; SVD</a>
+    <a href="ch04-probability-foundations.html">④ Probability Foundations</a>
+    <a href="ch05-distributions.html">⑤ Key Distributions</a>
+    <a href="ch06-information-theory.html">⑥ Information Theory</a>
+    <a href="ch07-calculus-backprop.html" class="current">⑦ Calculus &amp; Backprop</a>
+    <a href="ch08-optimization.html">⑧ Optimization</a>
+    <a href="ch09-attention-math.html">⑨ Attention Math</a>
+    <a href="ch10-inference-math.html">⑩ Inference Math</a>
+  </div>
+  <ul>
+    <li class="nav-section-label">Sections</li>
+    <li><a href="#derivatives"><span class="dot"></span>Derivatives</a></li>
+    <li><a href="#chain-rule"><span class="dot"></span>Chain Rule</a></li>
+    <li><a href="#gradients"><span class="dot"></span>Gradients &amp; Jacobians</a></li>
+    <li><a href="#backprop"><span class="dot"></span>Backpropagation</a></li>
+    <li><a href="#activations"><span class="dot"></span>Activation Functions</a></li>
+    <li><a href="#vanishing"><span class="dot"></span>Vanishing &amp; Exploding Gradients</a></li>
+  </ul>
+</nav>
+<main>
+<div class="hero">
+  <div class="hero-badge">Chapter 7 · Calculus &amp; Backpropagation</div>
+  <h1>Calculus &amp;<br><em>Backpropagation</em></h1>
+  <p>Backpropagation is the algorithm that trains neural networks — and it is pure calculus. The chain rule computes how much each weight contributed to the loss, so we can nudge every weight in the direction that reduces it. Understanding this makes LLM training intuitive, not magical.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">∂L/∂W</span><span class="lbl">Gradient of loss</span></div>
+    <div class="hero-stat"><span class="num">Chain</span><span class="lbl">Rule of calculus</span></div>
+    <div class="hero-stat"><span class="num">GELU</span><span class="lbl">Smooth activation</span></div>
+    <div class="hero-stat"><span class="num">∇</span><span class="lbl">Gradient operator</span></div>
+  </div>
+</div>
+
+<section class="section" id="derivatives">
+  <div class="section-header"><div class="level-badge b01">01</div>
+    <div class="section-header-text"><h2>Derivatives — Rate of Change</h2><p>How sensitive is the output to a small change in the input?</p></div>
+  </div>
+  <div class="prose">
+    <p>The <strong>derivative</strong> df/dx measures how much the function f changes when you increase x by a tiny amount. Geometrically, it's the slope of the function at that point.</p>
+    <p>For training neural networks, what matters is: <em>if I increase this weight by a tiny amount, does the loss go up or down, and by how much?</em> That is the derivative of the loss with respect to the weight.</p>
+  </div>
+  <div class="math-box">Definition:  df/dx = lim_{h→0} (f(x+h) - f(x)) / h
+
+Key derivatives (memorise these — they appear in every LLM layer):
+  d/dx [x²]        = 2x
+  d/dx [xⁿ]        = n·xⁿ⁻¹
+  d/dx [exp(x)]    = exp(x)
+  d/dx [ln(x)]     = 1/x
+  d/dx [sigmoid(x)] = sigmoid(x)·(1 - sigmoid(x))
+  d/dx [tanh(x)]   = 1 - tanh²(x)
+  d/dx [max(0,x)]  = 1 if x>0, 0 if x<0  ← ReLU derivative</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Numerical derivatives vs analytical</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Numerical derivative (finite differences)</span>
+<span class="kw">def</span> <span class="fn">numerical_grad</span>(f, x, h=<span class="nm">1e-5</span>):
+    <span class="kw">return</span> (f(x + h) - f(x - h)) / (<span class="nm">2</span> * h)   <span class="cm"># central differences</span>
+
+<span class="cm"># Analytical derivatives of common activation functions</span>
+sigmoid   = <span class="kw">lambda</span> x: <span class="nm">1</span> / (<span class="nm">1</span> + np.exp(-x))
+d_sigmoid = <span class="kw">lambda</span> x: sigmoid(x) * (<span class="nm">1</span> - sigmoid(x))
+
+relu      = <span class="kw">lambda</span> x: np.maximum(<span class="nm">0</span>, x)
+d_relu    = <span class="kw">lambda</span> x: (x > <span class="nm">0</span>).astype(float)
+
+<span class="cm"># GELU (used in GPT, BERT) — no clean closed form, approximated</span>
+gelu      = <span class="kw">lambda</span> x: x * sigmoid(<span class="nm">1.702</span> * x)
+d_gelu    = <span class="kw">lambda</span> x: numerical_grad(gelu, x)
+
+x = <span class="nm">1.5</span>
+<span class="fn">print</span>(f<span class="st">f"sigmoid({x}) = {sigmoid(x):.4f},  d/dx = {d_sigmoid(x):.4f}"</span>)
+<span class="fn">print</span>(f<span class="st">f"relu({x})    = {relu(x):.4f},  d/dx = {d_relu(x):.4f}"</span>)
+<span class="fn">print</span>(f<span class="st">f"gelu({x})    = {gelu(x):.4f},  d/dx ≈ {d_gelu(x):.4f}"</span>)</pre>
+  </div>
+</section>
+
+<section class="section" id="chain-rule">
+  <div class="section-header"><div class="level-badge b02">02</div>
+    <div class="section-header-text"><h2>The Chain Rule</h2><p>How to differentiate compositions of functions — the engine of backpropagation</p></div>
+  </div>
+  <div class="prose">
+    <p>The chain rule says: if z depends on y, and y depends on x, then the rate at which z changes with x = (rate z changes with y) × (rate y changes with x).</p>
+    <p>This is backpropagation. Every transformer layer is a composition of functions. The chain rule propagates the gradient of the loss backward through each function, layer by layer.</p>
+  </div>
+  <div class="math-box">Chain rule:
+  dz/dx = dz/dy · dy/dx
+
+Multi-variable (gradient of composite):
+  If z = f(g(x)):   dz/dx = f'(g(x)) · g'(x)
+
+Transformer example — trace the gradient through one step:
+  x → W → z=Wx → a=GELU(z) → y=Va → L=cross_entropy(y)
+
+  ∂L/∂V = ∂L/∂y · ∂y/∂V = δy · aᵀ
+  ∂L/∂a = ∂L/∂y · ∂y/∂a = Vᵀ · δy
+  ∂L/∂z = ∂L/∂a · ∂a/∂z = δa ⊙ GELU'(z)
+  ∂L/∂W = ∂L/∂z · ∂z/∂W = δz · xᵀ
+  ∂L/∂x = ∂L/∂z · ∂z/∂x = Wᵀ · δz   ← gradient to previous layer</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Chain rule through a simple 2-layer network</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+np.random.seed(<span class="nm">42</span>)
+<span class="cm"># Tiny network: x (3,) → W1 (3,4) → ReLU → W2 (4,2) → softmax → loss</span>
+x  = np.array([<span class="nm">1.0</span>, <span class="nm">2.0</span>, -<span class="nm">1.0</span>])
+W1 = np.random.randn(<span class="nm">3</span>, <span class="nm">4</span>) * <span class="nm">0.1</span>
+W2 = np.random.randn(<span class="nm">4</span>, <span class="nm">2</span>) * <span class="nm">0.1</span>
+target = <span class="nm">1</span>   <span class="cm"># correct class</span>
+
+<span class="cm"># ── FORWARD PASS ──────────────────────────────────────</span>
+z1   = x @ W1              <span class="cm"># (3,) @ (3,4) → (4,)</span>
+a1   = np.maximum(<span class="nm">0</span>, z1)   <span class="cm"># ReLU</span>
+z2   = a1 @ W2             <span class="cm"># (4,) @ (4,2) → (2,)</span>
+e    = np.exp(z2 - z2.max())
+probs = e / e.sum()        <span class="cm"># softmax</span>
+loss = -np.log(probs[target] + <span class="nm">1e-10</span>)
+<span class="fn">print</span>(f<span class="st">f"Loss: {loss:.4f}"</span>)
+
+<span class="cm"># ── BACKWARD PASS (chain rule) ─────────────────────────</span>
+<span class="cm"># Gradient of loss wrt softmax output (dL/dz2)</span>
+dz2          = probs.copy()
+dz2[target] -= <span class="nm">1</span>          <span class="cm"># ← gradient of cross-entropy + softmax combined</span>
+
+<span class="cm"># Gradient wrt W2: dL/dW2 = a1^T @ dz2</span>
+dW2 = np.outer(a1, dz2)
+
+<span class="cm"># Gradient wrt a1: dL/da1 = W2 @ dz2</span>
+da1 = W2 @ dz2
+
+<span class="cm"># Gradient wrt z1 through ReLU (chain rule): dL/dz1 = da1 * ReLU'(z1)</span>
+dz1 = da1 * (z1 > <span class="nm">0</span>).astype(float)   <span class="cm"># ⊙ element-wise</span>
+
+<span class="cm"># Gradient wrt W1: dL/dW1 = x^T @ dz1</span>
+dW1 = np.outer(x, dz1)
+
+<span class="fn">print</span>(f<span class="st">f"dW1 norm: {np.linalg.norm(dW1):.6f}"</span>)
+<span class="fn">print</span>(f<span class="st">f"dW2 norm: {np.linalg.norm(dW2):.6f}"</span>)</pre>
+  </div>
+</section>
+
+<section class="section" id="gradients">
+  <div class="section-header"><div class="level-badge b03">03</div>
+    <div class="section-header-text"><h2>Gradients &amp; Jacobians</h2><p>Extending derivatives to multi-dimensional functions</p></div>
+  </div>
+  <div class="prose">
+    <p>The <strong>gradient</strong> ∇f of a scalar-valued function f(x₁, ..., xₙ) is the vector of all partial derivatives. It points in the direction of steepest ascent.</p>
+    <p>The <strong>Jacobian</strong> J of a vector-valued function f: ℝⁿ → ℝᵐ is an (m×n) matrix of all partial derivatives. Each row i contains the gradient of output fᵢ with respect to all inputs.</p>
+    <p>In practice, PyTorch's autograd computes the <em>vector-Jacobian product</em> (VJP) efficiently — you never materialise the full Jacobian for large models (it would have trillions of entries).</p>
+  </div>
+  <div class="math-box">Gradient (scalar f → vector):
+  ∇f(x) = [∂f/∂x₁, ∂f/∂x₂, ..., ∂f/∂xₙ]
+
+Jacobian (vector f → matrix):
+  J[i,j] = ∂fᵢ/∂xⱼ
+
+For a linear layer y = Wx + b:
+  ∂L/∂W = (∂L/∂y)ᵀ · xᵀ    ← outer product
+  ∂L/∂x = Wᵀ · (∂L/∂y)     ← gradient to previous layer
+  ∂L/∂b = ∂L/∂y             ← same as output gradient</div>
+</section>
+
+<section class="section" id="backprop">
+  <div class="section-header"><div class="level-badge b04">04</div>
+    <div class="section-header-text"><h2>Backpropagation</h2><p>The full algorithm for computing all gradients in one backward pass</p></div>
+  </div>
+  <div class="diag"><span class="h">Backpropagation through a transformer block</span>
+
+<span class="b">FORWARD PASS (left to right, store activations)</span>
+
+input x
+  → <span class="g">LayerNorm</span>  → x_norm
+  → <span class="g">W_Q, W_K, W_V projections</span>  → Q, K, V
+  → <span class="g">Attention scores</span> = Q @ Kᵀ / √d_k
+  → <span class="g">Softmax</span>  → attention weights A
+  → <span class="g">Context</span> = A @ V
+  → <span class="g">W_O projection</span>  → attn_out
+  → <span class="g">Residual add</span>  → x + attn_out
+  → <span class="g">LayerNorm</span>
+  → <span class="g">FFN (W1 → GELU → W2)</span>
+  → <span class="g">Residual add</span>  → output
+
+<span class="b">BACKWARD PASS (right to left, apply chain rule)</span>
+
+∂L/∂output
+  → through residual: ∂L/∂ffn_out = ∂L/∂output
+  → through W2: ∂L/∂W2 = hidden_stateᵀ @ ∂L/∂output
+  → through GELU: ∂L/∂z = ∂L/∂hidden * GELU'(z)
+  → through W1: ∂L/∂W1 = x_normᵀ @ ∂L/∂z
+  → ... continues back through attention and LayerNorm ...</div>
+</section>
+
+<section class="section" id="activations">
+  <div class="section-header"><div class="level-badge b05">05</div>
+    <div class="section-header-text"><h2>Activation Functions &amp; Their Gradients</h2><p>Why LLMs use GELU instead of ReLU</p></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Activation</th><th>Formula</th><th>Derivative</th><th>Used in</th></tr></thead>
+      <tbody>
+        <tr><td>ReLU</td><td>max(0, x)</td><td>1 if x&gt;0, 0 else</td><td>Early transformers, ResNets</td></tr>
+        <tr><td>GELU</td><td>x·Φ(x) ≈ x·σ(1.702x)</td><td>Φ(x) + x·φ(x)</td><td>GPT, BERT, most modern LLMs</td></tr>
+        <tr><td>SwiGLU</td><td>SiLU(xW₁) ⊙ xW₂</td><td>Gated — two paths</td><td>LLaMA, PaLM, Mistral</td></tr>
+        <tr><td>Sigmoid</td><td>1/(1+e⁻ˣ)</td><td>σ(x)(1-σ(x))</td><td>Gates in LSTM, attention</td></tr>
+        <tr><td>Softmax</td><td>eˣⁱ/Σeˣʲ</td><td>pᵢ(δᵢⱼ-pⱼ)</td><td>Output layer, attention weights</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="info-box note"><div class="label">Why GELU over ReLU?</div>
+    <p>ReLU has a zero gradient for all negative inputs — neurons with negative activations receive no gradient and don't learn (the "dying ReLU" problem). GELU is smooth everywhere and has a small non-zero gradient for slightly negative inputs, allowing those neurons to recover and continue learning. This matters especially in deep transformers where gradient flow through many layers is critical.</p>
+  </div>
+</section>
+
+<section class="section" id="vanishing">
+  <div class="section-header"><div class="level-badge b06">06</div>
+    <div class="section-header-text"><h2>Vanishing &amp; Exploding Gradients</h2><p>Why deep networks are hard to train — and how transformers solve it</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>Vanishing gradients</strong>: when gradients are multiplied together through many layers (chain rule), small values (&lt;1) shrink exponentially. By layer 1, the gradient is effectively zero — early layers don't learn.</p>
+    <p><strong>Exploding gradients</strong>: similarly, large values (&gt;1) grow exponentially. Gradients become NaN and training diverges.</p>
+    <h3>Transformer solutions</h3>
+    <ul>
+      <li><strong>Residual connections</strong> — x_out = x_in + f(x_in). The gradient flows through both paths: ∂L/∂x_in = ∂L/∂x_out · (1 + ∂f/∂x_in). The "+1" guarantees at least one unattenuated gradient path to every layer.</li>
+      <li><strong>LayerNorm / RMSNorm</strong> — normalises activations to unit variance, keeping gradients in a stable range.</li>
+      <li><strong>Gradient clipping</strong> — if ‖∇L‖ > threshold, scale gradient down: ∇L ← ∇L · threshold / ‖∇L‖</li>
+      <li><strong>Careful initialisation</strong> — Xavier/Kaiming keep initial gradients well-scaled.</li>
+    </ul>
+  </div>
+  <div class="info-box tip"><div class="label">Chapter Summary</div>
+    <p>Backpropagation is the chain rule applied recursively from the loss backward through every operation. Each weight receives a gradient telling it exactly how to change to reduce the loss. Residual connections, LayerNorm, and gradient clipping are specifically engineered to keep these gradients well-behaved through 100+ layers. Once you understand the chain rule, the entire transformer training procedure is transparent.</p>
+  </div>
+  <div style="height:64px"></div>
+</section>
+<footer><span>Chapter 7 · Calculus &amp; Backpropagation</span><span>Math for LLM Design, Training &amp; Inference</span></footer>
+</main>
+<script>
+function toggleTheme(){document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';}
+const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){document.querySelectorAll('nav ul li a').forEach(l=>l.classList.remove('active'));const a=document.querySelector(`nav ul li a[href="#${x.target.id}"]`);if(a)a.classList.add('active');}});},{threshold:0.3});
+document.querySelectorAll('section[id]').forEach(s=>io.observe(s));
+</script>
+</body>
+</html>

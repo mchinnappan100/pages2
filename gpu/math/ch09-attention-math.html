@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ch 09 · Attention Math</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="math-book.css"/>
+</head>
+<body>
+<nav>
+  <div class="nav-brand"><div class="icon">∑</div><h2>LLM Math</h2><p>Chapter 9 of 10</p></div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Theme</button>
+  <div class="book-nav">
+    <div class="book-nav-title">All Chapters</div>
+    <a href="ch01-linear-algebra-foundations.html">① Vectors &amp; LA Foundations</a>
+    <a href="ch02-matrix-operations.html">② Matrix Operations</a>
+    <a href="ch03-eigenvalues-svd.html">③ Eigenvalues &amp; SVD</a>
+    <a href="ch04-probability-foundations.html">④ Probability Foundations</a>
+    <a href="ch05-distributions.html">⑤ Key Distributions</a>
+    <a href="ch06-information-theory.html">⑥ Information Theory</a>
+    <a href="ch07-calculus-backprop.html">⑦ Calculus &amp; Backprop</a>
+    <a href="ch08-optimization.html">⑧ Optimization</a>
+    <a href="ch09-attention-math.html" class="current">⑨ Attention Math</a>
+    <a href="ch10-inference-math.html">⑩ Inference Math</a>
+  </div>
+  <ul>
+    <li class="nav-section-label">Sections</li>
+    <li><a href="#scaled-attention"><span class="dot"></span>Scaled Dot-Product Attention</a></li>
+    <li><a href="#why-scale"><span class="dot"></span>Why Divide by √d_k?</a></li>
+    <li><a href="#multi-head"><span class="dot"></span>Multi-Head Attention</a></li>
+    <li><a href="#causal-mask"><span class="dot"></span>Causal Masking</a></li>
+    <li><a href="#positional"><span class="dot"></span>Positional Encodings</a></li>
+    <li><a href="#complexity"><span class="dot"></span>Complexity &amp; Flash Attention</a></li>
+  </ul>
+</nav>
+<main>
+<div class="hero">
+  <div class="hero-badge">Chapter 9 · Attention Math</div>
+  <h1>The Mathematics<br>of <em>Attention</em></h1>
+  <p>Self-attention is just three matrix multiplications, a softmax, and one more matrix multiplication. But those five operations — derived from dot products, probability distributions, and linear maps — are what allows transformers to relate any token to any other token, regardless of distance.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">QKᵀ/√d</span><span class="lbl">Score formula</span></div>
+    <div class="hero-stat"><span class="num">softmax</span><span class="lbl">→ attention weights</span></div>
+    <div class="hero-stat"><span class="num">O(N²)</span><span class="lbl">Vanilla complexity</span></div>
+    <div class="hero-stat"><span class="num">O(N)</span><span class="lbl">Flash Attention memory</span></div>
+  </div>
+</div>
+
+<section class="section" id="scaled-attention">
+  <div class="section-header"><div class="level-badge b01">01</div>
+    <div class="section-header-text"><h2>Scaled Dot-Product Attention</h2><p>The exact formula — broken down step by step</p></div>
+  </div>
+  <div class="math-box">Attention(Q, K, V) = softmax(Q·Kᵀ / √d_k) · V
+
+Step by step:
+1. Score matrix:   S = Q @ Kᵀ          shape: (T_q × T_k)
+2. Scale:          S = S / √d_k         prevent vanishing gradients
+3. Mask (causal):  S[i,j] = -∞ if j > i  block future tokens
+4. Softmax:        A = softmax(S)       shape: (T_q × T_k), rows sum to 1
+5. Weighted sum:   out = A @ V          shape: (T_q × d_v)
+
+Where:
+  Q = queries  (T_q × d_k)  — "what am I looking for?"
+  K = keys     (T_k × d_k)  — "what do I contain?"
+  V = values   (T_k × d_v)  — "what do I return if selected?"
+  d_k = key/query dimension (typically d_model / n_heads = 64 for GPT-2)</div>
+  <div class="prose">
+    <p><strong>Intuition</strong>: Each token generates a query ("what information do I need?"), a key ("what information do I contain?"), and a value ("what information do I contribute?"). The attention weight A[i,j] tells us: "how much should token i look at token j?" The output for token i is the weighted average of all value vectors.</p>
+  </div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Scaled dot-product attention from scratch</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">attention</span>(Q, K, V, mask=<span class="nm">None</span>):
+    <span class="st">"""
+    Q: (batch, T_q, d_k)
+    K: (batch, T_k, d_k)
+    V: (batch, T_k, d_v)
+    Returns: (batch, T_q, d_v)
+    """</span>
+    d_k = Q.shape[-<span class="nm">1</span>]
+
+    <span class="cm"># Step 1: scores = Q @ Kᵀ / √d_k</span>
+    scores = Q @ K.transpose(<span class="nm">0</span>, <span class="nm">2</span>, <span class="nm">1</span>) / np.sqrt(d_k)  <span class="cm"># (B, T_q, T_k)</span>
+
+    <span class="cm"># Step 2: apply causal mask (optional)</span>
+    <span class="kw">if</span> mask <span class="kw">is not None</span>:
+        scores = np.where(mask, scores, -<span class="nm">1e9</span>)   <span class="cm"># mask=True means keep</span>
+
+    <span class="cm"># Step 3: softmax over last dimension (T_k) → attention weights</span>
+    scores_max  = scores.max(axis=-<span class="nm">1</span>, keepdims=<span class="nm">True</span>)   <span class="cm"># numerical stability</span>
+    exp_scores  = np.exp(scores - scores_max)
+    attn_weights = exp_scores / exp_scores.sum(axis=-<span class="nm">1</span>, keepdims=<span class="nm">True</span>)  <span class="cm"># (B, T_q, T_k)</span>
+
+    <span class="cm"># Step 4: weighted sum of values</span>
+    output = attn_weights @ V   <span class="cm"># (B, T_q, T_k) @ (B, T_k, d_v) → (B, T_q, d_v)</span>
+    <span class="kw">return</span> output, attn_weights
+
+<span class="cm"># Example: batch=1, seq_len=4, d_k=d_v=8</span>
+np.random.seed(<span class="nm">0</span>)
+B, T, d_k, d_v = <span class="nm">1</span>, <span class="nm">4</span>, <span class="nm">8</span>, <span class="nm">8</span>
+Q = np.random.randn(B, T, d_k)
+K = np.random.randn(B, T, d_k)
+V = np.random.randn(B, T, d_v)
+
+<span class="cm"># Causal mask: token i can only attend to tokens 0..i</span>
+causal_mask = np.tril(np.ones((T, T), dtype=bool))[<span class="nm">None</span>]  <span class="cm"># (1, T, T)</span>
+out, weights = attention(Q, K, V, mask=causal_mask)
+
+<span class="fn">print</span>(<span class="st">f"Output shape: {out.shape}"</span>)     <span class="cm"># (1, 4, 8)</span>
+<span class="fn">print</span>(<span class="st">f"Weights row 0: {np.round(weights[0,0],3)}"</span>)  <span class="cm"># first token attends only to itself</span>
+<span class="fn">print</span>(<span class="st">f"Weights row 3: {np.round(weights[0,3],3)}"</span>)  <span class="cm"># last token attends to all 4</span></pre>
+  </div>
+</section>
+
+<section class="section" id="why-scale">
+  <div class="section-header"><div class="level-badge b02">02</div>
+    <div class="section-header-text"><h2>Why Divide by √d_k?</h2><p>The mathematical reason for the scaling factor</p></div>
+  </div>
+  <div class="prose">
+    <p>This is one of those design choices that looks arbitrary until you understand the math. Here's why 1/√d_k is exactly right:</p>
+    <p>Suppose Q and K have components drawn from 𝒩(0,1) (which they roughly do after LayerNorm). The dot product q·k = Σᵢ qᵢkᵢ has:</p>
+  </div>
+  <div class="math-box">E[q·k] = 0                    (product of zero-mean variables)
+Var(q·k) = d_k               (sum of d_k independent variance-1 terms)
+Std(q·k) = √d_k
+
+Without scaling: for d_k=64, scores have std ≈ 8
+  → Softmax inputs span a range of ~16
+  → Softmax becomes near one-hot (one element ≈ 1, rest ≈ 0)
+  → Gradient nearly zero everywhere → vanishing gradients in attention!
+
+With scaling by 1/√d_k:
+  scores / √d_k has std ≈ 1
+  → Softmax is well-behaved
+  → All tokens receive meaningful gradient signal</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Demonstrating why √d_k matters</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+d_k = <span class="nm">64</span>
+T   = <span class="nm">10</span>
+
+<span class="cm"># Q and K from standard normal</span>
+Q = np.random.randn(T, d_k)
+K = np.random.randn(T, d_k)
+
+scores_unscaled = Q @ K.T          <span class="cm"># (T, T)</span>
+scores_scaled   = Q @ K.T / np.sqrt(d_k)
+
+<span class="fn">print</span>(f<span class="st">f"Unscaled scores std: {scores_unscaled.std():.2f}"</span>)  <span class="cm"># ≈ √64 = 8</span>
+<span class="fn">print</span>(f<span class="st">f"Scaled scores std:   {scores_scaled.std():.2f}"</span>)    <span class="cm"># ≈ 1.0</span>
+
+<span class="kw">def</span> <span class="fn">softmax_row</span>(x): e=np.exp(x-x.max()); <span class="kw">return</span> e/e.sum()
+
+attn_unscaled = softmax_row(scores_unscaled[<span class="nm">0</span>])
+attn_scaled   = softmax_row(scores_scaled[<span class="nm">0</span>])
+
+<span class="fn">print</span>(f<span class="st">f"Unscaled attention: max={attn_unscaled.max():.4f}, min={attn_unscaled.min():.6f}"</span>)
+<span class="fn">print</span>(f<span class="st">f"Scaled attention:   max={attn_scaled.max():.4f}, min={attn_scaled.min():.4f}"</span>)
+<span class="cm"># Unscaled: one token gets ≈1.0, others get ≈0.000 → near one-hot
+# Scaled:   distribution is spread out → meaningful gradients</span></pre>
+  </div>
+</section>
+
+<section class="section" id="multi-head">
+  <div class="section-header"><div class="level-badge b03">03</div>
+    <div class="section-header-text"><h2>Multi-Head Attention</h2><p>Run attention in parallel in h different subspaces</p></div>
+  </div>
+  <div class="prose">
+    <p>A single attention head can only look at one "type" of relationship at a time. <strong>Multi-head attention</strong> runs h independent attention mechanisms in parallel, each in a lower-dimensional subspace. The outputs are concatenated and projected back.</p>
+    <p>Each head learns a different type of relationship: one head might focus on syntactic dependencies, another on coreference, another on positional proximity.</p>
+  </div>
+  <div class="math-box">For h heads, each with d_k = d_model / h:
+
+head_i = Attention(Q·W_Qᵢ,  K·W_Kᵢ,  V·W_Vᵢ)
+  W_Qᵢ: (d_model × d_k)
+  W_Kᵢ: (d_model × d_k)
+  W_Vᵢ: (d_model × d_v),   d_v = d_k typically
+
+MultiHead(Q, K, V) = concat(head_1, ..., head_h) · W_O
+  concat output: (T × h·d_v) = (T × d_model)
+  W_O: (d_model × d_model)
+
+Example (GPT-2 small): d_model=768, h=12 → d_k=d_v=64 per head</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Multi-head attention (efficient batched version)</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">multi_head_attention</span>(x, W_QKV, W_O, n_heads, causal=<span class="nm">True</span>):
+    <span class="st">"""
+    x:      (B, T, d_model)
+    W_QKV:  (d_model, 3 * d_model)   — project to Q, K, V in one step
+    W_O:    (d_model, d_model)         — output projection
+    """</span>
+    B, T, d_model = x.shape
+    d_head = d_model // n_heads
+
+    <span class="cm"># Project all Q, K, V at once: (B, T, 3*d_model)</span>
+    qkv = x @ W_QKV
+    Q, K, V = np.split(qkv, <span class="nm">3</span>, axis=-<span class="nm">1</span>)   <span class="cm"># each: (B, T, d_model)</span>
+
+    <span class="cm"># Reshape to separate heads: (B, T, h, d_head) → (B, h, T, d_head)</span>
+    Q = Q.reshape(B, T, n_heads, d_head).transpose(<span class="nm">0</span>, <span class="nm">2</span>, <span class="nm">1</span>, <span class="nm">3</span>)
+    K = K.reshape(B, T, n_heads, d_head).transpose(<span class="nm">0</span>, <span class="nm">2</span>, <span class="nm">1</span>, <span class="nm">3</span>)
+    V = V.reshape(B, T, n_heads, d_head).transpose(<span class="nm">0</span>, <span class="nm">2</span>, <span class="nm">1</span>, <span class="nm">3</span>)
+
+    <span class="cm"># Attention scores: (B, h, T, T)</span>
+    scores = Q @ K.transpose(<span class="nm">0</span>, <span class="nm">1</span>, <span class="nm">3</span>, <span class="nm">2</span>) / np.sqrt(d_head)
+
+    <span class="kw">if</span> causal:
+        mask = np.tril(np.ones((T, T)))
+        scores = np.where(mask[<span class="nm">None</span>, <span class="nm">None</span>] == <span class="nm">1</span>, scores, -<span class="nm">1e9</span>)
+
+    e = np.exp(scores - scores.max(axis=-<span class="nm">1</span>, keepdims=<span class="nm">True</span>))
+    attn = e / e.sum(axis=-<span class="nm">1</span>, keepdims=<span class="nm">True</span>)
+
+    <span class="cm"># (B, h, T, d_head) → (B, T, d_model)</span>
+    out = (attn @ V).transpose(<span class="nm">0</span>, <span class="nm">2</span>, <span class="nm">1</span>, <span class="nm">3</span>).reshape(B, T, d_model)
+    <span class="kw">return</span> out @ W_O
+
+B, T, d_model, n_heads = <span class="nm">2</span>, <span class="nm">6</span>, <span class="nm">64</span>, <span class="nm">8</span>
+x      = np.random.randn(B, T, d_model)
+W_QKV  = np.random.randn(d_model, <span class="nm">3</span>*d_model) * <span class="nm">0.02</span>
+W_O    = np.random.randn(d_model, d_model) * <span class="nm">0.02</span>
+out = multi_head_attention(x, W_QKV, W_O, n_heads)
+<span class="fn">print</span>(f<span class="st">f"MHA output shape: {out.shape}"</span>)   <span class="cm"># (2, 6, 64)</span></pre>
+  </div>
+</section>
+
+<section class="section" id="causal-mask">
+  <div class="section-header"><div class="level-badge b04">04</div>
+    <div class="section-header-text"><h2>Causal Masking</h2><p>How the decoder prevents attending to future tokens</p></div>
+  </div>
+  <div class="prose">
+    <p>For language modelling, when predicting token at position i, the model must not "cheat" by looking at tokens i+1, i+2, etc. The <strong>causal mask</strong> (also called look-ahead mask) enforces this by setting the attention scores for future positions to -∞ before the softmax. exp(-∞) = 0, so future tokens get exactly zero attention weight.</p>
+  </div>
+  <div class="diag"><span class="h">Causal attention mask for sequence length 5</span>
+
+<span class="c">      t0    t1    t2    t3    t4   ← key positions</span>
+<span class="g">t0</span> [ <span class="b">0.0</span>  -inf  -inf  -inf  -inf ]  ← t0 sees only itself
+<span class="g">t1</span> [ <span class="b">0.0</span>   <span class="b">0.0</span>  -inf  -inf  -inf ]  ← t1 sees t0, t1
+<span class="g">t2</span> [ <span class="b">0.0</span>   <span class="b">0.0</span>   <span class="b">0.0</span>  -inf  -inf ]
+<span class="g">t3</span> [ <span class="b">0.0</span>   <span class="b">0.0</span>   <span class="b">0.0</span>   <span class="b">0.0</span>  -inf ]
+<span class="g">t4</span> [ <span class="b">0.0</span>   <span class="b">0.0</span>   <span class="b">0.0</span>   <span class="b">0.0</span>   <span class="b">0.0</span> ]  ← t4 sees all previous
+
+After softmax:
+<span class="c">   exp(-inf) = 0  →  future positions get exactly zero attention</span>
+<span class="c">   Remaining weights renormalise to sum to 1</span>
+
+<span class="h">Implementation: lower-triangular matrix of ones</span>
+<span class="g">mask = np.tril(np.ones((T, T)))</span></div>
+</section>
+
+<section class="section" id="positional">
+  <div class="section-header"><div class="level-badge b05">05</div>
+    <div class="section-header-text"><h2>Positional Encodings</h2><p>Injecting position information — sinusoidal vs learned vs RoPE</p></div>
+  </div>
+  <div class="prose">
+    <p>Attention is <strong>permutation-invariant</strong> — if you shuffle all the tokens in random order, the attention mechanism gives the same output (just shuffled). This means the model has no way to know the order of tokens. Positional encodings fix this.</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>How it works</th><th>Formula</th><th>Used by</th></tr></thead>
+      <tbody>
+        <tr><td>Sinusoidal (absolute)</td><td>Fixed sin/cos patterns added to embeddings</td><td>PE[pos, 2i] = sin(pos/10000^(2i/d))</td><td>Original Transformer</td></tr>
+        <tr><td>Learned absolute</td><td>Learnable position embedding table</td><td>P = Embedding(position)</td><td>GPT-2, BERT</td></tr>
+        <tr><td>RoPE</td><td>Rotate Q and K by position-dependent angle</td><td>R_θ · q where θ∝position</td><td>LLaMA, Mistral, Falcon</td></tr>
+        <tr><td>ALiBi</td><td>Add linear bias to attention scores</td><td>score[i,j] -= slope·|i-j|</td><td>MPT, BLOOM</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · RoPE — Rotary Position Embedding</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">apply_rope</span>(x, pos, theta=<span class="nm">10000.0</span>):
+    <span class="st">"""
+    x: (T, d_head)
+    Apply rotary position embedding: rotate pairs of dimensions.
+    """</span>
+    T, d = x.shape
+    d_half = d // <span class="nm">2</span>
+
+    <span class="cm"># Frequencies: θᵢ = 1 / (theta^(2i/d))</span>
+    freqs = <span class="nm">1.0</span> / (theta ** (np.arange(<span class="nm">0</span>, d_half) / d_half))
+    angles = np.outer(pos, freqs)   <span class="cm"># (T, d/2): pos × frequency</span>
+
+    <span class="cm"># Rotate pairs (x₂ᵢ, x₂ᵢ₊₁) by angle[i]</span>
+    cos_a = np.cos(angles)   <span class="cm"># (T, d/2)</span>
+    sin_a = np.sin(angles)
+
+    x_even = x[:, <span class="nm">0</span>::<span class="nm">2</span>]   <span class="cm"># x₀, x₂, x₄, ...</span>
+    x_odd  = x[:, <span class="nm">1</span>::<span class="nm">2</span>]   <span class="cm"># x₁, x₃, x₅, ...</span>
+
+    x_rotated = np.empty_like(x)
+    x_rotated[:, <span class="nm">0</span>::<span class="nm">2</span>] = x_even * cos_a - x_odd * sin_a
+    x_rotated[:, <span class="nm">1</span>::<span class="nm">2</span>] = x_odd  * cos_a + x_even * sin_a
+
+    <span class="kw">return</span> x_rotated
+
+T, d_head = <span class="nm">8</span>, <span class="nm">64</span>
+q = np.random.randn(T, d_head)
+positions = np.arange(T)
+q_rope = apply_rope(q, positions)
+<span class="fn">print</span>(f<span class="st">f"RoPE output shape: {q_rope.shape}"</span>)  <span class="cm"># (8, 64) — same shape</span>
+<span class="fn">print</span>(f<span class="st">f"Norm preserved: {np.allclose(np.linalg.norm(q,axis=1), np.linalg.norm(q_rope,axis=1))}"</span>)
+<span class="cm"># RoPE is a rotation — it preserves the L2 norm of each vector</span></pre>
+  </div>
+</section>
+
+<section class="section" id="complexity">
+  <div class="section-header"><div class="level-badge b06">06</div>
+    <div class="section-header-text"><h2>Complexity &amp; Flash Attention</h2><p>Why vanilla attention is O(N²) — and how Flash Attention fixes the memory problem</p></div>
+  </div>
+  <div class="prose">
+    <p>The score matrix S = Q @ Kᵀ has shape (T × T). For a sequence of T=4096 tokens with d_k=64:</p>
+    <ul>
+      <li><strong>Compute</strong>: O(T² · d_k) FLOPs — quadratic in sequence length</li>
+      <li><strong>Memory</strong>: O(T²) to store the attention matrix — 4096² = 16M floats = 64 MB <em>per head per layer</em></li>
+    </ul>
+    <p>For 100K token contexts (RAG, long documents): T²=10¹⁰ — the naive attention matrix won't fit in GPU memory.</p>
+    <h3>Flash Attention</h3>
+    <p>Flash Attention (Dao et al., 2022) never materialises the full T×T attention matrix. Instead, it tiles the computation into blocks that fit in SRAM (L1 cache / shared memory), computing the softmax and weighted sum incrementally. Memory drops from O(T²) to O(T). Speed improves because memory reads/writes are the bottleneck, not FLOPs.</p>
+  </div>
+  <div class="diag"><span class="h">Vanilla attention vs Flash Attention</span>
+
+<span class="h">Vanilla:</span>
+  S = Q @ Kᵀ          <span class="c">← store full (T×T) in HBM GPU memory</span>
+  A = softmax(S)       <span class="c">← another T×T read/write</span>
+  O = A @ V            <span class="c">← another T×T read</span>
+  <span class="c">Memory: O(T²).  For T=4096: ~256 MB per layer (FP32)</span>
+
+<span class="g">Flash Attention:</span>
+  Split Q, K, V into tiles that fit in SRAM (fast, small)
+  Compute attention block by block, accumulate output
+  Never store full T×T matrix
+  <span class="c">Memory: O(T).  For T=4096: ~6 MB per layer</span>
+  <span class="c">Speed:  2-4× faster despite same FLOPs (fewer HBM reads/writes)</span>
+
+  PyTorch 2.0+: F.scaled_dot_product_attention() uses Flash Attention
+  automatically when hardware supports it.</div>
+  <div class="info-box tip"><div class="label">Chapter Summary</div>
+    <p>Attention = (Q @ Kᵀ / √d_k) → softmax → @ V. The √d_k prevents softmax saturation. Causal masking enforces left-to-right generation. Multi-head attention runs h attention mechanisms in parallel subspaces. RoPE encodes position by rotating Q and K. Flash Attention achieves the same math using tiled SRAM computation to avoid O(T²) memory. These are all consequences of linear algebra, probability, and a bit of systems engineering.</p>
+  </div>
+  <div style="height:64px"></div>
+</section>
+<footer><span>Chapter 9 · Attention Math</span><span>Math for LLM Design, Training &amp; Inference</span></footer>
+</main>
+<script>
+function toggleTheme(){document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';}
+const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){document.querySelectorAll('nav ul li a').forEach(l=>l.classList.remove('active'));const a=document.querySelector(`nav ul li a[href="#${x.target.id}"]`);if(a)a.classList.add('active');}});},{threshold:0.3});
+document.querySelectorAll('section[id]').forEach(s=>io.observe(s));
+</script>
+</body>
+</html>

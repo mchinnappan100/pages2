@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ch 04 · Probability Foundations</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="math-book.css"/>
+</head>
+<body>
+<nav>
+  <div class="nav-brand"><div class="icon">∑</div><h2>LLM Math</h2><p>Chapter 4 of 10</p></div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Theme</button>
+  <div class="book-nav">
+    <div class="book-nav-title">All Chapters</div>
+    <a href="ch01-linear-algebra-foundations.html">① Vectors &amp; LA Foundations</a>
+    <a href="ch02-matrix-operations.html">② Matrix Operations</a>
+    <a href="ch03-eigenvalues-svd.html">③ Eigenvalues &amp; SVD</a>
+    <a href="ch04-probability-foundations.html" class="current">④ Probability Foundations</a>
+    <a href="ch05-distributions.html">⑤ Key Distributions</a>
+    <a href="ch06-information-theory.html">⑥ Information Theory</a>
+    <a href="ch07-calculus-backprop.html">⑦ Calculus &amp; Backprop</a>
+    <a href="ch08-optimization.html">⑧ Optimization</a>
+    <a href="ch09-attention-math.html">⑨ Attention Math</a>
+    <a href="ch10-inference-math.html">⑩ Inference Math</a>
+  </div>
+  <ul>
+    <li class="nav-section-label">Sections</li>
+    <li><a href="#basics"><span class="dot"></span>Probability Basics</a></li>
+    <li><a href="#conditional"><span class="dot"></span>Conditional Probability</a></li>
+    <li><a href="#bayes"><span class="dot"></span>Bayes' Theorem</a></li>
+    <li><a href="#expectation"><span class="dot"></span>Expectation &amp; Variance</a></li>
+    <li><a href="#mle"><span class="dot"></span>Maximum Likelihood</a></li>
+    <li><a href="#llm-prob"><span class="dot"></span>LLM as Probability Model</a></li>
+  </ul>
+</nav>
+<main>
+<div class="hero">
+  <div class="hero-badge">Chapter 4 · Probability Foundations</div>
+  <h1>Probability<br><em>Foundations</em></h1>
+  <p>An LLM is fundamentally a probability model: given a sequence of tokens, it assigns a probability to every possible next token. Training maximises these probabilities. Sampling uses them to generate text. This chapter builds the probabilistic foundation from scratch.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">P(x)</span><span class="lbl">Probability of token</span></div>
+    <div class="hero-stat"><span class="num">P(y|x)</span><span class="lbl">Conditional = next token</span></div>
+    <div class="hero-stat"><span class="num">MLE</span><span class="lbl">How we train</span></div>
+    <div class="hero-stat"><span class="num">E[X]</span><span class="lbl">Expected value</span></div>
+  </div>
+</div>
+
+<section class="section" id="basics">
+  <div class="section-header"><div class="level-badge b01">01</div>
+    <div class="section-header-text"><h2>Probability Basics</h2><p>What probability means and the axioms it must satisfy</p></div>
+  </div>
+  <div class="prose">
+    <p>A <strong>probability</strong> is a number between 0 and 1 that expresses how likely an event is. P(event) = 0 means impossible; P(event) = 1 means certain.</p>
+    <p>For a language model, the key events are: "the next token is word X." The model assigns a probability to every word in the vocabulary (50,000+ words), and these must all sum to exactly 1.0 — this is enforced by the softmax function.</p>
+    <h3>Three axioms of probability</h3>
+    <ul>
+      <li><strong>Non-negativity:</strong> P(A) ≥ 0 for any event A</li>
+      <li><strong>Normalisation:</strong> P(entire sample space) = 1</li>
+      <li><strong>Additivity:</strong> P(A or B) = P(A) + P(B) if A and B can't both happen</li>
+    </ul>
+  </div>
+  <div class="math-box">Discrete probability distribution:
+  P(X = x) for each possible value x
+
+  Must satisfy:  Σₓ P(X = x) = 1   and   P(X = x) ≥ 0
+
+Language model next-token distribution:
+  P(next = "cat" | context) = 0.12
+  P(next = "dog" | context) = 0.08
+  P(next = "the"  | context) = 0.31
+  ...
+  Sum over all 50,257 vocabulary tokens = 1.0</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Softmax converts raw scores to probabilities</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Raw logit scores from the LLM's final layer (unnormalized)</span>
+logits = np.array([<span class="nm">2.1</span>, <span class="nm">0.8</span>, -<span class="nm">0.5</span>, <span class="nm">1.4</span>, <span class="nm">3.2</span>])
+
+<span class="cm"># Softmax: converts to probabilities that sum to 1</span>
+<span class="kw">def</span> <span class="fn">softmax</span>(x):
+    <span class="cm"># Subtract max for numerical stability (prevents overflow)</span>
+    e = np.exp(x - x.max())
+    <span class="kw">return</span> e / e.sum()
+
+probs = softmax(logits)
+<span class="fn">print</span>(<span class="st">"Probabilities:"</span>, np.round(probs, <span class="nm">4</span>))
+<span class="fn">print</span>(<span class="st">"Sum:"</span>, probs.sum())   <span class="cm"># exactly 1.0</span>
+<span class="cm"># → [0.1762, 0.0589, 0.0162, 0.1087, 0.6399]
+#   The 5th token ("the") gets ~64% probability</span>
+
+<span class="cm"># Sample from this distribution (not greedy decode)</span>
+next_token = np.random.choice(<span class="nm">5</span>, p=probs)
+<span class="fn">print</span>(<span class="st">f"Sampled token index: {next_token}"</span>)</pre>
+  </div>
+</section>
+
+<section class="section" id="conditional">
+  <div class="section-header"><div class="level-badge b02">02</div>
+    <div class="section-header-text"><h2>Conditional Probability</h2><p>The probability of X given that we know Y — the essence of language modelling</p></div>
+  </div>
+  <div class="prose">
+    <p>The <strong>conditional probability</strong> P(A|B) is the probability of event A, given that we already know B happened. It updates our belief about A based on new information.</p>
+    <p>This is the mathematical heart of language modelling. An LLM computes:</p>
+    <p style="text-align:center;font-family:'JetBrains Mono',monospace;color:var(--accent);font-size:1.1rem;margin:16px 0">P(next token | all previous tokens)</p>
+    <p>Given the context "The cat sat on the ___", the LLM computes a conditional probability distribution over every possible next word, conditioned on having seen "The cat sat on the" as context.</p>
+  </div>
+  <div class="math-box">Definition:
+  P(A | B) = P(A and B) / P(B)
+
+Product rule (chain rule):
+  P(A and B) = P(A | B) · P(B)
+
+Language model chain rule:
+  P(w₁, w₂, w₃, ..., wₙ) = P(w₁) · P(w₂|w₁) · P(w₃|w₁,w₂) · ... · P(wₙ|w₁...wₙ₋₁)
+
+This means: the probability of a sentence = product of each token's
+probability given all previous tokens. This is exactly what LLMs model!</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Sentence probability using the chain rule</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Simulate conditional probabilities for a tiny vocabulary</span>
+<span class="cm"># P(next | context) for each position</span>
+<span class="cm"># Sentence: "The cat sat"</span>
+
+p_the        = <span class="nm">0.05</span>     <span class="cm"># P("The")           — starts many sentences</span>
+p_cat_the    = <span class="nm">0.02</span>     <span class="cm"># P("cat" | "The")</span>
+p_sat_thecat = <span class="nm">0.30</span>     <span class="cm"># P("sat" | "The cat")</span>
+
+<span class="cm"># Chain rule: sentence probability = product of conditionals</span>
+p_sentence = p_the * p_cat_the * p_sat_thecat
+<span class="fn">print</span>(f<span class="st">f"P('The cat sat') = {p_sentence:.6f}"</span>)
+
+<span class="cm"># Log probability (to avoid underflow with long sequences)</span>
+log_p = np.log(p_the) + np.log(p_cat_the) + np.log(p_sat_thecat)
+<span class="fn">print</span>(f<span class="st">f"Log P('The cat sat') = {log_p:.4f}"</span>)
+
+<span class="cm"># Per-token cross-entropy loss (what LLMs minimise during training)</span>
+<span class="cm"># = -log P(correct next token | context)</span>
+loss = -log_p / <span class="nm">3</span>   <span class="cm"># average over 3 tokens</span>
+<span class="fn">print</span>(f<span class="st">f"Average cross-entropy loss: {loss:.4f}"</span>)</pre>
+  </div>
+</section>
+
+<section class="section" id="bayes">
+  <div class="section-header"><div class="level-badge b03">03</div>
+    <div class="section-header-text"><h2>Bayes' Theorem</h2><p>How to update beliefs when new evidence arrives</p></div>
+  </div>
+  <div class="prose">
+    <p>Bayes' theorem is one of the most important equations in all of statistics and AI. It tells you how to <em>update</em> your probability estimate for hypothesis H when you observe evidence E.</p>
+  </div>
+  <div class="math-box">Bayes' Theorem:
+
+  P(H | E) = P(E | H) · P(H) / P(E)
+
+Where:
+  P(H)     = prior probability of H (before seeing evidence)
+  P(E | H) = likelihood: how probable is this evidence if H is true?
+  P(E)     = marginal probability of evidence (normalising constant)
+  P(H | E) = posterior: updated probability after seeing evidence
+
+In language modelling:
+  H = a hypothesis about meaning/intent
+  E = the tokens in the prompt
+  P(H|E) = what the model "believes" given the context</div>
+  <div class="prose">
+    <h3>Bayesian thinking in LLMs</h3>
+    <ul>
+      <li><strong>Prompt as evidence</strong> — each new token in a prompt updates the model's distribution over possible next tokens. This is Bayesian updating in action.</li>
+      <li><strong>In-context learning</strong> — few-shot examples shift the model's "prior" about what task to perform. Adding "Q: ... A: ..." examples changes the posterior over the format of the response.</li>
+      <li><strong>RLHF</strong> — the reward model learns P(human prefers this response | prompt, response). The policy is then updated toward responses with high posterior probability of being preferred.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="section" id="expectation">
+  <div class="section-header"><div class="level-badge b04">04</div>
+    <div class="section-header-text"><h2>Expectation &amp; Variance</h2><p>The average behaviour of a random variable — and how spread out it is</p></div>
+  </div>
+  <div class="prose">
+    <p>The <strong>expectation</strong> (or expected value) E[X] is the probability-weighted average of all possible values of X. It answers: "what value would I get on average if I ran this random process many times?"</p>
+    <p>The <strong>variance</strong> Var(X) measures how spread out the distribution is around its mean.</p>
+  </div>
+  <div class="math-box">Expectation (discrete):  E[X] = Σₓ x · P(X = x)
+
+Variance:  Var(X) = E[(X - E[X])²] = E[X²] - (E[X])²
+
+Standard deviation:  σ = √Var(X)
+
+Linearity of expectation:
+  E[aX + b] = a·E[X] + b
+  E[X + Y]  = E[X] + E[Y]  (always true, even for dependent X,Y)
+
+LLM connections:
+  E[loss over dataset] = (1/N) Σᵢ loss(xᵢ)  ← training minimises this
+  E[output token]      = Σ_vocab token · P(token|context)  ← not used directly
+  Var(gradients)       = key concern for stable training</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Expectation and variance of LLM outputs</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Token probabilities from a small vocabulary</span>
+vocab = [<span class="st">"cat"</span>, <span class="st">"dog"</span>, <span class="st">"the"</span>, <span class="st">"sat"</span>]
+probs = np.array([<span class="nm">0.3</span>, <span class="nm">0.2</span>, <span class="nm">0.4</span>, <span class="nm">0.1</span>])
+
+<span class="cm"># Expected loss if we assign these probabilities to the true next token</span>
+<span class="cm"># Cross-entropy = -E[log P(correct token)]</span>
+log_probs = np.log(probs)
+entropy = -np.sum(probs * log_probs)
+<span class="fn">print</span>(f<span class="st">f"Distribution entropy: {entropy:.4f}"</span>)   <span class="cm"># uncertainty measure</span>
+
+<span class="cm"># Variance of training losses (want this to be small = stable training)</span>
+losses = np.array([<span class="nm">2.3</span>, <span class="nm">1.9</span>, <span class="nm">2.1</span>, <span class="nm">3.5</span>, <span class="nm">2.0</span>])
+<span class="fn">print</span>(f<span class="st">f"Mean loss: {losses.mean():.4f}"</span>)
+<span class="fn">print</span>(f<span class="st">f"Loss variance: {losses.var():.4f}"</span>)
+<span class="fn">print</span>(f<span class="st">f"Loss std dev: {losses.std():.4f}"</span>)
+
+<span class="cm"># Monte Carlo estimate of expected value via sampling</span>
+samples = np.random.choice([<span class="nm">0</span>, <span class="nm">1</span>, <span class="nm">2</span>, <span class="nm">3</span>], size=<span class="nm">10000</span>, p=probs)
+mc_estimate = np.mean(samples)
+true_expectation = np.dot(np.arange(<span class="nm">4</span>), probs)   <span class="cm"># = 0×0.3 + 1×0.2 + 2×0.4 + 3×0.1</span>
+<span class="fn">print</span>(f<span class="st">f"MC estimate: {mc_estimate:.4f}, True E[X]: {true_expectation:.4f}"</span>)</pre>
+  </div>
+</section>
+
+<section class="section" id="mle">
+  <div class="section-header"><div class="level-badge b05">05</div>
+    <div class="section-header-text"><h2>Maximum Likelihood Estimation (MLE)</h2><p>The mathematical justification for why we minimise cross-entropy loss</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>MLE</strong> asks: given the data we observed, what parameter values make that data most probable? For a language model, this means: find weights θ that maximise P(training text | θ).</p>
+    <p>Maximising likelihood is equivalent to minimising negative log-likelihood — which is <em>exactly</em> the cross-entropy loss used to train every LLM.</p>
+  </div>
+  <div class="math-box">Maximum Likelihood:
+  θ* = argmax_θ  P(data | θ)
+     = argmax_θ  Π_i P(xᵢ | θ)           (assuming i.i.d. samples)
+     = argmax_θ  Σ_i log P(xᵢ | θ)       (log turns product → sum)
+     = argmin_θ  -Σ_i log P(xᵢ | θ)      (flip sign: minimise NLL)
+
+For a language model on a sequence of tokens w₁...wₙ:
+  NLL = -Σᵢ log P(wᵢ | w₁, ..., wᵢ₋₁; θ)
+
+This IS the cross-entropy training loss. MLE = cross-entropy minimisation.</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · MLE and cross-entropy loss</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">softmax</span>(x):
+    e = np.exp(x - x.max())
+    <span class="kw">return</span> e / e.sum(axis=-<span class="nm">1</span>, keepdims=<span class="nm">True</span>)
+
+<span class="cm"># Logits from LLM for 3 tokens, vocab size=5</span>
+logits = np.array([[<span class="nm">2.1</span>, <span class="nm">0.8</span>, <span class="nm">3.2</span>, -<span class="nm">0.5</span>, <span class="nm">1.4</span>],
+                   [<span class="nm">0.3</span>, <span class="nm">2.9</span>, <span class="nm">0.1</span>,  <span class="nm">1.2</span>, <span class="nm">0.5</span>],
+                   [<span class="nm">1.5</span>, <span class="nm">0.2</span>, <span class="nm">0.8</span>, <span class="nm">2.8</span>, <span class="nm">0.4</span>]])
+
+<span class="cm"># True next tokens (ground truth from training data)</span>
+targets = np.array([<span class="nm">2</span>, <span class="nm">1</span>, <span class="nm">3</span>])   <span class="cm"># indices of correct tokens</span>
+
+<span class="cm"># Step 1: Convert logits to probabilities</span>
+probs = softmax(logits)   <span class="cm"># shape (3, 5)</span>
+
+<span class="cm"># Step 2: Extract probability assigned to the CORRECT token</span>
+correct_probs = probs[np.arange(<span class="nm">3</span>), targets]
+<span class="fn">print</span>(<span class="st">"P(correct token):"</span>, np.round(correct_probs, <span class="nm">4</span>))
+
+<span class="cm"># Step 3: Cross-entropy loss = -mean(log P(correct))</span>
+<span class="cm"># = negative log-likelihood = what we minimise during training</span>
+ce_loss = -np.mean(np.log(correct_probs + <span class="nm">1e-10</span>))
+<span class="fn">print</span>(f<span class="st">f"Cross-entropy loss: {ce_loss:.4f}"</span>)
+
+<span class="cm"># Perplexity = exp(cross-entropy) — used to compare LLMs</span>
+perplexity = np.exp(ce_loss)
+<span class="fn">print</span>(f<span class="st">f"Perplexity: {perplexity:.4f}"</span>)</pre>
+  </div>
+</section>
+
+<section class="section" id="llm-prob">
+  <div class="section-header"><div class="level-badge b06">06</div>
+    <div class="section-header-text"><h2>LLM as a Probability Model</h2><p>Connecting all probability concepts to the transformer</p></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Probability Concept</th><th>LLM Component</th><th>How it's used</th></tr></thead>
+      <tbody>
+        <tr><td>Probability distribution</td><td>Softmax output</td><td>P(next token | context) over full vocabulary</td></tr>
+        <tr><td>Conditional probability</td><td>Autoregressive generation</td><td>Each token conditioned on all previous tokens</td></tr>
+        <tr><td>Chain rule</td><td>Sequence probability</td><td>P(sentence) = product of per-token conditionals</td></tr>
+        <tr><td>Maximum likelihood</td><td>Cross-entropy training loss</td><td>Train to maximise P(training data | weights)</td></tr>
+        <tr><td>Log probability</td><td>Loss computation</td><td>Log prevents underflow; turns products → sums</td></tr>
+        <tr><td>Sampling</td><td>Text generation</td><td>Draw next token from P(· | context)</td></tr>
+        <tr><td>Expectation</td><td>Mean loss over batch</td><td>Stochastic gradient descent minimises E[loss]</td></tr>
+        <tr><td>Entropy</td><td>Uncertainty measure</td><td>High entropy = model is uncertain; low = confident</td></tr>
+        <tr><td>Bayes' theorem</td><td>In-context learning</td><td>Prompt updates model's posterior over responses</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="info-box tip"><div class="label">Chapter Summary</div>
+    <p>An LLM is a conditional probability distribution P(next token | context). Training it is MLE — maximise P(training data) which equals minimise cross-entropy loss. Inference is sampling from this distribution. Every probability concept from this chapter maps directly to a concrete part of the training or inference pipeline.</p>
+  </div>
+  <div style="height:64px"></div>
+</section>
+<footer><span>Chapter 4 · Probability Foundations</span><span>Math for LLM Design, Training &amp; Inference</span></footer>
+</main>
+<script>
+function toggleTheme(){document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';}
+const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){document.querySelectorAll('nav ul li a').forEach(l=>l.classList.remove('active'));const a=document.querySelector(`nav ul li a[href="#${x.target.id}"]`);if(a)a.classList.add('active');}});},{threshold:0.3});
+document.querySelectorAll('section[id]').forEach(s=>io.observe(s));
+</script>
+</body>
+</html>

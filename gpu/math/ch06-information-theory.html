@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ch 06 · Information Theory</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="math-book.css"/>
+</head>
+<body>
+<nav>
+  <div class="nav-brand"><div class="icon">∑</div><h2>LLM Math</h2><p>Chapter 6 of 10</p></div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Theme</button>
+  <div class="book-nav">
+    <div class="book-nav-title">All Chapters</div>
+    <a href="ch01-linear-algebra-foundations.html">① Vectors &amp; LA Foundations</a>
+    <a href="ch02-matrix-operations.html">② Matrix Operations</a>
+    <a href="ch03-eigenvalues-svd.html">③ Eigenvalues &amp; SVD</a>
+    <a href="ch04-probability-foundations.html">④ Probability Foundations</a>
+    <a href="ch05-distributions.html">⑤ Key Distributions</a>
+    <a href="ch06-information-theory.html" class="current">⑥ Information Theory</a>
+    <a href="ch07-calculus-backprop.html">⑦ Calculus &amp; Backprop</a>
+    <a href="ch08-optimization.html">⑧ Optimization</a>
+    <a href="ch09-attention-math.html">⑨ Attention Math</a>
+    <a href="ch10-inference-math.html">⑩ Inference Math</a>
+  </div>
+  <ul>
+    <li class="nav-section-label">Sections</li>
+    <li><a href="#entropy"><span class="dot"></span>Entropy</a></li>
+    <li><a href="#cross-entropy"><span class="dot"></span>Cross-Entropy Loss</a></li>
+    <li><a href="#kl-divergence"><span class="dot"></span>KL Divergence</a></li>
+    <li><a href="#perplexity"><span class="dot"></span>Perplexity</a></li>
+    <li><a href="#mutual-info"><span class="dot"></span>Mutual Information</a></li>
+    <li><a href="#connections"><span class="dot"></span>All Connections to LLMs</a></li>
+  </ul>
+</nav>
+<main>
+<div class="hero">
+  <div class="hero-badge">Chapter 6 · Information Theory</div>
+  <h1>Information <em>Theory</em><br>for LLMs</h1>
+  <p>Information theory provides the mathematical language for LLM training: entropy measures uncertainty, cross-entropy is the training loss, KL divergence is the RLHF penalty, and perplexity is how we benchmark language models. These are not abstract concepts — they are the daily vocabulary of LLM engineering.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">H(p)</span><span class="lbl">Entropy = uncertainty</span></div>
+    <div class="hero-stat"><span class="num">CE</span><span class="lbl">Training loss</span></div>
+    <div class="hero-stat"><span class="num">KL</span><span class="lbl">RLHF penalty</span></div>
+    <div class="hero-stat"><span class="num">PPL</span><span class="lbl">Benchmark metric</span></div>
+  </div>
+</div>
+
+<section class="section" id="entropy">
+  <div class="section-header"><div class="level-badge b01">01</div>
+    <div class="section-header-text"><h2>Entropy</h2><p>How much uncertainty (or information) is in a distribution?</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>Entropy</strong> H(p) measures the average uncertainty in a probability distribution. A distribution where one outcome is certain (probability 1.0) has entropy = 0 — no uncertainty. A uniform distribution (all outcomes equally likely) has maximum entropy — maximum uncertainty.</p>
+    <p>For an LLM: high entropy after softmax = model is unsure which token comes next. Low entropy = model is confident. Temperature controls this: higher temperature → higher entropy output.</p>
+  </div>
+  <div class="math-box">Shannon Entropy:
+  H(p) = -Σₓ p(x) · log₂ p(x)     (in bits)
+       = -Σₓ p(x) · ln p(x)        (in nats, used in deep learning)
+
+Properties:
+  H(p) ≥ 0  always
+  H(p) = 0  if one outcome has probability 1
+  H(p) = log₂(n) maximum for uniform distribution over n outcomes
+
+LLM context:
+  Uniform over 50,257 tokens:  H = log₂(50257) ≈ 15.6 bits
+  Confident prediction (one token at 0.9):  H ≈ 0.47 bits
+  After training → model's entropy on real text ≈ 2-4 bits per token</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Entropy and temperature's effect</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">entropy</span>(p, base=<span class="nm">None</span>):
+    <span class="st">"""Shannon entropy in nats (base=e) or bits (base=2)."""</span>
+    p = p[p > <span class="nm">0</span>]   <span class="cm"># ignore zero-prob events (0 * log(0) = 0)</span>
+    h = -np.sum(p * np.log(p))
+    <span class="kw">if</span> base <span class="kw">is not None</span>:
+        h /= np.log(base)
+    <span class="kw">return</span> h
+
+<span class="cm"># Uniform distribution over 5 tokens: maximum entropy</span>
+uniform = np.array([<span class="nm">0.2</span>, <span class="nm">0.2</span>, <span class="nm">0.2</span>, <span class="nm">0.2</span>, <span class="nm">0.2</span>])
+<span class="fn">print</span>(f<span class="st">f"Uniform entropy: {entropy(uniform, base=2):.4f} bits"</span>)  <span class="cm"># log2(5) ≈ 2.32</span>
+
+<span class="cm"># Peaked distribution: low entropy</span>
+peaked = np.array([<span class="nm">0.9</span>, <span class="nm">0.05</span>, <span class="nm">0.02</span>, <span class="nm">0.02</span>, <span class="nm">0.01</span>])
+<span class="fn">print</span>(f<span class="st">f"Peaked entropy:  {entropy(peaked, base=2):.4f} bits"</span>)
+
+<span class="cm"># Effect of temperature on entropy</span>
+logits = np.array([<span class="nm">3.0</span>, <span class="nm">1.5</span>, <span class="nm">0.5</span>, <span class="nm">2.0</span>, <span class="nm">0.1</span>])
+<span class="kw">def</span> <span class="fn">softmax</span>(x): e=np.exp(x-x.max()); <span class="kw">return</span> e/e.sum()
+
+<span class="kw">for</span> tau <span class="kw">in</span> [<span class="nm">0.5</span>, <span class="nm">1.0</span>, <span class="nm">2.0</span>, <span class="nm">5.0</span>]:
+    p = softmax(logits / tau)
+    <span class="fn">print</span>(f<span class="st">f"τ={tau}: entropy = {entropy(p, base=2):.3f} bits"</span>)
+<span class="cm"># Higher temperature → higher entropy → more uncertain → more diverse text</span></pre>
+  </div>
+</section>
+
+<section class="section" id="cross-entropy">
+  <div class="section-header"><div class="level-badge b02">02</div>
+    <div class="section-header-text"><h2>Cross-Entropy Loss</h2><p>The loss function that trains every language model ever built</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>Cross-entropy</strong> H(p, q) measures the average number of bits needed to encode events from distribution p using a code designed for distribution q. When q (model) matches p (true distribution), cross-entropy equals entropy. When they differ, cross-entropy is higher — and the excess is the KL divergence.</p>
+    <p>For training LLMs, p is the true (one-hot) distribution — we know the correct next token. q is the model's predicted distribution. Minimising cross-entropy makes the model's prediction as close to the true next token as possible.</p>
+  </div>
+  <div class="math-box">Cross-entropy:
+  H(p, q) = -Σₓ p(x) · log q(x)
+
+For one-hot true distribution (correct token = token c):
+  H(p, q) = -log q(c)   = -log P(correct token | context)
+
+This is the per-token loss. Average over all tokens in a batch:
+  L = -(1/N) Σᵢ log P(wᵢ | w₁...wᵢ₋₁)
+
+Note: H(p, q) = H(p) + KL(p || q)
+  Cross-entropy = entropy of true distribution + KL divergence
+  Since H(p)=0 for one-hot: cross-entropy = KL divergence here</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Cross-entropy loss from scratch</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">cross_entropy_loss</span>(logits, targets):
+    <span class="st">"""
+    logits: (batch, vocab_size) — raw model outputs
+    targets: (batch,) — indices of correct tokens
+    Returns: scalar average cross-entropy loss
+    """</span>
+    batch_size = logits.shape[<span class="nm">0</span>]
+
+    <span class="cm"># Softmax (numerically stable)</span>
+    logits_shifted = logits - logits.max(axis=<span class="nm">1</span>, keepdims=<span class="nm">True</span>)
+    log_probs = logits_shifted - np.log(np.exp(logits_shifted).sum(axis=<span class="nm">1</span>, keepdims=<span class="nm">True</span>))
+
+    <span class="cm"># Pick log probability of the correct token for each example</span>
+    correct_log_probs = log_probs[np.arange(batch_size), targets]
+
+    <span class="cm"># Average negative log likelihood</span>
+    loss = -correct_log_probs.mean()
+    <span class="kw">return</span> loss
+
+<span class="cm"># Example: 3 tokens, vocabulary of 5</span>
+logits  = np.array([[<span class="nm">2.0</span>, <span class="nm">0.5</span>, <span class="nm">3.1</span>, -<span class="nm">0.2</span>, <span class="nm">1.0</span>],
+                    [<span class="nm">0.1</span>, <span class="nm">2.8</span>, <span class="nm">0.3</span>,  <span class="nm">1.1</span>, <span class="nm">0.4</span>],
+                    [<span class="nm">1.5</span>, <span class="nm">0.2</span>, <span class="nm">0.9</span>,  <span class="nm">2.7</span>, <span class="nm">0.3</span>]])
+targets = np.array([<span class="nm">2</span>, <span class="nm">1</span>, <span class="nm">3</span>])   <span class="cm"># correct next tokens</span>
+
+loss = cross_entropy_loss(logits, targets)
+<span class="fn">print</span>(f<span class="st">f"Cross-entropy loss: {loss:.4f}"</span>)
+<span class="cm"># Lower loss = model predicts correct tokens with higher probability</span></pre>
+  </div>
+</section>
+
+<section class="section" id="kl-divergence">
+  <div class="section-header"><div class="level-badge b03">03</div>
+    <div class="section-header-text"><h2>KL Divergence</h2><p>How different is one distribution from another? — the RLHF penalty</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>KL divergence</strong> (Kullback-Leibler divergence) DKL(p‖q) measures how much information is lost when you use distribution q to approximate distribution p. It is not a symmetric distance — DKL(p‖q) ≠ DKL(q‖p).</p>
+    <p>KL divergence appears constantly in LLM training:</p>
+    <ul>
+      <li><strong>RLHF penalty</strong> — the PPO objective includes a KL penalty between the fine-tuned policy and the original reference model, preventing the model from deviating too far from the pretrained behaviour.</li>
+      <li><strong>DPO loss</strong> — Direct Preference Optimization implicitly minimises a KL divergence between the optimal policy and the reference.</li>
+      <li><strong>VAE latent space</strong> — the regularisation term in Variational Autoencoders is a KL divergence between the learned posterior and a standard Gaussian prior.</li>
+    </ul>
+  </div>
+  <div class="math-box">KL Divergence (forward KL):
+  DKL(p || q) = Σₓ p(x) · log(p(x) / q(x))
+              = Σₓ p(x) · [log p(x) - log q(x)]
+              = H(p, q) - H(p)
+
+Properties:
+  DKL(p || q) ≥ 0  always  (Gibbs' inequality)
+  DKL(p || q) = 0  if and only if p = q everywhere
+  DKL(p || q) ≠ DKL(q || p)  (not symmetric!)
+
+RLHF objective (PPO):
+  L = E[reward] - β · DKL(π_θ || π_ref)
+      ↑                    ↑
+  maximise reward    penalise deviation from pretrained model</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · KL divergence and the RLHF penalty</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">kl_divergence</span>(p, q, eps=<span class="nm">1e-10</span>):
+    <span class="st">"""DKL(p || q) — how much q diverges from p."""</span>
+    p, q = np.array(p) + eps, np.array(q) + eps
+    p, q = p/p.sum(), q/q.sum()   <span class="cm"># normalise</span>
+    <span class="kw">return</span> np.sum(p * np.log(p / q))
+
+<span class="cm"># Reference model (pretrained) next-token distribution</span>
+p_ref    = np.array([<span class="nm">0.3</span>, <span class="nm">0.25</span>, <span class="nm">0.2</span>, <span class="nm">0.15</span>, <span class="nm">0.1</span>])
+
+<span class="cm"># Fine-tuned model: slightly different</span>
+p_finetuned = np.array([<span class="nm">0.35</span>, <span class="nm">0.28</span>, <span class="nm">0.17</span>, <span class="nm">0.12</span>, <span class="nm">0.08</span>])
+
+<span class="cm"># Jailbroken model: very different from reference</span>
+p_jailbreak = np.array([<span class="nm">0.01</span>, <span class="nm">0.01</span>, <span class="nm">0.01</span>, <span class="nm">0.01</span>, <span class="nm">0.96</span>])
+
+kl_fine = kl_divergence(p_finetuned, p_ref)
+kl_jail = kl_divergence(p_jailbreak, p_ref)
+<span class="fn">print</span>(f<span class="st">f"KL(finetuned || ref): {kl_fine:.4f}"</span>)    <span class="cm"># small — slight deviation OK</span>
+<span class="fn">print</span>(f<span class="st">f"KL(jailbreak || ref): {kl_jail:.4f}"</span>)    <span class="cm"># large — penalised heavily</span>
+
+<span class="cm"># RLHF combined objective</span>
+reward_fine = <span class="nm">0.8</span>    <span class="cm"># reward model score</span>
+beta = <span class="nm">0.1</span>           <span class="cm"># KL penalty coefficient</span>
+rlhf_objective = reward_fine - beta * kl_fine
+<span class="fn">print</span>(f<span class="st">f"RLHF objective: {rlhf_objective:.4f}"</span>)</pre>
+  </div>
+</section>
+
+<section class="section" id="perplexity">
+  <div class="section-header"><div class="level-badge b04">04</div>
+    <div class="section-header-text"><h2>Perplexity</h2><p>The standard metric for comparing language models</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>Perplexity (PPL)</strong> is the exponential of the cross-entropy loss. It measures how "surprised" the model is on average by each token in a test set. Intuitively, a perplexity of 10 means the model is as uncertain as if it were uniformly choosing among 10 equally likely options for each token.</p>
+    <p>Lower perplexity = better model. GPT-2 (117M) achieves ~30 PPL on Penn Treebank; GPT-3 (175B) achieves ~20; state-of-the-art models achieve ~10-15.</p>
+  </div>
+  <div class="math-box">Perplexity:
+  PPL = exp(H(p, q))
+      = exp(-(1/N) Σᵢ log P(wᵢ | w₁...wᵢ₋₁))
+      = (1 / Π P(wᵢ | context))^(1/N)
+
+Interpretation:
+  PPL = 1     → perfect model, zero uncertainty
+  PPL = k     → model behaves like uniform over k choices per token
+  PPL = vocab → completely random model
+
+Typical values (WikiText-103):
+  GPT-2 small (117M):  ~30 PPL
+  GPT-2 large (774M):  ~22 PPL
+  GPT-3 (175B):        ~20 PPL
+  LLaMA-3 8B:          ~8-10 PPL</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Computing perplexity on a token sequence</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Simulate model's log-probability for each token in a sequence</span>
+<span class="cm"># (In practice: run the LLM, collect per-token log P(token | context))</span>
+log_probs = np.array([
+    -<span class="nm">2.1</span>,   <span class="cm"># P("The") = exp(-2.1) ≈ 0.12</span>
+    -<span class="nm">3.8</span>,   <span class="cm"># P("cat" | "The") ≈ 0.02</span>
+    -<span class="nm">1.4</span>,   <span class="cm"># P("sat" | "The cat") ≈ 0.25</span>
+    -<span class="nm">2.9</span>,   <span class="cm"># P("on" | ...) ≈ 0.05</span>
+    -<span class="nm">2.5</span>,   <span class="cm"># P("the" | ...) ≈ 0.08</span>
+    -<span class="nm">3.2</span>,   <span class="cm"># P("mat" | ...) ≈ 0.04</span>
+])
+
+<span class="cm"># Average negative log-likelihood = cross-entropy</span>
+avg_nll = -log_probs.mean()
+<span class="fn">print</span>(f<span class="st">f"Average NLL (cross-entropy): {avg_nll:.4f}"</span>)
+
+<span class="cm"># Perplexity = exp(cross-entropy)</span>
+ppl = np.exp(avg_nll)
+<span class="fn">print</span>(f<span class="st">f"Perplexity: {ppl:.2f}"</span>)
+<span class="cm"># Lower = better model.  ppl ≈ 15 means model picks correctly
+# from ~15 equally likely choices per token on average.</span></pre>
+  </div>
+</section>
+
+<section class="section" id="mutual-info">
+  <div class="section-header"><div class="level-badge b05">05</div>
+    <div class="section-header-text"><h2>Mutual Information</h2><p>How much does knowing X tell you about Y?</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>Mutual information</strong> I(X;Y) measures the amount of information shared between two random variables. It equals zero if they are independent; it equals H(X) if knowing Y perfectly determines X.</p>
+    <p>In LLMs, mutual information appears in:</p>
+    <ul>
+      <li><strong>Attention head analysis</strong> — which input positions are maximally informative about each output position?</li>
+      <li><strong>Feature selection</strong> — which input features share the most information with the target?</li>
+      <li><strong>InfoNCE contrastive loss</strong> — maximises a lower bound on mutual information between positive pairs (used in CLIP, sentence embeddings).</li>
+    </ul>
+  </div>
+  <div class="math-box">Mutual Information:
+  I(X; Y) = H(X) - H(X | Y)
+           = H(Y) - H(Y | X)
+           = H(X) + H(Y) - H(X, Y)
+           = DKL(P(X,Y) || P(X)P(Y))
+
+  I(X; Y) = 0  ↔  X and Y are independent
+  I(X; Y) = H(X)  ↔  Y perfectly determines X</div>
+</section>
+
+<section class="section" id="connections">
+  <div class="section-header"><div class="level-badge b06">06</div>
+    <div class="section-header-text"><h2>All Connections to LLMs</h2><p>Every information theory concept mapped to a concrete LLM component</p></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Concept</th><th>Formula</th><th>LLM use</th></tr></thead>
+      <tbody>
+        <tr><td>Entropy H(p)</td><td>-Σ p log p</td><td>Uncertainty in model's output distribution; controlled by temperature</td></tr>
+        <tr><td>Cross-entropy H(p,q)</td><td>-Σ p log q</td><td>Training loss: measures mismatch between model and true distribution</td></tr>
+        <tr><td>KL divergence</td><td>Σ p log(p/q)</td><td>RLHF penalty, DPO, VAE regularisation</td></tr>
+        <tr><td>Perplexity</td><td>exp(H(p,q))</td><td>Benchmark metric: lower = better language model</td></tr>
+        <tr><td>Mutual information</td><td>H(X) - H(X|Y)</td><td>Contrastive learning (InfoNCE), attention analysis</td></tr>
+        <tr><td>Bits per character</td><td>H / log(2)</td><td>Compression-based evaluation of text quality</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="info-box tip"><div class="label">Chapter Summary</div>
+    <p>Cross-entropy loss IS information theory applied to language modelling. Every time you read a training log showing "loss = 2.3", that is 2.3 nats of cross-entropy — the model is on average e²·³ ≈ 10× more uncertain than a perfect predictor. When perplexity drops from 30 to 20, the model's surprise per token dropped by 33%. KL divergence keeps RLHF from drifting too far. These numbers are not magic — they are information theory.</p>
+  </div>
+  <div style="height:64px"></div>
+</section>
+<footer><span>Chapter 6 · Information Theory</span><span>Math for LLM Design, Training &amp; Inference</span></footer>
+</main>
+<script>
+function toggleTheme(){document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';}
+const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){document.querySelectorAll('nav ul li a').forEach(l=>l.classList.remove('active'));const a=document.querySelector(`nav ul li a[href="#${x.target.id}"]`);if(a)a.classList.add('active');}});},{threshold:0.3});
+document.querySelectorAll('section[id]').forEach(s=>io.observe(s));
+</script>
+</body>
+</html>

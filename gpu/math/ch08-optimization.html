@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ch 08 · Optimization</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="math-book.css"/>
+</head>
+<body>
+<nav>
+  <div class="nav-brand"><div class="icon">∑</div><h2>LLM Math</h2><p>Chapter 8 of 10</p></div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Theme</button>
+  <div class="book-nav">
+    <div class="book-nav-title">All Chapters</div>
+    <a href="ch01-linear-algebra-foundations.html">① Vectors &amp; LA Foundations</a>
+    <a href="ch02-matrix-operations.html">② Matrix Operations</a>
+    <a href="ch03-eigenvalues-svd.html">③ Eigenvalues &amp; SVD</a>
+    <a href="ch04-probability-foundations.html">④ Probability Foundations</a>
+    <a href="ch05-distributions.html">⑤ Key Distributions</a>
+    <a href="ch06-information-theory.html">⑥ Information Theory</a>
+    <a href="ch07-calculus-backprop.html">⑦ Calculus &amp; Backprop</a>
+    <a href="ch08-optimization.html" class="current">⑧ Optimization</a>
+    <a href="ch09-attention-math.html">⑨ Attention Math</a>
+    <a href="ch10-inference-math.html">⑩ Inference Math</a>
+  </div>
+  <ul>
+    <li class="nav-section-label">Sections</li>
+    <li><a href="#gradient-descent"><span class="dot"></span>Gradient Descent</a></li>
+    <li><a href="#sgd"><span class="dot"></span>SGD &amp; Mini-batch</a></li>
+    <li><a href="#momentum"><span class="dot"></span>Momentum &amp; RMSProp</a></li>
+    <li><a href="#adam"><span class="dot"></span>Adam &amp; AdamW</a></li>
+    <li><a href="#lr-schedule"><span class="dot"></span>Learning Rate Schedules</a></li>
+    <li><a href="#loss-landscape"><span class="dot"></span>Loss Landscape</a></li>
+  </ul>
+</nav>
+<main>
+<div class="hero">
+  <div class="hero-badge">Chapter 8 · Optimization</div>
+  <h1>Optimization &amp;<br><em>Adam</em></h1>
+  <p>LLM training is an optimization problem: find the weights that minimize the cross-entropy loss over trillions of tokens. Gradient descent is the strategy; Adam is the algorithm that makes it work at scale. Understanding Adam means understanding why each design choice — momentum, adaptive learning rates, weight decay — exists.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">AdamW</span><span class="lbl">Standard LLM optimizer</span></div>
+    <div class="hero-stat"><span class="num">β₁=0.9</span><span class="lbl">Gradient momentum</span></div>
+    <div class="hero-stat"><span class="num">β₂=0.95</span><span class="lbl">Squared grad EMA</span></div>
+    <div class="hero-stat"><span class="num">Cosine</span><span class="lbl">LR schedule</span></div>
+  </div>
+</div>
+
+<section class="section" id="gradient-descent">
+  <div class="section-header"><div class="level-badge b01">01</div>
+    <div class="section-header-text"><h2>Gradient Descent</h2><p>The core idea: move weights in the direction that reduces the loss</p></div>
+  </div>
+  <div class="prose">
+    <p>Gradient descent updates each weight by subtracting a small multiple of its gradient. The gradient points uphill (toward higher loss), so subtracting it moves downhill (toward lower loss). The learning rate η controls the step size.</p>
+    <p><strong>Intuition</strong>: imagine you are blindfolded on a hilly landscape and want to find the valley. You can feel the slope under your feet (gradient). Each step, you move in the steepest downhill direction. That's gradient descent.</p>
+  </div>
+  <div class="math-box">Gradient descent update rule:
+  θ ← θ - η · ∇L(θ)
+
+Where:
+  θ = all weights (billions of parameters for an LLM)
+  η = learning rate (e.g. 3e-4 for AdamW on LLMs)
+  ∇L(θ) = gradient of loss with respect to all weights
+
+Convergence condition: ∇L(θ) → 0  (gradient becomes zero at a minimum)</div>
+</section>
+
+<section class="section" id="sgd">
+  <div class="section-header"><div class="level-badge b02">02</div>
+    <div class="section-header-text"><h2>Stochastic &amp; Mini-batch Gradient Descent</h2><p>Why we use batches — not the full dataset — for each update</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>Full-batch gradient descent</strong>: compute the gradient over the entire dataset. Exact but impossibly slow for trillion-token datasets.</p>
+    <p><strong>Stochastic gradient descent (SGD)</strong>: compute gradient on a single example. Fast but very noisy — gradient from one example is a poor estimate of the true gradient.</p>
+    <p><strong>Mini-batch gradient descent</strong>: use a batch of B examples. The batch gradient is an unbiased estimate of the true gradient with variance reduced by a factor of B. This is what every LLM uses.</p>
+    <p>For LLMs: typical batch size is 256–2048 sequences × 2048 tokens = ~500K–4M tokens per step. This is "global batch size"; in distributed training it's split across thousands of GPUs.</p>
+  </div>
+  <div class="math-box">Mini-batch gradient estimate:
+  ĝ = (1/B) Σᵢ₌₁ᴮ ∇L(θ; xᵢ)   ← average over B examples
+
+Properties:
+  E[ĝ] = ∇L(θ)           ← unbiased estimate of true gradient
+  Var(ĝ) = Var(∇L) / B   ← variance shrinks with batch size
+
+Why not use batch_size=∞?
+  Memory: each example requires activations in memory during forward pass
+  Diminishing returns: 2B examples halves variance but costs 2× compute
+  Noise can help: stochastic noise helps escape sharp local minima</div>
+</section>
+
+<section class="section" id="momentum">
+  <div class="section-header"><div class="level-badge b03">03</div>
+    <div class="section-header-text"><h2>Momentum &amp; RMSProp</h2><p>Two ideas that led to Adam</p></div>
+  </div>
+  <div class="prose">
+    <h3>Momentum</h3>
+    <p>Plain SGD oscillates and is slow in narrow valleys. <strong>Momentum</strong> adds a "velocity" term — rather than stepping purely based on the current gradient, it accumulates past gradients (like a ball rolling downhill building up speed). This smooths oscillations and accelerates convergence in the right direction.</p>
+    <h3>RMSProp</h3>
+    <p><strong>RMSProp</strong> adapts the learning rate per parameter based on the history of squared gradients. Parameters that consistently receive large gradients get smaller effective learning rates; parameters with small gradients get larger ones. This prevents sparse gradients (like word embeddings for rare words) from being updated by too-small steps.</p>
+  </div>
+  <div class="math-box">Momentum:
+  v ← β·v + (1-β)·g         ← exponential moving average of gradients
+  θ ← θ - η·v
+
+RMSProp:
+  s ← β·s + (1-β)·g²        ← EMA of squared gradients
+  θ ← θ - η · g / (√s + ε)  ← scale by inverse RMS of gradient history</div>
+</section>
+
+<section class="section" id="adam">
+  <div class="section-header"><div class="level-badge b04">04</div>
+    <div class="section-header-text"><h2>Adam &amp; AdamW</h2><p>The optimizer that trains almost every LLM — momentum + RMSProp combined</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>Adam</strong> (Adaptive Moment Estimation) combines momentum (first moment) and RMSProp (second moment). For each parameter, it maintains a running average of the gradient AND of the squared gradient, and adapts the step size accordingly.</p>
+    <p><strong>AdamW</strong> fixes a subtle bug in Adam: it decouples weight decay from the adaptive gradient update. In Adam, L2 regularisation interacts with the adaptive scaling and doesn't actually regularise correctly. AdamW applies weight decay directly to the weights, not through the gradient. All modern LLMs use AdamW.</p>
+  </div>
+  <div class="math-box">Adam update (at step t):
+  m ← β₁·m + (1-β₁)·g         ← first moment (gradient EMA)
+  v ← β₂·v + (1-β₂)·g²        ← second moment (squared gradient EMA)
+
+  m̂ = m / (1 - β₁ᵗ)           ← bias correction (important early in training)
+  v̂ = v / (1 - β₂ᵗ)
+
+  θ ← θ - η · m̂ / (√v̂ + ε)
+
+AdamW adds:
+  θ ← θ · (1 - η·λ) - η · m̂ / (√v̂ + ε)
+      ↑ weight decay applied directly, not through gradient
+
+Typical hyperparameters for LLMs:
+  β₁ = 0.9    (gradient momentum)
+  β₂ = 0.95   (squared gradient momentum; sometimes 0.999)
+  ε  = 1e-8   (numerical stability)
+  η  = 3e-4   (peak learning rate, decayed by cosine schedule)
+  λ  = 0.1    (weight decay)</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · AdamW from scratch</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">class</span> <span class="fn">AdamW</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, lr=<span class="nm">3e-4</span>, beta1=<span class="nm">0.9</span>, beta2=<span class="nm">0.95</span>, eps=<span class="nm">1e-8</span>, weight_decay=<span class="nm">0.1</span>):
+        self.lr = lr; self.b1 = beta1; self.b2 = beta2
+        self.eps = eps; self.wd = weight_decay
+        self.m = {}; self.v = {}; self.t = <span class="nm">0</span>
+
+    <span class="kw">def</span> <span class="fn">step</span>(self, params, grads):
+        self.t += <span class="nm">1</span>
+        <span class="kw">for</span> i, (p, g) <span class="kw">in</span> enumerate(zip(params, grads)):
+            <span class="kw">if</span> i <span class="kw">not in</span> self.m:
+                self.m[i] = np.zeros_like(p)   <span class="cm"># first moment</span>
+                self.v[i] = np.zeros_like(p)   <span class="cm"># second moment</span>
+
+            <span class="cm"># Update biased moment estimates</span>
+            self.m[i] = self.b1 * self.m[i] + (<span class="nm">1</span> - self.b1) * g
+            self.v[i] = self.b2 * self.v[i] + (<span class="nm">1</span> - self.b2) * g**<span class="nm">2</span>
+
+            <span class="cm"># Bias correction</span>
+            m_hat = self.m[i] / (<span class="nm">1</span> - self.b1**self.t)
+            v_hat = self.v[i] / (<span class="nm">1</span> - self.b2**self.t)
+
+            <span class="cm"># AdamW: weight decay applied directly, then gradient step</span>
+            p *= (<span class="nm">1</span> - self.lr * self.wd)               <span class="cm"># weight decay</span>
+            p -= self.lr * m_hat / (np.sqrt(v_hat) + self.eps)  <span class="cm"># gradient step</span>
+
+<span class="cm"># Usage</span>
+W = np.random.randn(<span class="nm">768</span>, <span class="nm">768</span>) * <span class="nm">0.02</span>
+optimizer = AdamW(lr=<span class="nm">3e-4</span>)
+<span class="kw">for</span> step <span class="kw">in</span> range(<span class="nm">100</span>):
+    grad = np.random.randn(*W.shape) * <span class="nm">0.01</span>   <span class="cm"># simulated gradient</span>
+    optimizer.step([W], [grad])</pre>
+  </div>
+</section>
+
+<section class="section" id="lr-schedule">
+  <div class="section-header"><div class="level-badge b05">05</div>
+    <div class="section-header-text"><h2>Learning Rate Schedules</h2><p>Why the learning rate must change during training</p></div>
+  </div>
+  <div class="prose">
+    <p>Using a fixed learning rate throughout training is suboptimal. A large learning rate at the start causes instability; a large learning rate at the end prevents convergence to a good minimum. The solution: schedule the learning rate.</p>
+    <h3>Warmup + Cosine Decay</h3>
+    <p>Used by GPT, LLaMA, and virtually all modern LLMs:</p>
+    <ul>
+      <li><strong>Warmup phase</strong> (first ~2000 steps): linearly increase lr from near-zero to peak. This prevents large gradient updates from distorting the model before it has stabilised.</li>
+      <li><strong>Cosine decay</strong>: smoothly decrease from peak lr to a small fraction (typically 10% of peak) following a cosine curve.</li>
+    </ul>
+  </div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Cosine LR schedule with warmup</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">cosine_lr_schedule</span>(step, warmup_steps, total_steps, lr_max, lr_min):
+    <span class="st">"""
+    Linear warmup then cosine decay.
+    Used by GPT-3, LLaMA, and most modern LLM training runs.
+    """</span>
+    <span class="kw">if</span> step < warmup_steps:
+        <span class="cm"># Linear warmup: 0 → lr_max over warmup_steps</span>
+        <span class="kw">return</span> lr_max * step / warmup_steps
+    <span class="kw">else</span>:
+        <span class="cm"># Cosine decay: lr_max → lr_min over remaining steps</span>
+        progress = (step - warmup_steps) / (total_steps - warmup_steps)
+        cosine   = <span class="nm">0.5</span> * (<span class="nm">1</span> + np.cos(np.pi * progress))
+        <span class="kw">return</span> lr_min + (lr_max - lr_min) * cosine
+
+<span class="cm"># Example: 100K steps training run</span>
+total_steps = <span class="nm">100_000</span>
+warmup_steps = <span class="nm">2_000</span>
+lr_max = <span class="nm">3e-4</span>
+lr_min = <span class="nm">3e-5</span>   <span class="cm"># 10% of peak</span>
+
+steps = np.arange(total_steps)
+lrs   = [cosine_lr_schedule(s, warmup_steps, total_steps, lr_max, lr_min)
+         <span class="kw">for</span> s <span class="kw">in</span> steps]
+
+<span class="fn">print</span>(f<span class="st">f"Step 0:      lr = {lrs[0]:.2e}"</span>)       <span class="cm"># near zero</span>
+<span class="fn">print</span>(f<span class="st">f"Step 2000:   lr = {lrs[2000]:.2e}"</span>)    <span class="cm"># peak</span>
+<span class="fn">print</span>(f<span class="st">f"Step 50000:  lr = {lrs[50000]:.2e}"</span>)   <span class="cm"># halfway down</span>
+<span class="fn">print</span>(f<span class="st">f"Step 100000: lr = {lrs[-1]:.2e}"</span>)     <span class="cm"># at minimum</span></pre>
+  </div>
+</section>
+
+<section class="section" id="loss-landscape">
+  <div class="section-header"><div class="level-badge b06">06</div>
+    <div class="section-header-text"><h2>Loss Landscape &amp; Convergence</h2><p>What the optimization problem looks like geometrically</p></div>
+  </div>
+  <div class="prose">
+    <p>The loss landscape of an LLM is a surface in billions of dimensions where the height is the loss value. Training navigates this landscape looking for a low point (good model). Key features:</p>
+    <ul>
+      <li><strong>Local minima</strong> — in high dimensions, almost all local minima are nearly as good as global minima (empirical finding). LLMs don't get stuck in bad local minima.</li>
+      <li><strong>Saddle points</strong> — points where the gradient is zero but it's not a minimum. Gradient descent can slow near saddle points; Adam's adaptive scaling helps escape them.</li>
+      <li><strong>Sharp vs flat minima</strong> — flat minima generalise better (the loss is low over a wide region). Techniques like weight averaging (EMA of weights) and larger batch sizes tend toward flat minima.</li>
+      <li><strong>Loss spikes</strong> — sudden loss increases during training, often caused by outlier batches. Gradient clipping and learning rate warmup help prevent these.</li>
+    </ul>
+  </div>
+  <div class="info-box tip"><div class="label">Chapter Summary</div>
+    <p>LLM training is AdamW + cosine LR schedule + gradient clipping. Adam combines momentum (smooth gradient direction) with adaptive per-parameter learning rates (scale by inverse gradient history). AdamW adds proper weight decay. The cosine schedule warms up learning rate to prevent early instability, then decays it to converge to a flat minimum. These three components together make training stable and efficient at billion-parameter scale.</p>
+  </div>
+  <div style="height:64px"></div>
+</section>
+<footer><span>Chapter 8 · Optimization</span><span>Math for LLM Design, Training &amp; Inference</span></footer>
+</main>
+<script>
+function toggleTheme(){document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';}
+const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){document.querySelectorAll('nav ul li a').forEach(l=>l.classList.remove('active'));const a=document.querySelector(`nav ul li a[href="#${x.target.id}"]`);if(a)a.classList.add('active');}});},{threshold:0.3});
+document.querySelectorAll('section[id]').forEach(s=>io.observe(s));
+</script>
+</body>
+</html>

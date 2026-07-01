@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ch 05 · Key Distributions</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="math-book.css"/>
+</head>
+<body>
+<nav>
+  <div class="nav-brand"><div class="icon">∑</div><h2>LLM Math</h2><p>Chapter 5 of 10</p></div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Theme</button>
+  <div class="book-nav">
+    <div class="book-nav-title">All Chapters</div>
+    <a href="ch01-linear-algebra-foundations.html">① Vectors &amp; LA Foundations</a>
+    <a href="ch02-matrix-operations.html">② Matrix Operations</a>
+    <a href="ch03-eigenvalues-svd.html">③ Eigenvalues &amp; SVD</a>
+    <a href="ch04-probability-foundations.html">④ Probability Foundations</a>
+    <a href="ch05-distributions.html" class="current">⑤ Key Distributions</a>
+    <a href="ch06-information-theory.html">⑥ Information Theory</a>
+    <a href="ch07-calculus-backprop.html">⑦ Calculus &amp; Backprop</a>
+    <a href="ch08-optimization.html">⑧ Optimization</a>
+    <a href="ch09-attention-math.html">⑨ Attention Math</a>
+    <a href="ch10-inference-math.html">⑩ Inference Math</a>
+  </div>
+  <ul>
+    <li class="nav-section-label">Sections</li>
+    <li><a href="#gaussian"><span class="dot"></span>Gaussian Distribution</a></li>
+    <li><a href="#softmax-dist"><span class="dot"></span>Softmax &amp; Categorical</a></li>
+    <li><a href="#uniform"><span class="dot"></span>Uniform Distribution</a></li>
+    <li><a href="#bernoulli"><span class="dot"></span>Bernoulli &amp; Binomial</a></li>
+    <li><a href="#sampling"><span class="dot"></span>Sampling Strategies</a></li>
+    <li><a href="#init"><span class="dot"></span>Weight Initialisation</a></li>
+  </ul>
+</nav>
+<main>
+<div class="hero">
+  <div class="hero-badge">Chapter 5 · Key Distributions</div>
+  <h1>Key <em>Distributions</em><br>for LLMs</h1>
+  <p>Distributions govern weight initialisation, dropout, text generation sampling, and noise injection. The Gaussian appears in initialisation; the categorical distribution is the LLM's output; temperature controls how peaked or flat that output distribution is.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">𝒩(0,1)</span><span class="lbl">Standard Normal</span></div>
+    <div class="hero-stat"><span class="num">Cat</span><span class="lbl">Next token output</span></div>
+    <div class="hero-stat"><span class="num">τ</span><span class="lbl">Temperature</span></div>
+    <div class="hero-stat"><span class="num">top-k/p</span><span class="lbl">Sampling tricks</span></div>
+  </div>
+</div>
+
+<section class="section" id="gaussian">
+  <div class="section-header"><div class="level-badge b01">01</div>
+    <div class="section-header-text"><h2>Gaussian (Normal) Distribution</h2><p>The bell curve — used everywhere in LLM initialisation and noise</p></div>
+  </div>
+  <div class="prose">
+    <p>The <strong>Gaussian distribution</strong> 𝒩(μ, σ²) is symmetric and bell-shaped. It is characterised by its mean μ (centre) and variance σ² (spread). About 68% of samples fall within 1 standard deviation of the mean; 95% within 2 standard deviations.</p>
+    <p>It appears in LLMs constantly:</p>
+    <ul>
+      <li><strong>Weight initialisation</strong> — weights are drawn from 𝒩(0, σ²) where σ is chosen by Xavier or Kaiming formula</li>
+      <li><strong>Dropout noise</strong> — a form of stochastic regularisation</li>
+      <li><strong>Gaussian noise injection</strong> — data augmentation in some training setups</li>
+      <li><strong>Diffusion models</strong> — the forward process adds Gaussian noise; the model learns to reverse it</li>
+    </ul>
+  </div>
+  <div class="math-box">Gaussian PDF:  f(x) = (1/√(2πσ²)) · exp(-(x-μ)²/(2σ²))
+
+Standard Normal: μ=0, σ=1  →  𝒩(0, 1)
+
+Xavier initialisation (for tanh activations):
+  σ = √(2 / (fan_in + fan_out))
+
+Kaiming / He initialisation (for ReLU):
+  σ = √(2 / fan_in)
+
+Truncated normal: same as Gaussian but values beyond ±2σ are resampled
+  Used by many transformer implementations (e.g. BERT, T5)</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Gaussian distribution and weight initialisation</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Standard normal samples (μ=0, σ=1)</span>
+samples = np.random.randn(<span class="nm">1000</span>)
+<span class="fn">print</span>(f<span class="st">f"Mean: {samples.mean():.4f},  Std: {samples.std():.4f}"</span>)
+
+<span class="cm"># Xavier initialisation for a weight matrix</span>
+fan_in, fan_out = <span class="nm">768</span>, <span class="nm">3072</span>   <span class="cm"># e.g. FFN layer in GPT-2</span>
+sigma_xavier = np.sqrt(<span class="nm">2</span> / (fan_in + fan_out))
+W_xavier = np.random.randn(fan_in, fan_out) * sigma_xavier
+<span class="fn">print</span>(f<span class="st">f"Xavier σ = {sigma_xavier:.6f}"</span>)
+<span class="fn">print</span>(f<span class="st">f"Weight std: {W_xavier.std():.6f}"</span>)   <span class="cm"># close to sigma_xavier</span>
+
+<span class="cm"># Kaiming initialisation for ReLU</span>
+sigma_kaiming = np.sqrt(<span class="nm">2</span> / fan_in)
+W_kaiming = np.random.randn(fan_in, fan_out) * sigma_kaiming
+<span class="fn">print</span>(f<span class="st">f"Kaiming σ = {sigma_kaiming:.6f}"</span>)
+
+<span class="cm"># Truncated normal (used in BERT, T5)</span>
+<span class="kw">def</span> <span class="fn">truncated_normal</span>(shape, std=<span class="nm">0.02</span>):
+    <span class="cm"># Sample, then reject values outside ±2σ</span>
+    x = np.random.randn(*shape) * std
+    mask = np.abs(x) > <span class="nm">2</span> * std
+    x[mask] = np.random.randn(mask.sum()) * std   <span class="cm"># resample outliers</span>
+    <span class="kw">return</span> x
+
+W_trunc = truncated_normal((<span class="nm">768</span>, <span class="nm">768</span>), std=<span class="nm">0.02</span>)
+<span class="fn">print</span>(f<span class="st">f"Max abs value: {np.abs(W_trunc).max():.4f}"</span>)  <span class="cm"># ≤ 0.04</span></pre>
+  </div>
+</section>
+
+<section class="section" id="softmax-dist">
+  <div class="section-header"><div class="level-badge b02">02</div>
+    <div class="section-header-text"><h2>Softmax &amp; Categorical Distribution</h2><p>The LLM's output distribution — and temperature's effect on it</p></div>
+  </div>
+  <div class="prose">
+    <p>At each generation step, an LLM outputs a <strong>categorical distribution</strong> — one probability per vocabulary token. The softmax function converts raw logit scores into this distribution.</p>
+    <p><strong>Temperature</strong> τ (tau) controls how peaked or flat the distribution is. Dividing logits by τ before softmax:</p>
+    <ul>
+      <li>τ → 0: distribution becomes a one-hot (greedy decode — most likely token always chosen)</li>
+      <li>τ = 1: standard softmax (default)</li>
+      <li>τ > 1: distribution flattens — more randomness, more creative, less coherent</li>
+    </ul>
+  </div>
+  <div class="math-box">Softmax with temperature τ:
+  P(token i) = exp(logit_i / τ) / Σⱼ exp(logit_j / τ)
+
+τ = 0.1  →  sharp, near-deterministic (τ → 0 = greedy)
+τ = 1.0  →  standard (default)
+τ = 1.5  →  flatter, more random generation</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Temperature, top-k, and nucleus sampling</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+logits = np.array([<span class="nm">3.0</span>, <span class="nm">1.0</span>, <span class="nm">0.5</span>, <span class="nm">2.5</span>, <span class="nm">0.2</span>])
+
+<span class="kw">def</span> <span class="fn">softmax</span>(x): e = np.exp(x-x.max()); <span class="kw">return</span> e/e.sum()
+
+<span class="cm"># Effect of temperature</span>
+<span class="kw">for</span> tau <span class="kw">in</span> [<span class="nm">0.1</span>, <span class="nm">0.5</span>, <span class="nm">1.0</span>, <span class="nm">2.0</span>]:
+    p = softmax(logits / tau)
+    <span class="fn">print</span>(f<span class="st">f"τ={tau:.1f}: {np.round(p,3)}"</span>)
+
+<span class="cm"># Top-k sampling: keep only the k highest logits, zero out rest</span>
+<span class="kw">def</span> <span class="fn">top_k_sample</span>(logits, k=<span class="nm">3</span>, temperature=<span class="nm">1.0</span>):
+    top_k_idx = np.argsort(logits)[-k:]   <span class="cm"># indices of top-k</span>
+    filtered = np.full_like(logits, -np.inf)
+    filtered[top_k_idx] = logits[top_k_idx]
+    probs = softmax(filtered / temperature)
+    <span class="kw">return</span> np.random.choice(len(logits), p=probs)
+
+<span class="cm"># Top-p (nucleus) sampling: keep smallest set of tokens</span>
+<span class="cm"># whose cumulative probability ≥ p</span>
+<span class="kw">def</span> <span class="fn">top_p_sample</span>(logits, p=<span class="nm">0.9</span>, temperature=<span class="nm">1.0</span>):
+    probs = softmax(logits / temperature)
+    sorted_idx = np.argsort(probs)[::-<span class="nm">1</span>]   <span class="cm"># descending order</span>
+    cumprobs = np.cumsum(probs[sorted_idx])
+    cutoff = sorted_idx[cumprobs &lt;= p]
+    <span class="kw">if</span> len(cutoff) == <span class="nm">0</span>: cutoff = sorted_idx[:<span class="nm">1</span>]
+    filtered = np.zeros_like(probs)
+    filtered[cutoff] = probs[cutoff]
+    filtered /= filtered.sum()   <span class="cm"># renormalise</span>
+    <span class="kw">return</span> np.random.choice(len(logits), p=filtered)
+
+<span class="fn">print</span>(<span class="st">"top-k sample:"</span>, top_k_sample(logits, k=<span class="nm">3</span>))
+<span class="fn">print</span>(<span class="st">"top-p sample:"</span>, top_p_sample(logits, p=<span class="nm">0.9</span>))</pre>
+  </div>
+</section>
+
+<section class="section" id="uniform">
+  <div class="section-header"><div class="level-badge b03">03</div>
+    <div class="section-header-text"><h2>Uniform Distribution</h2><p>Equal probability for every value — used in positional encodings and dropout</p></div>
+  </div>
+  <div class="prose">
+    <p>The uniform distribution assigns equal probability to every value in a range. U(a, b) gives a random number between a and b with equal probability.</p>
+    <p>In LLMs:</p>
+    <ul>
+      <li><strong>Dropout</strong> — each neuron is independently dropped with probability p; the decision is made by sampling from U(0,1) and comparing to p.</li>
+      <li><strong>Data shuffling</strong> — training samples are shuffled uniformly to prevent ordering bias.</li>
+      <li><strong>Random seed initialisation</strong> — some architectures initialise certain parameters from U(-a, a) rather than Gaussian.</li>
+    </ul>
+  </div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Dropout using uniform sampling</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">dropout</span>(x, p=<span class="nm">0.1</span>, training=<span class="nm">True</span>):
+    <span class="st">"""
+    Randomly zero out each element with probability p.
+    Scale remaining by 1/(1-p) to keep expected value the same.
+    """</span>
+    <span class="kw">if</span> <span class="kw">not</span> training: <span class="kw">return</span> x   <span class="cm"># no dropout at inference</span>
+
+    <span class="cm"># mask[i] = 1 if we KEEP this neuron (probability 1-p)</span>
+    <span class="cm"># = sample from U(0,1), keep if > p</span>
+    mask = (np.random.uniform(size=x.shape) > p).astype(np.float32)
+    <span class="kw">return</span> x * mask / (<span class="nm">1.0</span> - p)   <span class="cm"># scale to preserve expectation</span>
+
+x = np.array([<span class="nm">1.0</span>, <span class="nm">2.0</span>, <span class="nm">3.0</span>, <span class="nm">4.0</span>, <span class="nm">5.0</span>])
+out = dropout(x, p=<span class="nm">0.3</span>)
+<span class="fn">print</span>(<span class="st">"After dropout:"</span>, out)   <span class="cm"># ~30% of values become 0, rest scaled up</span>
+<span class="fn">print</span>(<span class="st">"Expected mean same?"</span>, np.isclose(x.mean(), out[out>0].mean()*<span class="nm">0.7</span>, atol=<span class="nm">0.5</span>))</pre>
+  </div>
+</section>
+
+<section class="section" id="bernoulli">
+  <div class="section-header"><div class="level-badge b04">04</div>
+    <div class="section-header-text"><h2>Bernoulli &amp; Binomial</h2><p>Binary outcomes — the math behind dropout masks</p></div>
+  </div>
+  <div class="prose">
+    <p>A <strong>Bernoulli distribution</strong> models a single binary outcome: 1 with probability p, 0 with probability 1-p. This is exactly the dropout mask for a single neuron.</p>
+    <p>A <strong>Binomial distribution</strong> B(n, p) models the number of successes in n independent Bernoulli trials. The number of neurons that survive dropout in a layer of n neurons follows B(n, 1-p).</p>
+  </div>
+  <div class="math-box">Bernoulli(p):
+  P(X=1) = p,    P(X=0) = 1-p
+  E[X] = p,      Var(X) = p(1-p)
+
+Dropout mask for one neuron:
+  X ~ Bernoulli(1-p)   (1 = keep, 0 = drop)
+  Rescaled: X_scaled = X / (1-p)
+  E[X_scaled] = (1-p)/(1-p) = 1   ← expected value preserved
+
+After dropout on layer of 768 neurons with p=0.1:
+  E[neurons kept] = 768 × 0.9 = 691.2
+  Var[neurons kept] = 768 × 0.1 × 0.9 = 69.1</div>
+</section>
+
+<section class="section" id="sampling">
+  <div class="section-header"><div class="level-badge b05">05</div>
+    <div class="section-header-text"><h2>Sampling Strategies Comparison</h2><p>Greedy, temperature, top-k, top-p, and min-p</p></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Strategy</th><th>How it works</th><th>Pros</th><th>Cons</th></tr></thead>
+      <tbody>
+        <tr><td>Greedy</td><td>Always pick highest probability token (τ→0)</td><td>Fast, deterministic, coherent</td><td>Repetitive, misses diverse completions</td></tr>
+        <tr><td>Beam search</td><td>Keep top-k partial sequences at each step</td><td>Better global optimum than greedy</td><td>Still repetitive, expensive</td></tr>
+        <tr><td>Temperature</td><td>Divide logits by τ before softmax</td><td>Simple creativity control</td><td>Can produce incoherent text at high τ</td></tr>
+        <tr><td>Top-k</td><td>Sample only from k most probable tokens</td><td>Avoids very unlikely tokens</td><td>k is vocabulary-independent (fragile)</td></tr>
+        <tr><td>Top-p (nucleus)</td><td>Sample from smallest set covering ≥p probability</td><td>Adapts to distribution shape</td><td>Slight complexity</td></tr>
+        <tr><td>Min-p</td><td>Remove tokens with P &lt; min_p × P(top token)</td><td>Simple, adaptive like top-p</td><td>Newer, less standard</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="section" id="init">
+  <div class="section-header"><div class="level-badge b06">06</div>
+    <div class="section-header-text"><h2>Weight Initialisation</h2><p>Why you can't initialise all weights to zero — and what to use instead</p></div>
+  </div>
+  <div class="prose">
+    <h3>Why zero initialisation fails</h3>
+    <p>If all weights are zero, every neuron computes the same value, every gradient is the same, and every weight updates by the same amount. The network is permanently symmetric and can never learn different features. This is called the <strong>symmetry problem</strong>.</p>
+    <h3>The variance scaling problem</h3>
+    <p>If weights are too large, activations explode through layers. If too small, they vanish. The goal is to choose σ such that the variance of activations stays approximately constant through all layers.</p>
+  </div>
+  <div class="diag"><span class="h">Activation variance through layers</span>
+
+<span class="c">Goal: Var(output) ≈ Var(input)  at every layer</span>
+
+<span class="b">Layer output:</span>  y = W x + b  (simplified, no activation)
+<span class="c">Var(y) = n · Var(W) · Var(x)   where n = fan_in</span>
+
+<span class="c">For Var(y) = Var(x):  need Var(W) = 1/n = 1/fan_in</span>
+
+<span class="h">Xavier: consider both fan_in and fan_out</span>
+<span class="g">Var(W) = 2 / (fan_in + fan_out)</span>   ← for symmetric activations (tanh)
+
+<span class="h">Kaiming: account for ReLU which zeros half the outputs</span>
+<span class="g">Var(W) = 2 / fan_in</span>                ← for ReLU / GELU activations</div>
+  <div class="info-box tip"><div class="label">Chapter Summary</div>
+    <p>Gaussian distributions govern weight initialisation. Categorical distributions are the LLM output. Temperature, top-k, and top-p control sampling from that distribution. Bernoulli distributions underpin dropout. Understanding these distributions tells you exactly why each design choice in a transformer was made the way it was.</p>
+  </div>
+  <div style="height:64px"></div>
+</section>
+<footer><span>Chapter 5 · Key Distributions</span><span>Math for LLM Design, Training &amp; Inference</span></footer>
+</main>
+<script>
+function toggleTheme(){document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';}
+const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){document.querySelectorAll('nav ul li a').forEach(l=>l.classList.remove('active'));const a=document.querySelector(`nav ul li a[href="#${x.target.id}"]`);if(a)a.classList.add('active');}});},{threshold:0.3});
+document.querySelectorAll('section[id]').forEach(s=>io.observe(s));
+</script>
+</body>
+</html>

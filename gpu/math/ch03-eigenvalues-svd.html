@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ch 03 · Eigenvalues &amp; SVD</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="math-book.css"/>
+</head>
+<body>
+<nav>
+  <div class="nav-brand"><div class="icon">∑</div><h2>LLM Math</h2><p>Chapter 3 of 10</p></div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Theme</button>
+  <div class="book-nav">
+    <div class="book-nav-title">All Chapters</div>
+    <a href="ch01-linear-algebra-foundations.html">① Vectors &amp; LA Foundations</a>
+    <a href="ch02-matrix-operations.html">② Matrix Operations</a>
+    <a href="ch03-eigenvalues-svd.html" class="current">③ Eigenvalues &amp; SVD</a>
+    <a href="ch04-probability-foundations.html">④ Probability Foundations</a>
+    <a href="ch05-distributions.html">⑤ Key Distributions</a>
+    <a href="ch06-information-theory.html">⑥ Information Theory</a>
+    <a href="ch07-calculus-backprop.html">⑦ Calculus &amp; Backprop</a>
+    <a href="ch08-optimization.html">⑧ Optimization</a>
+    <a href="ch09-attention-math.html">⑨ Attention Math</a>
+    <a href="ch10-inference-math.html">⑩ Inference Math</a>
+  </div>
+  <ul>
+    <li class="nav-section-label">Sections</li>
+    <li><a href="#eigenvalues"><span class="dot"></span>Eigenvalues &amp; Eigenvectors</a></li>
+    <li><a href="#svd"><span class="dot"></span>Singular Value Decomposition</a></li>
+    <li><a href="#pca"><span class="dot"></span>PCA &amp; Dimensionality</a></li>
+    <li><a href="#lora"><span class="dot"></span>Low-Rank Approximation &amp; LoRA</a></li>
+    <li><a href="#conditioning"><span class="dot"></span>Matrix Conditioning</a></li>
+  </ul>
+</nav>
+<main>
+<div class="hero">
+  <div class="hero-badge">Chapter 3 · Eigenvalues &amp; SVD</div>
+  <h1>Eigenvalues,<br><em>SVD</em> &amp; Low-Rank</h1>
+  <p>SVD and eigendecomposition reveal the hidden structure inside weight matrices. LoRA — the most popular fine-tuning technique — is entirely based on the idea that useful updates live in a low-rank subspace.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">Av=λv</span><span class="lbl">Eigenvalue equation</span></div>
+    <div class="hero-stat"><span class="num">UΣVᵀ</span><span class="lbl">SVD decomposition</span></div>
+    <div class="hero-stat"><span class="num">r≪d</span><span class="lbl">LoRA rank</span></div>
+    <div class="hero-stat"><span class="num">PCA</span><span class="lbl">Reduce dimensions</span></div>
+  </div>
+</div>
+
+<section class="section" id="eigenvalues">
+  <div class="section-header"><div class="level-badge b01">01</div>
+    <div class="section-header-text"><h2>Eigenvalues &amp; Eigenvectors</h2><p>Special directions a matrix doesn't rotate — only scales</p></div>
+  </div>
+  <div class="prose">
+    <p>For a square matrix A, an <strong>eigenvector</strong> v is a special vector that, when A is applied to it, only gets <em>scaled</em> — not rotated. The scaling factor is the <strong>eigenvalue</strong> λ.</p>
+  </div>
+  <div class="math-box">Eigenvalue equation:   A · v = λ · v
+
+A is the matrix, v is the eigenvector, λ (lambda) is the eigenvalue.
+
+Interpretation:
+  λ > 1  →  the matrix stretches v
+  λ = 1  →  v is unchanged
+  0 < λ < 1  →  v is compressed
+  λ < 0  →  v is flipped and scaled
+  λ = 0  →  v is collapsed to zero (the matrix is singular)</div>
+  <div class="prose">
+    <h3>Why do eigenvalues matter for LLMs?</h3>
+    <ul>
+      <li><strong>Gradient flow</strong> — the eigenvalues of the Hessian (second derivative matrix) determine how fast or slow different directions in parameter space learn. Vanishing/exploding gradients are an eigenvalue problem.</li>
+      <li><strong>Attention head analysis</strong> — researchers analyse eigenvalues of attention weight matrices to understand what each head "focuses on".</li>
+      <li><strong>Stability</strong> — weight matrices with large eigenvalues can cause exploding activations. Weight initialisation schemes (Xavier, Kaiming) are designed to keep eigenvalues in a stable range.</li>
+    </ul>
+  </div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Eigendecomposition</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+A = np.array([[<span class="nm">4</span>, <span class="nm">1</span>],
+              [<span class="nm">2</span>, <span class="nm">3</span>]])
+
+eigenvalues, eigenvectors = np.linalg.eig(A)
+<span class="fn">print</span>(<span class="st">"Eigenvalues:"</span>, eigenvalues)       <span class="cm"># [5. 2.]</span>
+<span class="fn">print</span>(<span class="st">"Eigenvectors:\n"</span>, eigenvectors)   <span class="cm"># columns are eigenvectors</span>
+
+<span class="cm"># Verify: A @ v = λ @ v</span>
+λ, v = eigenvalues[<span class="nm">0</span>], eigenvectors[:, <span class="nm">0</span>]
+<span class="fn">print</span>(np.allclose(A @ v, λ * v))   <span class="cm"># True</span>
+
+<span class="cm"># Largest eigenvalue of a weight matrix (spectral norm)</span>
+W = np.random.randn(<span class="nm">64</span>, <span class="nm">64</span>)
+vals = np.linalg.eigvals(W)
+spectral_norm = np.max(np.abs(vals))
+<span class="fn">print</span>(f<span class="st">f"Spectral norm: {spectral_norm:.2f}"</span>)
+<span class="cm"># Large spectral norm → risk of exploding activations</span></pre>
+  </div>
+</section>
+
+<section class="section" id="svd">
+  <div class="section-header"><div class="level-badge b02">02</div>
+    <div class="section-header-text"><h2>Singular Value Decomposition (SVD)</h2><p>Decompose any matrix into rotation, scale, rotation</p></div>
+  </div>
+  <div class="prose">
+    <p>SVD works on <em>any</em> matrix (not just square ones). It factorises a matrix M of shape (m×n) into three matrices:</p>
+  </div>
+  <div class="math-box">M = U · Σ · Vᵀ
+
+U: (m × m) — left singular vectors (orthonormal)
+Σ: (m × n) — diagonal, singular values σ₁ ≥ σ₂ ≥ ... ≥ 0
+Vᵀ:(n × n) — right singular vectors transposed (orthonormal)
+
+Geometric meaning:
+  Vᵀ: rotate input space
+  Σ:  scale each dimension by its singular value
+  U:  rotate output space
+
+Truncated SVD (rank-r approximation):
+  M ≈ U_r · Σ_r · Vᵀ_r   (keep only top-r singular values)
+  This is the best rank-r approximation of M (Eckart-Young theorem)</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · SVD and low-rank approximation</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> matplotlib.pyplot <span class="kw">as</span> plt
+
+<span class="cm"># SVD of a weight matrix</span>
+W = np.random.randn(<span class="nm">768</span>, <span class="nm">768</span>)
+U, S, Vt = np.linalg.svd(W)
+
+<span class="fn">print</span>(<span class="st">"Singular values (first 5):"</span>, S[:<span class="nm">5</span>])
+<span class="fn">print</span>(<span class="st">"How fast they decay:"</span>, S[:<span class="nm">10</span>] / S[<span class="nm">0</span>])
+
+<span class="cm"># Rank-r approximation: keep top r singular values</span>
+r = <span class="nm">32</span>
+W_approx = U[:, :r] @ np.diag(S[:r]) @ Vt[:r, :]
+error = np.linalg.norm(W - W_approx, <span class="st">'fro'</span>)
+<span class="fn">print</span>(f<span class="st">f"Rank-{r} approx error (Frobenius): {error:.4f}"</span>)
+<span class="fn">print</span>(f<span class="st">f"Parameters: full={768*768}, rank-{r}={768*r + r + r*768}"</span>)
+
+<span class="cm"># Explained variance: how much info is in top-k singular values</span>
+explained = np.cumsum(S**<span class="nm">2</span>) / np.sum(S**<span class="nm">2</span>)
+<span class="fn">print</span>(f<span class="st">f"Top-32 explains {explained[31]:.1%} of variance"</span>)</pre>
+  </div>
+</section>
+
+<section class="section" id="pca">
+  <div class="section-header"><div class="level-badge b03">03</div>
+    <div class="section-header-text"><h2>PCA &amp; Dimensionality Reduction</h2><p>Find the directions of most variation in high-dimensional data</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>Principal Component Analysis (PCA)</strong> uses SVD to find the directions of maximum variance in a dataset. Applied to LLM embeddings, PCA can compress 768-dimensional token vectors into 2D for visualisation — and the resulting plot reveals semantic clusters: animals cluster together, countries cluster together, verbs cluster together.</p>
+    <h3>How PCA uses SVD</h3>
+    <ul>
+      <li>Collect a matrix X of shape (n_samples × d_model)</li>
+      <li>Centre the data: subtract the mean embedding</li>
+      <li>Compute SVD: X = U Σ Vᵀ</li>
+      <li>The columns of V are the principal components (the most important directions)</li>
+      <li>Project data onto top-k components: X_reduced = X @ V[:, :k]</li>
+    </ul>
+  </div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · PCA on LLM embeddings</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Simulate 100 token embeddings (768-dim)</span>
+embeddings = np.random.randn(<span class="nm">100</span>, <span class="nm">768</span>)
+
+<span class="cm"># Step 1: Centre (subtract mean)</span>
+mean = embeddings.mean(axis=<span class="nm">0</span>)
+X_centred = embeddings - mean
+
+<span class="cm"># Step 2: SVD</span>
+U, S, Vt = np.linalg.svd(X_centred, full_matrices=<span class="nm">False</span>)
+<span class="cm"># U: (100, 100), S: (100,), Vt: (100, 768)</span>
+
+<span class="cm"># Step 3: Project to 2D (for visualisation)</span>
+X_2d = X_centred @ Vt[:<span class="nm">2</span>].T   <span class="cm"># (100, 768) @ (768, 2) → (100, 2)</span>
+<span class="fn">print</span>(<span class="st">"2D projection shape:"</span>, X_2d.shape)
+
+<span class="cm"># Explained variance per component</span>
+var_explained = (S**<span class="nm">2</span>) / (S**<span class="nm">2</span>).sum()
+<span class="fn">print</span>(f<span class="st">f"PC1 explains {var_explained[0]:.1%} of variance"</span>)
+<span class="fn">print</span>(f<span class="st">f"PC2 explains {var_explained[1]:.1%} of variance"</span>)
+
+<span class="cm"># sklearn shortcut (more numerically stable)</span>
+<span class="kw">from</span> sklearn.decomposition <span class="kw">import</span> PCA
+pca = PCA(n_components=<span class="nm">2</span>)
+X_2d_sk = pca.fit_transform(embeddings)
+<span class="fn">print</span>(<span class="st">"Explained variance ratio:"</span>, pca.explained_variance_ratio_)</pre>
+  </div>
+</section>
+
+<section class="section" id="lora">
+  <div class="section-header"><div class="level-badge b04">04</div>
+    <div class="section-header-text"><h2>Low-Rank Approximation &amp; LoRA</h2><p>Why fine-tuning updates are low-rank — and how LoRA exploits this</p></div>
+  </div>
+  <div class="prose">
+    <p>The key insight behind <strong>LoRA (Low-Rank Adaptation)</strong> is an empirical observation: when you fine-tune a large language model, the <em>change</em> in each weight matrix ΔW turns out to have a very low intrinsic rank. In other words, the update lives in a small subspace of the full parameter space.</p>
+    <p>Instead of storing the full ΔW (which has the same size as W itself), LoRA decomposes it as: <code>ΔW = B × A</code> where A has shape (r × d_in) and B has shape (d_out × r), with r ≪ min(d_in, d_out).</p>
+  </div>
+  <div class="math-box">Standard fine-tuning:   W_new = W_pretrained + ΔW
+                         cost: d_in × d_out  extra parameters
+
+LoRA:                    W_new = W_pretrained + B × A
+  A: (r × d_in)    initialized with random Gaussian
+  B: (d_out × r)   initialized to zero (so ΔW=0 at start)
+  cost: r × d_in + d_out × r  = r(d_in + d_out) parameters
+
+Example: d_in=768, d_out=768, r=8
+  Full ΔW:  768 × 768 = 589,824 params
+  LoRA:     8×768 + 768×8 = 12,288 params  (48× reduction!)</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · LoRA layer from scratch</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">class</span> <span class="fn">LoRALinear</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, d_in, d_out, rank=<span class="nm">8</span>, alpha=<span class="nm">16</span>):
+        <span class="cm"># Pretrained weight (frozen)</span>
+        self.W = np.random.randn(d_in, d_out) * <span class="nm">0.02</span>
+        self.W_frozen = <span class="nm">True</span>
+
+        <span class="cm"># LoRA matrices (trainable)</span>
+        self.A = np.random.randn(rank, d_in) * <span class="nm">0.01</span>  <span class="cm"># random init</span>
+        self.B = np.zeros((d_out, rank))               <span class="cm"># zero init → ΔW=0 at start</span>
+        self.scale = alpha / rank                       <span class="cm"># LoRA scaling factor</span>
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x):
+        <span class="cm"># Frozen path: x @ W</span>
+        base = x @ self.W
+
+        <span class="cm"># LoRA path: x @ Aᵀ @ Bᵀ  (scaled)</span>
+        lora = x @ self.A.T @ self.B.T * self.scale
+
+        <span class="kw">return</span> base + lora   <span class="cm"># ΔW = B @ A (after training)</span>
+
+    <span class="kw">def</span> <span class="fn">trainable_params</span>(self):
+        <span class="kw">return</span> self.A.size + self.B.size
+
+layer = LoRALinear(<span class="nm">768</span>, <span class="nm">768</span>, rank=<span class="nm">8</span>)
+x = np.random.randn(<span class="nm">4</span>, <span class="nm">768</span>)   <span class="cm"># 4 tokens</span>
+out = layer.forward(x)
+<span class="fn">print</span>(f<span class="st">f"Output shape: {out.shape}"</span>)
+<span class="fn">print</span>(f<span class="st">f"Trainable params: {layer.trainable_params():,} vs full: {768*768:,}"</span>)</pre>
+  </div>
+</section>
+
+<section class="section" id="conditioning">
+  <div class="section-header"><div class="level-badge b05">05</div>
+    <div class="section-header-text"><h2>Matrix Conditioning</h2><p>Why some matrices are numerically unstable — and how to fix it</p></div>
+  </div>
+  <div class="prose">
+    <p>The <strong>condition number</strong> of a matrix is the ratio of its largest to smallest singular value: κ(A) = σ_max / σ_min. A high condition number means the matrix is nearly singular — small changes in input cause large changes in output. This makes gradient-based optimisation unstable.</p>
+    <h3>Connections to LLM training</h3>
+    <ul>
+      <li><strong>LayerNorm / RMSNorm</strong> — normalising activations keeps condition numbers low, making the loss landscape smoother and easier to optimise.</li>
+      <li><strong>Weight initialisation</strong> — Xavier and Kaiming init choose initial weights so singular values are in a healthy range.</li>
+      <li><strong>Gradient clipping</strong> — clips the gradient norm to prevent any single update from distorting weight matrix conditioning severely.</li>
+      <li><strong>Attention softmax temperature</strong> — the 1/√d_k scale prevents attention logits from becoming too large, which would make the softmax nearly a one-hot vector (a "peaked" distribution with poor conditioning).</li>
+    </ul>
+  </div>
+  <div class="info-box tip"><div class="label">Chapter Summary</div>
+    <p>SVD reveals the intrinsic rank of a matrix. LoRA is pure applied SVD: fine-tuning updates have low rank, so represent them as a product of two thin matrices. Eigenvalues tell you about the dynamics of a transformation. Condition numbers tell you whether a matrix is numerically well-behaved. All of these show up constantly in LLM research papers.</p>
+  </div>
+  <div style="height:64px"></div>
+</section>
+<footer><span>Chapter 3 · Eigenvalues &amp; SVD</span><span>Math for LLM Design, Training &amp; Inference</span></footer>
+</main>
+<script>
+function toggleTheme(){document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';}
+const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){document.querySelectorAll('nav ul li a').forEach(l=>l.classList.remove('active'));const a=document.querySelector(`nav ul li a[href="#${x.target.id}"]`);if(a)a.classList.add('active');}});},{threshold:0.3});
+document.querySelectorAll('section[id]').forEach(s=>io.observe(s));
+</script>
+</body>
+</html>

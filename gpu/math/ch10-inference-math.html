@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ch 10 · Inference Math</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="math-book.css"/>
+</head>
+<body>
+<nav>
+  <div class="nav-brand"><div class="icon">∑</div><h2>LLM Math</h2><p>Chapter 10 of 10</p></div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Theme</button>
+  <div class="book-nav">
+    <div class="book-nav-title">All Chapters</div>
+    <a href="ch01-linear-algebra-foundations.html">① Vectors &amp; LA Foundations</a>
+    <a href="ch02-matrix-operations.html">② Matrix Operations</a>
+    <a href="ch03-eigenvalues-svd.html">③ Eigenvalues &amp; SVD</a>
+    <a href="ch04-probability-foundations.html">④ Probability Foundations</a>
+    <a href="ch05-distributions.html">⑤ Key Distributions</a>
+    <a href="ch06-information-theory.html">⑥ Information Theory</a>
+    <a href="ch07-calculus-backprop.html">⑦ Calculus &amp; Backprop</a>
+    <a href="ch08-optimization.html">⑧ Optimization</a>
+    <a href="ch09-attention-math.html">⑨ Attention Math</a>
+    <a href="ch10-inference-math.html" class="current">⑩ Inference Math</a>
+  </div>
+  <ul>
+    <li class="nav-section-label">Sections</li>
+    <li><a href="#autoregressive"><span class="dot"></span>Autoregressive Decoding</a></li>
+    <li><a href="#kv-cache"><span class="dot"></span>KV Cache Math</a></li>
+    <li><a href="#quantization"><span class="dot"></span>Quantization</a></li>
+    <li><a href="#speculative"><span class="dot"></span>Speculative Decoding</a></li>
+    <li><a href="#throughput"><span class="dot"></span>Throughput &amp; Latency</a></li>
+    <li><a href="#summary"><span class="dot"></span>Book Summary</a></li>
+  </ul>
+</nav>
+<main>
+<div class="hero">
+  <div class="hero-badge">Chapter 10 · Inference Math</div>
+  <h1>LLM <em>Inference</em><br>Math</h1>
+  <p>Inference is where the math meets reality: millions of users, milliseconds of latency, gigabytes of model weights, tokens generated one at a time. KV caching, quantization, and speculative decoding all have precise mathematical underpinnings that make them work.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">KV</span><span class="lbl">Cache reuse</span></div>
+    <div class="hero-stat"><span class="num">INT4</span><span class="lbl">4-bit quantization</span></div>
+    <div class="hero-stat"><span class="num">2-3×</span><span class="lbl">Speculative speedup</span></div>
+    <div class="hero-stat"><span class="num">BW</span><span class="lbl">Memory bandwidth bound</span></div>
+  </div>
+</div>
+
+<section class="section" id="autoregressive">
+  <div class="section-header"><div class="level-badge b01">01</div>
+    <div class="section-header-text"><h2>Autoregressive Decoding</h2><p>One token at a time — the math of sequential generation</p></div>
+  </div>
+  <div class="prose">
+    <p>LLMs generate text <em>one token at a time</em>. Each token generation is a full forward pass through the model. The output probability distribution P(next | context) is sampled to get the next token, which is appended to the context, and the process repeats.</p>
+    <p>This sequential dependency is why inference latency scales linearly with output length — and why parallelising generation is non-trivial.</p>
+  </div>
+  <div class="math-box">Generation of a T-token response:
+
+  Step 1:  context = [t₁, t₂, ..., t_prompt]
+           logits = model(context)           ← full forward pass over prompt
+           t_new = sample(softmax(logits[-1]))  ← sample last token's distribution
+
+  Step 2:  context = [t₁, ..., t_prompt, t_new]
+           logits = model(context)           ← forward pass over all tokens again!
+           t_new2 = sample(softmax(logits[-1]))
+
+  ...
+
+  Step T:  context = [t₁, ..., t_prompt, t_new, ..., t_newT]
+
+Without KV cache:  each step recomputes all previous keys and values.
+  Compute cost: O(T²) total  ← quadratic in response length!
+
+With KV cache:  store keys and values from previous steps.
+  Compute cost: O(T) total   ← linear in response length!</div>
+</section>
+
+<section class="section" id="kv-cache">
+  <div class="section-header"><div class="level-badge b02">02</div>
+    <div class="section-header-text"><h2>KV Cache Math</h2><p>What exactly is cached — and how much memory it costs</p></div>
+  </div>
+  <div class="prose">
+    <p>In the attention mechanism, for each layer and each head, we compute K and V from the token embeddings. During autoregressive generation, the new token contributes new K and V vectors, but all previous K and V vectors are unchanged. The <strong>KV cache</strong> stores all previous K and V vectors, avoiding recomputation.</p>
+    <p>At each new token step, we only need to compute K and V for the <em>new token</em>, then concatenate with the cached K and V, and run attention with the new token's query attending to all cached keys.</p>
+  </div>
+  <div class="math-box">KV cache memory per token:
+  = 2 × n_layers × n_kv_heads × d_head × bytes_per_element
+
+For LLaMA-3 8B (FP16):
+  n_layers    = 32
+  n_kv_heads  = 8   (GQA: 8 key-value heads for 32 query heads)
+  d_head      = 128
+  bytes        = 2  (FP16)
+
+  Per token = 2 × 32 × 8 × 128 × 2 = 131,072 bytes ≈ 0.125 MB/token
+
+For a 4096-token context: 0.125 × 4096 ≈ 512 MB
+For a 128K-token context: 0.125 × 131072 ≈ 16 GB  ← needs a lot of VRAM!</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · KV cache and incremental attention</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">class</span> <span class="fn">KVCache</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, max_len, n_layers, n_heads, d_head):
+        self.cache = np.zeros((<span class="nm">2</span>, n_layers, max_len, n_heads, d_head))
+        <span class="cm"># cache[0] = keys, cache[1] = values</span>
+        self.pos = <span class="nm">0</span>
+
+    <span class="kw">def</span> <span class="fn">update</span>(self, layer, k_new, v_new):
+        <span class="st">"""Append new K, V for position self.pos at given layer."""</span>
+        self.cache[<span class="nm">0</span>, layer, self.pos] = k_new   <span class="cm"># shape (n_heads, d_head)</span>
+        self.cache[<span class="nm">1</span>, layer, self.pos] = v_new
+        <span class="kw">return</span> (self.cache[<span class="nm">0</span>, layer, :self.pos+<span class="nm">1</span>],   <span class="cm"># all keys so far</span>
+                self.cache[<span class="nm">1</span>, layer, :self.pos+<span class="nm">1</span>])   <span class="cm"># all values so far</span>
+
+<span class="kw">def</span> <span class="fn">incremental_attention</span>(q_new, k_all, v_all, d_head):
+    <span class="st">"""
+    q_new: (n_heads, 1,   d_head)  — query for the new token only
+    k_all: (n_heads, T+1, d_head)  — all keys including new
+    v_all: (n_heads, T+1, d_head)  — all values including new
+    """</span>
+    <span class="cm"># Score: new query against ALL keys (including cached)</span>
+    scores = (q_new @ k_all.transpose(<span class="nm">0</span>, <span class="nm">2</span>, <span class="nm">1</span>)) / np.sqrt(d_head)
+    <span class="cm"># shape: (n_heads, 1, T+1)</span>
+
+    <span class="cm"># No masking needed — new token only attends forward (already autoregressive)</span>
+    e = np.exp(scores - scores.max(axis=-<span class="nm">1</span>, keepdims=<span class="nm">True</span>))
+    attn = e / e.sum(axis=-<span class="nm">1</span>, keepdims=<span class="nm">True</span>)
+
+    out = attn @ v_all   <span class="cm"># (n_heads, 1, d_head)</span>
+    <span class="kw">return</span> out
+
+<span class="cm"># Example: KV cache for 1 layer, 8 heads, d_head=64, max 100 tokens</span>
+cache = KVCache(max_len=<span class="nm">100</span>, n_layers=<span class="nm">1</span>, n_heads=<span class="nm">8</span>, d_head=<span class="nm">64</span>)
+<span class="fn">print</span>(f<span class="st">f"KV cache memory: {cache.cache.nbytes/1e6:.2f} MB (1 layer)"</span>)</pre>
+  </div>
+</section>
+
+<section class="section" id="quantization">
+  <div class="section-header"><div class="level-badge b03">03</div>
+    <div class="section-header-text"><h2>Quantization</h2><p>Reducing model size by using fewer bits — with controlled precision loss</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>Quantization</strong> reduces the number of bits used to represent weights (and sometimes activations). A FP32 weight uses 32 bits; an INT8 weight uses 8 bits; INT4 uses 4 bits. The savings are dramatic — a 70B FP16 model is 140 GB; at INT4 it is ~35 GB.</p>
+    <p>The key mathematical operation is <strong>rounding</strong>: map a floating-point value to the nearest representable integer value, then store a scale factor to recover the approximate original value.</p>
+  </div>
+  <div class="math-box">Linear (absmax) quantization:
+  scale = max(|W|) / (2^(b-1) - 1)     ← b = number of bits
+  W_quant = round(W / scale)            ← integer in range [-127, 127] for INT8
+  W_dequant = W_quant × scale           ← approximate reconstruction
+
+Quantization error:
+  ||W - W_dequant||₂  ≈  scale × √(n/12)   (rounding error ≤ scale/2 per element)
+
+INT8: scale = max(|W|)/127 → max error per element = max(|W|)/254
+INT4: scale = max(|W|)/7   → max error per element = max(|W|)/14
+  → INT4 has 18× larger error per element than INT8!
+
+This is why INT4 LLMs work: the model is overdetermined (billions of weights)
+and the average prediction is robust to per-weight noise.</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · INT8 quantization from scratch</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">quantize_int8</span>(W):
+    <span class="st">"""Absmax quantization to INT8."""</span>
+    scale = np.max(np.abs(W)) / <span class="nm">127.0</span>
+    W_int8 = np.round(W / scale).astype(np.int8)
+    <span class="kw">return</span> W_int8, scale
+
+<span class="kw">def</span> <span class="fn">dequantize</span>(W_int8, scale):
+    <span class="kw">return</span> W_int8.astype(np.float32) * scale
+
+<span class="cm"># Original weight matrix (FP32)</span>
+W = np.random.randn(<span class="nm">768</span>, <span class="nm">768</span>).astype(np.float32)
+
+W_int8, scale = quantize_int8(W)
+W_reconstructed = dequantize(W_int8, scale)
+
+error = np.linalg.norm(W - W_reconstructed, <span class="st">'fro'</span>) / np.linalg.norm(W, <span class="st">'fro'</span>)
+<span class="fn">print</span>(f<span class="st">f"Relative quantization error: {error:.4f}  ({error*100:.2f}%)"</span>)
+<span class="fn">print</span>(f<span class="st">f"Memory: FP32={W.nbytes/1e6:.2f} MB, INT8={W_int8.nbytes/1e6:.2f} MB"</span>)
+<span class="cm"># INT8 is 4× smaller than FP32, ~1% relative error</span>
+
+<span class="cm"># INT4 simulation (NF4 used in QLoRA)</span>
+scale4 = np.max(np.abs(W)) / <span class="nm">7.0</span>
+W_int4 = np.round(np.clip(W / scale4, -<span class="nm">7</span>, <span class="nm">7</span>)).astype(np.int8)
+W_rec4 = W_int4.astype(np.float32) * scale4
+error4 = np.linalg.norm(W - W_rec4, <span class="st">'fro'</span>) / np.linalg.norm(W, <span class="st">'fro'</span>)
+<span class="fn">print</span>(f<span class="st">f"INT4 relative error: {error4:.4f}  ({error4*100:.2f}%)"</span>)</pre>
+  </div>
+</section>
+
+<section class="section" id="speculative">
+  <div class="section-header"><div class="level-badge b04">04</div>
+    <div class="section-header-text"><h2>Speculative Decoding</h2><p>Use a small model to propose tokens; verify with the large model in parallel</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>Speculative decoding</strong> exploits the fact that for many tokens (common words, obvious continuations), a small <em>draft</em> model can correctly predict what the large model would predict. The algorithm:</p>
+    <ol style="padding-left:18px;color:var(--text-dim);font-size:.89rem;line-height:1.8">
+      <li>Run a small draft model (e.g. 7B) to propose K candidate tokens</li>
+      <li>Run the large model (e.g. 70B) on all K+1 tokens in <em>parallel</em> (one forward pass)</li>
+      <li>Accept each draft token if the large model agrees (with probability-ratio criterion)</li>
+      <li>If a token is rejected, sample from the corrected distribution and discard remaining drafts</li>
+    </ol>
+    <p>This achieves 2-3× speedup because the large model's bottleneck is memory bandwidth (loading weights), not compute — and loading weights for 1 forward pass vs K+1 is the same cost.</p>
+  </div>
+  <div class="math-box">Acceptance criterion (token-level):
+  For draft token t with P_draft(t|ctx) and P_target(t|ctx):
+
+  Accept with probability:  min(1, P_target(t) / P_draft(t))
+
+  If rejected: sample from adjusted distribution:
+  P_adjusted(x) = max(0, P_target(x) - P_draft(x)) / Z
+
+This guarantees the final output distribution is identical to
+the large model's distribution — no quality loss!</div>
+</section>
+
+<section class="section" id="throughput">
+  <div class="section-header"><div class="level-badge b05">05</div>
+    <div class="section-header-text"><h2>Throughput, Latency &amp; Memory Bandwidth</h2><p>Why inference is memory-bandwidth-bound — not compute-bound</p></div>
+  </div>
+  <div class="prose">
+    <p>For batch_size=1 autoregressive decoding (typical for interactive use), the bottleneck is <strong>memory bandwidth</strong>, not arithmetic throughput. For each new token, every weight in the model must be loaded from GPU HBM memory. With 70B parameters at FP16: 140 GB of memory reads per token.</p>
+  </div>
+  <div class="math-box">Memory bandwidth bound (batch_size=1):
+  Time per token ≥ model_size_bytes / memory_bandwidth
+
+  LLaMA-3 70B FP16 on H100:
+    model_size  = 70 × 10⁹ × 2 bytes = 140 GB
+    H100 BW     = 3.35 TB/s
+    min_time    = 140 GB / 3350 GB/s = 0.042 s = 42 ms per token
+    max_tokens/s ≈ 24
+
+  This is the mathematical ceiling — no algorithmic trick can beat it
+  without reducing the number of weight bytes loaded per token.
+
+Techniques that reduce memory-bound bottleneck:
+  Quantization (INT4): 140 GB → 35 GB → 4× faster  →  ~100 tokens/sec
+  Batching: serve B=32 users simultaneously
+    → same weight load, 32× more output tokens
+    → throughput ≈ 32 × 24 = 768 tokens/sec total
+  KV cache: moves decode from O(T²) compute to O(T) — but still BW bound
+  Speculative decoding: amortise BW cost over K≈4 accepted tokens</div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Estimating LLM inference throughput</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">def</span> <span class="fn">estimate_inference_throughput</span>(
+    n_params, dtype_bytes=<span class="nm">2</span>,   <span class="cm"># FP16 = 2 bytes</span>
+    memory_bw_gb_s=<span class="nm">3350</span>,       <span class="cm"># H100 HBM3</span>
+    batch_size=<span class="nm">1</span>,
+    speculation_factor=<span class="nm">1</span>,      <span class="cm"># >1 with speculative decoding</span>
+):
+    <span class="st">"""Estimate decode throughput in tokens/second."""</span>
+    model_bytes  = n_params * dtype_bytes
+    memory_bw    = memory_bw_gb_s * <span class="nm">1e9</span>   <span class="cm"># bytes/sec</span>
+
+    <span class="cm"># Time to load all weights once (one token for batch=1)</span>
+    time_per_step = model_bytes / memory_bw  <span class="cm"># seconds</span>
+
+    <span class="cm"># Tokens per second = (batch_size × speculation_factor) / time</span>
+    tokens_per_sec = (batch_size * speculation_factor) / time_per_step
+    <span class="kw">return</span> tokens_per_sec
+
+<span class="cm"># LLaMA-3 8B on H100</span>
+tps_8b_fp16 = estimate_inference_throughput(<span class="nm">8e9</span>,   dtype_bytes=<span class="nm">2</span>)
+tps_8b_int4 = estimate_inference_throughput(<span class="nm">8e9</span>,   dtype_bytes=<span class="nm">0.5</span>)  <span class="cm"># 4-bit</span>
+tps_70b_fp16 = estimate_inference_throughput(<span class="nm">70e9</span>, dtype_bytes=<span class="nm">2</span>)
+tps_70b_spec = estimate_inference_throughput(<span class="nm">70e9</span>, dtype_bytes=<span class="nm">2</span>, speculation_factor=<span class="nm">3</span>)
+
+<span class="fn">print</span>(f<span class="st">f"LLaMA-3  8B FP16  (batch=1):       {tps_8b_fp16:.0f} tok/s"</span>)
+<span class="fn">print</span>(f<span class="st">f"LLaMA-3  8B INT4  (batch=1):       {tps_8b_int4:.0f} tok/s"</span>)
+<span class="fn">print</span>(f<span class="st">f"LLaMA-3 70B FP16  (batch=1):       {tps_70b_fp16:.0f} tok/s"</span>)
+<span class="fn">print</span>(f<span class="st">f"LLaMA-3 70B FP16 + speculative×3: {tps_70b_spec:.0f} tok/s"</span>)</pre>
+  </div>
+</section>
+
+<section class="section" id="summary">
+  <div class="section-header"><div class="level-badge b06">⬡</div>
+    <div class="section-header-text"><h2>Book Summary</h2><p>All 10 chapters connected — the complete mathematical picture</p></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Chapter</th><th>Core Math</th><th>LLM Role</th></tr></thead>
+      <tbody>
+        <tr><td>① Vectors &amp; LA</td><td>Dot product, norms, vector spaces</td><td>Token embeddings, similarity, LayerNorm</td></tr>
+        <tr><td>② Matrix Ops</td><td>MatMul, transpose, broadcasting</td><td>Every linear layer: Q=xW_Q, FFN: xW1, xW2</td></tr>
+        <tr><td>③ Eigenvalues &amp; SVD</td><td>SVD: M=UΣVᵀ, low-rank approx</td><td>LoRA fine-tuning, PCA of embeddings</td></tr>
+        <tr><td>④ Probability</td><td>Conditional P, chain rule, MLE</td><td>Next-token distribution, cross-entropy training</td></tr>
+        <tr><td>⑤ Distributions</td><td>Gaussian, Categorical, Bernoulli</td><td>Weight init, softmax output, dropout</td></tr>
+        <tr><td>⑥ Info Theory</td><td>Entropy, cross-entropy, KL, PPL</td><td>Training loss, RLHF penalty, benchmarking</td></tr>
+        <tr><td>⑦ Calculus &amp; Backprop</td><td>Chain rule, Jacobian, gradients</td><td>Compute ∂L/∂W for every weight in the model</td></tr>
+        <tr><td>⑧ Optimization</td><td>AdamW: m, v, bias correction</td><td>Update billions of weights each training step</td></tr>
+        <tr><td>⑨ Attention Math</td><td>QKᵀ/√d, softmax, multi-head, RoPE</td><td>Every transformer layer's self-attention</td></tr>
+        <tr><td>⑩ Inference Math</td><td>KV cache, quantization, BW bound</td><td>Serve LLMs efficiently at low latency</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="bp-grid">
+    <div class="bp-card"><h4>The One Equation</h4>
+      <p>The entire LLM forward pass is: logits = Embedding(tokens) → N × (LayerNorm + Attention + LayerNorm + FFN) → Linear → Softmax. Every operation is a matrix multiply or an element-wise function. That's it.</p>
+    </div>
+    <div class="bp-card"><h4>The One Loss</h4>
+      <p>Training minimises L = -(1/N) Σ log P(wᵢ|context). This is cross-entropy = negative log-likelihood = MLE. The gradient of this loss with respect to every weight is computed by backpropagation via the chain rule.</p>
+    </div>
+    <div class="bp-card"><h4>The One Bottleneck</h4>
+      <p>At inference, the bottleneck is memory bandwidth — loading 140 GB of weights from GPU HBM. Quantization (fewer bits), batching (more users share the load), and speculative decoding (more tokens per weight load) are all mathematical solutions to this bandwidth limit.</p>
+    </div>
+    <div class="bp-card"><h4>What to Study Next</h4>
+      <p>Now that the foundations are solid: Flash Attention (tiled matrix algorithms), RLHF/DPO (reinforcement learning and preference optimisation), diffusion models (stochastic differential equations), and mixture-of-experts (sparse gating theory).</p>
+    </div>
+  </div>
+  <div class="info-box tip"><div class="label">Final Note</div>
+    <p>You have now covered the complete mathematical foundation of LLMs: linear algebra for representations, probability for distributions, information theory for the loss, calculus for backpropagation, optimization for training, and systems math for inference. Every paper on LLM architecture, training, or serving will be readable with these tools. The rest is engineering details built on this foundation.</p>
+  </div>
+  <div style="height:64px"></div>
+</section>
+<footer><span>Chapter 10 · Inference Math · Book Complete</span><span>Math for LLM Design, Training &amp; Inference</span></footer>
+</main>
+<script>
+function toggleTheme(){document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';}
+const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){document.querySelectorAll('nav ul li a').forEach(l=>l.classList.remove('active'));const a=document.querySelector(`nav ul li a[href="#${x.target.id}"]`);if(a)a.classList.add('active');}});},{threshold:0.3});
+document.querySelectorAll('section[id]').forEach(s=>io.observe(s));
+</script>
+</body>
+</html>

@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Ch 02 · Matrix Operations</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="math-book.css"/>
+</head>
+<body>
+<nav>
+  <div class="nav-brand"><div class="icon">∑</div><h2>LLM Math</h2><p>Chapter 2 of 10</p></div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Theme</button>
+  <div class="book-nav">
+    <div class="book-nav-title">All Chapters</div>
+    <a href="ch01-linear-algebra-foundations.html">① Vectors &amp; LA Foundations</a>
+    <a href="ch02-matrix-operations.html" class="current">② Matrix Operations</a>
+    <a href="ch03-eigenvalues-svd.html">③ Eigenvalues &amp; SVD</a>
+    <a href="ch04-probability-foundations.html">④ Probability Foundations</a>
+    <a href="ch05-distributions.html">⑤ Key Distributions</a>
+    <a href="ch06-information-theory.html">⑥ Information Theory</a>
+    <a href="ch07-calculus-backprop.html">⑦ Calculus &amp; Backprop</a>
+    <a href="ch08-optimization.html">⑧ Optimization</a>
+    <a href="ch09-attention-math.html">⑨ Attention Math</a>
+    <a href="ch10-inference-math.html">⑩ Inference Math</a>
+  </div>
+  <ul>
+    <li class="nav-section-label">Sections</li>
+    <li><a href="#what-is-matrix"><span class="dot"></span>What Is a Matrix?</a></li>
+    <li><a href="#matrix-ops"><span class="dot"></span>Basic Operations</a></li>
+    <li><a href="#matmul"><span class="dot"></span>Matrix Multiplication</a></li>
+    <li><a href="#transpose"><span class="dot"></span>Transpose &amp; Inverse</a></li>
+    <li><a href="#broadcasting"><span class="dot"></span>Broadcasting</a></li>
+    <li><a href="#linear-maps"><span class="dot"></span>Matrices as Linear Maps</a></li>
+    <li><a href="#llm-matrices"><span class="dot"></span>LLM Weight Matrices</a></li>
+  </ul>
+</nav>
+<main>
+<div class="hero">
+  <div class="hero-badge">Chapter 2 · Matrix Operations</div>
+  <h1>Matrix <em>Operations</em></h1>
+  <p>Matrices are the weight tables that store everything a neural network has learned. Every layer transformation, every projection, every embedding lookup is a matrix multiplication. Master this and you understand 90% of what a transformer does.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">A×B</span><span class="lbl">Matrix multiply</span></div>
+    <div class="hero-stat"><span class="num">Aᵀ</span><span class="lbl">Transpose</span></div>
+    <div class="hero-stat"><span class="num">GEMM</span><span class="lbl">General MatMul</span></div>
+    <div class="hero-stat"><span class="num">@</span><span class="lbl">Python operator</span></div>
+  </div>
+</div>
+
+<section class="section" id="what-is-matrix">
+  <div class="section-header"><div class="level-badge b01">01</div>
+    <div class="section-header-text"><h2>What Is a Matrix?</h2><p>A rectangular array of numbers with rows and columns</p></div>
+  </div>
+  <div class="prose">
+    <p>A <strong>matrix</strong> is a 2-dimensional array of numbers arranged in rows and columns. A matrix with <em>m</em> rows and <em>n</em> columns has <strong>shape (m × n)</strong>. Each element is identified by its row and column index.</p>
+    <p>In LLMs, matrices are everywhere: the embedding table is a matrix of shape (vocab_size × d_model), the weight matrix of a linear layer is (d_in × d_out), the attention score matrix is (seq_len × seq_len).</p>
+  </div>
+  <div class="diag"><span class="h">Matrix notation</span>
+
+       <span class="y">column 0  column 1  column 2</span>
+<span class="y">row 0</span>  <span class="b">⎡  2        7        1  ⎤</span>
+<span class="y">row 1</span>  <span class="b">⎢  3        4        8  ⎥</span>   ← shape (3 × 3): 3 rows, 3 columns
+<span class="y">row 2</span>  <span class="b">⎣  9        1        5  ⎦</span>
+
+A[1, 2] = 8   <span class="c">(row 1, column 2)</span>
+
+<span class="h">Embedding table shape:  (50257 × 768)</span>
+  <span class="c">50257 rows = one per vocabulary token
+  768 cols  = embedding dimension
+  A[4521, :] = the embedding vector for token 4521</span></div>
+</section>
+
+<section class="section" id="matrix-ops">
+  <div class="section-header"><div class="level-badge b02">02</div>
+    <div class="section-header-text"><h2>Basic Matrix Operations</h2><p>Addition, subtraction, and scalar multiplication</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>Matrix addition</strong>: add corresponding elements. Only works if both matrices have the same shape.</p>
+    <p><strong>Scalar multiplication</strong>: multiply every element by the same number.</p>
+    <p><strong>Element-wise multiplication (Hadamard)</strong>: multiply corresponding elements. Symbol: A ⊙ B. Same shape required. Used in gated activations like SwiGLU and in the forget/input gates of LSTMs.</p>
+  </div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Matrix basics</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+A = np.array([[<span class="nm">1</span>, <span class="nm">2</span>],
+              [<span class="nm">3</span>, <span class="nm">4</span>]])
+
+B = np.array([[<span class="nm">5</span>, <span class="nm">6</span>],
+              [<span class="nm">7</span>, <span class="nm">8</span>]])
+
+<span class="cm"># Addition  (element-wise)</span>
+C = A + B          <span class="cm"># [[6,8],[10,12]]</span>
+
+<span class="cm"># Scalar multiplication</span>
+D = <span class="nm">3</span> * A           <span class="cm"># [[3,6],[9,12]]</span>
+
+<span class="cm"># Hadamard (element-wise) product  — used in SwiGLU gating</span>
+E = A * B           <span class="cm"># [[5,12],[21,32]]</span>
+
+<span class="cm"># SwiGLU: output = SiLU(gate) ⊙ value</span>
+gate  = np.array([<span class="nm">1.5</span>, -<span class="nm">0.5</span>, <span class="nm">2.0</span>])
+value = np.array([<span class="nm">0.8</span>,  <span class="nm">1.2</span>, <span class="nm">0.3</span>])
+silu  = gate * (<span class="nm">1</span> / (<span class="nm">1</span> + np.exp(-gate)))   <span class="cm"># SiLU activation</span>
+swiglu_out = silu * value                      <span class="cm"># element-wise gate</span></pre>
+  </div>
+</section>
+
+<section class="section" id="matmul">
+  <div class="section-header"><div class="level-badge b03">03</div>
+    <div class="section-header-text"><h2>Matrix Multiplication</h2><p>The most compute-intensive operation in every LLM forward pass</p></div>
+  </div>
+  <div class="prose">
+    <p>Matrix multiplication (matmul) takes two matrices A (m×k) and B (k×n) and produces C (m×n). The inner dimension k must match. Each element C[i,j] is the dot product of row i of A with column j of B.</p>
+    <p><strong>This is not element-wise multiplication.</strong> It is a fundamentally different operation that mixes information across all dimensions.</p>
+  </div>
+  <div class="math-box">C = A × B
+
+C[i, j] = Σₖ A[i, k] · B[k, j]
+         = (row i of A) · (col j of B)
+
+Shapes:  A is (m × k),  B is (k × n)  →  C is (m × n)
+
+Example:  (4 × 768) × (768 × 3072)  →  (4 × 3072)
+          ↑ 4 tokens                     ↑ expanded FFN dimension</div>
+  <div class="diag"><span class="h">Visual: how C[1,2] is computed</span>
+
+  A (2×3)            B (3×2)            C (2×2)
+⎡ 1  2  3 ⎤   ×   ⎡ 7  8 ⎤   =   ⎡ ?    ?  ⎤
+⎣ <span class="h">4  5  6</span> ⎦       ⎢ 9  <span class="y">10</span>⎥       ⎣ ?    <span class="g">C[1,2]</span>⎦
+                   ⎣11  <span class="y">12</span>⎦
+
+<span class="g">C[1,2]</span> = row 1 of A  ·  col 2 of B
+       = [<span class="h">4,5,6</span>] · [<span class="y">8,10,12</span>]
+       = 4×8 + 5×10 + 6×12
+       = 32 + 50 + 72 = <span class="g">154</span></div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Matrix multiplication — the transformer's core operation</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Simple 2×3 × 3×2 example</span>
+A = np.array([[<span class="nm">1</span>, <span class="nm">2</span>, <span class="nm">3</span>],
+              [<span class="nm">4</span>, <span class="nm">5</span>, <span class="nm">6</span>]])       <span class="cm"># shape (2, 3)</span>
+
+B = np.array([[<span class="nm">7</span>,  <span class="nm">8</span>],
+              [<span class="nm">9</span>,  <span class="nm">10</span>],
+              [<span class="nm">11</span>, <span class="nm">12</span>]])         <span class="cm"># shape (3, 2)</span>
+
+C = A @ B                         <span class="cm"># shape (2, 2)</span>
+<span class="cm"># C = [[58, 64], [139, 154]]</span>
+
+<span class="cm"># Transformer linear layer: project tokens through weight matrix</span>
+batch_size, seq_len, d_model = <span class="nm">2</span>, <span class="nm">4</span>, <span class="nm">8</span>
+d_ff = <span class="nm">32</span>   <span class="cm"># feed-forward expansion (typically 4× d_model)</span>
+
+tokens = np.random.randn(batch_size, seq_len, d_model)   <span class="cm"># (2,4,8)</span>
+W1     = np.random.randn(d_model, d_ff)                   <span class="cm"># (8,32)</span>
+
+<span class="cm"># Batch matmul: each of the 2×4=8 token vectors is projected</span>
+hidden = tokens @ W1   <span class="cm"># (2,4,8) @ (8,32) → (2,4,32)</span>
+<span class="fn">print</span>(hidden.shape)    <span class="cm"># (2, 4, 32)</span>
+
+<span class="cm"># Einsum notation (used in many transformer implementations)</span>
+<span class="cm"># 'bsd,df->bsf' = batch,seq,d_model × d_model,d_ff → batch,seq,d_ff</span>
+hidden2 = np.einsum(<span class="st">'bsd,df->bsf'</span>, tokens, W1)
+<span class="fn">print</span>(np.allclose(hidden, hidden2))   <span class="cm"># True</span></pre>
+  </div>
+  <div class="info-box warn"><div class="label">Shape Rule — Critical to Remember</div>
+    <p>For A @ B to work, A's <strong>last</strong> dimension must equal B's <strong>second-to-last</strong> dimension. In PyTorch/NumPy: A has shape (..., m, k) and B has shape (..., k, n), giving result shape (..., m, n). Getting this wrong is the #1 source of shape errors in transformer code.</p>
+  </div>
+</section>
+
+<section class="section" id="transpose">
+  <div class="section-header"><div class="level-badge b04">04</div>
+    <div class="section-header-text"><h2>Transpose &amp; Inverse</h2><p>Flipping a matrix and undoing a linear transformation</p></div>
+  </div>
+  <div class="prose">
+    <h3>Transpose</h3>
+    <p>The transpose of matrix A (written Aᵀ) flips rows and columns: element [i,j] becomes element [j,i]. A matrix of shape (m×n) becomes (n×m).</p>
+    <p><strong>LLM use:</strong> In attention, the key matrix K is transposed to compute scores: <code>scores = Q @ Kᵀ</code>. This pairs each query row (shape d_k) with each key row (shape d_k) via dot product.</p>
+    <h3>Symmetric Matrices</h3>
+    <p>A matrix is symmetric if A = Aᵀ. Attention score matrices tend to be asymmetric (Q and K differ), but covariance matrices in statistics are always symmetric.</p>
+    <h3>Inverse</h3>
+    <p>The inverse A⁻¹ satisfies A × A⁻¹ = I (identity matrix). Only square matrices can have inverses, and not all do. In practice, LLMs almost never compute matrix inverses directly — they use gradient descent instead. But the concept of "undoing a transformation" is fundamental to understanding what a network learns.</p>
+  </div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Transpose and attention scores</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Transpose</span>
+A = np.array([[<span class="nm">1</span>, <span class="nm">2</span>, <span class="nm">3</span>],
+              [<span class="nm">4</span>, <span class="nm">5</span>, <span class="nm">6</span>]])  <span class="cm"># shape (2, 3)</span>
+
+At = A.T           <span class="cm"># shape (3, 2) — rows and cols swapped</span>
+<span class="cm"># [[1, 4], [2, 5], [3, 6]]</span>
+
+<span class="cm"># Attention: Q @ K^T → score matrix</span>
+seq_len, d_k = <span class="nm">5</span>, <span class="nm">4</span>
+Q = np.random.randn(seq_len, d_k)   <span class="cm"># (5, 4)  queries</span>
+K = np.random.randn(seq_len, d_k)   <span class="cm"># (5, 4)  keys</span>
+
+<span class="cm"># Score[i,j] = how much token i attends to token j</span>
+scores = Q @ K.T / np.sqrt(d_k)     <span class="cm"># (5,4) @ (4,5) → (5,5)</span>
+<span class="fn">print</span>(scores.shape)                 <span class="cm"># (5, 5)</span>
+
+<span class="cm"># Verify: scores[2, 3] = dot(Q[2], K[3]) / sqrt(d_k)</span>
+manual = np.dot(Q[<span class="nm">2</span>], K[<span class="nm">3</span>]) / np.sqrt(d_k)
+<span class="fn">print</span>(np.isclose(scores[<span class="nm">2</span>, <span class="nm">3</span>], manual))  <span class="cm"># True</span></pre>
+  </div>
+</section>
+
+<section class="section" id="broadcasting">
+  <div class="section-header"><div class="level-badge b05">05</div>
+    <div class="section-header-text"><h2>Broadcasting</h2><p>How NumPy and PyTorch handle operations on different-shaped tensors</p></div>
+  </div>
+  <div class="prose">
+    <p>Broadcasting allows operations between tensors of different shapes by automatically "expanding" the smaller tensor to match the larger one — without actually copying data. This is essential for adding biases, applying masks, and scaling attention scores across batches.</p>
+    <h3>Broadcasting rules</h3>
+    <ul>
+      <li>Align shapes from the right (trailing dimensions)</li>
+      <li>A dimension of size 1 can be broadcast to match any size</li>
+      <li>Missing leading dimensions are treated as size 1</li>
+    </ul>
+  </div>
+  <div class="diag"><span class="h">Broadcasting examples</span>
+
+<span class="cm">Shape (4, 3) + shape (3,)  →  (4, 3)</span>
+<span class="c">  The (3,) vector is added to every row of the (4,3) matrix.
+  This is exactly how bias vectors are added in linear layers!</span>
+
+<span class="cm">Shape (2, 1, 5) + shape (1, 3, 5)  →  (2, 3, 5)</span>
+<span class="c">  Dim 1 of first tensor (1) broadcasts to 3.
+  Dim 0 of second tensor (1) broadcasts to 2.</span>
+
+<span class="h">In attention — causal masking:</span>
+<span class="cm">scores shape:  (batch, heads, seq, seq)   = (2, 8, 10, 10)</span>
+<span class="cm">mask shape:    (1,     1,     seq, seq)   = (1, 1, 10, 10)</span>
+<span class="c">  mask broadcasts over batch and heads dimensions automatically</span></div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Broadcasting in transformer operations</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="cm"># Add bias to linear layer output</span>
+x = np.random.randn(<span class="nm">4</span>, <span class="nm">768</span>)      <span class="cm"># 4 tokens, each 768-dim</span>
+bias = np.random.randn(<span class="nm">768</span>)        <span class="cm"># one bias per output dim</span>
+out = x + bias                       <span class="cm"># (4,768) + (768,) → (4,768)</span>
+<span class="cm"># bias is broadcast: same bias added to every token</span>
+
+<span class="cm"># Attention masking with broadcasting</span>
+scores = np.random.randn(<span class="nm">2</span>, <span class="nm">8</span>, <span class="nm">10</span>, <span class="nm">10</span>)  <span class="cm"># (batch, heads, seq, seq)</span>
+
+<span class="cm"># Causal mask: prevent attending to future positions</span>
+causal_mask = np.tril(np.ones((<span class="nm">10</span>, <span class="nm">10</span>)))  <span class="cm"># (10, 10) lower triangular</span>
+mask = (causal_mask == <span class="nm">0</span>)                   <span class="cm"># True where we want -inf</span>
+
+<span class="cm"># Broadcast mask over batch and head dims</span>
+scores_masked = scores.copy()
+scores_masked[mask[<span class="nm">None</span>, <span class="nm">None</span>, :, :]] = -<span class="nm">1e9</span>   <span class="cm"># broadcast applied</span>
+
+<span class="cm"># Scale factor broadcast over all dimensions</span>
+d_k = <span class="nm">64</span>
+scores_scaled = scores / np.sqrt(d_k)   <span class="cm"># scalar broadcasts over everything</span></pre>
+  </div>
+</section>
+
+<section class="section" id="linear-maps">
+  <div class="section-header"><div class="level-badge b06">06</div>
+    <div class="section-header-text"><h2>Matrices as Linear Maps</h2><p>Every matrix is a transformation — a way of reshaping space</p></div>
+  </div>
+  <div class="prose">
+    <p>A matrix doesn't just store numbers — it <strong>transforms vectors</strong>. When you compute y = Ax, you are applying a linear transformation to x. The matrix A is a function that takes a vector in ℝⁿ and maps it to a vector in ℝᵐ.</p>
+    <p>This geometric view is crucial for understanding what transformer layers do:</p>
+    <ul>
+      <li><strong>Rotation</strong> — attention heads rotate embeddings into a subspace where similarity is meaningful</li>
+      <li><strong>Scaling</strong> — different dimensions are amplified or suppressed</li>
+      <li><strong>Projection</strong> — the Q, K, V projection matrices project the full embedding into a lower-dimensional subspace for each head</li>
+    </ul>
+    <h3>Rank of a matrix</h3>
+    <p>The <strong>rank</strong> of a matrix is the number of linearly independent rows (or columns). A full-rank matrix can represent any transformation in its space. A low-rank matrix compresses information — this is exactly what LoRA exploits.</p>
+  </div>
+  <div class="diag"><span class="h">Geometric intuition: W projects 3D → 2D</span>
+
+3D embedding space           2D attention subspace
+        ↑                           ↑
+    [0.8]                        [1.2]
+    [0.3]  →  multiply by W  →  [0.5]
+    [0.6]
+         (768-dim)              (64-dim per head)
+
+<span class="h">LoRA: learn a low-rank update instead of full W</span>
+
+W_updated = W_original + B × A
+          = (d × d) + (d × r)(r × d)   where r &lt;&lt; d
+
+<span class="c">Example: d=768, r=8  →  only 768×8 + 8×768 = 12,288 params
+         vs full matrix: 768×768 = 589,824 params  (48× fewer)</span></div>
+</section>
+
+<section class="section" id="llm-matrices">
+  <div class="section-header"><div class="level-badge b07">07</div>
+    <div class="section-header-text"><h2>LLM Weight Matrices</h2><p>Every matrix in a transformer — what it is and what it does</p></div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Matrix</th><th>Shape</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>Embedding table E</td><td>(vocab × d_model)</td><td>Converts token id to embedding vector via row lookup</td></tr>
+        <tr><td>W_Q (query)</td><td>(d_model × d_k)</td><td>Projects token embedding into query space per head</td></tr>
+        <tr><td>W_K (key)</td><td>(d_model × d_k)</td><td>Projects token embedding into key space per head</td></tr>
+        <tr><td>W_V (value)</td><td>(d_model × d_v)</td><td>Projects token embedding into value space per head</td></tr>
+        <tr><td>W_O (output)</td><td>(h·d_v × d_model)</td><td>Projects concatenated head outputs back to d_model</td></tr>
+        <tr><td>W_1 (FFN up)</td><td>(d_model × d_ff)</td><td>Expands embedding to feed-forward dimension (4×)</td></tr>
+        <tr><td>W_2 (FFN down)</td><td>(d_ff × d_model)</td><td>Projects back from feed-forward to d_model</td></tr>
+        <tr><td>W_unembed</td><td>(d_model × vocab)</td><td>Projects final hidden state to vocabulary logits</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="info-box note"><div class="label">Parameter Count</div>
+    <p>A GPT-2 small model (d_model=768, 12 heads, 12 layers): each layer has 4 attention matrices + 2 FFN matrices ≈ 7M parameters per layer × 12 layers = ~84M. Add embedding table (50257×768 ≈ 38M) → ~122M total. Every single one of these is a matrix multiply at inference time.</p>
+  </div>
+  <div style="height:64px"></div>
+</section>
+<footer><span>Chapter 2 · Matrix Operations</span><span>Math for LLM Design, Training &amp; Inference</span></footer>
+</main>
+<script>
+function toggleTheme(){document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';}
+const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){document.querySelectorAll('nav ul li a').forEach(l=>l.classList.remove('active'));const a=document.querySelector(`nav ul li a[href="#${x.target.id}"]`);if(a)a.classList.add('active');}});},{threshold:0.3});
+document.querySelectorAll('section[id]').forEach(s=>io.observe(s));
+</script>
+</body>
+</html>
