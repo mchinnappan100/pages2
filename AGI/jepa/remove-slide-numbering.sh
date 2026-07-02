@@ -1,0 +1,1 @@
+sed -i '' 's/## Slide [0-9][0-9]* — /## /g' /Users/mchinnappan/github-pages/pages2/AGI/jepa/jepa-slides.md && echo "done"

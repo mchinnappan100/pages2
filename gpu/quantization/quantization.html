@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Quantization — Complete Guide for LLMs</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<style>
+:root[data-theme="dark"]{
+  --bg:#0b0f1a;--sidebar:#080c14;--surface:#111827;--surface2:#1a2235;
+  --border:#1f2d45;--accent:#a78bfa;--accent2:#34d399;--accent3:#fbbf24;--accent4:#f472b6;
+  --text:#e2e8f0;--text-muted:#64748b;--text-dim:#94a3b8;
+  --red:#ef4444;--green:#22c55e;--yellow:#eab308;
+  --code-bg:#060a12;--hero-bg:linear-gradient(135deg,#0d0a1a 0%,#0f0d1f 55%,#0b0f1a 100%);
+}
+:root[data-theme="light"]{
+  --bg:#fdf4ff;--sidebar:#f5f0ff;--surface:#ffffff;--surface2:#ede9fe;
+  --border:#ddd6fe;--accent:#7c3aed;--accent2:#059669;--accent3:#d97706;--accent4:#be185d;
+  --text:#0f172a;--text-muted:#64748b;--text-dim:#475569;
+  --red:#dc2626;--green:#16a34a;--yellow:#ca8a04;
+  --code-bg:#1e293b;--hero-bg:linear-gradient(135deg,#f5f0ff 0%,#ede9fe 55%,#ecfdf5 100%);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;font-size:15px;line-height:1.7}
+nav{width:272px;min-width:272px;background:var(--sidebar);border-right:1px solid var(--border);position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;z-index:100}
+.nav-brand{padding:26px 22px 18px;border-bottom:1px solid var(--border)}
+.nav-brand .icon{width:44px;height:44px;background:linear-gradient(135deg,#a78bfa,#34d399);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:10px}
+.nav-brand h2{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--text)}
+.nav-brand p{font-size:.7rem;color:var(--text-muted);margin-top:2px;letter-spacing:.04em;text-transform:uppercase}
+.theme-btn{margin:10px 12px;padding:7px 13px;border-radius:8px;background:var(--surface);border:1px solid var(--border);color:var(--text-dim);font-size:.77rem;cursor:pointer;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:7px;transition:all .18s}
+.theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+nav ul{list-style:none;padding:12px 10px;flex:1}
+nav ul li a{display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:8px;color:var(--text-dim);text-decoration:none;font-size:.82rem;font-weight:500;transition:all .18s;margin-bottom:2px}
+nav ul li a:hover,nav ul li a.active{background:var(--surface);color:var(--accent)}
+nav ul li a .dot{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0;transition:background .18s}
+nav ul li a:hover .dot,nav ul li a.active .dot{background:var(--accent)}
+.nav-section-label{font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);padding:12px 12px 4px;font-family:'JetBrains Mono',monospace}
+main{flex:1;overflow-x:hidden}
+.hero{background:var(--hero-bg);border-bottom:1px solid var(--border);padding:68px 60px 56px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-80px;right:-60px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(167,139,250,.1) 0%,transparent 70%);pointer-events:none}
+.hero::after{content:'';position:absolute;bottom:-60px;left:35%;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(52,211,153,.07) 0%,transparent 70%);pointer-events:none}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:5px 15px;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.25);border-radius:20px;font-size:.73rem;font-family:'JetBrains Mono',monospace;color:var(--accent);margin-bottom:22px;letter-spacing:.05em;text-transform:uppercase}
+.hero h1{font-family:'Syne',sans-serif;font-weight:800;font-size:2.7rem;line-height:1.1;letter-spacing:-.03em;margin-bottom:14px;color:var(--text)}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero p{font-size:.97rem;color:var(--text-dim);max-width:640px;line-height:1.75;margin-bottom:32px}
+.hero-stats{display:flex;gap:36px;flex-wrap:wrap}
+.hero-stat .num{font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:var(--accent);display:block;line-height:1}
+.hero-stat .lbl{font-size:.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-top:5px;font-family:'JetBrains Mono',monospace}
+.section{padding:60px 60px 0}
+.section-header{display:flex;align-items:center;gap:14px;margin-bottom:36px;padding-bottom:18px;border-bottom:1px solid var(--border)}
+.level-badge{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:#000;flex-shrink:0}
+.b01{background:linear-gradient(135deg,#a78bfa,#7c3aed)}
+.b02{background:linear-gradient(135deg,#34d399,#059669)}
+.b03{background:linear-gradient(135deg,#fbbf24,#d97706)}
+.b04{background:linear-gradient(135deg,#f472b6,#be185d)}
+.b05{background:linear-gradient(135deg,#60a5fa,#2563eb)}
+.b06{background:linear-gradient(135deg,#f97316,#ea580c)}
+.b07{background:linear-gradient(135deg,#4ade80,#16a34a)}
+.b08{background:linear-gradient(135deg,#38bdf8,#0369a1)}
+.section-header-text h2{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;letter-spacing:-.02em;color:var(--text)}
+.section-header-text p{font-size:.78rem;color:var(--text-muted);font-family:'JetBrains Mono',monospace;margin-top:2px}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:22px;margin-bottom:56px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:border-color .2s,transform .2s}
+.card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.card-head{padding:20px 22px 14px;display:flex;gap:13px;align-items:flex-start}
+.card-icon{font-size:1.75rem;flex-shrink:0;line-height:1}
+.card-head h3{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;color:var(--text);margin-bottom:5px}
+.card-head p{font-size:.81rem;color:var(--text-dim);line-height:1.6}
+.card-list{padding:0 22px 14px;list-style:none}
+.card-list li{font-size:.81rem;color:var(--text-dim);padding:4px 0;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:8px}
+.card-list li:last-child{border-bottom:none}
+.card-list li::before{content:'›';color:var(--accent);font-weight:700;flex-shrink:0}
+.diag{background:var(--code-bg);border:1px solid var(--border);border-radius:12px;padding:24px 28px;margin-bottom:28px;font-family:'JetBrains Mono',monospace;font-size:.75rem;color:#7dd3fc;line-height:1.85;white-space:pre;overflow-x:auto}
+.diag .h{color:var(--accent);font-weight:700}
+.diag .b{color:var(--accent2)}
+.diag .g{color:var(--accent3)}
+.diag .y{color:var(--accent4)}
+.diag .c{color:#475569}
+.diag .r{color:#f472b6}
+.math-box{background:var(--code-bg);border:2px solid var(--accent);border-radius:12px;padding:20px 26px;margin-bottom:26px;font-family:'JetBrains Mono',monospace;font-size:.83rem;color:#c4b5fd;line-height:2;white-space:pre-wrap;overflow-x:auto}
+.code-block{background:var(--code-bg);border:1px solid var(--border);border-radius:12px;margin-bottom:28px;overflow:hidden}
+.code-block-header{padding:9px 17px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.code-block-header .lang{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em}
+.code-block-header .dots{display:flex;gap:5px}
+.code-block-header .dots span{width:10px;height:10px;border-radius:50%}
+.dr{background:#ef4444}.dy{background:#f59e0b}.dg{background:#22c55e}
+.code-block pre{padding:18px 22px;font-family:'JetBrains Mono',monospace;font-size:.77rem;line-height:1.82;color:#7dd3fc;overflow-x:auto;white-space:pre}
+.code-block pre .cm{color:#475569}.code-block pre .kw{color:#a78bfa}
+.code-block pre .st{color:#34d399}.code-block pre .nm{color:#fbbf24}.code-block pre .fn{color:#60a5fa}
+.info-box{border-radius:10px;padding:16px 20px;margin-bottom:22px;border-left:3px solid}
+.info-box.tip{background:rgba(52,211,153,.08);border-color:var(--accent2)}
+.info-box.note{background:rgba(167,139,250,.08);border-color:var(--accent)}
+.info-box.warn{background:rgba(251,191,36,.08);border-color:var(--accent3)}
+.info-box.paper{background:rgba(244,114,182,.07);border-color:var(--accent4)}
+.info-box .label{font-family:'JetBrains Mono',monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:5px}
+.info-box.tip .label{color:var(--accent2)}.info-box.note .label{color:var(--accent)}
+.info-box.warn .label{color:var(--accent3)}.info-box.paper .label{color:var(--accent4)}
+.info-box p{font-size:.83rem;color:var(--text-dim);line-height:1.65}
+.table-wrap{overflow-x:auto;margin-bottom:44px;border-radius:12px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead th{background:var(--surface2);padding:11px 17px;text-align:left;font-family:'JetBrains Mono',monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
+tbody tr:hover{background:var(--surface)}
+tbody tr:last-child{border-bottom:none}
+tbody td{padding:11px 17px;color:var(--text-dim)}
+tbody td:first-child{font-weight:600;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.77rem}
+.check{color:var(--green)}.cross{color:var(--red)}.partial{color:var(--yellow)}
+.prose{max-width:820px;margin-bottom:36px}
+.prose h3{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:700;color:var(--text);margin:26px 0 9px}
+.prose p{font-size:.9rem;color:var(--text-dim);line-height:1.78;margin-bottom:13px}
+.prose ul{padding-left:20px;margin-bottom:13px}
+.prose ul li{font-size:.88rem;color:var(--text-dim);margin-bottom:6px;line-height:1.65}
+.prose code{font-family:'JetBrains Mono',monospace;font-size:.79em;background:var(--surface2);padding:2px 6px;border-radius:4px;color:var(--accent)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px}
+@media(max-width:860px){.two-col{grid-template-columns:1fr}}
+.bp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;margin-bottom:56px}
+.bp-card{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:18px 20px}
+.bp-card h4{font-family:'Syne',sans-serif;font-size:.9rem;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.bp-card h4::before{content:'◆';color:var(--accent);font-size:.65rem}
+.bp-card p{font-size:.79rem;color:var(--text-dim);line-height:1.65}
+/* precision pills */
+.prec-strip{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:28px}
+.prec-pill{padding:6px 14px;border-radius:20px;font-family:'JetBrains Mono',monospace;font-size:.74rem;font-weight:700;border:1px solid}
+.fp32{background:rgba(239,68,68,.1);color:#f87171;border-color:rgba(239,68,68,.3)}
+.fp16{background:rgba(251,191,36,.1);color:#fbbf24;border-color:rgba(251,191,36,.3)}
+.bf16{background:rgba(245,158,11,.1);color:#f59e0b;border-color:rgba(245,158,11,.3)}
+.int8{background:rgba(52,211,153,.1);color:#34d399;border-color:rgba(52,211,153,.3)}
+.int4{background:rgba(167,139,250,.1);color:#a78bfa;border-color:rgba(167,139,250,.3)}
+.int2{background:rgba(244,114,182,.1);color:#f472b6;border-color:rgba(244,114,182,.3)}
+.fp8{background:rgba(96,165,250,.1);color:#60a5fa;border-color:rgba(96,165,250,.3)}
+/* size bars */
+.size-bars{margin-bottom:28px}
+.size-bar-row{display:flex;align-items:center;gap:12px;margin-bottom:10px;font-size:.8rem}
+.size-bar-label{font-family:'JetBrains Mono',monospace;color:var(--text-dim);width:52px;flex-shrink:0;font-size:.72rem}
+.size-bar-track{flex:1;background:var(--surface2);border-radius:6px;height:22px;overflow:hidden;border:1px solid var(--border)}
+.size-bar-fill{height:100%;border-radius:5px;display:flex;align-items:center;padding-left:8px;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:#000;font-weight:700;transition:width .3s}
+.bar-fp32{background:#f87171;width:100%}
+.bar-fp16{background:#fbbf24;width:50%}
+.bar-bf16{background:#f59e0b;width:50%}
+.bar-int8{background:#34d399;width:25%}
+.bar-int4{background:#a78bfa;width:12.5%}
+.bar-int2{background:#f472b6;width:6.25%}
+footer{background:var(--sidebar);border-top:1px solid var(--border);padding:26px 60px;font-size:.77rem;color:var(--text-muted);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+footer span{font-family:'JetBrains Mono',monospace}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+@media(max-width:900px){.hero{padding:38px 22px 44px}.hero h1{font-size:1.8rem}.section{padding:36px 22px 0}nav{display:none}.card-grid{grid-template-columns:1fr}.bp-grid{grid-template-columns:1fr}footer{padding:22px}}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-brand"><div class="icon">🗜️</div><h2>Quantization</h2><p>Complete Guide</p></div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Theme</button>
+  <ul>
+    <li class="nav-section-label">Foundations</li>
+    <li><a href="#what-is"><span class="dot"></span>What Is Quantization?</a></li>
+    <li><a href="#why"><span class="dot"></span>Why Quantize?</a></li>
+    <li><a href="#how-it-works"><span class="dot"></span>How It Works</a></li>
+    <li><a href="#formats"><span class="dot"></span>Numeric Formats</a></li>
+    <li class="nav-section-label">Types</li>
+    <li><a href="#ptq"><span class="dot"></span>Post-Training (PTQ)</a></li>
+    <li><a href="#qat"><span class="dot"></span>Quantization-Aware (QAT)</a></li>
+    <li><a href="#weight-vs-act"><span class="dot"></span>Weight vs Activation</a></li>
+    <li><a href="#per-tensor"><span class="dot"></span>Per-Tensor vs Per-Channel</a></li>
+    <li class="nav-section-label">Methods</li>
+    <li><a href="#gptq"><span class="dot"></span>GPTQ</a></li>
+    <li><a href="#awq"><span class="dot"></span>AWQ</a></li>
+    <li><a href="#gguf"><span class="dot"></span>GGUF</a></li>
+    <li><a href="#bnb"><span class="dot"></span>BitsAndBytes &amp; NF4</a></li>
+    <li class="nav-section-label">Practical</li>
+    <li><a href="#accuracy"><span class="dot"></span>Accuracy Trade-offs</a></li>
+    <li><a href="#qlora"><span class="dot"></span>QLoRA</a></li>
+    <li><a href="#when-to-use"><span class="dot"></span>When to Use Which</a></li>
+    <li><a href="#code"><span class="dot"></span>Code Examples</a></li>
+  </ul>
+</nav>
+<main>
+<div class="hero">
+  <div class="hero-badge">LLM Inference · Model Compression</div>
+  <h1>Model <em>Quantization</em></h1>
+  <p>Quantization reduces a model's numerical precision — turning 32-bit floats into 4-bit integers — to make it smaller, faster, and cheaper to run. A 70B model that requires 140 GB in FP16 can run in 35 GB at INT4 with only a small accuracy loss. This book explains exactly how that is possible.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">4×</span><span class="lbl">Memory reduction (FP32→INT8)</span></div>
+    <div class="hero-stat"><span class="num">8×</span><span class="lbl">FP32 → INT4</span></div>
+    <div class="hero-stat"><span class="num">GPTQ</span><span class="lbl">Most popular method</span></div>
+    <div class="hero-stat"><span class="num">NF4</span><span class="lbl">QLoRA default</span></div>
+  </div>
+</div>
+
+
+<!-- ══ 01 WHAT IS QUANTIZATION? ══ -->
+<section class="section" id="what-is">
+  <div class="section-header"><div class="level-badge b01">01</div>
+    <div class="section-header-text"><h2>What Is Quantization?</h2><p>Compressing weights from high-precision floats to low-precision integers</p></div>
+  </div>
+  <div class="prose">
+    <p>Quantization is the process of reducing the numerical precision of a model's weights (and sometimes activations) from high-precision formats like FP32 or FP16 to lower-precision formats such as INT8, INT4, or INT2.</p>
+    <p>Think of it like compressing a high-resolution image: the original has full detail (FP32), a high-quality JPEG is slightly smaller with no visible loss (INT8), and a heavily compressed thumbnail loses some detail but is tiny (INT4). The art of quantization is choosing the best compression level for your use case.</p>
+  </div>
+  <div class="prec-strip">
+    <span class="prec-pill fp32">FP32 · 32 bit</span>
+    <span class="prec-pill fp16">FP16 · 16 bit</span>
+    <span class="prec-pill bf16">BF16 · 16 bit</span>
+    <span class="prec-pill fp8">FP8 · 8 bit</span>
+    <span class="prec-pill int8">INT8 · 8 bit</span>
+    <span class="prec-pill int4">INT4 · 4 bit</span>
+    <span class="prec-pill int2">INT2 · 2 bit</span>
+  </div>
+  <div class="size-bars">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.08em">Relative memory usage per weight</div>
+    <div class="size-bar-row"><div class="size-bar-label">FP32</div><div class="size-bar-track"><div class="size-bar-fill bar-fp32">100%</div></div></div>
+    <div class="size-bar-row"><div class="size-bar-label">FP16</div><div class="size-bar-track"><div class="size-bar-fill bar-fp16">50%</div></div></div>
+    <div class="size-bar-row"><div class="size-bar-label">INT8</div><div class="size-bar-track"><div class="size-bar-fill bar-int8">25%</div></div></div>
+    <div class="size-bar-row"><div class="size-bar-label">INT4</div><div class="size-bar-track"><div class="size-bar-fill bar-int4">12.5%</div></div></div>
+    <div class="size-bar-row"><div class="size-bar-label">INT2</div><div class="size-bar-track"><div class="size-bar-fill bar-int2">6.25%</div></div></div>
+  </div>
+</section>
+
+
+<!-- ══ 02 WHY QUANTIZE? ══ -->
+<section class="section" id="why">
+  <div class="section-header"><div class="level-badge b02">02</div>
+    <div class="section-header-text"><h2>Why Quantize?</h2><p>Memory, speed, cost — the three forces driving quantization adoption</p></div>
+  </div>
+  <div class="prose">
+    <p>A model like Llama 3 70B or DeepSeek-R1 requires enormous memory in standard floating-point formats. A 7B model that won't fit on a consumer GPU in FP16 runs comfortably at 4-bit. A 70B model that requires a rack of A100s can run on a single H100 at INT4.</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Model</th><th>FP32</th><th>FP16 / BF16</th><th>INT8</th><th>INT4</th></tr></thead>
+    <tbody>
+      <tr><td>7B</td><td>~28 GB</td><td>~14 GB</td><td>~7 GB</td><td class="check">~3.5–4 GB</td></tr>
+      <tr><td>13B</td><td>~52 GB</td><td>~26 GB</td><td>~13 GB</td><td class="check">~6.5–7 GB</td></tr>
+      <tr><td>70B</td><td>~280 GB</td><td>~140 GB</td><td>~70 GB</td><td class="check">~35 GB</td></tr>
+      <tr><td>405B</td><td>~1.6 TB</td><td>~810 GB</td><td>~405 GB</td><td class="check">~202 GB</td></tr>
+    </tbody>
+  </table></div>
+  <div class="card-grid">
+    <div class="card"><div class="card-head"><span class="card-icon">💾</span><div><h3>Smaller Model Size</h3><p>INT4 is 4× smaller than FP16 by byte count. A 7B model goes from ~14 GB to ~4 GB — fitting on a single consumer GPU with room for the KV cache.</p></div></div>
+      <ul class="card-list"><li>Run larger models on the same hardware</li><li>Reduce cloud GPU costs significantly</li><li>Enable local deployment on laptops and phones</li></ul></div>
+    <div class="card"><div class="card-head"><span class="card-icon">⚡</span><div><h3>Faster Inference</h3><p>Lower-precision arithmetic is faster on modern hardware. INT8 operations on Tensor Cores are 2× faster than FP16. Memory bandwidth is often the bottleneck — loading fewer bytes means higher token throughput.</p></div></div>
+      <ul class="card-list"><li>Higher tokens/second for inference serving</li><li>Reduced time-to-first-token (prefill)</li><li>Better GPU utilisation when bandwidth-bound</li></ul></div>
+    <div class="card"><div class="card-head"><span class="card-icon">🔋</span><div><h3>Lower Power &amp; Cost</h3><p>Smaller, faster inference directly translates to lower electricity and cloud costs. Running a 4-bit model instead of FP16 can halve inference costs on the same hardware.</p></div></div>
+      <ul class="card-list"><li>Lower power consumption per inference request</li><li>Better price/token for cloud deployments</li><li>Enables battery-powered edge deployment</li></ul></div>
+  </div>
+</section>
+
+
+<!-- ══ 03 HOW IT WORKS ══ -->
+<section class="section" id="how-it-works">
+  <div class="section-header"><div class="level-badge b03">03</div>
+    <div class="section-header-text"><h2>How Quantization Works</h2><p>Scale factors, zero points, and the rounding operation</p></div>
+  </div>
+  <div class="prose">
+    <p>The core idea is simple: map a range of floating-point values to a smaller set of integers, then store a <strong>scale factor</strong> to recover the approximate original value. The tricky part is choosing the mapping to minimise accuracy loss.</p>
+  </div>
+  <div class="diag"><span class="h">Step-by-step quantization (from quantization.md)</span>
+
+<span class="h">Original FP16 weights:</span>
+  0.3821
+ -1.7280
+  2.9410
+  ...
+
+<span class="h">Step 1: Find scale factor</span>
+  range = max(abs(weights)) = 2.941
+  scale = range / 127 = 0.02316   <span class="c">(for INT8: 127 levels)</span>
+
+<span class="h">Step 2: Quantize (divide by scale, round to integer)</span>
+  0.3821 / 0.02316 =  16.5 → <span class="b">17</span>
+ -1.7280 / 0.02316 = -74.6 → <span class="b">-75</span>
+  2.9410 / 0.02316 = 127.0 → <span class="b">127</span>
+
+<span class="h">Step 3: Store</span>
+  Integers: [17, -75, 127, ...]   <span class="c">(INT8: 1 byte each)</span>
+  Scale:    0.02316               <span class="c">(1 float: 4 bytes, shared by all)</span>
+
+<span class="h">Dequantize (at inference time):</span>
+  17  × 0.02316 = <span class="g">0.3937</span>   <span class="c">(original: 0.3821 → error: +0.012)</span>
+ -75  × 0.02316 = <span class="g">-1.7370</span>  <span class="c">(original: -1.728 → error: -0.009)</span>
+  127 × 0.02316 = <span class="g">2.9413</span>   <span class="c">(original: 2.941  → error: +0.0003)</span></div>
+
+  <div class="math-box">Linear (absmax) quantization:
+
+  scale = max(|W|) / (2^{b-1} - 1)     ← b = number of bits
+  W_int = round(W / scale)               ← integer in [-127, 127] for INT8
+  W_approx = W_int × scale               ← dequantized approximation
+
+  Max rounding error per element: ± scale/2
+
+For INT8 (b=8):  max error = max(|W|) / 254
+For INT4 (b=4):  max error = max(|W|) / 14   ← 18× larger than INT8
+
+With zero point z (asymmetric quantization):
+  W_int = round(W / scale) + z
+  W_approx = (W_int - z) × scale
+  Allows mapping to full unsigned range [0, 2^b - 1]</div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · INT8 quantization from scratch</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+<span class="kw">import</span> torch
+
+<span class="cm"># ── Absmax (symmetric) INT8 quantization ─────────────────────────</span>
+<span class="kw">def</span> <span class="fn">quantize_int8</span>(W):
+    <span class="st">"""Map float weights to INT8 using absmax scaling."""</span>
+    scale = np.max(np.abs(W)) / <span class="nm">127.0</span>
+    W_int8 = np.round(W / scale).astype(np.int8)
+    <span class="kw">return</span> W_int8, scale
+
+<span class="kw">def</span> <span class="fn">dequantize</span>(W_int8, scale):
+    <span class="kw">return</span> W_int8.astype(np.float32) * scale
+
+<span class="cm"># Example from quantization.md</span>
+W = np.array([<span class="nm">0.3821</span>, -<span class="nm">1.7280</span>, <span class="nm">2.9410</span>])
+W_int8, scale = quantize_int8(W)
+W_approx = dequantize(W_int8, scale)
+
+<span class="fn">print</span>(<span class="st">f"Original:      {W}"</span>)
+<span class="fn">print</span>(<span class="st">f"INT8:          {W_int8}  (scale={scale:.5f})"</span>)
+<span class="fn">print</span>(<span class="st">f"Reconstructed: {W_approx.round(4)}"</span>)
+<span class="fn">print</span>(<span class="st">f"Max error:     {np.abs(W - W_approx).max():.5f}"</span>)
+
+<span class="cm"># Memory comparison</span>
+W_big = np.random.randn(<span class="nm">768</span>, <span class="nm">768</span>).astype(np.float32)
+W_q, s = quantize_int8(W_big)
+<span class="fn">print</span>(f<span class="st">f"\nFP32: {W_big.nbytes/1e6:.2f} MB → INT8: {W_q.nbytes/1e6:.2f} MB (4× smaller)"</span>)
+
+<span class="cm"># ── PyTorch native quantization ───────────────────────────────────</span>
+W_t = torch.randn(<span class="nm">4</span>, <span class="nm">4</span>)
+scale_t = W_t.abs().max() / <span class="nm">127</span>
+W_q_t   = torch.quantize_per_tensor(W_t, scale=scale_t.item(),
+                                     zero_point=<span class="nm">0</span>, dtype=torch.qint8)
+W_deq   = W_q_t.dequantize()
+<span class="fn">print</span>(f<span class="st">f"\nPyTorch quant dtype: {W_q_t.dtype}"</span>)
+<span class="fn">print</span>(f<span class="st">f"Max reconstruction error: {(W_t - W_deq).abs().max():.6f}"</span>)</pre>
+  </div>
+</section>
+
+
+<!-- ══ 04 NUMERIC FORMATS ══ -->
+<section class="section" id="formats">
+  <div class="section-header"><div class="level-badge b04">04</div>
+    <div class="section-header-text"><h2>Numeric Formats</h2><p>FP32 to INT2 — what each format is and when to use it</p></div>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Format</th><th>Bits</th><th>Sign</th><th>Exponent</th><th>Mantissa</th><th>Range</th><th>Typical Use</th></tr></thead>
+    <tbody>
+      <tr><td>FP32</td><td>32</td><td>1</td><td>8</td><td>23</td><td>±3.4×10³⁸</td><td>Training (standard)</td></tr>
+      <tr><td>FP16</td><td>16</td><td>1</td><td>5</td><td>10</td><td>±65504</td><td>GPU training &amp; inference</td></tr>
+      <tr><td>BF16</td><td>16</td><td>1</td><td>8</td><td>7</td><td>±3.4×10³⁸</td><td>Large-scale training (stable range)</td></tr>
+      <tr><td>FP8 E4M3</td><td>8</td><td>1</td><td>4</td><td>3</td><td>±448</td><td>H100 Tensor Cores, inference</td></tr>
+      <tr><td>INT8</td><td>8</td><td>1</td><td>—</td><td>—</td><td>−128 to 127</td><td>Fast GPU/CPU inference</td></tr>
+      <tr><td>INT4</td><td>4</td><td>1</td><td>—</td><td>—</td><td>−8 to 7</td><td>Consumer GPU inference</td></tr>
+      <tr><td>INT2</td><td>2</td><td>1</td><td>—</td><td>—</td><td>−2 to 1</td><td>Research / extreme compression</td></tr>
+    </tbody>
+  </table></div>
+  <div class="info-box note"><div class="label">BF16 vs FP16</div>
+    <p>Both are 16-bit but serve different purposes. <strong>FP16</strong> has 10 mantissa bits (high precision) but a narrow range (max ~65504) — it can overflow during training. <strong>BF16</strong> has only 7 mantissa bits but the same exponent range as FP32 (max ~3.4×10³⁸) — it doesn't overflow, making it far safer for training large models. LLaMA, Gemini, and most modern LLMs train in BF16.</p>
+  </div>
+</section>
+
+
+<!-- ══ 05 PTQ ══ -->
+<section class="section" id="ptq">
+  <div class="section-header"><div class="level-badge b05">05</div>
+    <div class="section-header-text"><h2>Post-Training Quantization (PTQ)</h2><p>Quantize a trained model without retraining — fast and widely used</p></div>
+  </div>
+  <div class="prose">
+    <p>PTQ is the most practical approach: train your model normally in FP16/BF16, then convert the weights to a lower precision format after training is complete. No retraining required. The entire process can take minutes to hours depending on model size.</p>
+  </div>
+  <div class="diag"><span class="h">PTQ Pipeline</span>
+
+<span class="b">Pretrained FP16 Model</span>  (e.g. Llama-3-70B)
+          │
+          ▼
+<span class="h">Calibration (small dataset)</span>
+   <span class="c">Run ~512 representative samples through the model.
+   Measure activation distributions, weight ranges.
+   Used to choose optimal scale factors.</span>
+          │
+          ▼
+<span class="h">Quantization Algorithm</span>  (GPTQ, AWQ, HQQ, ...)
+   <span class="c">Layer by layer: find integer approximation
+   that minimises output error for this layer.</span>
+          │
+          ▼
+<span class="b">INT4 Model</span>  (35 GB instead of 140 GB)
+          │
+          ▼
+<span class="g">Deploy for inference</span></div>
+
+  <div class="card-grid">
+    <div class="card"><div class="card-head"><span class="card-icon">✅</span><div><h3>Advantages of PTQ</h3><p>No retraining required, making it fast and accessible. Can be applied to any pretrained model. Works well at INT8 and, with modern methods like GPTQ/AWQ, produces excellent results at INT4.</p></div></div>
+      <ul class="card-list"><li>No GPU training budget needed</li><li>Minutes to hours for any model size</li><li>Works on models you didn't train yourself</li><li>HuggingFace has thousands of pre-quantized models</li></ul></div>
+    <div class="card"><div class="card-head"><span class="card-icon">⚠️</span><div><h3>Limitations of PTQ</h3><p>Some accuracy is always lost, especially at very low bits (INT2/INT3). The quality depends on the calibration dataset quality. Aggressive quantization of small models (&lt;1B params) hurts more than large models.</p></div></div>
+      <ul class="card-list"><li>More accuracy loss at INT2/INT3 than QAT</li><li>Calibration dataset must be representative</li><li>Small models suffer more than large ones</li><li>Some quantization-sensitive layers need special handling</li></ul></div>
+  </div>
+</section>
+
+
+<!-- ══ 06 QAT ══ -->
+<section class="section" id="qat">
+  <div class="section-header"><div class="level-badge b06">06</div>
+    <div class="section-header-text"><h2>Quantization-Aware Training (QAT)</h2><p>Simulate quantization during training for better accuracy at low bits</p></div>
+  </div>
+  <div class="prose">
+    <p>QAT inserts "fake quantization" nodes into the computation graph during training. The model trains in FP16 but simulates the rounding errors of INT4 on every forward pass. This allows the model to compensate for quantization errors by adjusting its weights accordingly.</p>
+    <p>The result: significantly better accuracy than PTQ at the same bit width, especially at INT2–INT4 where PTQ accuracy losses are more significant. The cost: you must retrain (or fine-tune) the model, which requires the original training data and GPU compute.</p>
+  </div>
+  <div class="diag"><span class="h">QAT Training Loop</span>
+
+<span class="b">Start: FP16 model weights</span>
+          │
+     For each training step:
+          │
+          ▼
+<span class="h">1. Fake-quantize weights:</span>  W_sim = round(W / scale) × scale
+   <span class="c">(weights stay FP16 but look like INT4 during forward pass)</span>
+          │
+          ▼
+<span class="h">2. Forward pass with W_sim</span>
+   <span class="c">(loss computed as if using quantized model)</span>
+          │
+          ▼
+<span class="h">3. Backprop with Straight-Through Estimator (STE)</span>
+   <span class="c">(round() has zero gradient; STE treats it as identity for backprop)</span>
+          │
+          ▼
+<span class="h">4. Update FP16 weights with gradient</span>
+   <span class="c">(weights adjust to be robust to quantization errors)</span>
+          │
+          ▼
+<span class="b">After training: convert W to actual INT4</span></div>
+
+  <div class="info-box warn"><div class="label">Straight-Through Estimator (STE)</div>
+    <p>The rounding operation in QAT has zero gradient (it's a step function). Backpropagation would give zero gradients everywhere, making training impossible. The <strong>STE</strong> approximates the gradient of the round operation as 1 — treating it as an identity function during backprop. This is mathematically incorrect but works extremely well in practice and is the standard approach for QAT.</p>
+  </div>
+</section>
+
+
+<!-- ══ 07 WEIGHT VS ACTIVATION ══ -->
+<section class="section" id="weight-vs-act">
+  <div class="section-header"><div class="level-badge b07">07</div>
+    <div class="section-header-text"><h2>Weight vs Activation Quantization</h2><p>Two targets — weights alone, or weights plus the values flowing between layers</p></div>
+  </div>
+  <div class="two-col">
+    <div class="diag"><span class="h">Weight-Only Quantization (W4A16)</span>
+
+Weights stored in INT4 (compressed)
+Activations remain FP16
+
+<span class="b">x (FP16)</span>
+      │
+  ┌───▼────────────────┐
+  │<span class="h"> Dequantize weights</span>  │  <span class="c">INT4 → FP16</span>
+  │<span class="h"> W_fp16 = W_int4 × s</span>│
+  └───┬────────────────┘
+      │  <span class="g">W_fp16</span>
+      ▼
+<span class="b">y = x @ W_fp16</span>  <span class="c">(FP16 matmul)</span>
+      │
+  <span class="b">y (FP16)</span>
+
+<span class="g">Most popular: balances compression with ease</span>
+<span class="c">Used by: GPTQ, AWQ, GGUF</span></div>
+    <div class="diag"><span class="h">Weight + Activation Quantization (W8A8)</span>
+
+Both weights AND activations in INT8
+
+<span class="b">x (FP16)</span>
+      │
+  ┌───▼──────────────────┐
+  │<span class="h"> Quantize activations</span> │  <span class="c">FP16 → INT8</span>
+  │ x_int8 = round(x/s_x)│
+  └───┬──────────────────┘
+      │  <span class="g">x_int8</span>  +  <span class="g">W_int8</span>
+      ▼
+<span class="b">y = x_int8 @ W_int8</span>  <span class="c">(fast INT8 GEMM)</span>
+      │
+  ┌───▼──────────────────┐
+  │<span class="h"> Dequantize output</span>    │  <span class="c">INT8 → FP16</span>
+  └───┬──────────────────┘
+      │
+  <span class="b">y (FP16)</span>
+
+<span class="c">Faster: INT8 GEMM uses dedicated hardware
+Harder: activation ranges change per input!</span></div>
+  </div>
+  <div class="prose">
+    <h3>Why Activation Quantization Is Harder</h3>
+    <p>Weights are <em>static</em> — they are fixed after training and their range is known upfront. Activations are <em>dynamic</em> — they change with every input. Choosing the right scale factor for activations at runtime is challenging, and a bad scale choice introduces large errors. Methods like SmoothQuant address this by mathematically "migrating" the difficulty from activations to weights.</p>
+  </div>
+</section>
+
+
+<!-- ══ 08 PER-TENSOR VS PER-CHANNEL ══ -->
+<section class="section" id="per-tensor">
+  <div class="section-header"><div class="level-badge b08">08</div>
+    <div class="section-header-text"><h2>Per-Tensor vs Per-Channel</h2><p>Granularity of the scale factor — one scale or many</p></div>
+  </div>
+  <div class="diag"><span class="h">Per-Tensor vs Per-Channel vs Per-Group</span>
+
+<span class="h">Per-Tensor:</span>
+  Entire weight matrix gets ONE scale factor.
+  W = [[0.3, 2.1, -0.5, 1.8],      scale = max(|W|) / 127 = 2.1/127
+       [1.2, -0.8, 0.1, 0.4]]
+  <span class="c">Simple. Fast. Less accurate: scale optimised for the outlier (2.1),
+  leaving most small values with poor precision.</span>
+
+<span class="h">Per-Channel (per-row or per-column):</span>
+  Each output channel gets its OWN scale.
+  Row 0: scale₀ = max(|row 0|) / 127 = 2.1/127
+  Row 1: scale₁ = max(|row 1|) / 127 = 1.2/127
+  <span class="b">Much better accuracy: each row uses its full dynamic range.</span>
+
+<span class="h">Per-Group (used by GPTQ/AWQ):</span>
+  Weights split into groups of g=128 (or 64).
+  Each group gets its own scale.
+  scale₀ for W[0:128], scale₁ for W[128:256], ...
+  <span class="g">Best accuracy: fine-grained, handles outliers locally.</span>
+  <span class="c">Slight storage overhead: one scale per group (small vs the weights).</span></div>
+</section>
+
+
+<!-- ══ 09 GPTQ ══ -->
+<section class="section" id="gptq">
+  <div class="section-header"><div class="level-badge b01">09</div>
+    <div class="section-header-text"><h2>GPTQ</h2><p>One-shot post-training quantization using second-order information</p></div>
+  </div>
+  <div class="prose">
+    <p>GPTQ (Frantar et al., 2022) is the most widely used PTQ method for LLMs. It quantizes one layer at a time, using a calibration dataset to compute the Hessian of the quantization error. It then finds the integer values that minimise the mean squared error on the layer's output, correcting later weights to compensate for earlier quantization errors.</p>
+    <p>GPTQ works extremely well at 4-bit and even 3-bit, with minimal accuracy loss on most benchmarks. It is the format behind most "GPTQ" model variants on HuggingFace.</p>
+  </div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Loading a GPTQ model with transformers + auto-gptq</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="cm"># Install: pip install auto-gptq transformers accelerate</span>
+<span class="kw">from</span> transformers <span class="kw">import</span> AutoModelForCausalLM, AutoTokenizer
+
+model_id = <span class="st">"TheBloke/Llama-2-7B-GPTQ"</span>   <span class="cm"># 4-bit GPTQ model</span>
+
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+model = AutoModelForCausalLM.from_pretrained(
+    model_id,
+    device_map=<span class="st">"auto"</span>,      <span class="cm"># automatically choose GPU/CPU</span>
+    trust_remote_code=<span class="nm">True</span>
+)
+
+<span class="fn">print</span>(f<span class="st">f"Model loaded: {sum(p.numel() for p in model.parameters())/1e9:.1f}B params"</span>)
+
+<span class="cm"># Generate text</span>
+inputs = tokenizer(<span class="st">"The future of AI is"</span>, return_tensors=<span class="st">"pt"</span>)
+outputs = model.generate(**inputs, max_new_tokens=<span class="nm">50</span>)
+<span class="fn">print</span>(tokenizer.decode(outputs[<span class="nm">0</span>]))
+
+<span class="cm"># ── Quantize your own model with GPTQ ──────────────────────────────
+# from auto_gptq import AutoGPTQForCausalLM, BaseQuantizeConfig
+#
+# quantize_config = BaseQuantizeConfig(
+#     bits=4,          # 4-bit quantization
+#     group_size=128,  # per-group scales (128 weights share a scale)
+#     desc_act=False,  # don't reorder columns by activation magnitude
+# )
+# model = AutoGPTQForCausalLM.from_pretrained(base_model_id, quantize_config)
+# model.quantize(calibration_dataset)  # ~minutes on GPU
+# model.save_quantized("my-model-gptq")</span></pre>
+  </div>
+</section>
+
+
+<!-- ══ 10 AWQ ══ -->
+<section class="section" id="awq">
+  <div class="section-header"><div class="level-badge b02">10</div>
+    <div class="section-header-text"><h2>AWQ — Activation-Aware Weight Quantization</h2><p>Protect the weights that matter most — determined by activation magnitude</p></div>
+  </div>
+  <div class="prose">
+    <p>AWQ (Lin et al., 2023) observes that not all weights are equally important. Weights connected to neurons with large activation magnitudes have an outsized impact on the output — and quantizing them aggressively introduces large errors. AWQ identifies these "salient" weights using a calibration set and protects them with higher-precision scale factors or by rescaling before quantization.</p>
+    <h3>Key Insight</h3>
+    <p>Rather than treating all weights the same, AWQ asks: "which weights, if quantized poorly, would cause the most damage to the model's output?" It then adjusts the quantization to be most careful about those weights. This produces better accuracy than GPTQ on most instruction-tuned and chat models.</p>
+  </div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Loading AWQ quantized model</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="cm"># Install: pip install autoawq transformers</span>
+<span class="kw">from</span> awq <span class="kw">import</span> AutoAWQForCausalLM
+<span class="kw">from</span> transformers <span class="kw">import</span> AutoTokenizer
+
+model_path = <span class="st">"TheBloke/Llama-2-7B-AWQ"</span>
+tokenizer  = AutoTokenizer.from_pretrained(model_path)
+model      = AutoAWQForCausalLM.from_quantized(model_path, fuse_layers=<span class="nm">True</span>)
+
+<span class="cm"># Inference (identical API to standard models)</span>
+inputs  = tokenizer(<span class="st">"Explain quantum computing in simple terms:"</span>,
+                    return_tensors=<span class="st">"pt"</span>)
+outputs = model.generate(**inputs, max_new_tokens=<span class="nm">100</span>, do_sample=<span class="nm">False</span>)
+<span class="fn">print</span>(tokenizer.decode(outputs[<span class="nm">0</span>], skip_special_tokens=<span class="nm">True</span>))
+
+<span class="cm"># ── Quantize your own model with AWQ ───────────────────────────────
+# from awq import AutoAWQForCausalLM
+#
+# model = AutoAWQForCausalLM.from_pretrained(base_model_id)
+# quant_config = {"zero_point": True, "q_group_size": 128, "w_bit": 4, "version": "GEMM"}
+# model.quantize(tokenizer, quant_config=quant_config)
+# model.save_quantized("my-awq-model")</span></pre>
+  </div>
+</section>
+
+
+<!-- ══ 11 GGUF ══ -->
+<section class="section" id="gguf">
+  <div class="section-header"><div class="level-badge b03">11</div>
+    <div class="section-header-text"><h2>GGUF — llama.cpp Format</h2><p>The format designed for CPU inference and local deployment</p></div>
+  </div>
+  <div class="prose">
+    <p>GGUF (GGML Unified Format) is the file format used by <code>llama.cpp</code> and compatible tools (Ollama, LM Studio, Jan). Unlike GPTQ and AWQ which target GPU inference, GGUF is optimised for CPU inference with optional GPU offloading — making it ideal for local deployment on laptops without discrete GPUs.</p>
+    <p>GGUF supports a rich menu of quantization levels allowing you to trade accuracy for speed based on your hardware:</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>GGUF Variant</th><th>Bits</th><th>Quality</th><th>Size (7B)</th><th>Best For</th></tr></thead>
+    <tbody>
+      <tr><td>Q2_K</td><td>~2.6</td><td>Low</td><td>~2.9 GB</td><td>Extreme compression, older hardware</td></tr>
+      <tr><td>Q4_K_S</td><td>4</td><td>Good</td><td>~4.1 GB</td><td>Fast CPU inference, small RAM</td></tr>
+      <tr><td>Q4_K_M</td><td>4</td><td>Very Good</td><td>~4.4 GB</td><td>Best 4-bit quality/speed balance</td></tr>
+      <tr><td>Q5_K_M</td><td>5</td><td>Excellent</td><td>~5.1 GB</td><td>Close to FP16 quality at 5-bit</td></tr>
+      <tr><td>Q6_K</td><td>6</td><td>Near-FP16</td><td>~5.9 GB</td><td>Maximum quality with quantization</td></tr>
+      <tr><td>Q8_0</td><td>8</td><td>~FP16</td><td>~7.2 GB</td><td>Fast GPU inference, minimal loss</td></tr>
+    </tbody>
+  </table></div>
+  <div class="info-box tip"><div class="label">Which GGUF to choose?</div>
+    <p>For most local use cases: <strong>Q4_K_M</strong> is the sweet spot — good quality, reasonable size, runs on most hardware. If you have extra RAM and want better quality: <strong>Q5_K_M</strong>. For a GPU with limited VRAM: <strong>Q4_K_S</strong>. For maximum quality you can still run locally: <strong>Q6_K</strong> or <strong>Q8_0</strong>.</p>
+  </div>
+</section>
+
+
+<!-- ══ 12 BITSANDBYTES & NF4 ══ -->
+<section class="section" id="bnb">
+  <div class="section-header"><div class="level-badge b04">12</div>
+    <div class="section-header-text"><h2>BitsAndBytes &amp; NF4</h2><p>HuggingFace's quantization library — and the non-uniform INT4 format</p></div>
+  </div>
+  <div class="prose">
+    <p><strong>BitsAndBytes</strong> (Tim Dettmers) is a HuggingFace-integrated library for 8-bit and 4-bit quantization. It is the easiest way to load a quantized model through the HuggingFace Transformers API — just add <code>load_in_4bit=True</code> to any model loading call.</p>
+    <h3>NF4 — NormalFloat4</h3>
+    <p>Standard INT4 quantization maps weights to equally-spaced integers: {-8, -7, ..., 7}. But neural network weights are <em>not</em> uniformly distributed — they cluster near zero and fall off toward the extremes, following roughly a Gaussian (normal) distribution.</p>
+    <p>NF4 exploits this by placing its 16 representable values at the 16 quantile points of a standard normal distribution, rather than spacing them equally. Values near zero (where weights are most concentrated) get more representable levels; extreme values get fewer. This reduces quantization error for the weights that actually occur most often.</p>
+  </div>
+  <div class="diag"><span class="h">INT4 vs NF4 — quantization levels for neural network weights</span>
+
+<span class="h">Standard INT4  (equally spaced — NOT matched to weight distribution):</span>
+  Levels: -8  -7  -6  -5  -4  -3  -2  -1  0  1  2  3  4  5  6  7
+          ◆    ◆    ◆    ◆    ◆    ◆    ◆    ◆  ◆  ◆  ◆  ◆  ◆  ◆  ◆  ◆
+
+<span class="h">NF4  (quantile points of 𝒩(0,1) — matched to weight distribution):</span>
+  Levels near zero are DENSER (more levels where weights are common)
+                    ◆◆◆◆◆◆◆◆◆◆◆◆                              <span class="c">← near zero: dense</span>
+            ◆◆◆                       ◆◆◆                      <span class="c">← midrange: sparse</span>
+          ◆                               ◆                    <span class="c">← extremes: very sparse</span>
+  Actual values: {-1.0, -0.694, -0.525, -0.394, -0.281, -0.173,
+                  -0.074, 0.0, 0.074, 0.173, 0.281, 0.394,
+                   0.525, 0.694, 1.0}
+
+<span class="g">NF4 achieves better accuracy than INT4 at the same memory cost.</span>
+<span class="c">Used by: QLoRA, BitsAndBytes 4-bit, Gemma quantization</span></div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · BitsAndBytes 4-bit loading (HuggingFace)</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="cm"># pip install bitsandbytes transformers accelerate</span>
+<span class="kw">import</span> torch
+<span class="kw">from</span> transformers <span class="kw">import</span> AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
+<span class="cm"># ── 4-bit NF4 quantization config ────────────────────────────────</span>
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=<span class="nm">True</span>,
+    bnb_4bit_quant_type=<span class="st">"nf4"</span>,          <span class="cm"># NormalFloat4 (best accuracy)</span>
+    bnb_4bit_use_double_quant=<span class="nm">True</span>,     <span class="cm"># quantize the scale factors too (extra savings)</span>
+    bnb_4bit_compute_dtype=torch.bfloat16  <span class="cm"># compute in BF16 despite 4-bit storage</span>
+)
+
+model_id  = <span class="st">"meta-llama/Meta-Llama-3-8B-Instruct"</span>
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+model     = AutoModelForCausalLM.from_pretrained(
+    model_id,
+    quantization_config=bnb_config,
+    device_map=<span class="st">"auto"</span>
+)
+<span class="fn">print</span>(f<span class="st">f"Memory footprint: ~{model.get_memory_footprint()/1e9:.1f} GB"</span>)
+<span class="cm"># Original ~16 GB → quantized ~5 GB</span>
+
+<span class="cm"># ── 8-bit quantization (simpler, faster to load) ─────────────────</span>
+model_8bit = AutoModelForCausalLM.from_pretrained(
+    model_id,
+    load_in_8bit=<span class="nm">True</span>,
+    device_map=<span class="st">"auto"</span>
+)
+<span class="cm"># Original ~16 GB → ~9 GB (INT8)</span></pre>
+  </div>
+</section>
+
+
+<!-- ══ 13 ACCURACY TRADE-OFFS ══ -->
+<section class="section" id="accuracy">
+  <div class="section-header"><div class="level-badge b05">13</div>
+    <div class="section-header-text"><h2>Accuracy Trade-offs</h2><p>How much quality do you lose at each precision level?</p></div>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Precision</th><th>Accuracy Loss</th><th>Perplexity Increase</th><th>Practical Impact</th></tr></thead>
+    <tbody>
+      <tr><td>FP16 / BF16</td><td class="check">None (baseline)</td><td>0%</td><td>Full quality</td></tr>
+      <tr><td>FP8</td><td class="check">Negligible</td><td>&lt;0.1%</td><td>Unnoticeable</td></tr>
+      <tr><td>INT8</td><td class="check">Almost none</td><td>~0.1–0.3%</td><td>Practically identical</td></tr>
+      <tr><td>INT4 (GPTQ)</td><td class="partial">Small</td><td>~0.5–2%</td><td>Barely noticeable for chat</td></tr>
+      <tr><td>INT4 (AWQ/NF4)</td><td class="partial">Small</td><td>~0.3–1%</td><td>Hard to distinguish from FP16</td></tr>
+      <tr><td>INT3</td><td class="partial">Moderate</td><td>~2–5%</td><td>Noticeable degradation in complex tasks</td></tr>
+      <tr><td>INT2</td><td class="cross">Significant</td><td>&gt;10%</td><td>Clearly worse; research only</td></tr>
+    </tbody>
+  </table></div>
+  <div class="info-box tip"><div class="label">The Sweet Spot: INT4</div>
+    <p>Modern INT4 methods (AWQ, GPTQ with group-size 128, NF4) have made 4-bit quantization surprisingly accurate. On most benchmarks, a well-quantized 4-bit model scores within 1–2% of its FP16 counterpart. For conversational AI, the difference is often imperceptible. This is why INT4 has become the de facto standard for local LLM deployment in 2024–2025.</p>
+  </div>
+</section>
+
+
+<!-- ══ 14 QLORA ══ -->
+<section class="section" id="qlora">
+  <div class="section-header"><div class="level-badge b06">14</div>
+    <div class="section-header-text"><h2>QLoRA — Quantized LoRA Fine-tuning</h2><p>Fine-tune a 70B model on a single consumer GPU</p></div>
+  </div>
+  <div class="prose">
+    <p>QLoRA (Dettmers et al., 2023) combines quantization with LoRA to make fine-tuning large models dramatically more accessible. The pretrained model is loaded in 4-bit NF4 (frozen — no gradients), and small trainable LoRA adapters are added on top. Only the adapters are updated during fine-tuning.</p>
+    <p>The result: fine-tune a 65B model on a single 48 GB GPU, or a 7B model on a 24 GB consumer GPU, with quality competitive with full fine-tuning.</p>
+  </div>
+  <div class="diag"><span class="h">QLoRA Architecture</span>
+
+<span class="b">Frozen 4-bit NF4 Model</span>  (e.g. Llama-3 70B in ~35 GB)
+  ┌────────────────────────────────────────────────┐
+  │  W_pretrained (INT4, frozen, no gradients)     │
+  │                     │                          │
+  │           x ──────►[W_int4·x]─────────────────►│──► base output
+  │                     │                          │
+  │                     └──► [B·A·x] × α/r ───────►│──► + lora output
+  │                           ↑ ↑                  │
+  │                        (trainable!)             │
+  └────────────────────────────────────────────────┘
+        A: (r × d_in)    B: (d_out × r)   r ≪ d
+
+<span class="h">Memory breakdown for 7B model fine-tuning:</span>
+  Model weights (4-bit NF4):   ~4 GB
+  LoRA adapters (FP16):        ~20 MB (r=8, α=16)
+  Optimizer states (AdamW):    ~40 MB
+  Activations:                 ~1–2 GB (depends on seq len)
+  <span class="g">Total: ~6 GB  ← fits on a single RTX 4060!</span></div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · QLoRA fine-tuning setup</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="cm"># pip install transformers peft bitsandbytes trl</span>
+<span class="kw">import</span> torch
+<span class="kw">from</span> transformers <span class="kw">import</span> AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+<span class="kw">from</span> peft <span class="kw">import</span> LoraConfig, get_peft_model, prepare_model_for_kbit_training
+
+<span class="cm"># Step 1: Load base model in 4-bit NF4</span>
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=<span class="nm">True</span>,
+    bnb_4bit_quant_type=<span class="st">"nf4"</span>,
+    bnb_4bit_use_double_quant=<span class="nm">True</span>,
+    bnb_4bit_compute_dtype=torch.bfloat16,
+)
+
+model = AutoModelForCausalLM.from_pretrained(
+    <span class="st">"meta-llama/Meta-Llama-3-8B"</span>,
+    quantization_config=bnb_config,
+    device_map=<span class="st">"auto"</span>
+)
+
+<span class="cm"># Step 2: Prepare for training with k-bit (crucial!)</span>
+model = prepare_model_for_kbit_training(model)
+
+<span class="cm"># Step 3: Add LoRA adapters</span>
+lora_config = LoraConfig(
+    r=<span class="nm">16</span>,            <span class="cm"># rank of the low-rank matrices</span>
+    lora_alpha=<span class="nm">32</span>,   <span class="cm"># scaling factor α</span>
+    target_modules=[<span class="st">"q_proj"</span>, <span class="st">"k_proj"</span>, <span class="st">"v_proj"</span>, <span class="st">"o_proj"</span>],
+    lora_dropout=<span class="nm">0.05</span>,
+    bias=<span class="st">"none"</span>,
+    task_type=<span class="st">"CAUSAL_LM"</span>
+)
+model = get_peft_model(model, lora_config)
+
+trainable = sum(p.numel() <span class="kw">for</span> p <span class="kw">in</span> model.parameters() <span class="kw">if</span> p.requires_grad)
+total     = sum(p.numel() <span class="kw">for</span> p <span class="kw">in</span> model.parameters())
+<span class="fn">print</span>(f<span class="st">f"Trainable params: {trainable/1e6:.1f}M  ({trainable/total:.2%} of total)"</span>)
+<span class="cm"># Trainable: ~40M (0.5%) — only the LoRA adapters</span></pre>
+  </div>
+</section>
+
+
+<!-- ══ 15 WHEN TO USE WHICH ══ -->
+<section class="section" id="when-to-use">
+  <div class="section-header"><div class="level-badge b07">15</div>
+    <div class="section-header-text"><h2>When to Use Which</h2><p>A practical decision guide for every deployment scenario</p></div>
+  </div>
+  <div class="bp-grid">
+    <div class="bp-card"><h4>Maximum Accuracy → FP16 / BF16</h4><p>Production serving where accuracy is critical and you have sufficient GPU memory. Benchmarking. Research. Any scenario where even 0.5% accuracy loss is unacceptable.</p></div>
+    <div class="bp-card"><h4>GPU Serving → AWQ or GPTQ INT4</h4><p>Cloud GPU inference where you want the best accuracy-to-memory trade-off. AWQ tends to produce slightly better quality; GPTQ has broader tool support. Both work excellently at 4-bit.</p></div>
+    <div class="bp-card"><h4>Consumer GPU → GPTQ or AWQ (4-bit)</h4><p>Running 7B–13B models on a 16–24 GB GPU. A 13B GPTQ model fits in 7 GB, leaving room for the KV cache. The go-to for local AI on gaming GPUs.</p></div>
+    <div class="bp-card"><h4>CPU Inference → GGUF Q4_K_M</h4><p>llama.cpp or Ollama on a laptop or server without a powerful GPU. GGUF is specifically optimised for CPU SIMD instructions. Q4_K_M is the recommended default.</p></div>
+    <div class="bp-card"><h4>Fine-tuning → QLoRA (NF4)</h4><p>Fine-tune a large model on limited GPU memory. 4-bit NF4 + LoRA = full-model-quality fine-tuning at consumer GPU memory. The standard approach for custom instruction tuning.</p></div>
+    <div class="bp-card"><h4>Mobile / Edge → INT4 or INT8</h4><p>On-device LLMs (phones, edge servers). INT4 with careful quantization gives the smallest possible model. Apple's Core ML, Google's LiteRT, and llama.cpp all support efficient quantized inference.</p></div>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Scenario</th><th>Recommended</th><th>Memory (7B)</th><th>Quality</th></tr></thead>
+    <tbody>
+      <tr><td>Maximum accuracy</td><td>FP16 / BF16</td><td>~14 GB</td><td class="check">Baseline</td></tr>
+      <tr><td>GPU cloud inference</td><td>AWQ INT4 / FP8</td><td>~4 GB</td><td class="check">Near-baseline</td></tr>
+      <tr><td>Consumer GPU (24 GB)</td><td>GPTQ or AWQ 4-bit</td><td>~4–5 GB</td><td class="check">Excellent</td></tr>
+      <tr><td>CPU / laptop</td><td>GGUF Q4_K_M</td><td>~4.4 GB</td><td class="check">Very good</td></tr>
+      <tr><td>Fine-tuning (low VRAM)</td><td>QLoRA NF4</td><td>~6 GB total</td><td class="check">Competitive</td></tr>
+      <tr><td>Mobile deployment</td><td>INT4 / INT8</td><td>~4–8 GB</td><td class="partial">Good</td></tr>
+      <tr><td>Research / ultra-small</td><td>INT2 / INT3</td><td>~2–3 GB</td><td class="cross">Degraded</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+
+<!-- ══ 16 CODE EXAMPLES ══ -->
+<section class="section" id="code">
+  <div class="section-header"><div class="level-badge b08">16</div>
+    <div class="section-header-text"><h2>Code Examples</h2><p>Everything you need to run quantized models today</p></div>
+  </div>
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · INT8 from scratch — quantize/dequantize/matmul</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">quantize</span>(W, bits=<span class="nm">8</span>):
+    <span class="st">"""Absmax symmetric quantization to b-bit integers."""</span>
+    max_int  = <span class="nm">2</span> ** (bits - <span class="nm">1</span>) - <span class="nm">1</span>     <span class="cm"># 127 for 8-bit, 7 for 4-bit</span>
+    scale    = np.max(np.abs(W)) / max_int
+    W_int    = np.round(W / scale).astype(np.int8 <span class="kw">if</span> bits==<span class="nm">8</span> <span class="kw">else</span> np.int8)
+    <span class="kw">return</span> W_int, scale
+
+<span class="kw">def</span> <span class="fn">dequantize</span>(W_int, scale):
+    <span class="kw">return</span> W_int.astype(np.float32) * scale
+
+<span class="cm"># Simulate quantized linear layer forward pass</span>
+W = np.random.randn(<span class="nm">64</span>, <span class="nm">32</span>).astype(np.float32)
+x = np.random.randn(<span class="nm">4</span>, <span class="nm">32</span>).astype(np.float32)
+
+<span class="cm"># Standard FP32</span>
+y_fp32 = x @ W.T
+
+<span class="cm"># INT8 quantized (W4A16 style: quantize weights, keep activations FP32)</span>
+W_int8, scale = quantize(W, bits=<span class="nm">8</span>)
+W_dq          = dequantize(W_int8, scale)   <span class="cm"># dequantize before matmul</span>
+y_int8        = x @ W_dq.T
+
+<span class="cm"># Error analysis</span>
+rel_error = np.abs(y_fp32 - y_int8).mean() / np.abs(y_fp32).mean()
+<span class="fn">print</span>(f<span class="st">f"INT8 relative error: {rel_error:.4%}"</span>)   <span class="cm"># typically < 0.1%</span>
+
+memory_fp32 = W.nbytes
+memory_int8 = W_int8.nbytes + <span class="nm">4</span>   <span class="cm"># scale is 4 bytes</span>
+<span class="fn">print</span>(f<span class="st">f"Memory: FP32={memory_fp32}B → INT8={memory_int8}B ({memory_fp32/memory_int8:.1f}× smaller)"</span>)</pre>
+  </div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Shell · Run a quantized model with Ollama (GGUF)</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="cm"># Install Ollama: https://ollama.com</span>
+
+<span class="cm"># Pull and run Llama 3 8B (automatically uses GGUF Q4_K_M)</span>
+ollama run llama3.2
+
+<span class="cm"># Or specify a specific quantization level</span>
+ollama run llama3.2:8b-instruct-q8_0      <span class="cm"># INT8 — higher quality</span>
+ollama run llama3.2:8b-instruct-q4_K_M   <span class="cm"># INT4 — default, fits 8 GB RAM</span>
+ollama run llama3.2:8b-instruct-q2_K     <span class="cm"># INT2 — smallest, lower quality</span>
+
+<span class="cm"># Check model info (shows quantization level)</span>
+ollama show llama3.2 --modelinfo</pre>
+  </div>
+
+  <div class="info-box tip"><div class="label">Book Summary</div>
+    <p>Quantization maps floating-point weights to integers using a scale factor. INT4 with modern methods (AWQ, GPTQ, NF4) achieves near-FP16 quality at 25% of the memory. Post-training quantization is fast and requires no retraining; QAT produces better results but needs compute. The format to choose depends on your hardware: AWQ/GPTQ for GPU, GGUF for CPU, NF4 for fine-tuning. A 70B model that requires a data-centre at FP16 can run on a consumer GPU at INT4 — this democratisation of LLMs is powered entirely by quantization.</p>
+  </div>
+  <div style="height:64px"></div>
+</section>
+
+<footer><span>Quantization — Complete Guide for LLMs</span><span>PTQ · QAT · GPTQ · AWQ · GGUF · NF4 · QLoRA</span></footer>
+</main>
+<script>
+function toggleTheme(){document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';}
+const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){document.querySelectorAll('nav ul li a').forEach(l=>l.classList.remove('active'));const a=document.querySelector(`nav ul li a[href="#${x.target.id}"]`);if(a)a.classList.add('active');}});},{threshold:0.3});
+document.querySelectorAll('section[id]').forEach(s=>io.observe(s));
+</script>
+</body>
+</html>
