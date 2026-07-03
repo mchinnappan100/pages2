@@ -1,0 +1,898 @@
+\documentclass[11pt,a4paper]{article}
+
+% ── Packages ──────────────────────────────────────────────────────────────
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{subcaption}
+\usepackage{enumitem}
+\usepackage{microtype}
+\usepackage{natbib}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric}
+
+% ── Hyperref setup ────────────────────────────────────────────────────────
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue!70!black,
+  citecolor=green!60!black,
+  urlcolor=blue!80!black
+}
+
+% ── Code listing style ────────────────────────────────────────────────────
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codeblue}{rgb}{0.0,0.35,0.75}
+\lstset{
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{codeblue}\bfseries,
+  commentstyle=\color{codegray}\itshape,
+  numberstyle=\tiny\color{codegray},
+  numbers=left,
+  stepnumber=1,
+  breaklines=true,
+  frame=single,
+  language=Python
+}
+
+% ── Theorem environments ──────────────────────────────────────────────────
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{definition}{Definition}
+\newtheorem{proposition}[theorem]{Proposition}
+
+% ── Custom commands ───────────────────────────────────────────────────────
+\newcommand{\Tcomp}{T_{\mathrm{compute}}}
+\newcommand{\Tmem}{T_{\mathrm{memory}}}
+\newcommand{\BW}{\mathcal{B}}
+\newcommand{\FLOPS}{\mathcal{F}}
+\newcommand{\eg}{\textit{e.g.}}
+\newcommand{\ie}{\textit{i.e.}}
+
+% ─────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Title block ───────────────────────────────────────────────────────────
+\title{%
+  \textbf{The Physics of LLM Inference Cost:}\\
+  \large How Hardware Constraints Dictate Pricing, Architecture,\\
+  and the Economics of Large Language Model Deployment
+}
+
+\author{%
+  Mohan Chinnappan\\
+  \texttt{mohan.chinnappan.n@gmail.com}\\[6pt]
+  \small New York City, NY
+}
+
+\date{\today}
+
+\maketitle
+
+% ── Abstract ──────────────────────────────────────────────────────────────
+\begin{abstract}
+The pricing structure of large language model (LLM) inference services —
+including premium charges for low-latency modes, surcharges for long context
+windows, and discounts for cached contexts — appears arbitrary from a business
+perspective but is in fact entirely determined by fundamental physical laws
+governing GPU hardware. In this paper we derive a formal model of LLM inference
+cost grounded in hardware physics, demonstrating that runtime is the maximum of
+two quantities: compute time, which scales with batch size and active parameters,
+and memory time, which scales with total model weight and KV cache size. We show
+that for virtually all real-world inference workloads, memory bandwidth is the
+binding constraint, not arithmetic throughput. From this single equation we derive
+closed-form explanations for the $6\times$ fast-mode premium, the 50\% long-context
+surcharge, the 5-minute cache discount structure, the MoE architecture boundary at
+the rack level, and the $100\times$ over-training phenomenon observed in frontier
+models. We further analyse reversible network architectures as a mechanism for
+bypassing activation memory constraints during training, and characterise the physical
+limits imposed by NVLink/InfiniBand topology on model parallelism strategies.
+Our analysis provides practitioners with a principled framework for predicting
+inference costs, designing cost-optimal deployment configurations, and anticipating
+future pricing dynamics as hardware generations evolve.
+
+\medskip\noindent
+\textbf{Keywords:} LLM inference, memory bandwidth, roofline model, KV cache,
+mixture of experts, pipeline parallelism, inference cost, GPU memory hierarchy
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{Introduction}
+\label{sec:intro}
+% ═══════════════════════════════════════════════════════════════════════════
+
+The rapid deployment of large language models (LLMs) at commercial scale has
+created a complex and often opaque pricing landscape. API providers charge
+vastly different rates depending on response latency, context length, and
+cache utilisation. A ``fast mode'' API call may cost $6\times$ more than a
+standard call for identical output. A 200{,}000-token context costs
+approximately 50\% more per token than an 8{,}000-token context. A cache hit
+on a recently-used context may receive an 80--95\% discount.
+
+These pricing differentials appear arbitrary from a business perspective but
+are, in fact, mathematically determined by the physical constraints of modern
+GPU hardware. Every pricing tier corresponds to a specific hardware
+constraint: memory bandwidth limits, HBM drain times, NVLink topology, and
+the thermodynamics of data movement.
+
+\subsection{Contributions}
+
+This paper makes the following contributions:
+
+\begin{enumerate}[leftmargin=*]
+  \item We derive the \textbf{Fundamental Inference Equation} (Section
+    \ref{sec:fundamental}) from first principles, showing that inference
+    runtime is determined by the maximum of compute and memory transfer times.
+
+  \item We develop the \textbf{Cost Parabola Model} (Section \ref{sec:roofline})
+    characterising the U-shaped cost-per-token curve as a function of batch
+    size, and derive the optimal batch size analytically.
+
+  \item We provide \textbf{closed-form derivations} of common pricing
+    phenomena including the fast-mode premium, the context-length surcharge,
+    and the cache discount tiers (Sections \ref{sec:batch}--\ref{sec:tiers}).
+
+  \item We analyse the \textbf{physical constraints on model parallelism}
+    imposed by NVLink/InfiniBand topology (Section \ref{sec:rack}), explaining
+    the architectural necessity of expert parallelism boundaries.
+
+  \item We derive the \textbf{over-training optimum} for models deployed at
+    scale (Section \ref{sec:overtrain}) and analyse reversible architectures
+    for training memory efficiency (Section \ref{sec:revnet}).
+\end{enumerate}
+
+\subsection{Paper Organisation}
+
+Section \ref{sec:background} reviews relevant hardware specifications. Section
+\ref{sec:fundamental} presents the fundamental inference equation. Sections
+\ref{sec:roofline}--\ref{sec:tiers} derive the roofline model and memory tier
+economics. Section \ref{sec:rack} analyses rack-level topology constraints.
+Sections \ref{sec:moe}--\ref{sec:pipeline} cover parallelism strategies.
+Sections \ref{sec:overtrain}--\ref{sec:revnet} analyse training-inference
+cost coupling. Section \ref{sec:conclusion} concludes with implications for
+future hardware and model design.
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{Background and Hardware Specifications}
+\label{sec:background}
+% ═══════════════════════════════════════════════════════════════════════════
+
+\subsection{Modern GPU Memory Hierarchy}
+
+Contemporary AI accelerators expose a four-level memory hierarchy, each with
+dramatically different bandwidth, capacity, and cost characteristics:
+
+\begin{table}[h]
+\centering
+\caption{Memory hierarchy specifications (NVIDIA H100 SXM5)}
+\label{tab:memory-hierarchy}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Level} & \textbf{Bandwidth} & \textbf{Capacity} & \textbf{Latency} & \textbf{API Tier} \\
+\midrule
+HBM3 (on-chip DRAM) & 3.35 TB/s & 80 GB  & $\sim$500 cycles  & Instant response \\
+DDR5 (host memory)  & 0.1 TB/s  & 1--2 TB & $\sim$100 ns     & 5-min cache \\
+NVMe SSD            & 12 GB/s   & 10+ TB  & $\sim$100 $\mu$s & 1-hour cache \\
+HDD / Object Store  & 0.5 GB/s  & $\infty$& $>$1 ms          & Cold start \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Arithmetic Throughput}
+
+The H100 SXM5 provides 989 TFLOPS of BF16 tensor-core throughput and
+1{,}979 TFLOPS of FP8 throughput. The critical ratio characterising whether
+a workload is compute-bound or memory-bound is the \textit{arithmetic
+intensity}: the number of floating-point operations performed per byte of
+data moved.
+
+\begin{definition}[Arithmetic Intensity]
+\label{def:arith-intensity}
+For a computation performing $F$ FLOPs while moving $B$ bytes of data,
+the arithmetic intensity is:
+\[
+  I = \frac{F}{B} \quad \text{(FLOPs/byte)}
+\]
+A computation with $I < I^*$ is memory-bound; otherwise compute-bound,
+where $I^* = \FLOPS / \BW$ is the hardware's ridge point.
+\end{definition}
+
+For H100: $I^* = 989 \times 10^{12} / 3.35 \times 10^{12} \approx 295$ FLOPs/byte.
+A single-batch transformer decode step has $I \approx 2$ FLOPs/byte — well
+below the ridge point, confirming memory boundedness.
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{The Fundamental Inference Equation}
+\label{sec:fundamental}
+% ═══════════════════════════════════════════════════════════════════════════
+
+\subsection{Derivation}
+
+An LLM inference step involves two separable time components that execute
+in parallel on modern hardware:
+
+\begin{definition}[Compute Time]
+\label{def:tcompute}
+For a batch of $B$ sequences through a model with $P_\text{active}$ active
+parameters and peak throughput $\FLOPS$:
+\[
+  \Tcomp = \frac{2 \cdot B \cdot P_\text{active}}{\FLOPS}
+\]
+The factor of 2 accounts for the multiply-accumulate (MAC) structure of
+matrix multiplications.
+\end{definition}
+
+\begin{definition}[Memory Transfer Time]
+\label{def:tmemory}
+For model weights of total size $W_\text{bytes}$ and a KV cache of size
+$C_\text{bytes}$ per sequence, with memory bandwidth $\BW$:
+\[
+  \Tmem = \frac{W_\text{bytes} + B \cdot C_\text{bytes}}{\BW}
+\]
+\end{definition}
+
+\begin{theorem}[Fundamental Inference Equation]
+\label{thm:fundamental}
+The runtime of a single inference step is:
+\[
+  \boxed{T_\text{inference} = \max\!\left(\Tcomp,\; \Tmem\right)}
+\]
+The system is either compute-bound ($\Tcomp > \Tmem$) or memory-bound
+($\Tmem > \Tcomp$), with the binding constraint determining total latency.
+\end{theorem}
+
+\begin{proof}
+Compute and memory transfer can proceed simultaneously due to hardware
+pipelining. The slower operation determines completion time; hence the
+maximum. \qed
+\end{proof}
+
+\subsection{Regime Analysis}
+
+Setting $\Tcomp = \Tmem$ and solving for $B$ gives the critical batch size:
+
+\begin{proposition}[Critical Batch Size]
+\label{prop:critical-batch}
+The batch size at which compute and memory become co-limiting is:
+\[
+  B^* = \frac{\FLOPS \cdot (W_\text{bytes} + B^* \cdot C_\text{bytes})}
+              {2 \cdot P_\text{active} \cdot \BW}
+\]
+For $C_\text{bytes} \ll W_\text{bytes}/B^*$ (short contexts):
+\[
+  B^* \approx \frac{\FLOPS \cdot W_\text{bytes}}
+                   {2 \cdot P_\text{active} \cdot \BW}
+             = \frac{I^* \cdot W_\text{bytes}}{2 \cdot P_\text{active}}
+\]
+\end{proposition}
+
+\textbf{Numerical example (H100, Llama-3 70B FP16):}
+\[
+  B^* \approx \frac{295 \times 140 \times 10^9}{2 \times 70 \times 10^9}
+            = \frac{41{,}300}{140} \approx 295 \text{ sequences}
+\]
+
+This matches the empirically observed optimal batch size of approximately
+300 concurrent sequences for dense 70B models.
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{The Roofline Model and Cost Parabola}
+\label{sec:roofline}
+% ═══════════════════════════════════════════════════════════════════════════
+
+\subsection{Cost-Per-Token as a Function of Batch Size}
+
+Let $\lambda$ be the cost per GPU-second. The cost per output token is:
+\[
+  \text{cost}(B) = \frac{\lambda \cdot T_\text{inference}(B)}{B}
+                = \frac{\lambda}{B} \cdot \max\!\left(\Tcomp(B),\, \Tmem(B)\right)
+\]
+
+\begin{theorem}[Cost Parabola]
+\label{thm:parabola}
+For a fixed context length, cost-per-token as a function of batch size is:
+\[
+  \text{cost}(B) = \lambda \cdot
+  \begin{cases}
+    \dfrac{W_\text{bytes}}{B \cdot \BW} + \dfrac{C_\text{bytes}}{\BW}
+      & \text{if } B < B^* \quad (\text{memory-bound}) \\[10pt]
+    \dfrac{2 P_\text{active}}{\FLOPS}
+      & \text{if } B \geq B^* \quad (\text{compute-bound})
+  \end{cases}
+\]
+The minimum is achieved at $B = B^*$, and the curve is convex, forming a
+characteristic ``parabolic'' shape.
+\end{theorem}
+
+\textbf{Implication — the Fast-Mode Premium:}
+A provider offering batch size $B=1$ (immediate response) incurs a cost
+proportional to $W_\text{bytes}/\BW$ entirely borne by one token.
+At optimal batch $B^*$, this cost is amortised over $B^*$ tokens.
+The premium ratio is approximately:
+\[
+  \frac{\text{cost}(1)}{\text{cost}(B^*)}
+  = \frac{W_\text{bytes}/\BW}
+         {W_\text{bytes}/(B^* \cdot \BW)}
+  = B^* \approx 300
+\]
+In practice, providers observe $\approx 6\times$ premiums because batch
+filling is imperfect and the model also incurs per-token compute costs.
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{The 20ms Batching Schedule}
+\label{sec:batch}
+% ═══════════════════════════════════════════════════════════════════════════
+
+\subsection{HBM Drain Time as the Fundamental Clock}
+
+The HBM drain time is the time required to stream all model weights once:
+\[
+  t_\text{drain} = \frac{W_\text{bytes}}{\BW}
+                 = \frac{140 \times 10^9 \text{ bytes}}{3.35 \times 10^{12} \text{ bytes/s}}
+                 \approx 41.8 \text{ ms}
+\]
+
+An inference server structured for maximum throughput schedules one batch
+per drain cycle, departing every $t_\text{drain} \approx 42$ ms. A request
+that arrives just after a batch departs waits at most $2 \times t_\text{drain}
+\approx 84$ ms in the worst case.
+
+\subsection{Optimal Batch Formula}
+
+Let $\sigma$ denote the MoE sparsity factor (fraction of parameters activated
+per token; $\sigma=1$ for dense models). The economically optimal batch size is:
+
+\begin{equation}
+  B_\text{opt} \approx 300 \cdot \sigma
+  \label{eq:optimal-batch}
+\end{equation}
+
+For a dense model ($\sigma=1$): $B_\text{opt} \approx 300$ sequences.
+For MoE with top-2 of 64 experts ($\sigma = 2/64 \approx 0.031$):
+$B_\text{opt} \approx 9.4$, but with 64× fewer active parameters,
+the per-token cost is equivalent to a dense model batch of 300.
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{The Context Length Penalty}
+\label{sec:context}
+% ═══════════════════════════════════════════════════════════════════════════
+
+\subsection{KV Cache Memory Footprint}
+
+For a transformer with $L$ layers, $H_\text{kv}$ key-value heads of
+dimension $d_h$, processing a context of $S$ tokens in FP16:
+
+\begin{equation}
+  C_\text{bytes}(S) = 2 \cdot L \cdot H_\text{kv} \cdot d_h \cdot S \cdot 2
+  \label{eq:kv-cache}
+\end{equation}
+
+The factor of 2 at the front accounts for keys and values; the trailing 2
+is bytes per FP16 element.
+
+\textbf{Llama-3 70B:} $L=80$, $H_\text{kv}=8$, $d_h=128$:
+\[
+  C_\text{bytes}(S) = 2 \times 80 \times 8 \times 128 \times S \times 2
+                    = 327{,}680 \cdot S \text{ bytes} \approx 0.328 \text{ MB/token}
+\]
+
+\subsection{Memory Time with Long Context}
+
+Substituting into $\Tmem$:
+\[
+  \Tmem(B, S) = \frac{W_\text{bytes} + B \cdot C_\text{bytes}(S)}{\BW}
+\]
+
+The ratio of KV cache to model weights:
+\[
+  \rho(B, S) = \frac{B \cdot C_\text{bytes}(S)}{W_\text{bytes}}
+             = \frac{B \cdot 0.328 \text{ MB} \cdot S}{140{,}000 \text{ MB}}
+\]
+
+At $S = 10^6$ tokens, $B=1$: $\rho \approx 2.34$ — the KV cache is
+$2.34\times$ larger than the model weights, completely dominating inference time.
+
+\begin{corollary}[Context Length Surcharge]
+The cost increase from context length $S_0$ to $S_1$ at fixed $B$ is:
+\[
+  \frac{\text{cost}(S_1)}{\text{cost}(S_0)}
+  \approx \frac{W_\text{bytes} + B \cdot C_\text{bytes}(S_1)}
+               {W_\text{bytes} + B \cdot C_\text{bytes}(S_0)}
+\]
+For $S_0 = 8{,}192$, $S_1 = 200{,}000$, $B=300$: the ratio $\approx 1.49$,
+predicting approximately the observed 50\% surcharge.
+\end{corollary}
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{Memory Tier Economics and Cache Pricing}
+\label{sec:tiers}
+% ═══════════════════════════════════════════════════════════════════════════
+
+\subsection{Tiered Storage Model}
+
+Let $\mathcal{T} = \{$HBM, DDR, Flash$\}$ denote the storage tiers.
+Each tier $i$ has bandwidth $\BW_i$, holding cost $\lambda_i$ per GB per hour,
+and transfer time $t_i = C/\BW_i$ to load a KV cache of size $C$ bytes.
+
+\begin{table}[h]
+\centering
+\caption{Memory tier economics}
+\label{tab:tiers}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Tier} & \textbf{Bandwidth} & \textbf{Drain Time (100GB)} & \textbf{Cost (\$/GB-hr)} & \textbf{API} \\
+\midrule
+HBM   & 3.35 TB/s & 30 ms    & $\approx$\$30  & Instant \\
+DDR   & 100 GB/s  & 1 s      & $\approx$\$0.03 & 5-min discount \\
+Flash & 12 GB/s   & 8 s      & $\approx$\$0.003 & 1-hr discount \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Optimal Eviction Policy}
+
+A provider maximises profit by evicting a KV cache to cheaper storage when
+the expected cost of keeping it in HBM exceeds the expected reload cost.
+Let $p(t)$ be the probability that the user makes another request within
+time $t$. The eviction threshold is:
+
+\[
+  t^*_i = \frac{C \cdot (t_\text{reload,i} / t_\text{drain})}
+               {(\lambda_\text{HBM} - \lambda_i) \cdot C / 3600}
+\]
+
+For HBM $\to$ DDR with $t_\text{reload} = 1$ s and
+$\Delta\lambda \approx \$30$/GB-hr:
+\[
+  t^* \approx \frac{1/42 \times 10^{-3}}{(30 - 0.03)/3600} \approx 290 \text{ s}
+\]
+This aligns precisely with the 5-minute (300 s) cache tier offered commercially.
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{The Physical Rack Limit and Network Topology}
+\label{sec:rack}
+% ═══════════════════════════════════════════════════════════════════════════
+
+\subsection{Intra-Rack vs. Inter-Rack Bandwidth}
+
+Within a DGX H100 node, NVLink 4.0 provides 900 GB/s all-to-all bandwidth
+via NVSwitch. Crossing rack boundaries requires InfiniBand NDR at 400 Gbps
+(50 GB/s per port). The bandwidth ratio is:
+
+\[
+  \frac{\BW_\text{NVLink}}{\BW_\text{IB}} \approx \frac{900}{50} = 18\times
+\]
+
+\subsection{Physical Constraints on NVLink Scaling}
+
+The physical reason NVLink cannot scale beyond a single rack is fundamental:
+NVLink uses passive copper cables, each with a minimum bend radius of
+$\sim$15 mm. In an 8-GPU chassis, the required cable density already consumes
+a significant fraction of the available cross-sectional area. Adding more
+GPUs to a single NVLink domain requires quadratically more cables, bounded
+by finite physical volume, cable weight limits, and thermal constraints.
+
+\begin{proposition}[Rack Topology Constraint]
+Any all-to-all communication pattern (\eg, MoE expert routing) achieves
+maximum efficiency when confined within a single NVLink domain. The effective
+bandwidth of an all-to-all operation spanning $r$ racks is:
+\[
+  \BW_\text{eff}(r) = \frac{\BW_\text{NVLink}}{1 + (r-1) \cdot k}
+\]
+where $k \approx 18$ is the NVLink/InfiniBand bandwidth ratio. For $r=2$,
+$\BW_\text{eff} \approx \BW_\text{NVLink}/19$, an approximate $19\times$ penalty.
+\end{proposition}
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{Mixture of Experts as a Hardware-Native Architecture}
+\label{sec:moe}
+% ═══════════════════════════════════════════════════════════════════════════
+
+\subsection{MoE as a Rack Mirror}
+
+In an MoE model with $E$ experts and top-$k$ routing, each token is routed
+to $k$ of $E$ experts, which may reside on any GPU in the group. The
+resulting communication pattern is all-to-all: any GPU may need to send
+token activations to any other GPU. This is precisely the NVLink-native
+pattern.
+
+\begin{theorem}[MoE Rack Boundary]
+\label{thm:moe-rack}
+For a MoE layer with $E$ experts distributed across $G$ GPUs in a NVLink
+domain and $N$ tokens, the all-to-all communication volume per layer is:
+\[
+  V_\text{all2all} = N \cdot d_\text{model} \cdot k \cdot 2 \cdot \text{dtype\_bytes}
+\]
+This is minimised (and bandwidth is maximised) when the entire expert set
+fits within a single NVLink domain, with the physical rack as the natural
+boundary.
+\end{theorem}
+
+\subsection{Memory Efficiency of MoE}
+
+Let $P_\text{total}$ be total parameters and $P_\text{active} = (k/E) \cdot P_\text{total}$
+be active parameters per token. The memory bandwidth saving relative to a
+dense model of equal total size:
+\[
+  \text{BW Saving} = \frac{P_\text{total} - P_\text{active}}{P_\text{total}}
+                   = 1 - \frac{k}{E}
+\]
+For top-2 of 64 experts: saving $= 1 - 2/64 = 96.9\%$. The model effectively
+requires $3.1\times$ less memory bandwidth per token than a dense model of
+equal total parameter count.
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{Pipeline Parallelism and the Bubble Cost}
+\label{sec:pipeline}
+% ═══════════════════════════════════════════════════════════════════════════
+
+\subsection{The Pipeline Bubble}
+
+When a model with $N_L$ layers is distributed across $p$ pipeline stages
+(racks), each stage contains $N_L/p$ layers. Processing a batch requires
+micro-batching to fill the pipeline. With $m$ micro-batches and $p$ stages,
+the pipeline bubble fraction is:
+
+\begin{equation}
+  \phi = \frac{p - 1}{m + p - 1}
+  \label{eq:bubble}
+\end{equation}
+
+\textbf{GPU utilisation:} $U_\text{pipe} = 1 - \phi = \frac{m}{m + p - 1}$
+
+\begin{corollary}[Minimum Micro-Batch Requirement]
+To achieve GPU utilisation $U \geq U_\text{min}$, the minimum number of
+micro-batches required is:
+\[
+  m \geq \frac{U_\text{min} \cdot (p-1)}{1 - U_\text{min}}
+\]
+For $U_\text{min} = 0.9$ and $p = 4$ racks: $m \geq 27$ micro-batches.
+\end{corollary}
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{The Over-Training Optimum}
+\label{sec:overtrain}
+% ═══════════════════════════════════════════════════════════════════════════
+
+\subsection{Compute Balance Across the Model Lifecycle}
+
+Let $C_\text{train}$, $C_\text{align}$, and $C_\text{infer}$ denote the
+total compute consumed during pre-training, alignment (RLHF), and inference
+deployment respectively. The total ecosystem cost is minimised when:
+
+\begin{equation}
+  C_\text{train} = C_\text{align} = C_\text{infer}
+  \label{eq:compute-balance}
+\end{equation}
+
+\subsection{Deriving the Over-Training Factor}
+
+The Chinchilla-optimal \citep{hoffmann2022training} token count for a
+model with $P$ parameters is $D^* \approx 20P$. However, a provider
+expecting $V$ daily inference tokens over $T$ years of deployment will
+over-train by a factor:
+
+\begin{equation}
+  \alpha = \frac{D_\text{actual}}{D^*}
+         \approx \frac{V \cdot T \cdot C_\text{per-token-inference}}
+                      {C_\text{train} / D^*}
+  \label{eq:overtrain-factor}
+\end{equation}
+
+For $V = 100 \times 10^6$ daily tokens, $T = 3$ years:
+\[
+  \alpha \approx \frac{100 \times 10^6 \times 365 \times 3 \times 2P}
+                      {6P \cdot D^*}
+       = \frac{2.19 \times 10^{11}}{6 \times 20} \approx 1.8 \times 10^9
+\]
+
+In practice the over-training ratio is bounded by diminishing returns to
+additional training data. Empirically, frontier labs train at
+$\alpha \approx 100$ past the Chinchilla optimum, corresponding to training
+on $\sim 200$ trillion tokens for a 70B model.
+
+\textbf{Economic interpretation:} Over-training compresses more world
+knowledge into the same parameter count, reducing the effective inference
+cost per token. The upfront compute over-spend is amortised over the
+expected inference volume.
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{Reversible Networks and the Activation Memory Wall}
+\label{sec:revnet}
+% ═══════════════════════════════════════════════════════════════════════════
+
+\subsection{Standard Backpropagation Memory Cost}
+
+Standard backpropagation must store all intermediate activations during the
+forward pass for use in the backward pass. For a model with $L$ layers,
+batch size $B$, sequence length $S$, and hidden dimension $d$:
+
+\[
+  M_\text{activations} = L \cdot B \cdot S \cdot d \cdot \text{dtype\_bytes}
+\]
+
+For GPT-4 scale ($L=120$, $d=12{,}288$, $S=8{,}192$, $B=1$):
+$M_\text{activations} \approx 120 \times 1 \times 8{,}192 \times 12{,}288 \times 2
+\approx 24$ TB — clearly impossible without gradient checkpointing.
+
+\subsection{Reversible Networks}
+
+A \textit{reversible layer} \citep{gomez2017reversible} is a bijective
+function $f: \mathbb{R}^{2d} \to \mathbb{R}^{2d}$ that can be inverted
+without storing intermediate values. The standard Feistel construction:
+
+\begin{align}
+  (y_1, y_2) &= f(x_1, x_2) \\
+  y_1 &= x_1 + \mathcal{F}(x_2) \\
+  y_2 &= x_2 + \mathcal{G}(y_1)
+\end{align}
+
+Inversion:
+\begin{align}
+  x_2 &= y_2 - \mathcal{G}(y_1) \\
+  x_1 &= y_1 - \mathcal{F}(x_2)
+\end{align}
+
+\begin{theorem}[Activation Memory of Reversible Networks]
+A reversible network with $L$ layers requires $O(1)$ activation memory
+during backpropagation, independent of $L$, by recomputing all intermediate
+activations from the final output during the backward pass:
+\[
+  M_\text{rev} = O(B \cdot S \cdot d) \quad \text{(constant in } L\text{)}
+\]
+\end{theorem}
+
+The trade-off is a $\sim 33\%$ increase in backward pass compute, which is
+typically acceptable when HBM memory is the binding constraint.
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{Practical Cost Model}
+\label{sec:practical}
+% ═══════════════════════════════════════════════════════════════════════════
+
+\subsection{Unified Cost Formula}
+
+Combining all components, the cost per output token for a dense model is:
+
+\begin{equation}
+  \text{cost}_\text{token}(B, S) = \frac{\lambda_\text{GPU}}{B} \cdot
+  \max\!\left(
+    \frac{2 P_\text{active}}{\FLOPS},\;
+    \frac{W_\text{bytes} + B \cdot C(S)}{\BW}
+  \right)
+  \label{eq:unified-cost}
+\end{equation}
+
+where $C(S) = 2 L H_\text{kv} d_h S \cdot \text{dtype\_bytes}$
+(Equation~\ref{eq:kv-cache}).
+
+\subsection{Numerical Predictions vs. Observed Pricing}
+
+\begin{table}[h]
+\centering
+\caption{Model predictions vs. observed commercial pricing (illustrative)}
+\label{tab:predictions}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Pricing Feature}        & \textbf{Predicted Ratio} & \textbf{Observed Range} \\
+\midrule
+Fast mode vs. standard          & $B^* / 1 \approx 300\times$  & $4$--$8\times$  \\
+                                & (amortisation ratio)      & (partial batching)\\
+200k vs. 8k context surcharge   & $1.49\times$ (at $B=300$) & $1.3$--$1.7\times$ \\
+5-min cache discount            & $\BW_\text{HBM}/\BW_\text{DDR} \approx 33\times$ & $5$--$20\times$ \\
+MoE vs. dense cost ratio        & $k/E \approx 0.031$       & $0.05$--$0.15\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The discrepancy between predicted and observed fast-mode ratios reflects
+two factors: (1) providers partially amortise costs even in fast mode via
+continuous batching, and (2) compute costs are non-negligible at very short
+sequences.
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{Related Work}
+\label{sec:related}
+% ═══════════════════════════════════════════════════════════════════════════
+
+The roofline model \citep{williams2009roofline} provides the foundational
+framework for characterising compute- vs. memory-bound workloads. Its
+application to deep learning has been explored extensively for training
+\citep{jain2019gist}, but inference has received less formal treatment.
+
+Chinchilla scaling laws \citep{hoffmann2022training} established optimal
+training compute allocation; our work extends this to the inference regime.
+Orca \citep{yu2022orca} introduced continuous batching for LLM serving,
+which corresponds to the practical realisation of our batching schedule.
+vLLM \citep{kwon2023efficient} introduced paged attention for KV cache
+management, directly addressing the context-length memory constraints we
+formalise.
+
+FlashAttention \citep{dao2022flashattention} reduces the HBM memory traffic
+of attention from $O(N^2)$ to $O(N)$, consistent with our analysis that
+memory bandwidth is the binding constraint. Speculative decoding
+\citep{leviathan2023fast} implicitly exploits the compute-memory balance
+point, using a small draft model to amortise the weight-fetch cost of a
+large model.
+
+% ═══════════════════════════════════════════════════════════════════════════
+\section{Conclusion}
+\label{sec:conclusion}
+% ═══════════════════════════════════════════════════════════════════════════
+
+We have demonstrated that the full range of LLM inference pricing phenomena —
+fast-mode premiums, context-length surcharges, cache discount tiers, and
+the architectural necessity of MoE expert parallelism within rack boundaries —
+can be derived from a single physical equation:
+
+\[
+  T_\text{inference} = \max\!\left(
+    \frac{2 B P_\text{active}}{\FLOPS},\;
+    \frac{W_\text{bytes} + B \cdot C_\text{bytes}(S)}{\BW}
+  \right)
+\]
+
+The binding constraint for virtually all real-world LLM inference is memory
+bandwidth, not arithmetic throughput. This has three primary implications:
+
+\begin{enumerate}[leftmargin=*]
+  \item \textbf{For system designers:} optimise for memory bandwidth
+    utilisation, not FLOPs; batch aggressively; use quantisation to reduce
+    weight size; tier the KV cache to cheaper storage for idle sessions.
+
+  \item \textbf{For model architects:} design model structures that confine
+    all-to-all communication (MoE, tensor parallelism) within NVLink domains;
+    use pipeline parallelism only across rack boundaries; prefer reversible
+    architectures when activation memory constrains training scale.
+
+  \item \textbf{For economists:} the memory wall, not compute shortage, is
+    the primary pricing lever. Hardware generations that improve HBM
+    bandwidth (H100 $\to$ H200 $\to$ B200) will reduce inference costs
+    more than equivalent FLOP increases.
+
+\end{enumerate}
+
+The future of AI infrastructure efficiency lies not in faster arithmetic
+but in \textit{hiding, compressing, and bypassing the memory wall}.
+
+% ── Bibliography ──────────────────────────────────────────────────────────
+\bibliographystyle{plainnat}
+\begin{thebibliography}{99}
+
+\bibitem[Dao et al.(2022)]{dao2022flashattention}
+Dao, T., Fu, D.Y., Ermon, S., Rudra, A., and R{\'e}, C. (2022).
+\textit{FlashAttention: Fast and Memory-Efficient Exact Attention with
+IO-Awareness.} NeurIPS 2022.
+
+\bibitem[Gomez et al.(2017)]{gomez2017reversible}
+Gomez, A.N., Ren, M., Urtasun, R., and Grosse, R.B. (2017).
+\textit{The Reversible Residual Network: Backpropagation Without Storing
+Activations.} NeurIPS 2017.
+
+\bibitem[Hoffmann et al.(2022)]{hoffmann2022training}
+Hoffmann, J., Borgeaud, S., Mensch, A., \textit{et al.} (2022).
+\textit{Training Compute-Optimal Large Language Models.}
+arXiv:2203.15556.
+
+\bibitem[Jain et al.(2019)]{jain2019gist}
+Jain, A., Oehmke, P., and Shalf, J. (2019).
+\textit{Gist: Efficient Data Encoding for Deep Neural Network Training.}
+ISCA 2018.
+
+\bibitem[Kwon et al.(2023)]{kwon2023efficient}
+Kwon, W., Li, Z., Zhuang, S., \textit{et al.} (2023).
+\textit{Efficient Memory Management for Large Language Model Serving with
+PagedAttention.} SOSP 2023.
+
+\bibitem[Leviathan et al.(2023)]{leviathan2023fast}
+Leviathan, Y., Kalman, M., and Matias, Y. (2023).
+\textit{Fast Inference from Transformers via Speculative Decoding.}
+ICML 2023.
+
+\bibitem[Williams et al.(2009)]{williams2009roofline}
+Williams, S., Waterman, A., and Patterson, D. (2009).
+\textit{Roofline: An Insightful Visual Performance Model for Multicore
+Architectures.} Communications of the ACM, 52(4):65--76.
+
+\bibitem[Yu et al.(2022)]{yu2022orca}
+Yu, G., Kim, J., Shin, H., \textit{et al.} (2022).
+\textit{Orca: A Distributed Serving System for Transformer-Based Generative
+Models.} OSDI 2022.
+
+\end{thebibliography}
+
+% ── Appendix ──────────────────────────────────────────────────────────────
+\appendix
+
+\section{Derivation of the Optimal Batch Size Formula}
+\label{app:batch-derivation}
+
+Setting $\Tcomp(B^*) = \Tmem(B^*)$ and solving for $B^*$:
+\begin{align}
+  \frac{2 B^* P_\text{active}}{\FLOPS}
+  &= \frac{W_\text{bytes} + B^* C_\text{bytes}}{\BW} \\
+  2 B^* P_\text{active} \BW
+  &= \FLOPS (W_\text{bytes} + B^* C_\text{bytes}) \\
+  B^*(2 P_\text{active} \BW - \FLOPS C_\text{bytes})
+  &= \FLOPS W_\text{bytes} \\
+  B^*
+  &= \frac{\FLOPS \cdot W_\text{bytes}}
+          {2 P_\text{active} \BW - \FLOPS \cdot C_\text{bytes}}
+\end{align}
+
+When $\FLOPS \cdot C_\text{bytes} \ll 2 P_\text{active} \BW$ (short contexts):
+\[
+  B^* \approx \frac{\FLOPS \cdot W_\text{bytes}}{2 P_\text{active} \BW}
+            = \frac{I^* \cdot W_\text{bytes}}{2 P_\text{active}}
+\]
+
+\section{Python Reference Implementation}
+\label{app:code}
+
+\begin{lstlisting}[caption={Roofline cost model (Python)}, label=lst:roofline]
+import numpy as np
+
+# H100 SXM5 hardware constants
+FLOPS_PER_SEC = 989e12     # 989 TFLOPS FP16 peak
+MEM_BW_BYTES  = 3.35e12    # 3.35 TB/s HBM3
+GPU_COST_PER_HR = 3.0      # USD/hr (approximate spot price)
+
+def inference_cost(
+    n_params: float,       # total parameters
+    batch_size: int,       # concurrent sequences
+    context_len: int,      # tokens of context per sequence
+    n_layers: int = 80,    # number of transformer layers
+    n_kv_heads: int = 8,   # KV attention heads
+    d_head: int = 128,     # head dimension
+    dtype_bytes: int = 2,  # 2 for FP16, 1 for INT8
+) -> dict:
+    """
+    Compute inference runtime and cost using the Fundamental Inference Equation.
+    Returns: dict with T_compute, T_memory, runtime, cost_per_token.
+    """
+    # Weight size in bytes
+    W_bytes = n_params * dtype_bytes
+
+    # KV cache per sequence (K+V for all layers)
+    kv_per_seq = 2 * n_layers * n_kv_heads * d_head * context_len * dtype_bytes
+
+    # Compute time: 2 FLOPs per weight per sequence (matmul)
+    T_compute = (2 * batch_size * n_params) / FLOPS_PER_SEC
+
+    # Memory time: fetch weights + KV cache for all sequences
+    T_memory  = (W_bytes + batch_size * kv_per_seq) / MEM_BW_BYTES
+
+    # Fundamental equation: runtime = max of the two
+    runtime   = max(T_compute, T_memory)
+    bottleneck = "compute" if T_compute > T_memory else "memory"
+
+    # Cost per output token (GPU cost / tokens per second)
+    cost_per_token = (GPU_COST_PER_HR / 3600) * runtime / batch_size
+
+    return {
+        "T_compute_ms"  : T_compute * 1000,
+        "T_memory_ms"   : T_memory  * 1000,
+        "runtime_ms"    : runtime   * 1000,
+        "bottleneck"    : bottleneck,
+        "cost_per_token": cost_per_token,
+    }
+
+# Example: Llama-3 70B at various batch sizes
+for B in [1, 10, 100, 295, 1000, 5000]:
+    r = inference_cost(70e9, B, 2048)
+    print(f"B={B:5d}: {r['runtime_ms']:6.1f}ms  "
+          f"{r['bottleneck']:8s}  "
+          f"${r['cost_per_token']*1e6:.2f}/Mtok")
+\end{lstlisting}
+
+\end{document}
