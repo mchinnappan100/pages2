@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Flashcards</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: { mono: ['"JetBrains Mono"', 'monospace'], sans: ['Inter', 'sans-serif'] },
+      animation: {
+        'flip-in':  'flipIn .35s ease forwards',
+        'flip-out': 'flipOut .35s ease forwards',
+        'slide-in': 'slideIn .28s cubic-bezier(.4,0,.2,1) forwards',
+      },
+      keyframes: {
+        flipIn:  { '0%': {transform:'rotateY(90deg)',opacity:'0'}, '100%': {transform:'rotateY(0deg)',opacity:'1'} },
+        flipOut: { '0%': {transform:'rotateY(0deg)',opacity:'1'}, '100%': {transform:'rotateY(-90deg)',opacity:'0'} },
+        slideIn: { '0%': {transform:'translateY(14px)',opacity:'0'}, '100%': {transform:'translateY(0)',opacity:'1'} },
+      }
+    }
+  }
+}
+</script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .card-face { backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+  .progress-bar { transition: width .4s cubic-bezier(.4,0,.2,1); }
+  .flip-card { perspective: 1000px; }
+  .flip-card-inner { transform-style: preserve-3d; transition: transform .5s cubic-bezier(.4,0,.2,1); }
+  .flip-card.flipped .flip-card-inner { transform: rotateY(180deg); }
+  .flip-card-back { transform: rotateY(180deg); }
+  .katex-render { overflow-x: auto; }
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 4px; }
+  .dark ::-webkit-scrollbar-thumb { background: #374151; }
+</style>
+</head>
+<body class="dark:bg-gray-950 bg-gray-50 min-h-screen transition-colors duration-300">
+
+<!-- KaTeX for math rendering -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css"/>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+<!-- ── TOP BAR ── -->
+<header class="sticky top-0 z-50 dark:bg-gray-900/95 bg-white/95 backdrop-blur border-b dark:border-gray-800 border-gray-200 shadow-sm">
+  <div class="max-w-5xl mx-auto px-4 h-14 flex items-center gap-3">
+    <!-- Logo -->
+    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white text-xs font-black flex-shrink-0">⚡</div>
+    <div class="flex-1 min-w-0">
+      <h1 id="deck-title" class="font-bold text-sm dark:text-white text-gray-900 truncate">Flashcards</h1>
+      <p id="deck-subtitle" class="text-xs dark:text-gray-400 text-gray-500 font-mono">Load a CSV to begin</p>
+    </div>
+
+    <!-- Controls -->
+    <div class="flex items-center gap-2 flex-shrink-0">
+      <!-- Load CSV -->
+      <label class="cursor-pointer flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-colors">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        Load CSV
+        <input type="file" accept=".csv,.txt" id="csv-input" class="hidden"/>
+      </label>
+      <!-- Shuffle -->
+      <button id="btn-shuffle" title="Shuffle" class="w-8 h-8 rounded-lg dark:bg-gray-800 bg-gray-100 dark:hover:bg-gray-700 hover:bg-gray-200 dark:text-gray-300 text-gray-600 flex items-center justify-center transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+      </button>
+      <!-- Theme -->
+      <button id="btn-theme" title="Toggle theme" class="w-8 h-8 rounded-lg dark:bg-gray-800 bg-gray-100 dark:hover:bg-gray-700 hover:bg-gray-200 dark:text-gray-300 text-gray-600 flex items-center justify-center transition-colors">
+        <svg id="icon-sun" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z"/></svg>
+        <svg id="icon-moon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ── MAIN ── -->
+<main class="max-w-5xl mx-auto px-4 py-8">
+
+  <!-- Empty state -->
+  <div id="empty-state" class="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+    <div class="w-20 h-20 rounded-2xl bg-gradient-to-br from-violet-500/20 to-indigo-600/20 border dark:border-violet-500/30 border-violet-300 flex items-center justify-center">
+      <svg class="w-10 h-10 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+    </div>
+    <div class="text-center">
+      <h2 class="text-xl font-bold dark:text-white text-gray-900 mb-2">Load a Flashcard CSV</h2>
+      <p class="dark:text-gray-400 text-gray-500 text-sm max-w-sm leading-relaxed">Upload any CSV file with two columns — <span class="font-mono text-violet-400">question</span> and <span class="font-mono text-violet-400">answer</span>. The deck title is derived from the filename.</p>
+    </div>
+    <label class="cursor-pointer flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-violet-600 hover:bg-violet-500 text-white transition-colors shadow-lg shadow-violet-500/20">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      Choose CSV file
+      <input type="file" accept=".csv,.txt" id="csv-input-2" class="hidden"/>
+    </label>
+
+    <!-- Sample deck hint -->
+    <div class="mt-4 dark:bg-gray-900 bg-white border dark:border-gray-800 border-gray-200 rounded-xl p-4 max-w-sm w-full">
+      <p class="text-xs font-semibold font-mono dark:text-gray-400 text-gray-500 mb-2 uppercase tracking-wider">Expected CSV format</p>
+      <pre class="text-xs dark:text-gray-300 text-gray-700 leading-relaxed">What is X?,It is Y.
+How does Z work?,Z works by...
+Define A,A is the process of...</pre>
+    </div>
+  </div>
+
+  <!-- Deck view (hidden until CSV loaded) -->
+  <div id="deck-view" class="hidden">
+
+    <!-- Stats bar -->
+    <div class="flex items-center justify-between mb-6 gap-4 flex-wrap">
+      <div class="flex items-center gap-4">
+        <span id="stat-current" class="font-mono text-2xl font-bold dark:text-white text-gray-900">1</span>
+        <span class="dark:text-gray-500 text-gray-400 font-mono text-sm">/ <span id="stat-total">0</span></span>
+        <div class="flex items-center gap-1.5 ml-2">
+          <div class="w-2 h-2 rounded-full bg-emerald-400"></div>
+          <span id="stat-known" class="text-xs font-mono dark:text-gray-400 text-gray-500">0 known</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <div class="w-2 h-2 rounded-full bg-rose-400"></div>
+          <span id="stat-review" class="text-xs font-mono dark:text-gray-400 text-gray-500">0 review</span>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="btn-reset-progress" class="text-xs font-mono dark:text-gray-500 text-gray-400 hover:text-violet-400 transition-colors">reset progress</button>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="w-full h-1.5 dark:bg-gray-800 bg-gray-200 rounded-full mb-8 overflow-hidden">
+      <div id="progress-bar" class="progress-bar h-full bg-gradient-to-r from-violet-500 to-indigo-500 rounded-full" style="width:0%"></div>
+    </div>
+
+    <!-- Flash Card -->
+    <div class="flip-card w-full cursor-pointer mb-6" id="flash-card" onclick="flipCard()">
+      <div class="flip-card-inner relative" style="height:320px">
+        <!-- Front -->
+        <div class="card-face absolute inset-0 flip-card-front dark:bg-gray-900 bg-white rounded-2xl border dark:border-gray-700 border-gray-200 shadow-xl dark:shadow-black/40 shadow-gray-200/80 flex flex-col p-8">
+          <div class="flex items-center justify-between mb-5">
+            <span class="px-2.5 py-1 rounded-lg bg-violet-500/15 text-violet-400 text-xs font-mono font-semibold uppercase tracking-wider">Question</span>
+            <span id="card-number-front" class="text-xs font-mono dark:text-gray-600 text-gray-400">#1</span>
+          </div>
+          <div id="card-question" class="flex-1 flex items-center justify-center text-center katex-render">
+            <p class="dark:text-white text-gray-900 text-lg font-medium leading-relaxed"></p>
+          </div>
+          <div class="mt-5 flex justify-center">
+            <p class="text-xs dark:text-gray-600 text-gray-400 font-mono">click to reveal answer ↩</p>
+          </div>
+        </div>
+        <!-- Back -->
+        <div class="card-face flip-card-back absolute inset-0 dark:bg-gray-900 bg-white rounded-2xl border dark:border-indigo-700/60 border-indigo-300 shadow-xl dark:shadow-black/40 shadow-indigo-100 flex flex-col p-8">
+          <div class="flex items-center justify-between mb-5">
+            <span class="px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-400 text-xs font-mono font-semibold uppercase tracking-wider">Answer</span>
+            <span id="card-number-back" class="text-xs font-mono dark:text-gray-600 text-gray-400">#1</span>
+          </div>
+          <div id="card-answer" class="flex-1 flex items-center justify-center text-center overflow-y-auto katex-render">
+            <p class="dark:text-gray-100 text-gray-800 text-base leading-relaxed"></p>
+          </div>
+          <div class="mt-5 flex justify-center gap-3">
+            <button onclick="markCard('review', event)" class="px-4 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 text-xs font-semibold font-mono transition-colors border border-rose-500/20">🔁 Review again</button>
+            <button onclick="markCard('known', event)" class="px-4 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-xs font-semibold font-mono transition-colors border border-emerald-500/20">✓ Got it</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="flex items-center justify-center gap-4 mb-8">
+      <button id="btn-prev" onclick="navigate(-1)" class="w-11 h-11 rounded-xl dark:bg-gray-800 bg-gray-100 dark:hover:bg-gray-700 hover:bg-gray-200 dark:text-gray-300 text-gray-600 dark:disabled:text-gray-700 disabled:text-gray-300 flex items-center justify-center transition-colors disabled:cursor-not-allowed" disabled>
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+      </button>
+      <button onclick="flipCard()" class="px-6 py-2.5 rounded-xl dark:bg-gray-800 bg-gray-100 dark:hover:bg-gray-700 hover:bg-gray-200 dark:text-gray-300 text-gray-700 text-sm font-semibold transition-colors">
+        Flip card
+      </button>
+      <button id="btn-next" onclick="navigate(1)" class="w-11 h-11 rounded-xl dark:bg-gray-800 bg-gray-100 dark:hover:bg-gray-700 hover:bg-gray-200 dark:text-gray-300 text-gray-600 flex items-center justify-center transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+    </div>
+
+    <!-- Card grid / overview -->
+    <div class="mt-8">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-xs font-mono font-semibold dark:text-gray-500 text-gray-400 uppercase tracking-wider">All cards</h3>
+        <div class="flex gap-2">
+          <button onclick="filterCards('all')" id="filter-all" class="text-xs font-mono px-2.5 py-1 rounded-lg bg-violet-500 text-white transition-colors">all</button>
+          <button onclick="filterCards('review')" id="filter-review" class="text-xs font-mono px-2.5 py-1 rounded-lg dark:bg-gray-800 bg-gray-100 dark:text-gray-400 text-gray-500 dark:hover:bg-gray-700 hover:bg-gray-200 transition-colors">review</button>
+          <button onclick="filterCards('known')" id="filter-known" class="text-xs font-mono px-2.5 py-1 rounded-lg dark:bg-gray-800 bg-gray-100 dark:text-gray-400 text-gray-500 dark:hover:bg-gray-700 hover:bg-gray-200 transition-colors">known</button>
+        </div>
+      </div>
+      <div id="card-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-72 overflow-y-auto pr-1"></div>
+    </div>
+  </div>
+
+  <!-- Completion screen -->
+  <div id="completion-screen" class="hidden flex-col items-center justify-center min-h-[60vh] gap-6 text-center">
+    <div class="text-6xl mb-2">🎉</div>
+    <h2 class="text-2xl font-bold dark:text-white text-gray-900">Deck Complete!</h2>
+    <p class="dark:text-gray-400 text-gray-500 text-sm" id="completion-message">You've reviewed all cards.</p>
+    <div class="flex gap-3 mt-2">
+      <button onclick="restartDeck(false)" class="px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-semibold transition-colors">Restart All</button>
+      <button id="btn-review-only" onclick="restartDeck(true)" class="px-5 py-2.5 rounded-xl dark:bg-gray-800 bg-gray-100 dark:hover:bg-gray-700 hover:bg-gray-200 dark:text-gray-300 text-gray-700 text-sm font-semibold transition-colors">Review Marked</button>
+    </div>
+  </div>
+
+</main>
+
+<!-- Keyboard hint -->
+<div class="fixed bottom-4 left-1/2 -translate-x-1/2 hidden sm:flex items-center gap-3 text-xs font-mono dark:text-gray-600 text-gray-400 dark:bg-gray-900/80 bg-white/80 backdrop-blur px-4 py-2 rounded-full border dark:border-gray-800 border-gray-200">
+  <span><kbd class="dark:bg-gray-800 bg-gray-100 px-1.5 py-0.5 rounded text-xs">Space</kbd> flip</span>
+  <span><kbd class="dark:bg-gray-800 bg-gray-100 px-1.5 py-0.5 rounded text-xs">←</kbd><kbd class="dark:bg-gray-800 bg-gray-100 px-1.5 py-0.5 rounded text-xs">→</kbd> navigate</span>
+  <span><kbd class="dark:bg-gray-800 bg-gray-100 px-1.5 py-0.5 rounded text-xs">K</kbd> known</span>
+  <span><kbd class="dark:bg-gray-800 bg-gray-100 px-1.5 py-0.5 rounded text-xs">R</kbd> review</span>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────────────
+let allCards    = [];   // [{q, a}]
+let deck        = [];   // current ordered/filtered deck (indices into allCards)
+let current     = 0;
+let isFlipped   = false;
+let progress    = {};   // { index: 'known' | 'review' }
+let activeFilter = 'all';
+let deckName    = 'Flashcards';
+
+// ─── CSV Parsing ─────────────────────────────────────────────────────────────
+function parseCSV(text) {
+  const lines = text.trim().split('\n');
+  const cards = [];
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+    // Handle quoted fields
+    const cols = splitCSVLine(line);
+    if (cols.length >= 2) {
+      cards.push({ q: cols[0].trim(), a: cols[1].trim() });
+    }
+  }
+  return cards;
+}
+
+function splitCSVLine(line) {
+  const cols = [];
+  let cur = '', inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') { inQ = !inQ; continue; }
+    if (ch === ',' && !inQ) { cols.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  cols.push(cur);
+  return cols;
+}
+
+function titleFromFilename(name) {
+  return name
+    .replace(/\.[^.]+$/, '')
+    .replace(/[-_]/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ─── Load CSV ────────────────────────────────────────────────────────────────
+function handleFile(file) {
+  if (!file) return;
+  deckName = titleFromFilename(file.name);
+  const reader = new FileReader();
+  reader.onload = e => {
+    allCards = parseCSV(e.target.result);
+    if (!allCards.length) { alert('No valid cards found. Make sure the CSV has two columns separated by commas.'); return; }
+    progress = {};
+    deck = allCards.map((_, i) => i);
+    current = 0;
+    isFlipped = false;
+    activeFilter = 'all';
+    document.getElementById('deck-title').textContent = deckName;
+    document.getElementById('deck-subtitle').textContent = `${allCards.length} cards`;
+    document.title = deckName + ' — Flashcards';
+    document.getElementById('empty-state').classList.add('hidden');
+    document.getElementById('completion-screen').classList.add('hidden');
+    document.getElementById('completion-screen').classList.remove('flex');
+    document.getElementById('deck-view').classList.remove('hidden');
+    renderCard();
+    renderGrid();
+    updateStats();
+  };
+  reader.readAsText(file);
+}
+
+document.getElementById('csv-input').addEventListener('change', e => handleFile(e.target.files[0]));
+document.getElementById('csv-input-2').addEventListener('change', e => handleFile(e.target.files[0]));
+
+// ─── Card rendering ──────────────────────────────────────────────────────────
+function renderCard() {
+  if (!deck.length) return;
+  const idx = deck[current];
+  const card = allCards[idx];
+  const num = `#${idx + 1}`;
+
+  // Reset flip
+  const fc = document.getElementById('flash-card');
+  fc.classList.remove('flipped');
+  isFlipped = false;
+
+  // Inject content
+  setKaTeX('card-question', card.q);
+  setKaTeX('card-answer',   card.a);
+  document.getElementById('card-number-front').textContent = num;
+  document.getElementById('card-number-back').textContent  = num;
+  document.getElementById('stat-current').textContent = current + 1;
+
+  // Nav buttons
+  document.getElementById('btn-prev').disabled = current === 0;
+  document.getElementById('btn-next').disabled = current === deck.length - 1;
+
+  // Progress bar
+  const pct = deck.length > 1 ? (current / (deck.length - 1)) * 100 : 100;
+  document.getElementById('progress-bar').style.width = pct + '%';
+
+  // Highlight grid item
+  document.querySelectorAll('.grid-card').forEach((el, i) => {
+    el.classList.toggle('ring-2', i === current);
+    el.classList.toggle('ring-violet-500', i === current);
+  });
+}
+
+function setKaTeX(id, text) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  // Wrap in p for styling
+  const p = document.createElement('p');
+  p.className = id === 'card-question'
+    ? 'dark:text-white text-gray-900 text-lg font-medium leading-relaxed'
+    : 'dark:text-gray-100 text-gray-800 text-base leading-relaxed';
+  p.textContent = text;
+  el.appendChild(p);
+  // KaTeX auto-render
+  if (window.renderMathInElement) {
+    renderMathInElement(el, {
+      delimiters: [
+        {left:'$$',right:'$$',display:true},
+        {left:'$',right:'$',display:false},
+        {left:'\\(',right:'\\)',display:false},
+        {left:'\\[',right:'\\]',display:true}
+      ],
+      throwOnError: false
+    });
+  }
+}
+
+// ─── Flip ────────────────────────────────────────────────────────────────────
+function flipCard() {
+  const fc = document.getElementById('flash-card');
+  fc.classList.toggle('flipped');
+  isFlipped = !isFlipped;
+}
+
+// ─── Navigate ────────────────────────────────────────────────────────────────
+function navigate(dir) {
+  const next = current + dir;
+  if (next < 0 || next >= deck.length) return;
+  current = next;
+  renderCard();
+  scrollGridItemIntoView();
+}
+
+function scrollGridItemIntoView() {
+  const cards = document.querySelectorAll('.grid-card');
+  if (cards[current]) cards[current].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+// ─── Mark ────────────────────────────────────────────────────────────────────
+function markCard(status, e) {
+  e && e.stopPropagation();
+  const idx = deck[current];
+  progress[idx] = status;
+  updateStats();
+  renderGrid();
+  // Auto-advance
+  setTimeout(() => {
+    if (current < deck.length - 1) { navigate(1); }
+    else { checkCompletion(); }
+  }, 220);
+}
+
+function updateStats() {
+  let known = 0, review = 0;
+  allCards.forEach((_, i) => {
+    if (progress[i] === 'known')  known++;
+    if (progress[i] === 'review') review++;
+  });
+  document.getElementById('stat-total').textContent  = deck.length;
+  document.getElementById('stat-known').textContent  = known  + ' known';
+  document.getElementById('stat-review').textContent = review + ' review';
+}
+
+// ─── Completion ──────────────────────────────────────────────────────────────
+function checkCompletion() {
+  const allMarked = deck.every(i => progress[i]);
+  if (!allMarked) return;
+  const known  = deck.filter(i => progress[i] === 'known').length;
+  const review = deck.filter(i => progress[i] === 'review').length;
+  document.getElementById('deck-view').classList.add('hidden');
+  document.getElementById('completion-screen').classList.remove('hidden');
+  document.getElementById('completion-screen').classList.add('flex');
+  document.getElementById('completion-message').textContent =
+    `${known} card${known !== 1 ? 's' : ''} known · ${review} marked for review`;
+  const btn = document.getElementById('btn-review-only');
+  btn.disabled = review === 0;
+  btn.className = review > 0
+    ? 'px-5 py-2.5 rounded-xl dark:bg-gray-800 bg-gray-100 dark:hover:bg-gray-700 hover:bg-gray-200 dark:text-gray-300 text-gray-700 text-sm font-semibold transition-colors'
+    : 'px-5 py-2.5 rounded-xl dark:bg-gray-800 bg-gray-100 dark:text-gray-600 text-gray-400 text-sm font-semibold cursor-not-allowed opacity-50';
+}
+
+function restartDeck(reviewOnly) {
+  if (reviewOnly) {
+    deck = allCards.map((_, i) => i).filter(i => progress[i] === 'review');
+    if (!deck.length) return;
+  } else {
+    deck = allCards.map((_, i) => i);
+  }
+  progress = {};
+  current = 0;
+  isFlipped = false;
+  activeFilter = 'all';
+  document.getElementById('completion-screen').classList.add('hidden');
+  document.getElementById('completion-screen').classList.remove('flex');
+  document.getElementById('deck-view').classList.remove('hidden');
+  renderCard();
+  renderGrid();
+  updateStats();
+}
+
+// ─── Shuffle ─────────────────────────────────────────────────────────────────
+document.getElementById('btn-shuffle').addEventListener('click', () => {
+  if (!allCards.length) return;
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+  current = 0;
+  renderCard();
+  renderGrid();
+});
+
+// ─── Filter ──────────────────────────────────────────────────────────────────
+function filterCards(type) {
+  activeFilter = type;
+  ['all','review','known'].forEach(t => {
+    const btn = document.getElementById('filter-' + t);
+    if (t === type) {
+      btn.className = 'text-xs font-mono px-2.5 py-1 rounded-lg bg-violet-500 text-white transition-colors';
+    } else {
+      btn.className = 'text-xs font-mono px-2.5 py-1 rounded-lg dark:bg-gray-800 bg-gray-100 dark:text-gray-400 text-gray-500 dark:hover:bg-gray-700 hover:bg-gray-200 transition-colors';
+    }
+  });
+  renderGrid();
+}
+
+// ─── Grid ────────────────────────────────────────────────────────────────────
+function renderGrid() {
+  const grid = document.getElementById('card-grid');
+  grid.innerHTML = '';
+  const indices = activeFilter === 'all'    ? deck
+    : activeFilter === 'known'  ? deck.filter(i => progress[i] === 'known')
+    : deck.filter(i => progress[i] === 'review');
+
+  indices.forEach((idx, pos) => {
+    const st = progress[idx];
+    const card = allCards[idx];
+    const isCurrent = deck[current] === idx;
+
+    const div = document.createElement('div');
+    div.className = [
+      'grid-card cursor-pointer p-2.5 rounded-xl border text-xs leading-snug transition-all',
+      'dark:bg-gray-900 bg-white',
+      isCurrent ? 'ring-2 ring-violet-500' : '',
+      st === 'known'  ? 'border-emerald-500/40 dark:bg-emerald-900/10 bg-emerald-50' :
+      st === 'review' ? 'border-rose-500/40 dark:bg-rose-900/10 bg-rose-50' :
+                        'dark:border-gray-700 border-gray-200'
+    ].join(' ');
+
+    div.innerHTML = `
+      <div class="flex items-center justify-between mb-1">
+        <span class="font-mono dark:text-gray-500 text-gray-400">#${idx+1}</span>
+        ${st === 'known'  ? '<span class="text-emerald-400 text-xs">✓</span>' :
+          st === 'review' ? '<span class="text-rose-400 text-xs">↺</span>' : ''}
+      </div>
+      <p class="dark:text-gray-300 text-gray-700 line-clamp-2">${escHtml(card.q)}</p>`;
+
+    div.addEventListener('click', () => {
+      // Jump to this card in the main deck
+      const deckPos = deck.indexOf(idx);
+      if (deckPos >= 0) { current = deckPos; renderCard(); }
+    });
+    grid.appendChild(div);
+  });
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ─── Reset progress ───────────────────────────────────────────────────────────
+document.getElementById('btn-reset-progress').addEventListener('click', () => {
+  progress = {};
+  updateStats();
+  renderGrid();
+  renderCard();
+});
+
+// ─── Theme ────────────────────────────────────────────────────────────────────
+const html = document.documentElement;
+document.getElementById('btn-theme').addEventListener('click', () => {
+  html.classList.toggle('dark');
+  document.getElementById('icon-sun').classList.toggle('hidden');
+  document.getElementById('icon-moon').classList.toggle('hidden');
+});
+
+// ─── Keyboard ────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
+  if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); flipCard(); }
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); navigate(1); }
+  if (e.key === 'ArrowLeft'  || e.key === 'ArrowUp')   { e.preventDefault(); navigate(-1); }
+  if (e.key === 'k' || e.key === 'K') { if (isFlipped) markCard('known'); }
+  if (e.key === 'r' || e.key === 'R') { if (isFlipped) markCard('review'); }
+});
+
+// ─── Auto-load from URL param (?csv=relative/path) ───────────────────────────
+async function autoLoad() {
+  const params = new URLSearchParams(window.location.search);
+  const csvPath = params.get('csv');
+  if (!csvPath) return;
+  try {
+    const res = await fetch(csvPath);
+    if (!res.ok) return;
+    const text = await res.text();
+    const file = { name: csvPath.split('/').pop() };
+    // Simulate file handling
+    deckName = titleFromFilename(file.name);
+    allCards = parseCSV(text);
+    if (!allCards.length) return;
+    progress = {};
+    deck = allCards.map((_, i) => i);
+    current = 0;
+    isFlipped = false;
+    activeFilter = 'all';
+    document.getElementById('deck-title').textContent = deckName;
+    document.getElementById('deck-subtitle').textContent = `${allCards.length} cards`;
+    document.title = deckName + ' — Flashcards';
+    document.getElementById('empty-state').classList.add('hidden');
+    document.getElementById('deck-view').classList.remove('hidden');
+    renderCard();
+    renderGrid();
+    updateStats();
+  } catch(_) {}
+}
+autoLoad();
+</script>
+</body>
+</html>
