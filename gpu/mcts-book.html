@@ -1,0 +1,1097 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Monte Carlo Tree Search — A Beginner's Guide</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = { darkMode: 'class' }
+</script>
+<style>
+:root[data-theme="dark"]{
+  --bg:#09090f; --surface:#111118; --surface2:#17171f; --surface3:#1f1f2a;
+  --border:#252535; --border2:#2e2e45;
+  --accent:#f59e0b; --accent2:#fbbf24; --accent3:#34d399; --blue:#60a5fa;
+  --danger:#ef4444; --success:#22c55e; --purple:#a78bfa;
+  --text:#f0f0f8; --text2:#a0a0bc; --text3:#606078;
+  --code-bg:#0d1117;
+}
+:root[data-theme="light"]{
+  --bg:#fffbf0; --surface:#fff; --surface2:#fffbf0; --surface3:#fef3c7;
+  --border:#e5d9b6; --border2:#d4c095;
+  --accent:#d97706; --accent2:#b45309; --accent3:#059669; --blue:#2563eb;
+  --danger:#dc2626; --success:#16a34a; --purple:#7c3aed;
+  --text:#0a0808; --text2:#3d2c10; --text3:#7a6040;
+  --code-bg:#1e1e2e;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh}
+
+/* Topbar */
+.topbar{position:sticky;top:0;z-index:300;background:var(--surface);border-bottom:1px solid var(--border);height:56px;display:flex;align-items:center;padding:0 28px;gap:14px}
+.logo-icon{width:34px;height:34px;background:linear-gradient(135deg,#f59e0b,#fbbf24);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.1rem;flex-shrink:0}
+.logo-name{font-family:'Syne',sans-serif;font-weight:800;font-size:.88rem;color:var(--text)}
+.logo-tag{font-size:.62rem;color:var(--text3);font-family:'JetBrains Mono',monospace}
+.topbar-right{display:flex;gap:8px;margin-left:auto}
+.tbtn{padding:5px 13px;border-radius:7px;font-size:.72rem;font-family:'JetBrains Mono',monospace;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text2);transition:all .15s}
+.tbtn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* Layout */
+.layout{display:grid;grid-template-columns:260px 1fr;min-height:calc(100vh - 56px);max-width:1360px;margin:0 auto}
+.sidebar{position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;border-right:1px solid var(--border);padding:24px 0 40px;background:var(--surface)}
+.sidebar::-webkit-scrollbar{width:4px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+.sb-section{margin-bottom:8px}
+.sb-sect-title{font-family:'JetBrains Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.14em;color:var(--text3);padding:14px 22px 6px;font-weight:600}
+.sb-link{display:flex;align-items:center;gap:8px;padding:7px 22px;font-size:.82rem;color:var(--text2);border-left:2px solid transparent;transition:all .12s;cursor:pointer}
+.sb-link:hover{color:var(--accent);background:rgba(245,158,11,.06);border-left-color:var(--accent)}
+.sb-link.active{color:var(--accent);background:rgba(245,158,11,.06);border-left-color:var(--accent);font-weight:600}
+.sb-num{font-family:'JetBrains Mono',monospace;font-size:.62rem;font-weight:700;width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;background:var(--surface3);color:var(--text3);flex-shrink:0}
+.sb-link.active .sb-num{background:var(--accent);color:#fff}
+.sb-sub{padding:4px 22px 4px 40px;font-size:.77rem;color:var(--text3);display:block;cursor:pointer;transition:color .12s}
+.sb-sub:hover{color:var(--accent2)}
+
+/* Main */
+.main{padding:52px 60px 100px;max-width:900px}
+
+/* Hero */
+.hero{padding:52px 0 48px;border-bottom:1px solid var(--border);margin-bottom:52px}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:4px 14px;background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.3);border-radius:20px;font-size:.7rem;font-family:'JetBrains Mono',monospace;color:var(--accent2);margin-bottom:22px;letter-spacing:.1em;text-transform:uppercase}
+.hero h1{font-family:'Syne',sans-serif;font-weight:900;font-size:2.9rem;letter-spacing:-.04em;line-height:1.08;margin-bottom:18px;color:var(--text)}
+.hero h1 em{font-style:normal;color:var(--accent2)}
+.hero-sub{font-size:1rem;color:var(--text2);max-width:640px;line-height:1.75;margin-bottom:28px}
+
+/* Typography */
+h3{font-family:'Syne',sans-serif;font-weight:800;font-size:1.2rem;letter-spacing:-.02em;color:var(--text);margin:40px 0 13px}
+h4{font-family:'Syne',sans-serif;font-weight:700;font-size:.97rem;color:var(--text);margin:26px 0 10px}
+p{color:var(--text2);font-size:.93rem;line-height:1.78;margin-bottom:14px}
+ul,ol{padding-left:22px;margin-bottom:16px}
+li{color:var(--text2);font-size:.93rem;line-height:1.7;margin-bottom:5px}
+li strong{color:var(--text)}
+strong{color:var(--text);font-weight:600}
+code{font-family:'JetBrains Mono',monospace;font-size:.82rem;background:var(--surface3);padding:1px 6px;border-radius:4px;color:var(--accent2)}
+
+/* Callouts */
+.callout{border-radius:11px;padding:16px 20px;margin:22px 0;border-left:3px solid}
+.callout-gold{background:rgba(245,158,11,.07);border-color:var(--accent)}
+.callout-green{background:rgba(52,211,153,.07);border-color:var(--accent3)}
+.callout-blue{background:rgba(96,165,250,.07);border-color:var(--blue)}
+.callout-purple{background:rgba(167,139,250,.08);border-color:var(--purple)}
+.callout-red{background:rgba(239,68,68,.07);border-color:var(--danger)}
+.callout-label{font-family:'JetBrains Mono',monospace;font-size:.61rem;text-transform:uppercase;letter-spacing:.12em;font-weight:700;margin-bottom:7px}
+.callout-gold   .callout-label{color:var(--accent2)}
+.callout-green  .callout-label{color:var(--accent3)}
+.callout-blue   .callout-label{color:var(--blue)}
+.callout-purple .callout-label{color:var(--purple)}
+.callout-red    .callout-label{color:var(--danger)}
+.callout p{margin:0;font-size:.88rem}
+
+/* Code blocks */
+pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:20px;overflow-x:auto;margin:18px 0;position:relative}
+pre code{font-family:'JetBrains Mono',monospace;font-size:.78rem;line-height:1.85;color:#e2e8f0;background:transparent;padding:0}
+.code-label{position:absolute;top:10px;right:14px;font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;color:#475569;background:rgba(255,255,255,.05);padding:2px 8px;border-radius:5px}
+.kw{color:#f472b6}.fn{color:#60a5fa}.str{color:#34d399}.num{color:#fbbf24}.cm{color:#4b5563;font-style:italic}.op{color:#a78bfa}
+
+/* Tables */
+table{width:100%;border-collapse:collapse;margin:20px 0;font-size:.86rem}
+th{background:var(--surface3);padding:10px 14px;text-align:left;font-size:.75rem;font-family:'JetBrains Mono',monospace;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border2)}
+td{padding:10px 14px;border-bottom:1px solid var(--border);color:var(--text2);vertical-align:top}
+tr:hover td{background:var(--surface2)}
+
+/* Tree / figure SVG containers */
+.fig-wrap{background:var(--surface2);border:1px solid var(--border);border-radius:13px;padding:24px;margin:22px 0;text-align:center}
+.fig-caption{font-size:.78rem;color:var(--text3);font-family:'JetBrains Mono',monospace;margin-top:10px;font-style:italic}
+
+/* Node styles for SVG */
+.node-root{fill:#f59e0b;stroke:#d97706;stroke-width:2}
+.node-selected{fill:#60a5fa;stroke:#2563eb;stroke-width:2}
+.node-unvisited{fill:#1f1f2a;stroke:#4b5563;stroke-width:1.5}
+.node-expanded{fill:#34d399;stroke:#059669;stroke-width:2}
+.node-rollout{fill:#a78bfa;stroke:#7c3aed;stroke-width:2}
+.node-backprop{fill:#f87171;stroke:#dc2626;stroke-width:2}
+.edge{stroke:#4b5563;stroke-width:1.5}
+.edge-highlight{stroke:#fbbf24;stroke-width:2.5}
+.node-label{font-family:'JetBrains Mono',monospace;font-size:11px;fill:#f0f0f8;text-anchor:middle;dominant-baseline:central}
+.node-stat{font-family:'JetBrains Mono',monospace;font-size:9px;fill:#a0a0bc;text-anchor:middle}
+.edge-label{font-family:'JetBrains Mono',monospace;font-size:9px;fill:#fbbf24;text-anchor:middle}
+
+[data-theme="light"] .node-unvisited{fill:#e5d9b6;stroke:#b8a070}
+[data-theme="light"] .node-label{fill:#0a0808}
+[data-theme="light"] .node-stat{fill:#7a6040}
+[data-theme="light"] .edge{stroke:#b8a070}
+
+/* Step boxes */
+.step-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin:20px 0}
+.step-box{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:18px;position:relative;overflow:hidden}
+.step-box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.step-select::before{background:#f59e0b}
+.step-expand::before{background:#34d399}
+.step-rollout::before{background:#a78bfa}
+.step-backprop::before{background:#f87171}
+.step-title{font-family:'Syne',sans-serif;font-weight:800;font-size:.88rem;color:var(--text);margin-bottom:6px}
+.step-num-badge{font-family:'JetBrains Mono',monospace;font-size:.65rem;font-weight:700;padding:2px 8px;border-radius:5px;margin-bottom:8px;display:inline-block}
+
+/* Formula box */
+.formula{background:var(--surface3);border:1px solid var(--border2);border-radius:10px;padding:16px 20px;margin:18px 0;font-family:'JetBrains Mono',monospace;font-size:.88rem;color:var(--accent2);text-align:center;line-height:1.8}
+
+/* Summary */
+.summary-box{background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:24px 26px;margin:32px 0}
+.summary-box h4{margin:0 0 14px;color:var(--text);font-size:.95rem}
+.summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sg-item{background:var(--surface3);border-radius:8px;padding:11px 14px;font-size:.82rem;color:var(--text2);border:1px solid var(--border)}
+.sg-item strong{display:block;font-size:.72rem;font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.08em;color:var(--text3);margin-bottom:3px}
+
+/* Key terms */
+.key-terms{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+.kt{padding:4px 12px;border-radius:8px;font-family:'JetBrains Mono',monospace;font-size:.72rem;font-weight:600;background:var(--surface3);border:1px solid var(--border2);color:var(--text2)}
+
+.chapter-sep{height:1px;background:var(--border);margin:68px 0}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.sidebar{display:none}.main{padding:32px 22px 80px}.step-grid{grid-template-columns:1fr}.summary-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="logo-icon">🌳</div>
+  <div>
+    <div class="logo-name">Monte Carlo Tree Search</div>
+    <div class="logo-tag">A Beginner's Guide</div>
+  </div>
+  <div class="topbar-right">
+    <button class="tbtn" onclick="toggleTheme()">🌓 Theme</button>
+  </div>
+</header>
+
+<div class="layout">
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="sb-section">
+    <div class="sb-sect-title">Introduction</div>
+    <a class="sb-link active" onclick="goto('intro')"><span class="sb-num">◎</span>What is MCTS?</a>
+  </div>
+  <div class="sb-section">
+    <div class="sb-sect-title">Core Concepts</div>
+    <a class="sb-link" onclick="goto('ch1')"><span class="sb-num">1</span>Game Trees</a>
+    <a class="sb-sub" onclick="goto('ch1-tree')">Search Tree Structure</a>
+    <a class="sb-sub" onclick="goto('ch1-problem')">The Search Problem</a>
+  </div>
+  <div class="sb-section">
+    <div class="sb-sect-title">The Four Steps</div>
+    <a class="sb-link" onclick="goto('ch2')"><span class="sb-num">2</span>Selection</a>
+    <a class="sb-link" onclick="goto('ch3')"><span class="sb-num">3</span>Expansion</a>
+    <a class="sb-link" onclick="goto('ch4')"><span class="sb-num">4</span>Simulation (Rollout)</a>
+    <a class="sb-link" onclick="goto('ch5')"><span class="sb-num">5</span>Backpropagation</a>
+  </div>
+  <div class="sb-section">
+    <div class="sb-sect-title">The Math</div>
+    <a class="sb-link" onclick="goto('ch6')"><span class="sb-num">6</span>UCB1 Formula</a>
+    <a class="sb-sub" onclick="goto('ch6-explore')">Exploration vs Exploitation</a>
+    <a class="sb-sub" onclick="goto('ch6-uct')">UCT in Practice</a>
+  </div>
+  <div class="sb-section">
+    <div class="sb-sect-title">Full Example</div>
+    <a class="sb-link" onclick="goto('ch7')"><span class="sb-num">7</span>Tic-Tac-Toe Walk-Through</a>
+  </div>
+  <div class="sb-section">
+    <div class="sb-sect-title">Implementation</div>
+    <a class="sb-link" onclick="goto('ch8')"><span class="sb-num">8</span>Python Implementation</a>
+  </div>
+  <div class="sb-section">
+    <div class="sb-sect-title">Advanced Topics</div>
+    <a class="sb-link" onclick="goto('ch9')"><span class="sb-num">9</span>Variations & Enhancements</a>
+    <a class="sb-link" onclick="goto('ch10')"><span class="sb-num">10</span>AlphaGo & Neural MCTS</a>
+    <a class="sb-link" onclick="goto('ch11')"><span class="sb-num">11</span>Applications</a>
+  </div>
+  <div class="sb-section">
+    <div class="sb-sect-title">Reference</div>
+    <a class="sb-link" onclick="goto('quickref')"><span class="sb-num">Q</span>Quick Reference</a>
+  </div>
+</nav>
+
+<!-- MAIN -->
+<main class="main">
+
+<!-- ═══ INTRO ═══ -->
+<div id="intro">
+<div class="hero">
+  <div class="hero-badge">🌳 AI · Search Algorithms · Decision Making</div>
+  <h1>Monte Carlo<br><em>Tree Search</em></h1>
+  <p class="hero-sub">A beginner-friendly guide to one of the most powerful AI decision-making algorithms — the engine behind AlphaGo, game-playing AIs, and intelligent planning systems. No prior AI knowledge required.</p>
+</div>
+
+<h3>What is Monte Carlo Tree Search?</h3>
+<p>Imagine you are playing chess and you want to figure out your best next move. You could try to analyse every possible future — but there are more chess positions than atoms in the universe. You can't check them all.</p>
+<p>Instead, you might do what a clever player does: <strong>focus your thinking on the most promising lines of play</strong>, and <strong>randomly simulate a few games</strong> from each candidate position to estimate which one leads to winning most often. That intuition, made precise and algorithmic, is Monte Carlo Tree Search.</p>
+
+<div class="callout callout-gold">
+  <div class="callout-label">In One Sentence</div>
+  <p>MCTS is an algorithm that builds a search tree by <strong>intelligently selecting</strong> nodes to explore, <strong>randomly simulating</strong> outcomes from those nodes, and <strong>using the results</strong> to decide where to search next — all without needing a hand-crafted evaluation function.</p>
+</div>
+
+<h4>Why MCTS Is Special</h4>
+<p>Most game-playing algorithms need an <em>evaluation function</em> — a formula that scores any board position. Writing a good evaluation function is hard and domain-specific. MCTS doesn't need one. It estimates the value of a position by <em>playing out random games</em> from it and seeing who wins. The more random games it plays from a position, the more accurate its estimate becomes.</p>
+
+<h4>The Four Pillars</h4>
+<div class="step-grid">
+  <div class="step-box step-select">
+    <div class="step-num-badge" style="background:rgba(245,158,11,.2);color:#fbbf24">STEP 1</div>
+    <div class="step-title" style="color:#fbbf24">Selection</div>
+    <p style="font-size:.82rem;color:var(--text2);margin:0">Start at the root and navigate to the most promising unexplored node using a policy (UCB1).</p>
+  </div>
+  <div class="step-box step-expand">
+    <div class="step-num-badge" style="background:rgba(52,211,153,.2);color:#34d399">STEP 2</div>
+    <div class="step-title" style="color:#34d399">Expansion</div>
+    <p style="font-size:.82rem;color:var(--text2);margin:0">Add one (or more) new child nodes to the selected node, representing unexplored moves.</p>
+  </div>
+  <div class="step-box step-rollout">
+    <div class="step-num-badge" style="background:rgba(167,139,250,.2);color:#a78bfa">STEP 3</div>
+    <div class="step-title" style="color:#a78bfa">Simulation (Rollout)</div>
+    <p style="font-size:.82rem;color:var(--text2);margin:0">Play out the game randomly from the new node until a terminal state (win/lose/draw).</p>
+  </div>
+  <div class="step-box step-backprop">
+    <div class="step-num-badge" style="background:rgba(248,113,113,.2);color:#f87171">STEP 4</div>
+    <div class="step-title" style="color:#f87171">Backpropagation</div>
+    <p style="font-size:.82rem;color:var(--text2);margin:0">Update the win/visit counts of every node on the path from the new node back to the root.</p>
+  </div>
+</div>
+</div>
+
+<!-- ═══ CH 1 ═══ -->
+<div class="chapter-sep"></div>
+<section id="ch1">
+<div style="margin-bottom:38px;padding-bottom:28px;border-bottom:1px solid var(--border)">
+  <div style="font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700;color:var(--text3);margin-bottom:8px">CHAPTER ONE</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.14em;color:var(--accent2);margin-bottom:10px;font-weight:700">Foundations</div>
+  <h2 style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.95rem;letter-spacing:-.03em;color:var(--text);line-height:1.15;margin-bottom:14px">Game Trees and<br>the Search Problem</h2>
+  <p style="font-size:.95rem;color:var(--text2);line-height:1.75;max-width:640px">Before MCTS makes sense, you need to understand what a game tree is and why searching it naively is impossible for most real games.</p>
+</div>
+
+<h3 id="ch1-tree">The Search Tree Structure</h3>
+<p>A <strong>game tree</strong> represents all possible game states as a tree of nodes. Each node is a board state. Each edge is a move. The root is the current position. Leaves are terminal states (win, lose, draw).</p>
+
+<div class="fig-wrap">
+  <svg viewBox="0 0 520 260" width="100%" style="max-width:520px">
+    <!-- Root -->
+    <circle cx="260" cy="30" r="22" class="node-root"/>
+    <text x="260" y="30" class="node-label">Root</text>
+    <text x="260" y="45" class="node-stat">State S₀</text>
+    <!-- Level 1 -->
+    <line x1="260" y1="52" x2="100" y2="98" class="edge"/>
+    <line x1="260" y1="52" x2="260" y2="98" class="edge"/>
+    <line x1="260" y1="52" x2="420" y2="98" class="edge"/>
+    <text x="163" y="80" class="edge-label">a₁</text>
+    <text x="263" y="80" class="edge-label">a₂</text>
+    <text x="345" y="80" class="edge-label">a₃</text>
+    <circle cx="100" cy="118" r="20" class="node-selected"/>
+    <text x="100" y="118" class="node-label">S₁</text>
+    <circle cx="260" cy="118" r="20" class="node-unvisited"/>
+    <text x="260" y="118" class="node-label">S₂</text>
+    <circle cx="420" cy="118" r="20" class="node-unvisited"/>
+    <text x="420" y="118" class="node-label">S₃</text>
+    <!-- Level 2 from S1 -->
+    <line x1="100" y1="138" x2="50" y2="188" class="edge"/>
+    <line x1="100" y1="138" x2="150" y2="188" class="edge"/>
+    <circle cx="50" cy="206" r="18" class="node-expanded"/>
+    <text x="50" y="206" class="node-label">S₄</text>
+    <circle cx="150" cy="206" r="18" class="node-unvisited"/>
+    <text x="150" y="206" class="node-label">S₅</text>
+    <!-- Level 2 from S2 -->
+    <line x1="260" y1="138" x2="220" y2="188" class="edge"/>
+    <line x1="260" y1="138" x2="300" y2="188" class="edge"/>
+    <circle cx="220" cy="206" r="18" class="node-unvisited"/>
+    <text x="220" y="206" class="node-label">S₆</text>
+    <circle cx="300" cy="206" r="18" class="node-unvisited"/>
+    <text x="300" y="206" class="node-label">S₇</text>
+    <!-- Level 2 from S3 -->
+    <line x1="420" y1="138" x2="380" y2="188" class="edge"/>
+    <line x1="420" y1="138" x2="460" y2="188" class="edge"/>
+    <circle cx="380" cy="206" r="18" class="node-unvisited"/>
+    <text x="380" y="206" class="node-label">S₈</text>
+    <circle cx="460" cy="206" r="18" class="node-unvisited"/>
+    <text x="460" y="206" class="node-label">S₉</text>
+    <!-- Legend -->
+    <circle cx="30" cy="248" r="7" class="node-root"/><text x="42" y="252" style="font-size:9px;fill:var(--text3);font-family:'JetBrains Mono',monospace">Root</text>
+    <circle cx="90" cy="248" r="7" class="node-selected"/><text x="102" y="252" style="font-size:9px;fill:var(--text3);font-family:'JetBrains Mono',monospace">Selected</text>
+    <circle cx="165" cy="248" r="7" class="node-expanded"/><text x="177" y="252" style="font-size:9px;fill:var(--text3);font-family:'JetBrains Mono',monospace">Expanded</text>
+    <circle cx="240" cy="248" r="7" class="node-unvisited"/><text x="252" y="252" style="font-size:9px;fill:var(--text3);font-family:'JetBrains Mono',monospace">Unvisited</text>
+  </svg>
+  <div class="fig-caption">Figure 1.1 — A game tree. Root = current state. Edges = moves. Nodes = states reached after those moves.</div>
+</div>
+
+<h3 id="ch1-problem">The Search Problem</h3>
+<p>The <strong>branching factor</strong> is the average number of legal moves at each state. The <strong>depth</strong> is how many moves until the game ends. The total number of leaf nodes is roughly:</p>
+
+<div class="formula">Total states ≈ branching_factor ^ depth</div>
+
+<table>
+  <tr><th>Game</th><th>Branching Factor</th><th>Avg Depth</th><th>Approx. States</th></tr>
+  <tr><td>Tic-Tac-Toe</td><td>~5</td><td>9</td><td>~362,880</td></tr>
+  <tr><td>Chess</td><td>~35</td><td>~80</td><td>~10¹²³</td></tr>
+  <tr><td>Go (19×19)</td><td>~250</td><td>~150</td><td>~10³⁶⁰</td></tr>
+</table>
+
+<p>For Chess and Go, exhaustive search is impossible. We need smart sampling — which is exactly what MCTS provides.</p>
+
+<div class="callout callout-blue">
+  <div class="callout-label">Analogy</div>
+  <p>Think of MCTS as a <strong>smart explorer</strong> in a forest with millions of paths. Instead of checking every path, it keeps a rough mental map, spends more time exploring promising regions, and occasionally takes random walks to discover new areas.</p>
+</div>
+</section>
+
+<!-- ═══ CH 2 ═══ -->
+<div class="chapter-sep"></div>
+<section id="ch2">
+<div style="margin-bottom:38px;padding-bottom:28px;border-bottom:1px solid var(--border)">
+  <div style="font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700;color:var(--text3);margin-bottom:8px">CHAPTER TWO</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.14em;color:#fbbf24;margin-bottom:10px;font-weight:700">Step 1</div>
+  <h2 style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.95rem;letter-spacing:-.03em;color:var(--text);line-height:1.15;margin-bottom:14px">Selection</h2>
+  <p style="font-size:.95rem;color:var(--text2);line-height:1.75;max-width:640px">Selection is the navigation step — starting at the root, the algorithm descends the tree by choosing which child to visit at each node, guided by a policy that balances exploration and exploitation.</p>
+</div>
+
+<h3>How Selection Works</h3>
+<p>Starting from the root, the algorithm repeatedly asks: <strong>"Which child should I visit next?"</strong></p>
+<p>The answer uses the <strong>UCT (Upper Confidence Bound applied to Trees)</strong> formula, which we'll explore in depth in Chapter 6. For now, the key idea is:</p>
+<ul>
+  <li>Nodes that have been visited many times and look good → visited more (<em>exploitation</em>)</li>
+  <li>Nodes that have been visited few times → also visited to reduce uncertainty (<em>exploration</em>)</li>
+</ul>
+<p>Selection continues until we reach a node that has <strong>unexplored children</strong> (a node that can be expanded) or a <strong>terminal node</strong>.</p>
+
+<div class="fig-wrap">
+  <svg viewBox="0 0 520 300" width="100%" style="max-width:520px">
+    <!-- Root with stats -->
+    <circle cx="260" cy="35" r="26" class="node-root"/>
+    <text x="260" y="30" class="node-label">Root</text>
+    <text x="260" y="44" class="node-stat">50/100</text>
+    <!-- Edges highlighted path -->
+    <line x1="260" y1="61" x2="130" y2="110" stroke="#fbbf24" stroke-width="2.5" stroke-dasharray="0"/>
+    <line x1="260" y1="61" x2="390" y2="110" class="edge"/>
+    <text x="183" y="92" class="edge-label" style="fill:#fbbf24">UCT=1.8↑</text>
+    <text x="328" y="92" style="font-size:9px;fill:#4b5563;font-family:'JetBrains Mono',monospace;text-anchor:middle">UCT=0.9</text>
+    <!-- Left child - selected -->
+    <circle cx="130" cy="130" r="24" class="node-selected"/>
+    <text x="130" y="125" class="node-label">A</text>
+    <text x="130" y="139" class="node-stat">30/60</text>
+    <!-- Right child - not selected -->
+    <circle cx="390" cy="130" r="24" class="node-unvisited"/>
+    <text x="390" y="125" class="node-label">B</text>
+    <text x="390" y="139" class="node-stat">10/40</text>
+    <!-- A's children -->
+    <line x1="130" y1="154" x2="60" y2="200" stroke="#fbbf24" stroke-width="2.5"/>
+    <line x1="130" y1="154" x2="200" y2="200" class="edge"/>
+    <text x="84" y="182" class="edge-label" style="fill:#fbbf24">UCT=2.1↑</text>
+    <text x="168" y="182" style="font-size:9px;fill:#4b5563;font-family:'JetBrains Mono',monospace;text-anchor:middle">UCT=1.2</text>
+    <circle cx="60" cy="220" r="22" class="node-selected"/>
+    <text x="60" y="215" class="node-label">A1</text>
+    <text x="60" y="229" class="node-stat">15/28</text>
+    <circle cx="200" cy="220" r="22" class="node-unvisited"/>
+    <text x="200" y="215" class="node-label">A2</text>
+    <text x="200" y="229" class="node-stat">8/20</text>
+    <!-- A1's child (unexplored) -->
+    <line x1="60" y1="242" x2="60" y2="274" stroke="#fbbf24" stroke-width="2.5"/>
+    <circle cx="60" cy="284" r="14" style="fill:none;stroke:#fbbf24;stroke-width:2;stroke-dasharray:4,2"/>
+    <text x="60" y="284" style="font-size:10px;fill:#fbbf24;text-anchor:middle;font-family:'JetBrains Mono',monospace">?</text>
+    <text x="100" y="284" style="font-size:9px;fill:#fbbf24;font-family:'JetBrains Mono',monospace">← expand here</text>
+    <!-- Selection arrow label -->
+    <text x="370" y="250" style="font-size:10px;fill:var(--text2);font-family:'JetBrains Mono',monospace">Selection follows</text>
+    <text x="370" y="263" style="font-size:10px;fill:var(--text2);font-family:'JetBrains Mono',monospace">highest UCT score</text>
+    <text x="370" y="276" style="font-size:10px;fill:#fbbf24;font-family:'JetBrains Mono',monospace">──────────────→</text>
+  </svg>
+  <div class="fig-caption">Figure 2.1 — Selection navigates from root to a node with an unexplored child (shown as dashed circle). Numbers show wins/visits. Bold yellow path = selected route.</div>
+</div>
+
+<h4>Node Statistics</h4>
+<p>Each node in the MCTS tree stores two values:</p>
+<ul>
+  <li><code>N(v)</code> — the <strong>visit count</strong>: how many times this node has been visited</li>
+  <li><code>W(v)</code> — the <strong>win count</strong>: how many wins were recorded through this node</li>
+</ul>
+<p>The <strong>estimated win rate</strong> is simply <code>W(v) / N(v)</code>. A node with 30 wins out of 60 visits has a 50% win rate.</p>
+</section>
+
+<!-- ═══ CH 3 ═══ -->
+<div class="chapter-sep"></div>
+<section id="ch3">
+<div style="margin-bottom:38px;padding-bottom:28px;border-bottom:1px solid var(--border)">
+  <div style="font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700;color:var(--text3);margin-bottom:8px">CHAPTER THREE</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.14em;color:#34d399;margin-bottom:10px;font-weight:700">Step 2</div>
+  <h2 style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.95rem;letter-spacing:-.03em;color:var(--text);line-height:1.15;margin-bottom:14px">Expansion</h2>
+</div>
+
+<h3>Adding New Nodes</h3>
+<p>Once selection lands on a node with unexplored children, expansion creates one or more new child nodes representing the unexplored moves.</p>
+<p>The simplest strategy: add <strong>one new child</strong> per iteration. Some variants add all children at once.</p>
+
+<div class="fig-wrap">
+  <svg viewBox="0 0 520 260" width="100%" style="max-width:520px">
+    <!-- Before -->
+    <text x="130" y="18" style="font-size:11px;fill:var(--text2);font-family:'JetBrains Mono',monospace;text-anchor:middle;font-weight:bold">BEFORE expansion</text>
+    <circle cx="130" cy="50" r="22" class="node-selected"/>
+    <text x="130" y="50" class="node-label">Node A1</text>
+    <line x1="130" y1="72" x2="80" y2="110" class="edge"/>
+    <line x1="130" y1="72" x2="180" y2="110" class="edge"/>
+    <circle cx="80" cy="128" r="18" class="node-unvisited"/>
+    <text x="80" y="128" class="node-label">move1</text>
+    <circle cx="180" cy="128" r="18" class="node-unvisited"/>
+    <text x="180" y="128" class="node-label">move2</text>
+    <!-- unexplored dashes -->
+    <line x1="130" y1="72" x2="130" y2="110" class="edge" stroke-dasharray="4,3"/>
+    <circle cx="130" cy="125" r="14" style="fill:none;stroke:#4b5563;stroke-width:1.5;stroke-dasharray:4,2"/>
+    <text x="130" y="125" style="font-size:10px;fill:#4b5563;text-anchor:middle;font-family:'JetBrains Mono',monospace">move3</text>
+    <text x="130" y="145" style="font-size:9px;fill:#4b5563;text-anchor:middle;font-family:'JetBrains Mono',monospace">(unexplored)</text>
+
+    <!-- Arrow -->
+    <line x1="265" y1="100" x2="295" y2="100" stroke="#fbbf24" stroke-width="2"/>
+    <polygon points="295,95 305,100 295,105" fill="#fbbf24"/>
+    <text x="283" y="93" style="font-size:9px;fill:#fbbf24;font-family:'JetBrains Mono',monospace;text-anchor:middle">expand</text>
+
+    <!-- After -->
+    <text x="410" y="18" style="font-size:11px;fill:var(--text2);font-family:'JetBrains Mono',monospace;text-anchor:middle;font-weight:bold">AFTER expansion</text>
+    <circle cx="410" cy="50" r="22" class="node-selected"/>
+    <text x="410" y="50" class="node-label">Node A1</text>
+    <line x1="410" y1="72" x2="360" y2="110" class="edge"/>
+    <line x1="410" y1="72" x2="460" y2="110" class="edge"/>
+    <circle cx="360" cy="128" r="18" class="node-unvisited"/>
+    <text x="360" y="128" class="node-label">move1</text>
+    <circle cx="460" cy="128" r="18" class="node-unvisited"/>
+    <text x="460" y="128" class="node-label">move2</text>
+    <line x1="410" y1="72" x2="410" y2="110" class="edge"/>
+    <!-- NEW node highlighted -->
+    <circle cx="410" cy="128" r="18" class="node-expanded"/>
+    <text x="410" y="123" class="node-label">move3</text>
+    <text x="410" y="137" class="node-stat">NEW</text>
+    <text x="410" y="152" style="font-size:9px;fill:#34d399;text-anchor:middle;font-family:'JetBrains Mono',monospace">0/0</text>
+  </svg>
+  <div class="fig-caption">Figure 3.1 — Expansion: a previously unexplored child node (move3) is added to the tree. It starts with 0 wins and 0 visits.</div>
+</div>
+
+<div class="callout callout-green">
+  <div class="callout-label">Why Not Expand Everything at Once?</div>
+  <p>Expanding all children immediately wastes memory and computation on positions we might never need. Expanding one child per iteration lets the algorithm focus resources on the most promising regions.</p>
+</div>
+</section>
+
+<!-- ═══ CH 4 ═══ -->
+<div class="chapter-sep"></div>
+<section id="ch4">
+<div style="margin-bottom:38px;padding-bottom:28px;border-bottom:1px solid var(--border)">
+  <div style="font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700;color:var(--text3);margin-bottom:8px">CHAPTER FOUR</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.14em;color:#a78bfa;margin-bottom:10px;font-weight:700">Step 3</div>
+  <h2 style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.95rem;letter-spacing:-.03em;color:var(--text);line-height:1.15;margin-bottom:14px">Simulation (Rollout)</h2>
+</div>
+
+<h3>Playing Out Random Games</h3>
+<p>From the newly expanded node, the simulation (also called <strong>rollout</strong> or <strong>playout</strong>) plays a complete game to the end using a <em>random policy</em> — at each step, a legal move is chosen uniformly at random.</p>
+<p>The result (win = +1, loss = 0, draw = 0.5) is recorded and passed back to the backpropagation step.</p>
+
+<div class="fig-wrap">
+  <svg viewBox="0 0 520 240" width="100%" style="max-width:520px">
+    <!-- Tree part -->
+    <circle cx="110" cy="35" r="22" class="node-root"/>
+    <text x="110" y="35" class="node-label">Root</text>
+    <line x1="110" y1="57" x2="110" y2="90" stroke="#fbbf24" stroke-width="2.5"/>
+    <circle cx="110" cy="110" r="20" class="node-selected"/>
+    <text x="110" y="110" class="node-label">A1</text>
+    <line x1="110" y1="130" x2="110" y2="158" stroke="#fbbf24" stroke-width="2.5"/>
+    <circle cx="110" cy="174" r="18" class="node-expanded"/>
+    <text x="110" y="174" class="node-label">A1c</text>
+    <text x="110" y="188" class="node-stat">0/0</text>
+    <!-- Dashed rollout line -->
+    <line x1="128" y1="174" x2="185" y2="174" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3"/>
+    <!-- Rollout states -->
+    <circle cx="200" cy="174" r="14" class="node-rollout"/>
+    <text x="200" y="174" style="font-size:9px;fill:#f0f0f8;text-anchor:middle;font-family:'JetBrains Mono',monospace">r1</text>
+    <line x1="214" y1="174" x2="240" y2="174" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3"/>
+    <circle cx="255" cy="174" r="14" class="node-rollout"/>
+    <text x="255" y="174" style="font-size:9px;fill:#f0f0f8;text-anchor:middle;font-family:'JetBrains Mono',monospace">r2</text>
+    <line x1="269" y1="174" x2="295" y2="174" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3"/>
+    <circle cx="310" cy="174" r="14" class="node-rollout"/>
+    <text x="310" y="174" style="font-size:9px;fill:#f0f0f8;text-anchor:middle;font-family:'JetBrains Mono',monospace">r3</text>
+    <line x1="324" y1="174" x2="350" y2="174" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3"/>
+    <circle cx="365" cy="174" r="14" class="node-rollout"/>
+    <text x="365" y="174" style="font-size:9px;fill:#f0f0f8;text-anchor:middle;font-family:'JetBrains Mono',monospace">r4</text>
+    <line x1="379" y1="174" x2="405" y2="174" stroke="#a78bfa" stroke-width="2" stroke-dasharray="5,3"/>
+    <!-- Terminal -->
+    <circle cx="420" cy="174" r="18" style="fill:#f59e0b;stroke:#d97706;stroke-width:2"/>
+    <text x="420" y="170" style="font-size:9px;fill:#020f08;text-anchor:middle;font-family:'JetBrains Mono',monospace;font-weight:bold">WIN</text>
+    <text x="420" y="183" style="font-size:9px;fill:#020f08;text-anchor:middle;font-family:'JetBrains Mono',monospace">+1</text>
+    <!-- Labels -->
+    <text x="110" y="215" style="font-size:9px;fill:var(--text3);text-anchor:middle;font-family:'JetBrains Mono',monospace">← Tree</text>
+    <text x="305" y="215" style="font-size:9px;fill:#a78bfa;text-anchor:middle;font-family:'JetBrains Mono',monospace">← Random rollout (not added to tree) →</text>
+    <text x="420" y="215" style="font-size:9px;fill:#f59e0b;text-anchor:middle;font-family:'JetBrains Mono',monospace">Terminal</text>
+    <text x="164" y="162" style="font-size:9px;fill:#a78bfa;text-anchor:middle;font-family:'JetBrains Mono',monospace">random moves</text>
+  </svg>
+  <div class="fig-caption">Figure 4.1 — Rollout: from the newly expanded node (A1c), random moves are played until the game ends. The rollout states are NOT added to the tree — only the final result is used.</div>
+</div>
+
+<h4>Random vs Informed Rollout</h4>
+<table>
+  <tr><th>Rollout Policy</th><th>Speed</th><th>Accuracy</th><th>Notes</th></tr>
+  <tr><td><strong>Uniform random</strong></td><td>Very fast</td><td>Low per rollout</td><td>Accurate with many iterations</td></tr>
+  <tr><td><strong>Domain heuristic</strong></td><td>Slower</td><td>Higher per rollout</td><td>Better estimates with fewer iterations</td></tr>
+  <tr><td><strong>Neural network policy</strong></td><td>Slow</td><td>Very high</td><td>AlphaGo approach — see Chapter 10</td></tr>
+</table>
+
+<div class="callout callout-purple">
+  <div class="callout-label">The Monte Carlo Insight</div>
+  <p>Even though each individual random rollout is low-quality, the <strong>average result over many rollouts</strong> converges to a reliable estimate of the true position value. This is the statistical power of Monte Carlo methods — the "law of large numbers" in action.</p>
+</div>
+</section>
+
+<!-- ═══ CH 5 ═══ -->
+<div class="chapter-sep"></div>
+<section id="ch5">
+<div style="margin-bottom:38px;padding-bottom:28px;border-bottom:1px solid var(--border)">
+  <div style="font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700;color:var(--text3);margin-bottom:8px">CHAPTER FIVE</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.14em;color:#f87171;margin-bottom:10px;font-weight:700">Step 4</div>
+  <h2 style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.95rem;letter-spacing:-.03em;color:var(--text);line-height:1.15;margin-bottom:14px">Backpropagation</h2>
+</div>
+
+<h3>Updating the Tree</h3>
+<p>The rollout result propagates <strong>back up the tree</strong> — every node on the path from the new node to the root has its visit count and win count updated.</p>
+
+<div class="fig-wrap">
+  <svg viewBox="0 0 460 300" width="100%" style="max-width:460px">
+    <!-- Path nodes with before/after stats -->
+    <circle cx="230" cy="30" r="26" class="node-backprop"/>
+    <text x="230" y="24" class="node-label">Root</text>
+    <text x="230" y="38" class="node-stat">51/101 ← +1</text>
+    <line x1="230" y1="56" x2="230" y2="90" stroke="#f87171" stroke-width="2.5"/>
+    <polygon points="225,90 230,102 235,90" fill="#f87171"/>
+    <circle cx="230" cy="120" r="24" class="node-backprop"/>
+    <text x="230" y="114" class="node-label">A</text>
+    <text x="230" y="128" class="node-stat">31/61 ← +1</text>
+    <line x1="230" y1="144" x2="230" y2="178" stroke="#f87171" stroke-width="2.5"/>
+    <polygon points="225,178 230,190 235,178" fill="#f87171"/>
+    <circle cx="230" cy="208" r="22" class="node-backprop"/>
+    <text x="230" y="202" class="node-label">A1</text>
+    <text x="230" y="216" class="node-stat">16/29 ← +1</text>
+    <line x1="230" y1="230" x2="230" y2="258" stroke="#f87171" stroke-width="2.5"/>
+    <polygon points="225,258 230,270 235,258" fill="#f87171"/>
+    <circle cx="230" cy="280" r="14" class="node-expanded"/>
+    <text x="230" y="276" class="node-label" style="font-size:9px">A1c</text>
+    <text x="230" y="289" class="node-stat">1/1</text>
+    <!-- Annotation -->
+    <text x="340" y="30" style="font-size:9px;fill:#f87171;font-family:'JetBrains Mono',monospace">Rollout result</text>
+    <text x="340" y="42" style="font-size:9px;fill:#f87171;font-family:'JetBrains Mono',monospace">= WIN (+1)</text>
+    <text x="340" y="60" style="font-size:9px;fill:var(--text3);font-family:'JetBrains Mono',monospace">All ancestors</text>
+    <text x="340" y="72" style="font-size:9px;fill:var(--text3);font-family:'JetBrains Mono',monospace">updated with</text>
+    <text x="340" y="84" style="font-size:9px;fill:var(--text3);font-family:'JetBrains Mono',monospace">W += 1, N += 1</text>
+    <line x1="320" y1="100" x2="260" y2="38" stroke="#f87171" stroke-width="1" stroke-dasharray="3,2"/>
+  </svg>
+  <div class="fig-caption">Figure 5.1 — Backpropagation: the rollout result (WIN = +1) flows from the new node back to the root. Every node on the path increments both its win count (W) and visit count (N).</div>
+</div>
+
+<h4>The Update Rule</h4>
+<div class="formula">
+  For each node v on the path from new_node to root:<br/>
+  N(v) = N(v) + 1<br/>
+  W(v) = W(v) + result
+</div>
+
+<div class="callout callout-gold">
+  <div class="callout-label">Important — Perspective Flip</div>
+  <p>In two-player games, the result must be <strong>flipped at alternating levels</strong>. A win for Player 1 at depth d is a loss for Player 2. When backpropagating, add the result for the player who just moved at that node, and add the complement (1 − result) for the opposing player's nodes. This ensures each node's win count reflects the perspective of the player choosing that move.</p>
+</div>
+
+<h3>One Complete Iteration</h3>
+<p>The four steps (Select → Expand → Simulate → Backpropagate) form one <strong>iteration</strong>. MCTS runs thousands of these iterations within a given time budget, then picks the move at the root with the highest visit count (or win rate).</p>
+</section>
+
+<!-- ═══ CH 6 ═══ -->
+<div class="chapter-sep"></div>
+<section id="ch6">
+<div style="margin-bottom:38px;padding-bottom:28px;border-bottom:1px solid var(--border)">
+  <div style="font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700;color:var(--text3);margin-bottom:8px">CHAPTER SIX</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.14em;color:var(--accent2);margin-bottom:10px;font-weight:700">The Math</div>
+  <h2 style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.95rem;letter-spacing:-.03em;color:var(--text);line-height:1.15;margin-bottom:14px">The UCB1 Formula &amp;<br>Exploration vs Exploitation</h2>
+</div>
+
+<h3 id="ch6-explore">The Core Tension: Explore vs Exploit</h3>
+<p>At every selection step, MCTS faces a dilemma:</p>
+<ul>
+  <li><strong>Exploit</strong> — visit the node that currently looks best (highest win rate). Risk: might miss a better unexplored option.</li>
+  <li><strong>Explore</strong> — visit a less-tried node to reduce uncertainty. Risk: wastes time on bad options.</li>
+</ul>
+
+<div class="fig-wrap">
+  <svg viewBox="0 0 500 180" width="100%" style="max-width:500px">
+    <!-- Exploit side -->
+    <rect x="20" y="20" width="200" height="140" rx="10" style="fill:rgba(245,158,11,.08);stroke:#f59e0b;stroke-width:1.5"/>
+    <text x="120" y="45" style="font-size:11px;font-weight:bold;fill:#fbbf24;text-anchor:middle;font-family:'Syne',sans-serif">EXPLOIT</text>
+    <text x="120" y="65" style="font-size:9px;fill:var(--text2);text-anchor:middle;font-family:'JetBrains Mono',monospace">"Go with what works"</text>
+    <circle cx="80" cy="110" r="20" class="node-root"/><text x="80" y="110" class="node-label">70%</text>
+    <circle cx="160" cy="110" r="20" class="node-unvisited"/><text x="160" y="110" class="node-label">40%</text>
+    <text x="80" y="145" style="font-size:9px;fill:#fbbf24;text-anchor:middle;font-family:'JetBrains Mono',monospace">✓ pick this</text>
+    <text x="160" y="145" style="font-size:9px;fill:#4b5563;text-anchor:middle;font-family:'JetBrains Mono',monospace">ignore</text>
+    <!-- middle -->
+    <text x="250" y="100" style="font-size:18px;fill:var(--accent2);text-anchor:middle">⚖</text>
+    <!-- Explore side -->
+    <rect x="280" y="20" width="200" height="140" rx="10" style="fill:rgba(96,165,250,.08);stroke:#60a5fa;stroke-width:1.5"/>
+    <text x="380" y="45" style="font-size:11px;font-weight:bold;fill:#60a5fa;text-anchor:middle;font-family:'Syne',sans-serif">EXPLORE</text>
+    <text x="380" y="65" style="font-size:9px;fill:var(--text2);text-anchor:middle;font-family:'JetBrains Mono',monospace">"Check the unknown"</text>
+    <circle cx="340" cy="110" r="20" class="node-unvisited"/><text x="340" y="110" class="node-label">70%</text>
+    <circle cx="420" cy="110" r="20" style="fill:none;stroke:#60a5fa;stroke-width:2;stroke-dasharray:4,2"/><text x="420" y="110" style="font-size:9px;fill:#60a5fa;text-anchor:middle;font-family:'JetBrains Mono',monospace">?</text>
+    <text x="340" y="145" style="font-size:9px;fill:#4b5563;text-anchor:middle;font-family:'JetBrains Mono',monospace">skip for now</text>
+    <text x="420" y="145" style="font-size:9px;fill:#60a5fa;text-anchor:middle;font-family:'JetBrains Mono',monospace">✓ try this</text>
+  </svg>
+  <div class="fig-caption">Figure 6.1 — The exploration-exploitation trade-off: exploit what's known to be good vs explore the unknown.</div>
+</div>
+
+<h3 id="ch6-uct">The UCT Formula</h3>
+<p>UCT (Upper Confidence Bound applied to Trees) solves this dilemma by scoring each child node with a formula that combines both exploitation and exploration:</p>
+
+<div class="formula">
+  UCT(v) = W(v)/N(v)  +  C × √( ln(N(parent)) / N(v) )<br/>
+  <br/>
+  W(v) = wins through node v<br/>
+  N(v) = visits to node v<br/>
+  N(parent) = visits to parent node<br/>
+  C = exploration constant (typically √2 ≈ 1.41)
+</div>
+
+<h4>Breaking Down the Formula</h4>
+<table>
+  <tr><th>Term</th><th>What It Measures</th><th>Effect</th></tr>
+  <tr><td><code>W(v)/N(v)</code></td><td>Estimated win rate (exploitation term)</td><td>Prefer nodes with higher win rate</td></tr>
+  <tr><td><code>√(ln(N_p)/N(v))</code></td><td>Uncertainty bonus (exploration term)</td><td>Large when node is rarely visited; decreases as N(v) grows</td></tr>
+  <tr><td><code>C</code></td><td>Exploration constant</td><td>Controls the explore/exploit balance. Higher C = more exploration</td></tr>
+</table>
+
+<div class="callout callout-gold">
+  <div class="callout-label">Worked Example</div>
+  <p>Parent has N=100 visits. Two children: A has W=70, N=80; B has W=5, N=5. C=√2≈1.41.<br/>
+  UCT(A) = 70/80 + 1.41×√(ln(100)/80) = 0.875 + 1.41×0.239 = <strong>0.875 + 0.337 = 1.21</strong><br/>
+  UCT(B) = 5/5 + 1.41×√(ln(100)/5) = 1.0 + 1.41×0.959 = <strong>1.0 + 1.35 = 2.35</strong><br/>
+  Despite B having a perfect win rate but only 5 visits, its high uncertainty bonus (1.35) makes it worth exploring more. MCTS selects B next.</p>
+</div>
+</section>
+
+<!-- ═══ CH 7 ═══ -->
+<div class="chapter-sep"></div>
+<section id="ch7">
+<div style="margin-bottom:38px;padding-bottom:28px;border-bottom:1px solid var(--border)">
+  <div style="font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700;color:var(--text3);margin-bottom:8px">CHAPTER SEVEN</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.14em;color:var(--accent2);margin-bottom:10px;font-weight:700">Full Example</div>
+  <h2 style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.95rem;letter-spacing:-.03em;color:var(--text);line-height:1.15;margin-bottom:14px">Tic-Tac-Toe Walk-Through</h2>
+  <p style="font-size:.95rem;color:var(--text2);line-height:1.75;max-width:640px">A complete 3-iteration trace of MCTS applied to Tic-Tac-Toe. Watch the tree grow and statistics update with each iteration.</p>
+</div>
+
+<h3>The Initial Position</h3>
+<p>It's X's turn on an empty board. MCTS must decide which of the 9 cells to play. The tree starts with just the root node (the empty board).</p>
+
+<div class="fig-wrap">
+  <svg viewBox="0 0 280 200" width="100%" style="max-width:280px">
+    <!-- Tic-tac-toe grid -->
+    <rect x="60" y="20" width="160" height="160" rx="4" style="fill:var(--surface3);stroke:var(--border2);stroke-width:1"/>
+    <!-- Grid lines -->
+    <line x1="113" y1="20" x2="113" y2="180" style="stroke:var(--border);stroke-width:1.5"/>
+    <line x1="167" y1="20" x2="167" y2="180" style="stroke:var(--border);stroke-width:1.5"/>
+    <line x1="60" y1="73" x2="220" y2="73" style="stroke:var(--border);stroke-width:1.5"/>
+    <line x1="60" y1="127" x2="220" y2="127" style="stroke:var(--border);stroke-width:1.5"/>
+    <!-- Cell numbers -->
+    <text x="86" y="52" style="font-size:11px;fill:#4b5563;text-anchor:middle;font-family:'JetBrains Mono',monospace">1</text>
+    <text x="140" y="52" style="font-size:11px;fill:#4b5563;text-anchor:middle;font-family:'JetBrains Mono',monospace">2</text>
+    <text x="193" y="52" style="font-size:11px;fill:#4b5563;text-anchor:middle;font-family:'JetBrains Mono',monospace">3</text>
+    <text x="86" y="106" style="font-size:11px;fill:#4b5563;text-anchor:middle;font-family:'JetBrains Mono',monospace">4</text>
+    <text x="140" y="106" style="font-size:11px;fill:#4b5563;text-anchor:middle;font-family:'JetBrains Mono',monospace">5</text>
+    <text x="193" y="106" style="font-size:11px;fill:#4b5563;text-anchor:middle;font-family:'JetBrains Mono',monospace">6</text>
+    <text x="86" y="160" style="font-size:11px;fill:#4b5563;text-anchor:middle;font-family:'JetBrains Mono',monospace">7</text>
+    <text x="140" y="160" style="font-size:11px;fill:#4b5563;text-anchor:middle;font-family:'JetBrains Mono',monospace">8</text>
+    <text x="193" y="160" style="font-size:11px;fill:#4b5563;text-anchor:middle;font-family:'JetBrains Mono',monospace">9</text>
+    <text x="140" y="195" style="font-size:9px;fill:var(--text3);text-anchor:middle;font-family:'JetBrains Mono',monospace">Empty board — 9 possible moves</text>
+  </svg>
+  <div class="fig-caption">Figure 7.1 — Starting position: empty Tic-Tac-Toe board. Cells numbered 1–9.</div>
+</div>
+
+<h4>Iteration 1: First Exploration</h4>
+<p><strong>Select:</strong> Root has no visited children → select root for expansion.<br/>
+<strong>Expand:</strong> Add child node for playing cell 5 (center — a reasonable first move).<br/>
+<strong>Rollout:</strong> Play randomly from cell 5. Result: X wins!<br/>
+<strong>Backpropagate:</strong> Root: 1/1. Node-5: 1/1.</p>
+
+<h4>Iteration 2: Second Exploration</h4>
+<p><strong>Select:</strong> Root still has 8 unvisited children → expand another one.<br/>
+<strong>Expand:</strong> Add child node for playing cell 1 (corner).<br/>
+<strong>Rollout:</strong> Random play from cell 1. Result: X loses.<br/>
+<strong>Backpropagate:</strong> Root: 1/2. Node-5: 1/1. Node-1: 0/1.</p>
+
+<h4>Iteration 3: Selection Begins</h4>
+<p><strong>Select:</strong> UCT(node-5) = 1/1 + C×√(ln(2)/1) = 1.0 + 1.17 = 2.17. UCT(node-1) = 0 + C×√(ln(2)/1) = 1.17. UCT of 7 unvisited nodes = ∞ (never visited). Select one unvisited node (e.g., cell 9).<br/>
+<strong>Expand:</strong> Add child for cell 9 (corner).<br/>
+<strong>Rollout:</strong> Random play from cell 9. Result: Draw (0.5).<br/>
+<strong>Backpropagate:</strong> Root: 1.5/3. Node-9: 0.5/1.</p>
+
+<div class="fig-wrap">
+  <svg viewBox="0 0 520 200" width="100%" style="max-width:520px">
+    <!-- Root after 3 iterations -->
+    <circle cx="260" cy="30" r="26" class="node-root"/>
+    <text x="260" y="24" class="node-label">Root</text>
+    <text x="260" y="38" class="node-stat">1.5/3</text>
+    <!-- 3 visited children -->
+    <line x1="260" y1="56" x2="110" y2="108" class="edge"/>
+    <line x1="260" y1="56" x2="260" y2="108" class="edge"/>
+    <line x1="260" y1="56" x2="410" y2="108" class="edge"/>
+    <!-- 6 unvisited children (dashed) -->
+    <line x1="260" y1="56" x2="50" y2="108" class="edge" stroke-dasharray="3,3"/>
+    <line x1="260" y1="56" x2="160" y2="108" class="edge" stroke-dasharray="3,3"/>
+    <line x1="260" y1="56" x2="360" y2="108" class="edge" stroke-dasharray="3,3"/>
+    <line x1="260" y1="56" x2="460" y2="108" class="edge" stroke-dasharray="3,3"/>
+    <text x="260" y="96" style="font-size:8px;fill:var(--text3);font-family:'JetBrains Mono',monospace;text-anchor:middle">+ 5 more unvisited...</text>
+    <!-- Cell 5 -->
+    <circle cx="110" cy="130" r="22" class="node-selected"/>
+    <text x="110" y="124" class="node-label">cell 5</text>
+    <text x="110" y="138" class="node-stat">1/1 ✓WIN</text>
+    <!-- Cell 1 -->
+    <circle cx="260" cy="130" r="22" class="node-unvisited"/>
+    <text x="260" y="124" class="node-label">cell 1</text>
+    <text x="260" y="138" class="node-stat">0/1 ✗LOSS</text>
+    <!-- Cell 9 -->
+    <circle cx="410" cy="130" r="22" class="node-expanded"/>
+    <text x="410" y="124" class="node-label">cell 9</text>
+    <text x="410" y="138" class="node-stat">0.5/1 DRAW</text>
+    <!-- Win rates -->
+    <text x="110" y="165" style="font-size:9px;fill:#fbbf24;text-anchor:middle;font-family:'JetBrains Mono',monospace">100% win rate</text>
+    <text x="260" y="165" style="font-size:9px;fill:#f87171;text-anchor:middle;font-family:'JetBrains Mono',monospace">0% win rate</text>
+    <text x="410" y="165" style="font-size:9px;fill:#a78bfa;text-anchor:middle;font-family:'JetBrains Mono',monospace">50% win rate</text>
+  </svg>
+  <div class="fig-caption">Figure 7.2 — Tree after 3 iterations. Cell 5 currently has the best win rate (100%). After thousands of iterations, the statistics converge and MCTS picks the best first move.</div>
+</div>
+
+<p>After thousands of iterations, MCTS would converge on <strong>playing the center (cell 5)</strong> as the best first move in Tic-Tac-Toe — which matches optimal play theory.</p>
+</section>
+
+<!-- ═══ CH 8 ═══ -->
+<div class="chapter-sep"></div>
+<section id="ch8">
+<div style="margin-bottom:38px;padding-bottom:28px;border-bottom:1px solid var(--border)">
+  <div style="font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700;color:var(--text3);margin-bottom:8px">CHAPTER EIGHT</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.14em;color:var(--accent3);margin-bottom:10px;font-weight:700">Implementation</div>
+  <h2 style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.95rem;letter-spacing:-.03em;color:var(--text);line-height:1.15;margin-bottom:14px">Python Implementation</h2>
+</div>
+
+<h3>Node Class</h3>
+<pre><code><span class="kw">import</span> math
+<span class="kw">import</span> random
+
+<span class="kw">class</span> MCTSNode:
+    <span class="str">"""Represents one node in the MCTS tree."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, state, parent=<span class="kw">None</span>, move=<span class="kw">None</span>):
+        self.state     = state          <span class="cm"># Game state at this node</span>
+        self.parent    = parent         <span class="cm"># Parent node (None for root)</span>
+        self.move      = move           <span class="cm"># Move that led here from parent</span>
+        self.children  = []             <span class="cm"># Expanded children</span>
+        self.wins      = <span class="num">0.0</span>           <span class="cm"># W(v) — total result</span>
+        self.visits    = <span class="num">0</span>             <span class="cm"># N(v) — visit count</span>
+        self.untried_moves = state.legal_moves()  <span class="cm"># Not yet expanded</span>
+
+    <span class="kw">def</span> <span class="fn">ucb1</span>(self, c=<span class="num">1.41421</span>):
+        <span class="str">"""Upper Confidence Bound score for this node."""</span>
+        <span class="kw">if</span> self.visits == <span class="num">0</span>:
+            <span class="kw">return</span> float(<span class="str">'inf'</span>)   <span class="cm"># Unvisited nodes always explored first</span>
+        exploitation = self.wins / self.visits
+        exploration  = c * math.sqrt(math.log(self.parent.visits) / self.visits)
+        <span class="kw">return</span> exploitation + exploration
+
+    <span class="kw">def</span> <span class="fn">best_child</span>(self, c=<span class="num">1.41421</span>):
+        <span class="str">"""Return child with highest UCB1 score."""</span>
+        <span class="kw">return</span> max(self.children, key=<span class="kw">lambda</span> child: child.ucb1(c))
+
+    <span class="kw">def</span> <span class="fn">expand</span>(self):
+        <span class="str">"""Add one unexplored child and return it."""</span>
+        move  = self.untried_moves.pop()         <span class="cm"># Pick one unexplored move</span>
+        child = MCTSNode(
+            state  = self.state.apply_move(move),
+            parent = self,
+            move   = move
+        )
+        self.children.append(child)
+        <span class="kw">return</span> child
+
+    <span class="kw">def</span> <span class="fn">is_fully_expanded</span>(self):
+        <span class="kw">return</span> len(self.untried_moves) == <span class="num">0</span>
+
+    <span class="kw">def</span> <span class="fn">is_terminal</span>(self):
+        <span class="kw">return</span> self.state.is_terminal()
+<span class="code-label">python</span></code></pre>
+
+<h3>MCTS Main Loop</h3>
+<pre><code><span class="kw">def</span> <span class="fn">mcts</span>(root_state, n_iterations=<span class="num">1000</span>):
+    <span class="str">"""Run MCTS for n_iterations and return the best move."""</span>
+    root = MCTSNode(root_state)
+
+    <span class="kw">for</span> _ <span class="kw">in</span> range(n_iterations):
+
+        <span class="cm"># ── STEP 1: SELECTION ─────────────────────────────────────</span>
+        node = root
+        <span class="kw">while</span> node.is_fully_expanded() <span class="kw">and not</span> node.is_terminal():
+            node = node.best_child()    <span class="cm"># Navigate by UCB1</span>
+
+        <span class="cm"># ── STEP 2: EXPANSION ─────────────────────────────────────</span>
+        <span class="kw">if not</span> node.is_terminal() <span class="kw">and not</span> node.is_fully_expanded():
+            node = node.expand()        <span class="cm"># Add one new child</span>
+
+        <span class="cm"># ── STEP 3: SIMULATION (ROLLOUT) ──────────────────────────</span>
+        result = rollout(node.state)    <span class="cm"># Random game to terminal</span>
+
+        <span class="cm"># ── STEP 4: BACKPROPAGATION ───────────────────────────────</span>
+        <span class="kw">while</span> node <span class="kw">is not None</span>:
+            node.visits += <span class="num">1</span>
+            node.wins   += result
+            result       = <span class="num">1</span> - result   <span class="cm"># Flip for alternating players</span>
+            node         = node.parent
+
+    <span class="cm"># After all iterations, pick most-visited child of root</span>
+    best = max(root.children, key=<span class="kw">lambda</span> c: c.visits)
+    <span class="kw">return</span> best.move
+
+
+<span class="kw">def</span> <span class="fn">rollout</span>(state):
+    <span class="str">"""Play randomly from state until terminal. Return result."""</span>
+    s = state.clone()
+    <span class="kw">while not</span> s.is_terminal():
+        move = random.choice(s.legal_moves())
+        s    = s.apply_move(move)
+    <span class="kw">return</span> s.result()   <span class="cm"># e.g., 1.0=win, 0.0=loss, 0.5=draw</span>
+<span class="code-label">python</span></code></pre>
+
+<div class="callout callout-green">
+  <div class="callout-label">Key Design Note</div>
+  <p>The <code>State</code> object needs four methods: <code>legal_moves()</code>, <code>apply_move(m)</code>, <code>is_terminal()</code>, and <code>result()</code>. MCTS itself is completely game-agnostic — only the state object knows the rules. This makes MCTS extremely reusable across different games and planning problems.</p>
+</div>
+</section>
+
+<!-- ═══ CH 9 ═══ -->
+<div class="chapter-sep"></div>
+<section id="ch9">
+<div style="margin-bottom:38px;padding-bottom:28px;border-bottom:1px solid var(--border)">
+  <div style="font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700;color:var(--text3);margin-bottom:8px">CHAPTER NINE</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.14em;color:var(--blue);margin-bottom:10px;font-weight:700">Advanced Topics</div>
+  <h2 style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.95rem;letter-spacing:-.03em;color:var(--text);line-height:1.15;margin-bottom:14px">Variations &amp; Enhancements</h2>
+</div>
+
+<h3>Progressive Widening</h3>
+<p>Standard MCTS expands one child per iteration. <strong>Progressive Widening</strong> limits the number of children added as a function of visit count, useful when the branching factor is very large (e.g., continuous action spaces). New children are added only when the current node has been visited enough times.</p>
+
+<h3>RAVE (Rapid Action Value Estimation)</h3>
+<p>RAVE improves sample efficiency by sharing statistics across related nodes. If move <em>m</em> has been played well in any simulation starting from a node's subtree, its estimated value is shared with all nodes where move <em>m</em> is legal — providing faster convergence early in search.</p>
+
+<div class="formula">
+  UCT-RAVE(v) = (1−β) × Q(v) + β × Q̃(v)<br/>
+  β = blending weight (decreases as N(v) grows)<br/>
+  Q(v) = standard win rate<br/>
+  Q̃(v) = AMAF (all-moves-as-first) win rate estimate
+</div>
+
+<h3>Parallel MCTS</h3>
+<p>MCTS is naturally parallelisable. Three main strategies:</p>
+<table>
+  <tr><th>Strategy</th><th>How It Works</th><th>Tradeoff</th></tr>
+  <tr><td><strong>Leaf Parallelism</strong></td><td>Multiple threads run rollouts from the same leaf simultaneously</td><td>Easy to implement; limited speedup</td></tr>
+  <tr><td><strong>Root Parallelism</strong></td><td>Multiple independent trees from root; results merged at end</td><td>No synchronisation needed; some redundancy</td></tr>
+  <tr><td><strong>Tree Parallelism</strong></td><td>Multiple threads share a single tree with virtual losses</td><td>Most efficient; requires careful locking</td></tr>
+</table>
+
+<h3>Transposition Tables</h3>
+<p>Different move sequences can reach the same game state. A <strong>transposition table</strong> (hash map from state → node) prevents the tree from maintaining duplicate nodes for equivalent positions, saving memory and sharing statistics across paths.</p>
+
+<div class="summary-box">
+  <h4>Chapter 9 — Enhancement Summary</h4>
+  <div class="summary-grid">
+    <div class="sg-item"><strong>Progressive Widening</strong>Limits branching for large/continuous action spaces</div>
+    <div class="sg-item"><strong>RAVE</strong>Shares statistics across sibling nodes for faster early convergence</div>
+    <div class="sg-item"><strong>Parallel MCTS</strong>Leaf, root, or tree parallelism to use multiple CPU/GPU cores</div>
+    <div class="sg-item"><strong>Transposition Table</strong>Merges equivalent states reached via different move orders</div>
+  </div>
+</div>
+</section>
+
+<!-- ═══ CH 10 ═══ -->
+<div class="chapter-sep"></div>
+<section id="ch10">
+<div style="margin-bottom:38px;padding-bottom:28px;border-bottom:1px solid var(--border)">
+  <div style="font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700;color:var(--text3);margin-bottom:8px">CHAPTER TEN</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.14em;color:#a78bfa;margin-bottom:10px;font-weight:700">Modern AI</div>
+  <h2 style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.95rem;letter-spacing:-.03em;color:var(--text);line-height:1.15;margin-bottom:14px">AlphaGo and Neural MCTS</h2>
+</div>
+
+<h3>The AlphaGo Breakthrough</h3>
+<p>Go was considered the hardest board game for AI — its branching factor (~250) made pure tree search hopeless. AlphaGo (DeepMind, 2016) combined MCTS with deep neural networks to beat world champion Lee Sedol, a historic milestone in AI.</p>
+
+<h3>Two Neural Networks Replace Random Rollouts</h3>
+<p>AlphaGo replaced the two weakest parts of vanilla MCTS:</p>
+
+<div class="step-grid">
+  <div class="step-box" style="border-top:3px solid #a78bfa">
+    <div class="step-num-badge" style="background:rgba(167,139,250,.2);color:#a78bfa">Policy Network π(s,a)</div>
+    <div class="step-title">Replaces Selection Policy</div>
+    <p style="font-size:.82rem;color:var(--text2);margin:0">Instead of UCB1 alone, a CNN trained on human games assigns prior probabilities to each move. High-probability moves get explored more, focusing search on expert-like moves.</p>
+  </div>
+  <div class="step-box" style="border-top:3px solid #60a5fa">
+    <div class="step-num-badge" style="background:rgba(96,165,250,.2);color:#60a5fa">Value Network V(s)</div>
+    <div class="step-title">Replaces Random Rollout</div>
+    <p style="font-size:.82rem;color:var(--text2);margin:0">Instead of playing a full random game (which takes time and is low quality), a CNN directly estimates the win probability from any board position. Much faster and more accurate.</p>
+  </div>
+</div>
+
+<div class="fig-wrap">
+  <svg viewBox="0 0 500 220" width="100%" style="max-width:500px">
+    <!-- Classic MCTS -->
+    <text x="120" y="18" style="font-size:11px;font-weight:bold;fill:var(--text2);text-anchor:middle;font-family:'Syne',sans-serif">Classic MCTS</text>
+    <rect x="20" y="28" width="200" height="180" rx="8" style="fill:var(--surface3);stroke:var(--border);stroke-width:1.5"/>
+    <text x="120" y="55" style="font-size:9px;fill:var(--text2);text-anchor:middle;font-family:'JetBrains Mono',monospace">Select via UCB1</text>
+    <text x="120" y="90" style="font-size:9px;fill:var(--text2);text-anchor:middle;font-family:'JetBrains Mono',monospace">Expand one child</text>
+    <text x="120" y="125" style="font-size:9px;fill:#f87171;text-anchor:middle;font-family:'JetBrains Mono',monospace">Random rollout</text>
+    <text x="120" y="140" style="font-size:9px;fill:#f87171;text-anchor:middle;font-family:'JetBrains Mono',monospace">(slow, inaccurate)</text>
+    <text x="120" y="175" style="font-size:9px;fill:var(--text2);text-anchor:middle;font-family:'JetBrains Mono',monospace">Backprop result</text>
+    <!-- Arrow -->
+    <polygon points="240,110 260,105 260,115" fill="#fbbf24"/>
+    <line x1="220" y1="110" x2="258" y2="110" stroke="#fbbf24" stroke-width="1.5"/>
+    <!-- AlphaGo MCTS -->
+    <text x="380" y="18" style="font-size:11px;font-weight:bold;fill:var(--text2);text-anchor:middle;font-family:'Syne',sans-serif">AlphaGo MCTS</text>
+    <rect x="270" y="28" width="210" height="180" rx="8" style="fill:rgba(167,139,250,.06);stroke:#a78bfa;stroke-width:1.5"/>
+    <text x="375" y="55" style="font-size:9px;fill:#a78bfa;text-anchor:middle;font-family:'JetBrains Mono',monospace">Select via UCB1 + Policy Net</text>
+    <text x="375" y="90" style="font-size:9px;fill:var(--text2);text-anchor:middle;font-family:'JetBrains Mono',monospace">Expand one child</text>
+    <text x="375" y="125" style="font-size:9px;fill:#60a5fa;text-anchor:middle;font-family:'JetBrains Mono',monospace">Value Net estimates win%</text>
+    <text x="375" y="140" style="font-size:9px;fill:#60a5fa;text-anchor:middle;font-family:'JetBrains Mono',monospace">(fast, accurate)</text>
+    <text x="375" y="175" style="font-size:9px;fill:var(--text2);text-anchor:middle;font-family:'JetBrains Mono',monospace">Backprop result</text>
+  </svg>
+  <div class="fig-caption">Figure 10.1 — AlphaGo replaces the random rollout with a Value Network and improves selection with a Policy Network, dramatically increasing search quality.</div>
+</div>
+
+<h3>AlphaZero: Self-Play Training</h3>
+<p>AlphaZero (2017) went further: it trains both networks entirely through <strong>self-play</strong> — starting from random weights and playing millions of games against itself. No human game data is needed. This approach generalised to Chess, Shogi, and Go, reaching superhuman level in each game in a matter of hours.</p>
+
+<p>The cycle: MCTS improves play quality → better play generates better training data → better training data improves the networks → better networks improve MCTS. A virtuous cycle.</p>
+</section>
+
+<!-- ═══ CH 11 ═══ -->
+<div class="chapter-sep"></div>
+<section id="ch11">
+<div style="margin-bottom:38px;padding-bottom:28px;border-bottom:1px solid var(--border)">
+  <div style="font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700;color:var(--text3);margin-bottom:8px">CHAPTER ELEVEN</div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:.65rem;text-transform:uppercase;letter-spacing:.14em;color:var(--accent3);margin-bottom:10px;font-weight:700">Applications</div>
+  <h2 style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.95rem;letter-spacing:-.03em;color:var(--text);line-height:1.15;margin-bottom:14px">Where MCTS Is Used</h2>
+</div>
+
+<table>
+  <tr><th>Domain</th><th>Application</th><th>Why MCTS Works Well</th></tr>
+  <tr><td><strong>Board Games</strong></td><td>Go, Chess, Shogi, Othello</td><td>Large branching factor; no good hand-crafted eval function (especially Go)</td></tr>
+  <tr><td><strong>Video Games</strong></td><td>Real-time strategy, puzzle solving</td><td>Complex state spaces; real-time decision making</td></tr>
+  <tr><td><strong>Robotics</strong></td><td>Motion planning, manipulation</td><td>Continuous action spaces with progressive widening</td></tr>
+  <tr><td><strong>Drug Discovery</strong></td><td>Molecule design</td><td>Vast combinatorial chemical space</td></tr>
+  <tr><td><strong>Program Synthesis</strong></td><td>Code generation, theorem proving</td><td>Tree of partial programs; outcome verifiable</td></tr>
+  <tr><td><strong>LLM Reasoning</strong></td><td>Chain-of-thought search, test-time compute scaling (o1, o3)</td><td>Tree of reasoning paths; value model scores each path</td></tr>
+  <tr><td><strong>Network Security</strong></td><td>Penetration testing, intrusion detection</td><td>Sequential decision process with adversarial opponent</td></tr>
+</table>
+
+<div class="callout callout-blue">
+  <div class="callout-label">MCTS in Modern LLMs</div>
+  <p>OpenAI's o1 and o3 models use MCTS-like tree search over reasoning chains at inference time. The model generates multiple "thinking steps" as tree branches, scores them with a value model (analogous to the value network in AlphaGo), and selects the best reasoning path. This is why these models use more compute at inference time and solve harder problems.</p>
+</div>
+</section>
+
+<!-- ═══ QUICK REF ═══ -->
+<div class="chapter-sep"></div>
+<section id="quickref">
+<div style="margin-bottom:38px;padding-bottom:28px;border-bottom:1px solid var(--border)">
+  <div style="font-family:'Syne',sans-serif;font-size:.85rem;font-weight:700;color:var(--text3);margin-bottom:8px">REFERENCE</div>
+  <h2 style="font-family:'Syne',sans-serif;font-weight:900;font-size:1.95rem;letter-spacing:-.03em;color:var(--text);line-height:1.15;margin-bottom:14px">Quick Reference</h2>
+</div>
+
+<h3>The Four Steps at a Glance</h3>
+<table>
+  <tr><th>Step</th><th>Action</th><th>Key Decision</th><th>Terminates When</th></tr>
+  <tr><td style="color:#fbbf24"><strong>1. Selection</strong></td><td>Descend tree from root</td><td>UCB1 score picks child</td><td>Node has unexplored children or is terminal</td></tr>
+  <tr><td style="color:#34d399"><strong>2. Expansion</strong></td><td>Add one new child node</td><td>Pick one untried move</td><td>After adding the new node</td></tr>
+  <tr><td style="color:#a78bfa"><strong>3. Simulation</strong></td><td>Random rollout to terminal</td><td>Random uniform move</td><td>Game ends (win/loss/draw)</td></tr>
+  <tr><td style="color:#f87171"><strong>4. Backprop</strong></td><td>Update all nodes to root</td><td>N += 1, W += result; flip result each level</td><td>Reaches root node</td></tr>
+</table>
+
+<h3>UCB1 / UCT Formula</h3>
+<div class="formula">
+  UCT(v) = W(v)/N(v)  +  C × √( ln(N_parent) / N(v) )<br/>
+  <br/>
+  C = √2 ≈ 1.41  (exploration constant, tunable)<br/>
+  Unvisited nodes: UCT = ∞ (always selected first)
+</div>
+
+<h3>Key Terms</h3>
+<div class="key-terms">
+  <span class="kt">MCTS</span>
+  <span class="kt">UCT</span>
+  <span class="kt">UCB1</span>
+  <span class="kt">Selection</span>
+  <span class="kt">Expansion</span>
+  <span class="kt">Rollout / Simulation</span>
+  <span class="kt">Backpropagation</span>
+  <span class="kt">Win Count W(v)</span>
+  <span class="kt">Visit Count N(v)</span>
+  <span class="kt">Exploration Constant C</span>
+  <span class="kt">Branching Factor</span>
+  <span class="kt">Terminal State</span>
+  <span class="kt">RAVE</span>
+  <span class="kt">Policy Network</span>
+  <span class="kt">Value Network</span>
+  <span class="kt">AlphaGo / AlphaZero</span>
+  <span class="kt">Progressive Widening</span>
+  <span class="kt">Transposition Table</span>
+</div>
+
+<h3>Time &amp; Space Complexity</h3>
+<table>
+  <tr><th>Property</th><th>Value</th><th>Notes</th></tr>
+  <tr><td><strong>Per-iteration time</strong></td><td>O(depth × branching)</td><td>Selection depth + rollout depth</td></tr>
+  <tr><td><strong>Memory</strong></td><td>O(iterations)</td><td>One node per iteration (worst case)</td></tr>
+  <tr><td><strong>Quality improvement</strong></td><td>O(1/√iterations)</td><td>Statistical convergence rate</td></tr>
+  <tr><td><strong>Anytime property</strong></td><td>Can stop at any time</td><td>Returns best found so far — very useful in practice</td></tr>
+</table>
+
+<div class="callout callout-gold">
+  <div class="callout-label">The Anytime Property</div>
+  <p>MCTS has an important practical advantage: it's an <strong>anytime algorithm</strong>. After any number of iterations, you can ask for the current best move and get a reasonable answer. Give it more time → better answer. This makes it ideal for real-time applications with variable time budgets (e.g., chess clocks, real-time games).</p>
+</div>
+
+</section>
+
+</main>
+</div>
+
+<script>
+function goto(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({behavior:'smooth', block:'start'});
+  document.querySelectorAll('.sb-link').forEach(l => {
+    l.classList.toggle('active',
+      l.getAttribute('onclick') && l.getAttribute('onclick').includes(`'${id}'`));
+  });
+}
+function toggleTheme() {
+  const h = document.documentElement;
+  const isDark = h.dataset.theme === 'dark';
+  h.dataset.theme = isDark ? 'light' : 'dark';
+  h.classList.toggle('dark', !isDark);
+}
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = e.target.id;
+      document.querySelectorAll('.sb-link').forEach(l => {
+        l.classList.toggle('active',
+          l.getAttribute('onclick') && l.getAttribute('onclick').includes(`'${id}'`));
+      });
+    }
+  });
+}, {rootMargin:'-20% 0px -70% 0px'});
+['intro','ch1','ch2','ch3','ch4','ch5','ch6','ch7','ch8','ch9','ch10','ch11','quickref']
+  .forEach(id => { const el = document.getElementById(id); if (el) obs.observe(el); });
+</script>
+</body>
+</html>
