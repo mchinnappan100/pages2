@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Book 2 — Memory Management & NUMA for ML Workloads</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800;900&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root[data-theme="dark"]{--bg:#09090f;--surface:#111118;--surface2:#17171f;--surface3:#1f1f2a;--border:#252535;--border2:#2e2e45;--accent:#60a5fa;--accent2:#93c5fd;--gold:#fbbf24;--success:#22c55e;--purple:#a78bfa;--orange:#f97316;--text:#f0f0f8;--text2:#a0a0bc;--text3:#606078;--code-bg:#0d1117;--code-border:#1f2937}
+:root[data-theme="light"]{--bg:#f0f4ff;--surface:#fff;--surface2:#e8eeff;--surface3:#d8e4ff;--border:#b8c8f0;--border2:#98b0e8;--accent:#2563eb;--accent2:#3b82f6;--gold:#ca8a04;--success:#16a34a;--purple:#7c3aed;--orange:#ea580c;--text:#080818;--text2:#182038;--text3:#485888;--code-bg:#1a1e2e;--code-border:#2a304e}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh}
+.topbar{position:sticky;top:0;z-index:300;background:var(--surface);border-bottom:1px solid var(--border);height:56px;display:flex;align-items:center;padding:0 28px;gap:14px}
+.logo-icon{width:34px;height:34px;background:linear-gradient(135deg,#60a5fa,#2563eb);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1rem;color:#fff;font-weight:900;flex-shrink:0}
+.logo-name{font-family:'Syne',sans-serif;font-weight:800;font-size:.88rem;color:var(--text)}
+.logo-tag{font-size:.62rem;color:var(--text3);font-family:'JetBrains Mono',monospace}
+.topbar-right{display:flex;gap:8px;margin-left:auto}
+.tbtn{padding:5px 13px;border-radius:7px;font-size:.72rem;font-family:'JetBrains Mono',monospace;font-weight:600;cursor:pointer;border:1px solid var(--border);background:var(--surface2);color:var(--text2);transition:all .15s;text-decoration:none;display:inline-flex;align-items:center;gap:5px}
+.tbtn:hover{border-color:var(--accent);color:var(--accent)}
+.layout{display:grid;grid-template-columns:268px 1fr;min-height:calc(100vh - 56px);max-width:1380px;margin:0 auto}
+.sidebar{position:sticky;top:56px;height:calc(100vh - 56px);overflow-y:auto;border-right:1px solid var(--border);padding:24px 0 40px;background:var(--surface)}
+.sidebar::-webkit-scrollbar{width:4px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+.sb-section{margin-bottom:8px}
+.sb-sect-title{font-family:'JetBrains Mono',monospace;font-size:.58rem;text-transform:uppercase;letter-spacing:.14em;color:var(--text3);padding:14px 22px 6px;font-weight:600}
+.sb-link{display:flex;align-items:center;gap:8px;padding:7px 22px;font-size:.82rem;color:var(--text2);border-left:2px solid transparent;transition:all .12s;cursor:pointer}
+.sb-link:hover,.sb-link.active{color:var(--accent);background:rgba(96,165,250,.05);border-left-color:var(--accent)}
+.sb-link.active{font-weight:600}
+.sb-num{font-family:'JetBrains Mono',monospace;font-size:.62rem;font-weight:700;width:22px;height:22px;border-radius:5px;display:flex;align-items:center;justify-content:center;background:var(--surface3);color:var(--text3);flex-shrink:0}
+.sb-link.active .sb-num{background:var(--accent);color:#fff}
+.sb-sub{padding:4px 22px 4px 40px;font-size:.77rem;color:var(--text3);display:block;cursor:pointer;transition:color .12s}
+.sb-sub:hover{color:var(--accent2)}
+.main{padding:52px 60px 100px;max-width:920px}
+.hero{padding:52px 0 48px;border-bottom:1px solid var(--border);margin-bottom:52px}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:4px 14px;background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.25);border-radius:20px;font-size:.7rem;font-family:'JetBrains Mono',monospace;color:var(--accent2);margin-bottom:22px;letter-spacing:.1em;text-transform:uppercase}
+.hero h1{font-family:'Syne',sans-serif;font-weight:900;font-size:2.7rem;letter-spacing:-.04em;line-height:1.08;margin-bottom:18px;color:var(--text)}
+.hero h1 em{font-style:normal;color:var(--accent2)}
+.hero-sub{font-size:1rem;color:var(--text2);max-width:640px;line-height:1.75}
+h2{font-family:'Syne',sans-serif;font-weight:900;font-size:1.7rem;letter-spacing:-.03em;color:var(--text);margin:52px 0 16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+h3{font-family:'Syne',sans-serif;font-weight:800;font-size:1.15rem;color:var(--text);margin:36px 0 12px}
+h4{font-family:'Syne',sans-serif;font-weight:700;font-size:.97rem;color:var(--text);margin:24px 0 10px}
+p{color:var(--text2);font-size:.93rem;line-height:1.78;margin-bottom:14px}
+ul,ol{padding-left:22px;margin-bottom:16px}
+li{color:var(--text2);font-size:.93rem;line-height:1.7;margin-bottom:5px}
+li strong{color:var(--text)}
+strong{color:var(--text);font-weight:600}
+code{font-family:'JetBrains Mono',monospace;font-size:.82rem;background:var(--surface3);padding:1px 6px;border-radius:4px;color:var(--accent2)}
+pre{background:var(--code-bg);border:1px solid var(--code-border);border-radius:10px;padding:20px;overflow-x:auto;margin:18px 0;position:relative}
+pre code{font-family:'JetBrains Mono',monospace;font-size:.77rem;line-height:1.85;color:#e2e8f0;background:transparent;padding:0;border-radius:0}
+.code-label{position:absolute;top:10px;right:14px;font-family:'JetBrains Mono',monospace;font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;color:#475569;background:rgba(255,255,255,.05);padding:2px 8px;border-radius:5px}
+.kw{color:#f472b6}.fn{color:#60a5fa}.str{color:#34d399}.num{color:#fbbf24}.cm{color:#4b5563;font-style:italic}.ty{color:#fbbf24}.pp{color:#fb923c}
+.callout{border-radius:11px;padding:16px 20px;margin:22px 0;border-left:3px solid}
+.callout-blue{background:rgba(96,165,250,.07);border-color:var(--accent)}
+.callout-tip{background:rgba(34,197,94,.07);border-color:var(--success)}
+.callout-warn{background:rgba(251,191,36,.07);border-color:var(--gold)}
+.callout-purple{background:rgba(167,139,250,.07);border-color:var(--purple)}
+.callout-label{font-family:'JetBrains Mono',monospace;font-size:.61rem;text-transform:uppercase;letter-spacing:.12em;font-weight:700;margin-bottom:7px}
+.callout-blue .callout-label{color:var(--accent2)}.callout-tip .callout-label{color:var(--success)}.callout-warn .callout-label{color:var(--gold)}.callout-purple .callout-label{color:var(--purple)}
+.callout p{margin:0;font-size:.88rem}
+table{width:100%;border-collapse:collapse;margin:20px 0;font-size:.86rem}
+th{background:var(--surface3);padding:10px 14px;text-align:left;font-size:.75rem;font-family:'JetBrains Mono',monospace;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border2)}
+td{padding:10px 14px;border-bottom:1px solid var(--border);color:var(--text2)}
+tr:hover td{background:var(--surface2)}
+.chapter-sep{height:1px;background:var(--border);margin:64px 0}
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.sidebar{display:none}.main{padding:32px 22px 80px}}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="logo-icon">💾</div>
+  <div><div class="logo-name">Linux Kernel for AI/ML</div><div class="logo-tag">Book 2 — Memory Management & NUMA</div></div>
+  <div class="topbar-right">
+    <a class="tbtn" href="portal.html">⬡ All Books</a>
+    <a class="tbtn" href="book1.html">← Book 1</a>
+    <a class="tbtn" href="book3.html">Book 3 →</a>
+    <button class="tbtn" onclick="document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark'">🌓</button>
+  </div>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <div class="sb-section"><div class="sb-sect-title">Book 2</div>
+    <a class="sb-link active" onclick="goto('intro')"><span class="sb-num">◎</span>Introduction</a>
+  </div>
+  <div class="sb-section"><div class="sb-sect-title">Part I — Virtual Memory</div>
+    <a class="sb-link" onclick="goto('ch1')"><span class="sb-num">1</span>Virtual Memory Architecture</a>
+    <a class="sb-sub" onclick="goto('ch1-paging')">Paging & Page Tables</a>
+    <a class="sb-sub" onclick="goto('ch1-tlb')">TLB & Hugepages</a>
+    <a class="sb-link" onclick="goto('ch2')"><span class="sb-num">2</span>Memory Allocators</a>
+    <a class="sb-sub" onclick="goto('ch2-buddy')">Buddy Allocator</a>
+    <a class="sb-sub" onclick="goto('ch2-slab')">Slab Allocator</a>
+  </div>
+  <div class="sb-section"><div class="sb-sect-title">Part II — NUMA</div>
+    <a class="sb-link" onclick="goto('ch3')"><span class="sb-num">3</span>NUMA Architecture</a>
+    <a class="sb-sub" onclick="goto('ch3-topology')">GPU Server Topology</a>
+    <a class="sb-sub" onclick="goto('ch3-api')">NUMA API in C</a>
+    <a class="sb-link" onclick="goto('ch4')"><span class="sb-num">4</span>Hugepages for LLMs</a>
+    <a class="sb-sub" onclick="goto('ch4-why')">TLB Miss Analysis</a>
+    <a class="sb-sub" onclick="goto('ch4-thp')">Transparent Hugepages</a>
+  </div>
+  <div class="sb-section"><div class="sb-sect-title">Part III — OOM & mmap</div>
+    <a class="sb-link" onclick="goto('ch5')"><span class="sb-num">5</span>OOM Killer & Memory Limits</a>
+    <a class="sb-link" onclick="goto('ch6')"><span class="sb-num">6</span>mmap for Tensor Storage</a>
+  </div>
+</nav>
+<main class="main">
+
+<div id="intro">
+<div class="hero">
+  <div class="hero-badge">💾 Book 2 · Memory Management & NUMA</div>
+  <h1>Memory Management &amp;<br><em>NUMA for ML</em></h1>
+  <p class="hero-sub">Virtual memory, page tables, hugepages, the NUMA memory hierarchy, mmap-based tensor storage, and the OOM killer — every memory subsystem that determines whether your 700 GB LLM loads fast or kills your training job.</p>
+</div>
+<h3>Memory Is the Bottleneck</h3>
+<p>In LLM work, memory is the primary constraint at every level: VRAM limits model size, HBM bandwidth limits inference speed, system RAM limits checkpoint loading speed, and TLB pressure from tiny 4KB pages can reduce LLM inference throughput by 10% on its own. This book gives you the tools to reason about and fix all of these.</p>
+</div>
+
+<div class="chapter-sep"></div>
+<section id="ch1">
+<h2>Chapter 1 — Virtual Memory Architecture</h2>
+
+<h3 id="ch1-paging">Paging and Page Tables</h3>
+<p>Every virtual address a process uses is translated to a physical address through a multi-level page table walk. On x86-64 with 4-level paging, this is a 4-level tree lookup: PGD → PUD → PMD → PTE → physical frame.</p>
+
+<pre><code><span class="cm">/* The 4-level page table walk — what the MMU does on every memory access
+ * that misses the TLB. Understanding this explains why hugepages matter. */</span>
+
+<span class="cm">/*
+ * Virtual address breakdown (48-bit, 4-level paging):
+ *
+ * Bit 47..39 = PGD index (9 bits, 512 entries)
+ * Bit 38..30 = PUD index (9 bits, 512 entries)
+ * Bit 29..21 = PMD index (9 bits, 512 entries)
+ * Bit 20..12 = PTE index (9 bits, 512 entries)
+ * Bit 11..0  = Page offset (12 bits, 4096 byte page)
+ *
+ * Translation:
+ * 1. CR3 register → PGD base physical address
+ * 2. PGD[vaddr[47:39]] → PUD physical address
+ * 3. PUD[vaddr[38:30]] → PMD physical address
+ * 4. PMD[vaddr[29:21]] → PTE physical address
+ * 5. PTE[vaddr[20:12]] → Page frame physical address
+ * 6. + vaddr[11:0]     → final physical byte
+ *
+ * For a 4KB page: 4 memory accesses for EVERY virtual→physical translation!
+ * TLB caches these translations to avoid repeating the walk.
+ * TLB miss on modern CPU: ~50-100 cycles penalty.
+ */</span>
+
+<span class="cm">/* Walk the page table for the current process from user space.
+ * Uses /proc/self/pagemap to find physical addresses. */</span>
+<span class="pp">#include</span> <span class="str">&lt;stdio.h&gt;</span>
+<span class="pp">#include</span> <span class="str">&lt;stdlib.h&gt;</span>
+<span class="pp">#include</span> <span class="str">&lt;stdint.h&gt;</span>
+<span class="pp">#include</span> <span class="str">&lt;unistd.h&gt;</span>
+<span class="pp">#include</span> <span class="str">&lt;fcntl.h&gt;</span>
+
+<span class="ty">uint64_t</span> <span class="fn">virt_to_phys</span>(<span class="ty">void</span> *vaddr) {
+    <span class="ty">int</span>      pagemap_fd = <span class="fn">open</span>(<span class="str">"/proc/self/pagemap"</span>, O_RDONLY);
+    <span class="ty">uint64_t</span> vpage      = (<span class="ty">uint64_t</span>)vaddr / <span class="fn">getpagesize</span>();
+    <span class="ty">uint64_t</span> entry;
+
+    <span class="fn">pread</span>(pagemap_fd, &amp;entry, <span class="kw">sizeof</span>(entry), vpage * <span class="kw">sizeof</span>(<span class="ty">uint64_t</span>));
+    <span class="fn">close</span>(pagemap_fd);
+
+    <span class="kw">if</span> (!(entry &amp; (<span class="num">1ULL</span> &lt;&lt; <span class="num">63</span>))) {
+        <span class="fn">printf</span>(<span class="str">"Page not present (swapped out or not faulted)\n"</span>);
+        <span class="kw">return</span> <span class="num">0</span>;
+    }
+    <span class="ty">uint64_t</span> pfn   = entry &amp; ((<span class="num">1ULL</span> &lt;&lt; <span class="num">55</span>) - <span class="num">1</span>);   <span class="cm">/* page frame number */</span>
+    <span class="ty">uint64_t</span> paddr = pfn * <span class="fn">getpagesize</span>() + (<span class="ty">uint64_t</span>)vaddr % <span class="fn">getpagesize</span>();
+    <span class="kw">return</span> paddr;
+}
+
+<span class="ty">int</span> <span class="fn">main</span>() {
+    <span class="ty">volatile int</span> x = <span class="num">42</span>;    <span class="cm">/* force the page to be faulted in */</span>
+    <span class="ty">uint64_t</span> vaddr = (<span class="ty">uint64_t</span>)&amp;x;
+    <span class="ty">uint64_t</span> paddr = <span class="fn">virt_to_phys</span>((<span class="ty">void</span>*)vaddr);
+    <span class="fn">printf</span>(<span class="str">"Virtual:  0x%016llx\n"</span>, vaddr);
+    <span class="fn">printf</span>(<span class="str">"Physical: 0x%016llx\n"</span>, paddr);
+    <span class="fn">printf</span>(<span class="str">"Page offset: %lld\n"</span>, vaddr % <span class="fn">getpagesize</span>());
+    <span class="kw">return</span> <span class="num">0</span>;
+}
+<span class="code-label">c — virt_to_phys.c (run as root for physical address)</span></code></pre>
+
+<h3 id="ch1-tlb">TLB and Hugepages — The LLM Performance Secret</h3>
+<p>The TLB (Translation Lookaside Buffer) is a hardware cache of recent virtual-to-physical translations. A modern CPU has only 64–2048 TLB entries. When loading a 140 GB model with 4KB pages, you have 140 GB / 4 KB = 35 million pages — vastly more than the TLB can hold.</p>
+
+<div class="callout callout-blue">
+  <div class="callout-label">Hugepage Impact on LLM Inference</div>
+  <p>With 2MB hugepages: 140 GB / 2 MB = 70,000 pages — potentially fitting in the TLB. On a 96-core H100 server, switching to hugepages for model weight storage reduces LLM inference latency by 8–15% with zero code changes. This is free performance.</p>
+</div>
+</section>
+
+<div class="chapter-sep"></div>
+<section id="ch2">
+<h2>Chapter 2 — Memory Allocators</h2>
+
+<h3 id="ch2-buddy">The Buddy Allocator</h3>
+<p>The Linux buddy allocator manages physical pages in power-of-two sized blocks (1, 2, 4, 8, ... 1024 pages). When you allocate memory, it finds the smallest power-of-two block that fits and splits larger blocks if needed.</p>
+
+<pre><code><span class="cm">/* Demonstrating buddy allocator behaviour by allocating order-9 (2MB) pages.
+ * In practice: use mmap with MAP_HUGETLB for huge page allocation. */</span>
+<span class="pp">#include</span> <span class="str">&lt;sys/mman.h&gt;</span>
+<span class="pp">#include</span> <span class="str">&lt;stdio.h&gt;</span>
+<span class="pp">#include</span> <span class="str">&lt;string.h&gt;</span>
+
+<span class="pp">#define HUGE_PAGE_SIZE (2UL * 1024 * 1024)  </span><span class="cm">/* 2 MB */</span>
+
+<span class="ty">void</span>* <span class="fn">alloc_huge_pages</span>(<span class="ty">size_t</span> size) {
+    <span class="cm">/* Round up to 2MB boundary */</span>
+    size = (size + HUGE_PAGE_SIZE - <span class="num">1</span>) &amp; ~(HUGE_PAGE_SIZE - <span class="num">1</span>);
+
+    <span class="ty">void</span>* ptr = <span class="fn">mmap</span>(NULL, size,
+                     PROT_READ | PROT_WRITE,
+                     MAP_PRIVATE | MAP_ANONYMOUS | MAP_HUGETLB,
+                     -<span class="num">1</span>, <span class="num">0</span>);
+    <span class="kw">if</span> (ptr == MAP_FAILED) {
+        <span class="fn">perror</span>(<span class="str">"mmap MAP_HUGETLB failed — check /proc/sys/vm/nr_hugepages"</span>);
+        <span class="cm">/* Fallback to regular pages */</span>
+        ptr = <span class="fn">mmap</span>(NULL, size, PROT_READ | PROT_WRITE,
+                   MAP_PRIVATE | MAP_ANONYMOUS, -<span class="num">1</span>, <span class="num">0</span>);
+    }
+    <span class="fn">printf</span>(<span class="str">"Allocated %.1f GB at %p "
+           "(page size: %s)\n"</span>,
+           (<span class="ty">double</span>)size / (<span class="num">1</span>&lt;&lt;<span class="num">30</span>), ptr,
+           ptr != MAP_FAILED ? <span class="str">"2MB hugepages"</span> : <span class="str">"4KB regular"</span>);
+    <span class="kw">return</span> ptr;
+}
+
+<span class="ty">int</span> <span class="fn">main</span>() {
+    <span class="cm">/* Allocate 4 GB — typical for loading a 7B model layer */</span>
+    <span class="ty">void</span>* weights = <span class="fn">alloc_huge_pages</span>(<span class="num">4UL</span> * <span class="num">1024</span> * <span class="num">1024</span> * <span class="num">1024</span>);
+    <span class="kw">if</span> (weights == MAP_FAILED) <span class="kw">return</span> <span class="num">1</span>;
+    <span class="fn">memset</span>(weights, <span class="num">0</span>, <span class="num">4096</span>);  <span class="cm">/* fault in first page */</span>
+    <span class="fn">munmap</span>(weights, <span class="num">4UL</span> * <span class="num">1024</span> * <span class="num">1024</span> * <span class="num">1024</span>);
+    <span class="kw">return</span> <span class="num">0</span>;
+}
+<span class="code-label">c — hugepage_alloc.c</span></code></pre>
+
+<h3 id="ch2-slab">The Slab Allocator</h3>
+<p>The slab allocator handles frequent kernel object allocations (task_struct, file, inode) efficiently. For ML engineers, the most important slab caches are those backing network socket buffers (for NCCL) and file objects (for data loading). You can inspect them with:</p>
+<pre><code><span class="cm"># View slab allocator statistics</span>
+cat /proc/slabinfo | head -20
+<span class="cm"># key fields: name, active_objs, num_objs, objsize, objperslab</span>
+
+<span class="cm"># Watch for slab cache growth during training (potential memory leak indicator)</span>
+watch -n 5 'cat /proc/meminfo | grep -E "Slab:|KernelStack:"'
+<span class="code-label">bash</span></code></pre>
+</section>
+
+<div class="chapter-sep"></div>
+<section id="ch3">
+<h2>Chapter 3 — NUMA Architecture</h2>
+
+<h3 id="ch3-topology">GPU Server NUMA Topology</h3>
+<p>On a DGX H100 (8-GPU server), there are 2 CPU sockets = 2 NUMA nodes. GPUs 0–3 connect via PCIe to NUMA node 0; GPUs 4–7 to NUMA node 1. Memory access latency from NUMA node 0 to node 1's RAM is 2–3× higher than local access.</p>
+
+<pre><code><span class="cm"># Explore your NUMA topology</span>
+numactl --hardware
+<span class="cm"># Output shows: nodes, CPUs per node, distances between nodes</span>
+
+<span class="cm"># Show which GPUs are on which NUMA node</span>
+<span class="kw">for</span> gpu <span class="kw">in</span> $(nvidia-smi --query-gpu=index --format=csv,noheader); <span class="kw">do</span>
+    bus=$(nvidia-smi --query-gpu=pci.bus_id --format=csv,noheader -i $gpu)
+    numa=$(cat /sys/bus/pci/devices/${bus,,}/numa_node 2>/dev/null || echo unknown)
+    <span class="fn">echo</span> <span class="str">"GPU $gpu → NUMA node $numa"</span>
+<span class="kw">done</span>
+<span class="code-label">bash</span></code></pre>
+
+<h3 id="ch3-api">NUMA-Aware Allocation in C</h3>
+<pre><code><span class="pp">#include</span> <span class="str">&lt;numa.h&gt;</span>
+<span class="pp">#include</span> <span class="str">&lt;stdio.h&gt;</span>
+<span class="pp">#include</span> <span class="str">&lt;stdlib.h&gt;</span>
+
+<span class="cm">/* Allocate GPU activation buffers on the correct NUMA node.
+ * Rule: allocate host buffers on the NUMA node local to the GPU
+ *       you're going to DMA transfer to/from. */</span>
+<span class="ty">void</span>* <span class="fn">alloc_local_to_gpu</span>(<span class="ty">int</span> gpu_id, <span class="ty">size_t</span> size) {
+    <span class="cm">/* Find the NUMA node for this GPU via sysfs */</span>
+    <span class="ty">char</span> path[<span class="num">256</span>];
+    <span class="ty">FILE</span>* f;
+    <span class="ty">int</span>   numa_node = <span class="num">0</span>;
+
+    <span class="cm">/* Get PCI bus ID from nvidia-smi and look up numa_node */</span>
+    <span class="fn">snprintf</span>(path, <span class="kw">sizeof</span>(path),
+             <span class="str">"/sys/bus/pci/devices/0000:00:%02x.0/numa_node"</span>, gpu_id * <span class="num">2</span>);
+    f = <span class="fn">fopen</span>(path, <span class="str">"r"</span>);
+    <span class="kw">if</span> (f) { <span class="fn">fscanf</span>(f, <span class="str">"%d"</span>, &amp;numa_node); <span class="fn">fclose</span>(f); }
+
+    <span class="fn">printf</span>(<span class="str">"GPU %d is on NUMA node %d — allocating %.1f GB there\n"</span>,
+           gpu_id, numa_node, (<span class="ty">double</span>)size / (<span class="num">1</span>&lt;&lt;<span class="num">30</span>));
+
+    <span class="cm">/* Allocate on the specific NUMA node */</span>
+    <span class="ty">void</span>* ptr = <span class="fn">numa_alloc_onnode</span>(size, numa_node);
+    <span class="kw">if</span> (!ptr) {
+        <span class="fn">fprintf</span>(stderr, <span class="str">"NUMA allocation failed\n"</span>);
+        <span class="kw">return</span> NULL;
+    }
+    <span class="kw">return</span> ptr;
+}
+
+<span class="cm">/* Python equivalent (using PyTorch):
+ *   tensor = torch.empty(size, device='cpu', pin_memory=True)
+ *   # PyTorch respects numactl affinity when pin_memory=True */</span>
+<span class="code-label">c — numa_alloc.c (link: -lnuma)</span></code></pre>
+</section>
+
+<div class="chapter-sep"></div>
+<section id="ch4">
+<h2>Chapter 4 — Hugepages for LLM Workloads</h2>
+
+<h3 id="ch4-why">TLB Miss Analysis</h3>
+<pre><code><span class="cm">"""
+tlb_analysis.py — Measure TLB miss rate with and without hugepages.
+Uses perf_event_open() via ctypes to read hardware PMU counters.
+"""</span>
+<span class="kw">import</span> subprocess, re
+
+<span class="kw">def</span> <span class="fn">measure_tlb_misses</span>(allocation_size_gb: float = <span class="num">4.0</span>):
+    <span class="cm"># Use perf stat to measure TLB misses during a memory access pattern</span>
+    cmd = [
+        <span class="str">'perf'</span>, <span class="str">'stat'</span>, <span class="str">'-e'</span>,
+        <span class="str">'dTLB-load-misses,dTLB-loads,iTLB-load-misses,iTLB-loads'</span>,
+        <span class="str">'--'</span>, <span class="str">'python3'</span>, <span class="str">'-c'</span>,
+        <span class="str">f"""
+import torch, time
+size = int({allocation_size_gb} * 1024**3 / 4)  # float32 elements
+t = torch.randn(size)    # allocates on regular 4KB pages by default
+s = 0.0
+for i in range(0, len(t), 64):  # sequential access, every cache line
+    s += t[i].item()
+print(f'sum={{s:.0f}}')
+"""</span>
+    ]
+    result = subprocess.<span class="fn">run</span>(cmd, capture_output=<span class="kw">True</span>, text=<span class="kw">True</span>)
+    <span class="fn">print</span>(<span class="str">"TLB statistics for 4KB pages:"</span>)
+    <span class="fn">print</span>(result.stderr)
+
+    <span class="cm"># Suggest hugepage configuration</span>
+    pages_needed = <span class="fn">int</span>(allocation_size_gb * <span class="num">1024</span> / <span class="num">2</span>)  <span class="cm"># 2MB hugepages</span>
+    <span class="fn">print</span>(<span class="str">f"\nTo enable hugepages for {allocation_size_gb:.0f}GB allocation:"</span>)
+    <span class="fn">print</span>(<span class="str">f"  echo {pages_needed} > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages"</span>)
+
+<span class="fn">measure_tlb_misses</span>(<span class="num">4.0</span>)
+<span class="code-label">python — tlb_analysis.py</span></code></pre>
+
+<h3 id="ch4-thp">Transparent Hugepages Configuration</h3>
+<pre><code><span class="cm">#!/bin/bash
+# Configure Transparent Hugepages (THP) for LLM workloads</span>
+
+<span class="cm"># Option 1: always — OS automatically promotes 4KB pages to 2MB
+# Best for training servers with dedicated workloads</span>
+echo always > /sys/kernel/mm/transparent_hugepage/enabled
+echo always > /sys/kernel/mm/transparent_hugepage/defrag
+
+<span class="cm"># Option 2: madvise — only promote pages that explicitly request it
+# Best for shared servers (more controlled)</span>
+echo madvise > /sys/kernel/mm/transparent_hugepage/enabled
+
+<span class="cm"># In Python: request hugepages for tensor storage</span>
+python3 - &lt;&lt;'EOF'
+import ctypes, os, mmap
+
+# Use MADV_HUGEPAGE to request THP for a specific allocation
+libc = ctypes.CDLL('libc.so.6')
+MADV_HUGEPAGE = 14
+
+import torch
+# Create a large tensor and advise the kernel to use hugepages
+t = torch.zeros(1024 * 1024 * 256, dtype=torch.float32)  # 1 GB
+data_ptr = t.data_ptr()
+size = t.numel() * t.element_size()
+libc.madvise(ctypes.c_void_p(data_ptr), ctypes.c_size_t(size), ctypes.c_int(MADV_HUGEPAGE))
+print(f"Requested THP for {size/1e9:.1f} GB tensor at 0x{data_ptr:x}")
+EOF
+<span class="code-label">bash / python — thp_config.sh</span></code></pre>
+</section>
+
+<div class="chapter-sep"></div>
+<section id="ch5">
+<h2>Chapter 5 — OOM Killer & Memory Limits</h2>
+
+<pre><code><span class="cm">/* The Linux OOM killer selects which process to kill when memory is exhausted.
+ * Its selection is based on 'oom_score' — higher score = killed first.
+ *
+ * For AI training: protect your training process from OOM kill. */</span>
+
+<span class="pp">#include</span> <span class="str">&lt;stdio.h&gt;</span>
+<span class="pp">#include</span> <span class="str">&lt;fcntl.h&gt;</span>
+<span class="pp">#include</span> <span class="str">&lt;unistd.h&gt;</span>
+
+<span class="ty">void</span> <span class="fn">protect_from_oom</span>(<span class="ty">void</span>) {
+    <span class="ty">int</span>  fd;
+    <span class="ty">char</span> val[] = <span class="str">"-1000\n"</span>;   <span class="cm">/* -1000 = never kill this process */</span>
+
+    fd = <span class="fn">open</span>(<span class="str">"/proc/self/oom_score_adj"</span>, O_WRONLY);
+    <span class="kw">if</span> (fd &lt; <span class="num">0</span>) {
+        <span class="fn">perror</span>(<span class="str">"open oom_score_adj (needs root or CAP_SYS_RESOURCE)"</span>);
+        <span class="kw">return</span>;
+    }
+    <span class="fn">write</span>(fd, val, <span class="kw">sizeof</span>(val) - <span class="num">1</span>);
+    <span class="fn">close</span>(fd);
+    <span class="fn">printf</span>(<span class="str">"Process protected from OOM kill "
+           "(oom_score_adj = -1000)\n"</span>);
+}
+
+<span class="cm">/* Python equivalent for protecting a training process:
+ *   import subprocess
+ *   pid = os.getpid()
+ *   subprocess.run(['sudo', 'bash', '-c',
+ *                   f'echo -1000 > /proc/{pid}/oom_score_adj']) */</span>
+
+<span class="cm">/* Monitor OOM events in real time: */</span>
+<span class="cm">/* sudo dmesg -w | grep -i "oom\|killed\|memory" */</span>
+<span class="code-label">c — oom_protection.c</span></code></pre>
+
+<div class="callout callout-warn">
+  <div class="callout-label">Training Job OOM Survival Checklist</div>
+  <p>① Set <code>oom_score_adj = -1000</code> for your training process. ② Set <code>vm.overcommit_memory = 1</code> to allow forking large processes. ③ Pre-allocate model weights before the optimizer state to avoid fragmentation. ④ Use <code>torch.cuda.empty_cache()</code> before loading checkpoints. ⑤ Monitor with <code>nvidia-smi --query-gpu=memory.used,memory.free --format=csv -l 5</code>.</p>
+</div>
+</section>
+
+<div class="chapter-sep"></div>
+<section id="ch6">
+<h2>Chapter 6 — mmap for Tensor Storage</h2>
+
+<pre><code><span class="cm">"""
+mmap_tensors.py — Memory-map large model weight files.
+This is how llama.cpp and safetensors load models faster than torch.load().
+With mmap: OS loads pages on demand, NUMA-aware, supports lazy loading.
+"""</span>
+<span class="kw">import</span> mmap, struct, numpy <span class="kw">as</span> np, torch
+<span class="kw">from</span> pathlib <span class="kw">import</span> Path
+
+<span class="kw">class</span> <span class="ty">MmapTensorStore</span>:
+    <span class="cm">"""Store tensors in a flat binary file and mmap them on load.
+    OS brings pages into RAM only when accessed — zero startup latency."""</span>
+
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, path: str):
+        self.path = Path(path)
+        self.tensors: dict = {}
+
+    <span class="kw">def</span> <span class="fn">save</span>(self, tensors: dict):
+        <span class="cm"># Format: [n_tensors][name_len][name][dtype_code][ndim][shape][data]...</span>
+        <span class="kw">with</span> <span class="fn">open</span>(self.path, <span class="str">'wb'</span>) <span class="kw">as</span> f:
+            f.<span class="fn">write</span>(struct.<span class="fn">pack</span>(<span class="str">'I'</span>, <span class="fn">len</span>(tensors)))
+            <span class="kw">for</span> name, tensor <span class="kw">in</span> tensors.<span class="fn">items</span>():
+                arr  = tensor.numpy()
+                bname = name.<span class="fn">encode</span>()
+                f.<span class="fn">write</span>(struct.<span class="fn">pack</span>(<span class="str">'I'</span>, <span class="fn">len</span>(bname))); f.<span class="fn">write</span>(bname)
+                f.<span class="fn">write</span>(struct.<span class="fn">pack</span>(<span class="str">'B'</span>, arr.dtype.itemsize))
+                f.<span class="fn">write</span>(struct.<span class="fn">pack</span>(<span class="str">'I'</span>, arr.ndim))
+                <span class="kw">for</span> d <span class="kw">in</span> arr.shape: f.<span class="fn">write</span>(struct.<span class="fn">pack</span>(<span class="str">'Q'</span>, d))
+                f.<span class="fn">write</span>(arr.tobytes())
+        <span class="fn">print</span>(<span class="str">f"Saved {len(tensors)} tensors to {self.path} "
+              f"({self.path.stat().st_size / 1e9:.2f} GB)"</span>)
+
+    <span class="kw">def</span> <span class="fn">load_mmap</span>(self) -> dict:
+        <span class="cm">"""Load tensors using mmap — O(1) load time regardless of file size."""</span>
+        <span class="kw">with</span> <span class="fn">open</span>(self.path, <span class="str">'rb'</span>) <span class="kw">as</span> f:
+            <span class="cm"># mmap the entire file — OS will page-in on access</span>
+            mm = mmap.<span class="fn">mmap</span>(f.fileno(), <span class="num">0</span>, access=mmap.ACCESS_READ)
+
+        pos = <span class="num">0</span>
+        n   = struct.<span class="fn">unpack_from</span>(<span class="str">'I'</span>, mm, pos)[<span class="num">0</span>]; pos += <span class="num">4</span>
+        tensors = {}
+
+        <span class="kw">for</span> _ <span class="kw">in</span> <span class="fn">range</span>(n):
+            nlen  = struct.<span class="fn">unpack_from</span>(<span class="str">'I'</span>, mm, pos)[<span class="num">0</span>]; pos += <span class="num">4</span>
+            name  = mm[pos:pos+nlen].<span class="fn">decode</span>(); pos += nlen
+            isz   = struct.<span class="fn">unpack_from</span>(<span class="str">'B'</span>, mm, pos)[<span class="num">0</span>]; pos += <span class="num">1</span>
+            ndim  = struct.<span class="fn">unpack_from</span>(<span class="str">'I'</span>, mm, pos)[<span class="num">0</span>]; pos += <span class="num">4</span>
+            shape = struct.<span class="fn">unpack_from</span>(<span class="str">f'{ndim}Q'</span>, mm, pos); pos += <span class="num">8</span>*ndim
+            dtype = {<span class="num">2</span>: np.float16, <span class="num">4</span>: np.float32}[isz]
+            nbytes = np.prod(shape) * isz
+            <span class="cm"># Key: np.frombuffer on mmap slice — zero copy, pages loaded on demand</span>
+            arr   = np.<span class="fn">frombuffer</span>(mm[pos:pos+nbytes], dtype=dtype).<span class="fn">reshape</span>(shape)
+            tensors[name] = torch.<span class="fn">from_numpy</span>(arr.<span class="fn">copy</span>())
+            pos += nbytes
+
+        <span class="fn">print</span>(<span class="str">f"Loaded {n} tensors via mmap in O(1) time"</span>)
+        <span class="kw">return</span> tensors
+
+
+<span class="kw">if</span> __name__ == <span class="str">'__main__'</span>:
+    store = MmapTensorStore(<span class="str">'/tmp/weights.bin'</span>)
+
+    <span class="cm"># Save some fake LLM weights</span>
+    weights = {
+        <span class="str">'transformer.wte.weight'</span>:     torch.<span class="fn">randn</span>(<span class="num">32000</span>, <span class="num">4096</span>, dtype=torch.float16),
+        <span class="str">'transformer.h.0.attn.c_attn'</span>: torch.<span class="fn">randn</span>(<span class="num">4096</span>, <span class="num">12288</span>, dtype=torch.float16),
+    }
+    store.<span class="fn">save</span>(weights)
+
+    <span class="kw">import</span> time
+    t0 = time.<span class="fn">perf_counter</span>()
+    loaded = store.<span class="fn">load_mmap</span>()
+    t1 = time.<span class="fn">perf_counter</span>()
+    <span class="fn">print</span>(<span class="str">f"mmap load time: {(t1-t0)*1000:.1f} ms "
+          f"(vs torch.load which reads entire file)"</span>)
+<span class="code-label">python — mmap_tensors.py</span></code></pre>
+</section>
+
+</main>
+</div>
+<script>
+function goto(id){const el=document.getElementById(id);if(el)el.scrollIntoView({behavior:'smooth',block:'start'});}
+const obs=new IntersectionObserver(e=>e.forEach(en=>{if(en.isIntersecting){const id=en.target.id;document.querySelectorAll('.sb-link').forEach(l=>{l.classList.toggle('active',l.getAttribute('onclick')&&l.getAttribute('onclick').includes(`'${id}'`));});}}),{rootMargin:'-20% 0px -70% 0px'});
+['intro','ch1','ch2','ch3','ch4','ch5','ch6'].forEach(id=>{const el=document.getElementById(id);if(el)obs.observe(el);});
+</script>
+</body>
+</html>
