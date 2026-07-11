@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Inference — Part 3: Quantization & KV Cache</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <style>
+    :root{--bg-primary:#0f1117;--bg-secondary:#1a1d27;--bg-card:#1e2130;--accent:#10b981;--accent-2:#6366f1;--accent-3:#f59e0b;--text-primary:#e2e8f0;--text-muted:#94a3b8;--border:#2d3148;--code-bg:#111827;--code-border:#374151;--success:#10b981;--warning:#f59e0b;--danger:#f87171;}
+    [data-theme="light"]{--bg-primary:#f8fafc;--bg-secondary:#f1f5f9;--bg-card:#ffffff;--text-primary:#1e293b;--text-muted:#64748b;--border:#e2e8f0;--code-bg:#f1f5f9;--code-border:#cbd5e1;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Inter',system-ui,sans-serif;background:var(--bg-primary);color:var(--text-primary);line-height:1.75;display:flex;min-height:100vh;}
+    .sidebar{width:265px;min-height:100vh;background:var(--bg-secondary);border-right:1px solid var(--border);position:fixed;top:0;left:0;overflow-y:auto;padding:1.5rem 1rem;z-index:100;}
+    .sidebar-logo{font-size:1.1rem;font-weight:800;color:var(--accent);margin-bottom:0.2rem;}
+    .sidebar-subtitle{font-size:0.7rem;color:var(--text-muted);margin-bottom:1.5rem;line-height:1.4;}
+    .sidebar-section-label{font-size:0.63rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:1.1rem 0 0.4rem;}
+    .sidebar a{display:block;padding:0.38rem 0.75rem;border-radius:6px;font-size:0.81rem;color:var(--text-muted);text-decoration:none;transition:background 0.15s,color 0.15s;}
+    .sidebar a:hover,.sidebar a.active{background:var(--bg-card);color:var(--text-primary);}
+    .part-links{margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border);}
+    .part-links a{font-size:0.76rem;}
+    .part-links a.current{color:var(--accent);font-weight:700;}
+    .main{margin-left:265px;flex:1;padding:3rem 4rem;max-width:980px;}
+    .theme-toggle{position:fixed;top:1rem;right:1.5rem;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.9rem;font-size:0.78rem;cursor:pointer;color:var(--text-primary);z-index:200;}
+    .hero{margin-bottom:4rem;padding-bottom:2.5rem;border-bottom:1px solid var(--border);}
+    .hero-eyebrow{font-size:0.78rem;color:var(--accent);font-weight:700;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:0.8rem;}
+    .hero h1{font-size:clamp(1.9rem,4vw,2.9rem);font-weight:800;line-height:1.2;margin-bottom:1rem;}
+    .hero h1 em{color:var(--accent);font-style:normal;}
+    .hero-desc{font-size:1rem;color:var(--text-muted);max-width:620px;margin-bottom:1.75rem;}
+    .stat-pills{display:flex;gap:1rem;flex-wrap:wrap;}
+    .stat-pill{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.6rem 1.1rem;text-align:center;min-width:90px;}
+    .stat-pill .value{font-size:1.1rem;font-weight:800;color:var(--accent);display:block;}
+    .stat-pill .label{font-size:0.68rem;color:var(--text-muted);}
+    .chapter-section{margin-bottom:4.5rem;scroll-margin-top:2rem;}
+    .section-number{display:inline-block;font-size:0.72rem;font-weight:700;color:var(--accent);background:rgba(16,185,129,0.12);border-radius:4px;padding:0.15rem 0.55rem;margin-bottom:0.55rem;letter-spacing:0.08em;text-transform:uppercase;}
+    .chapter-section h2{font-size:1.8rem;font-weight:800;margin-bottom:0.4rem;}
+    .section-tagline{color:var(--text-muted);font-size:0.9rem;margin-bottom:2rem;font-style:italic;}
+    .chapter-section h3{font-size:1.1rem;font-weight:700;margin:2.2rem 0 0.8rem;}
+    .chapter-section h4{font-size:0.95rem;font-weight:600;margin:1.4rem 0 0.5rem;color:var(--accent-2);}
+    .chapter-section p{margin-bottom:1rem;font-size:0.92rem;}
+    .chapter-section ul,.chapter-section ol{padding-left:1.5rem;margin-bottom:1rem;font-size:0.9rem;color:var(--text-muted);}
+    .chapter-section li{margin-bottom:0.3rem;}
+    .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;margin:1.5rem 0;}
+    .info-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.25rem;}
+    .info-card .card-icon{font-size:1.5rem;margin-bottom:0.5rem;}
+    .info-card h4{font-size:0.92rem;font-weight:700;margin-bottom:0.5rem;color:var(--text-primary);}
+    .info-card ul{list-style:none;padding:0;margin:0;}
+    .info-card ul li{font-size:0.81rem;color:var(--text-muted);padding:0.22rem 0;padding-left:1rem;position:relative;}
+    .info-card ul li::before{content:"▸";color:var(--accent);position:absolute;left:0;}
+    .callout{border-left:3px solid var(--accent);background:var(--bg-card);border-radius:0 8px 8px 0;padding:1rem 1.25rem;margin:1.75rem 0;font-size:0.87rem;}
+    .callout.warning{border-left-color:var(--warning);}
+    .callout.success{border-left-color:var(--success);}
+    .callout.danger{border-left-color:var(--danger);}
+    .callout strong{color:var(--accent);}
+    .callout.warning strong{color:var(--warning);}
+    .callout.success strong{color:var(--success);}
+    .callout.danger strong{color:var(--danger);}
+    .diagram-block{background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:1.25rem;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:0.73rem;color:#a5f3fc;line-height:1.55;margin:1.75rem 0;white-space:pre;}
+    .code-block-wrapper{margin:1.75rem 0;border-radius:10px;overflow:hidden;border:1px solid var(--code-border);}
+    .code-block-header{background:#1f2937;padding:0.55rem 1rem;font-size:0.74rem;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--code-border);}
+    .code-block-header .lang-tag{color:var(--accent);font-weight:700;font-family:'JetBrains Mono',monospace;}
+    pre{background:var(--code-bg);padding:1.25rem;overflow-x:auto;margin:0;}
+    code{font-family:'JetBrains Mono',monospace;font-size:0.79rem;line-height:1.75;}
+    p code,li code,td code{background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:0.1em 0.45em;font-size:0.81em;color:#f9a8d4;}
+    .kw{color:#c084fc;}.cm{color:#6b7280;font-style:italic;}.st{color:#86efac;}.fn{color:#60a5fa;}.nu{color:#fbbf24;}.ty{color:#67e8f9;}.op{color:#f9a8d4;}
+    .data-table{width:100%;border-collapse:collapse;font-size:0.84rem;margin:1.75rem 0;}
+    .data-table thead tr{background:var(--bg-card);border-bottom:2px solid var(--accent);}
+    .data-table th{text-align:left;padding:0.75rem 1rem;font-weight:700;color:var(--text-muted);font-size:0.76rem;text-transform:uppercase;letter-spacing:0.06em;}
+    .data-table td{padding:0.7rem 1rem;border-bottom:1px solid var(--border);vertical-align:top;}
+    .data-table tbody tr:hover{background:var(--bg-card);}
+    .badge{display:inline-block;font-size:0.68rem;font-weight:700;padding:0.1rem 0.5rem;border-radius:4px;}
+    .badge-green{background:rgba(16,185,129,0.15);color:#10b981;}
+    .badge-blue{background:rgba(96,165,250,0.15);color:#60a5fa;}
+    .badge-amber{background:rgba(251,191,36,0.15);color:#fbbf24;}
+    .badge-red{background:rgba(248,113,113,0.15);color:#f87171;}
+    .math-block{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem 1.5rem;margin:1.5rem 0;font-family:'JetBrains Mono',monospace;font-size:0.88rem;color:#fde68a;text-align:center;}
+    .flow-steps{margin:1.5rem 0;}
+    .flow-step{display:flex;gap:1rem;align-items:flex-start;padding:0.75rem 0;border-bottom:1px solid var(--border);}
+    .flow-step:last-child{border-bottom:none;}
+    .flow-step-num{min-width:2rem;height:2rem;border-radius:50%;background:rgba(16,185,129,0.15);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:0.78rem;font-weight:700;flex-shrink:0;}
+    .flow-step-content h4{font-size:0.9rem;font-weight:700;margin-bottom:0.25rem;}
+    .flow-step-content p{font-size:0.84rem;color:var(--text-muted);margin:0;}
+    @media(max-width:768px){.sidebar{display:none;}.main{margin-left:0;padding:1.5rem;}}
+  </style>
+</head>
+<body>
+<button class="theme-toggle" onclick="toggleTheme()">🌓 Theme</button>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">⚡ LLM Inference</div>
+  <div class="sidebar-subtitle">Part 3 · Quantization & KV Cache</div>
+  <div class="sidebar-section-label">Part 3 — Quantization</div>
+  <a href="#ch9">9. Why Quantize?</a>
+  <a href="#ch10">10. INT8 & INT4 Methods</a>
+  <a href="#ch11">11. KV Cache Deep Dive</a>
+  <a href="#ch12">12. KV Cache Optimization</a>
+  <div class="sidebar-section-label">All Parts</div>
+  <div class="part-links">
+    <a href="llm-inference-1.html">Part 1 · Foundations</a>
+    <a href="llm-inference-2.html">Part 2 · Alignment</a>
+    <a href="llm-inference-3.html" class="current">Part 3 · Quantization</a>
+    <a href="llm-inference-4.html">Part 4 · Running Inference</a>
+  </div>
+</aside>
+
+<main class="main">
+
+  <div class="hero">
+    <div class="hero-eyebrow">Part 3 of 4 · LLM Inference Book Series</div>
+    <h1><em>Quantization</em> &amp;<br>KV Cache Mastery</h1>
+    <p class="hero-desc">
+      Squeezing 70-billion-parameter models into consumer hardware requires precision reduction
+      and clever memory management. This part covers INT8/INT4/FP8 quantization, the KV cache
+      cost analysis, PagedAttention, and Flash Attention — the optimizations that make production
+      inference economically viable.
+    </p>
+    <div class="stat-pills">
+      <div class="stat-pill"><span class="value">4</span><span class="label">Chapters</span></div>
+      <div class="stat-pill"><span class="value">~65</span><span class="label">min read</span></div>
+      <div class="stat-pill"><span class="value">Part 3</span><span class="label">of 4</span></div>
+    </div>
+  </div>
+
+  <!-- CHAPTER 9 -->
+  <section class="chapter-section" id="ch9">
+    <div class="section-number">Chapter 9</div>
+    <h2>Why Quantize?</h2>
+    <p class="section-tagline">Reducing numerical precision to fit more model into less memory — without catastrophic quality loss.</p>
+
+    <h3>📐 The Memory Problem</h3>
+    <p>
+      A 70B-parameter model stored in BF16 (2 bytes/parameter) requires 140 GB of VRAM just for
+      weights — more than fits on two A100 80GB GPUs. Quantization reduces this by representing
+      weights in fewer bits.
+    </p>
+
+    <div class="diagram-block">
+Memory footprint per 70B parameters:
+  FP32  (4 bytes):  280 GB  ← training master weights
+  BF16  (2 bytes):  140 GB  ← standard inference
+  INT8  (1 byte):    70 GB  ← 2× reduction
+  INT4  (0.5 byte):  35 GB  ← 4× reduction  ✓ fits on 2×A100
+  INT2  (0.25 byte): 17 GB  ← 8× reduction  (quality degraded)
+
+Rule of thumb for serving:
+  INT4 = sweet spot (4× memory, ~1-3% quality drop)
+</div>
+
+    <h3>🎯 The Inference Bottleneck: Memory Bandwidth</h3>
+    <p>
+      During token generation (decode phase), the model generates one token per step. At each step,
+      <em>every single weight</em> must be loaded from GPU memory (HBM) into compute units. This makes
+      decode <strong>memory-bandwidth-bound</strong>, not compute-bound — the GPU spends most of its
+      time waiting for weights to arrive from memory, not computing.
+    </p>
+
+    <div class="math-block">
+Arithmetic Intensity = FLOPs / Bytes_accessed
+
+Llama-3 8B decode (batch=1):
+  FLOPs    ≈ 2 × 8B  = 16 GFLOPs
+  Bytes    ≈ 8B × 2  = 16 GB  (load all weights in BF16)
+  Intensity ≈ 1 FLOP/Byte  ← far below GPU's peak intensity (~200)
+
+→ GPU is 200× underutilized during decode
+→ Quantization helps: INT4 halves bytes → halves time
+</div>
+
+    <div class="callout warning">
+      <strong>Prefill vs Decode:</strong> Prefill (processing the prompt) IS compute-bound — all tokens
+      processed in parallel, high arithmetic intensity. Only decode is memory-bandwidth-bound. This
+      asymmetry drives the architecture of modern inference systems like vLLM and TensorRT-LLM.
+    </div>
+
+    <h3>📊 Hardware Memory Bandwidth Reference</h3>
+    <table class="data-table">
+      <thead><tr><th>GPU</th><th>VRAM</th><th>Memory BW</th><th>Peak FLOPS (BF16)</th><th>Max Int. (BF16)</th></tr></thead>
+      <tbody>
+        <tr><td>A100 80GB SXM</td><td>80 GB</td><td>2 TB/s</td><td>312 TFLOPS</td><td>156 FLOP/B</td></tr>
+        <tr><td>H100 SXM5</td><td>80 GB</td><td>3.35 TB/s</td><td>989 TFLOPS</td><td>295 FLOP/B</td></tr>
+        <tr><td>RTX 4090</td><td>24 GB</td><td>1.008 TB/s</td><td>165 TFLOPS</td><td>164 FLOP/B</td></tr>
+        <tr><td>RTX 3090</td><td>24 GB</td><td>936 GB/s</td><td>71 TFLOPS</td><td>76 FLOP/B</td></tr>
+        <tr><td>Apple M3 Max</td><td>128 GB unified</td><td>400 GB/s</td><td>14.2 TFLOPS</td><td>36 FLOP/B</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- CHAPTER 10 -->
+  <section class="chapter-section" id="ch10">
+    <div class="section-number">Chapter 10</div>
+    <h2>INT8, INT4 &amp; FP8 Quantization</h2>
+    <p class="section-tagline">The algorithms that make precision reduction work without destroying model quality.</p>
+
+    <h3>🔢 Absmax INT8 Quantization</h3>
+    <p>
+      The simplest form: find the maximum absolute value in a tensor, scale so it maps to 127,
+      round to nearest integer. Dequantize by multiplying by the scale factor.
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>Absmax INT8 Quantization</span></div>
+      <pre><code><span class="kw">import</span> torch
+
+<span class="kw">def</span> <span class="fn">absmax_quantize</span>(W: torch.Tensor):
+    <span class="cm">"""Quantize weight matrix to INT8 using absmax scaling."""</span>
+    scale  = W.abs().max() / <span class="nu">127.0</span>
+    W_int8 = (W / scale).round().clamp(-<span class="nu">128</span>, <span class="nu">127</span>).to(torch.int8)
+    <span class="kw">return</span> W_int8, scale
+
+<span class="kw">def</span> <span class="fn">absmax_dequantize</span>(W_int8: torch.Tensor, scale: torch.Tensor):
+    <span class="kw">return</span> W_int8.to(torch.float32) * scale
+
+<span class="cm"># Zero-point quantization (handles asymmetric distributions)</span>
+<span class="kw">def</span> <span class="fn">zeropoint_quantize</span>(W: torch.Tensor):
+    W_min, W_max = W.min(), W.max()
+    scale   = (W_max - W_min) / <span class="nu">255.0</span>
+    zp      = (-<span class="nu">128</span> - W_min / scale).round()
+    W_int8  = (W / scale + zp).round().clamp(-<span class="nu">128</span>, <span class="nu">127</span>).to(torch.int8)
+    <span class="kw">return</span> W_int8, scale, zp
+
+<span class="cm"># Example: quantize a 4096×4096 weight matrix</span>
+W       = torch.randn(<span class="nu">4096</span>, <span class="nu">4096</span>)
+W8, sc  = <span class="fn">absmax_quantize</span>(W)
+W_back  = <span class="fn">absmax_dequantize</span>(W8, sc)
+err     = (W - W_back).abs().mean()
+<span class="fn">print</span>(<span class="st">f"Mean quant error: {err:.5f}"</span>)  <span class="cm"># typically ~0.001</span>
+<span class="fn">print</span>(<span class="st">f"Memory: {W.numel()*4/1e6:.1f}MB → {W8.numel()/1e6:.1f}MB"</span>)
+</code></pre>
+    </div>
+
+    <h3>🏋️ GPTQ: Post-Training INT4 Quantization</h3>
+    <p>
+      GPTQ (Frantar et al., 2022) uses second-order information (Hessian) to minimize quantization
+      error layer by layer. It quantizes weights column-by-column, compensating for error in
+      later columns using the remaining unquantized weights.
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>GPTQ Quantization (using auto-gptq)</span></div>
+      <pre><code><span class="kw">from</span> auto_gptq <span class="kw">import</span> AutoGPTQForCausalLM, BaseQuantizeConfig
+<span class="kw">from</span> transformers <span class="kw">import</span> AutoTokenizer
+
+tokenizer = AutoTokenizer.from_pretrained(<span class="st">"meta-llama/Meta-Llama-3-8B"</span>)
+
+quant_config = BaseQuantizeConfig(
+    bits=<span class="nu">4</span>,             <span class="cm"># INT4</span>
+    group_size=<span class="nu">128</span>,     <span class="cm"># quantize in groups of 128 columns</span>
+    desc_act=<span class="kw">False</span>,     <span class="cm"># activation order (True = better quality)</span>
+)
+
+model = AutoGPTQForCausalLM.from_pretrained(
+    <span class="st">"meta-llama/Meta-Llama-3-8B"</span>,
+    quantize_config=quant_config
+)
+
+<span class="cm"># Calibration data — small sample of representative text</span>
+calibration = [tokenizer(<span class="st">"Machine learning is "</span>), ...]
+model.quantize(calibration)          <span class="cm"># ~10-30 min for 8B model</span>
+model.save_quantized(<span class="st">"./llama3-8b-gptq-int4"</span>)
+<span class="cm"># Result: 8B model → ~4.5 GB  (was ~16 GB in BF16)</span>
+</code></pre>
+    </div>
+
+    <h3>🎯 AWQ: Activation-Aware Weight Quantization</h3>
+    <p>
+      AWQ (Lin et al., 2023) observes that only ~1% of weights are "salient" — corresponding to
+      large activation magnitudes. By protecting these salient weights (scaling them up before
+      quantization), AWQ achieves better quality than GPTQ at INT4.
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>AWQ Quantization</span></div>
+      <pre><code><span class="kw">from</span> awq <span class="kw">import</span> AutoAWQForCausalLM
+
+model = AutoAWQForCausalLM.from_pretrained(
+    <span class="st">"meta-llama/Meta-Llama-3-8B"</span>,
+    torch_dtype=torch.float16
+)
+quant_config = {
+    <span class="st">"zero_point"</span>: <span class="kw">True</span>,
+    <span class="st">"q_group_size"</span>: <span class="nu">128</span>,
+    <span class="st">"w_bit"</span>: <span class="nu">4</span>,
+    <span class="st">"version"</span>: <span class="st">"GEMM"</span>,      <span class="cm"># fast inference kernel</span>
+}
+model.quantize(tokenizer, quant_config=quant_config)
+model.save_quantized(<span class="st">"./llama3-8b-awq"</span>)
+</code></pre>
+    </div>
+
+    <table class="data-table">
+      <thead><tr><th>Method</th><th>Bits</th><th>8B Memory</th><th>Perplexity Δ</th><th>Speed</th></tr></thead>
+      <tbody>
+        <tr><td>BF16 baseline</td><td>16</td><td>16 GB</td><td>—</td><td>1×</td></tr>
+        <tr><td>INT8 (bitsandbytes)</td><td>8</td><td>8 GB</td><td><span class="badge badge-green">+0.2%</span></td><td>1.3×</td></tr>
+        <tr><td>GPTQ INT4</td><td>4</td><td>4.5 GB</td><td><span class="badge badge-green">+1.1%</span></td><td>2×</td></tr>
+        <tr><td>AWQ INT4</td><td>4</td><td>4.5 GB</td><td><span class="badge badge-green">+0.7%</span></td><td>2.2×</td></tr>
+        <tr><td>FP8 (H100)</td><td>8</td><td>8 GB</td><td><span class="badge badge-green">+0.1%</span></td><td>1.8×</td></tr>
+        <tr><td>GGUF Q2_K</td><td>~2.6</td><td>3 GB</td><td><span class="badge badge-red">+8%</span></td><td>2.5×</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout success">
+      <strong>Recommended:</strong> AWQ INT4 is the current best practice for deployment. It fits
+      Llama-3 8B in ~4.5 GB (single consumer GPU), achieves &lt;1% quality degradation, and has
+      efficient CUDA kernels for fast inference. Use GGUF Q4_K_M for CPU/Apple Silicon inference.
+    </div>
+  </section>
+
+  <!-- CHAPTER 11 -->
+  <section class="chapter-section" id="ch11">
+    <div class="section-number">Chapter 11</div>
+    <h2>KV Cache: Cost &amp; Mechanics</h2>
+    <p class="section-tagline">The essential caching trick that makes autoregressive generation tractable — and its hidden memory cost.</p>
+
+    <h3>🔄 Why KV Cache Exists</h3>
+    <p>
+      In autoregressive generation, the model generates one token at a time. Without caching,
+      generating token N would require recomputing the Key and Value matrices for all N-1
+      previous tokens — O(N²) total work. The KV cache stores these, reducing each step to O(N).
+    </p>
+
+    <div class="diagram-block">
+WITHOUT KV Cache (naïve):
+  Step 1: compute K,V for [t₁]          → generate t₂
+  Step 2: compute K,V for [t₁, t₂]     → generate t₃
+  Step 3: compute K,V for [t₁,t₂,t₃]  → generate t₄
+  Total work: O(N²)
+
+WITH KV Cache:
+  Step 1: compute K,V for [t₁]   → cache: {t₁:K₁,V₁}          → t₂
+  Step 2: compute K,V for [t₂]   → cache: {t₁,t₂: K,V}        → t₃
+  Step 3: compute K,V for [t₃]   → cache: {t₁,t₂,t₃: K,V}     → t₄
+  Each step: O(1) new computation + O(N) cache lookup
+  Total work: O(N)  ← linear!
+</div>
+
+    <h3>💰 KV Cache Memory Formula</h3>
+
+    <div class="math-block">
+KV_bytes = 2              (K and V)
+         × n_layers       (one KV pair per transformer layer)
+         × n_kv_heads     (GQA: fewer heads than query heads)
+         × head_dim       (= d_model / n_heads)
+         × seq_len        (grows with each generated token)
+         × bytes_per_elem (2 for BF16, 1 for INT8)
+
+Example — Llama-3 8B (BF16):
+  = 2 × 32 × 8 × 128 × 4096 × 2  bytes
+  = 2 × 32 × 8 × 128 × 4096 × 2  =  536 MB per sequence
+
+Example — Llama-3 70B (BF16, 4096 seq):
+  = 2 × 80 × 8 × 128 × 4096 × 2  =  1.34 GB per sequence
+</div>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>KV Cache Size Calculator</span></div>
+      <pre><code><span class="kw">def</span> <span class="fn">kv_cache_gb</span>(n_layers, n_kv_heads, head_dim,
+               seq_len, dtype_bytes=<span class="nu">2</span>, batch_size=<span class="nu">1</span>):
+    <span class="cm">"""Calculate KV cache memory in GB."""</span>
+    kv = (<span class="nu">2</span>           <span class="cm"># K and V</span>
+          * n_layers
+          * n_kv_heads
+          * head_dim
+          * seq_len
+          * dtype_bytes
+          * batch_size)
+    <span class="kw">return</span> kv / (<span class="nu">1024</span>**<span class="nu">3</span>)
+
+<span class="cm"># Llama-3 8B: 32 layers, 8 KV heads, 128 head_dim</span>
+print(<span class="st">f"Llama-3 8B  @ 4K  seq: {kv_cache_gb(32,  8, 128, 4096):.2f} GB"</span>)
+print(<span class="st">f"Llama-3 8B  @ 128K seq: {kv_cache_gb(32,  8, 128, 131072):.2f} GB"</span>)
+print(<span class="st">f"Llama-3 70B @ 4K  seq: {kv_cache_gb(80,  8, 128, 4096):.2f} GB"</span>)
+print(<span class="st">f"Llama-3 70B @ 32K seq: {kv_cache_gb(80,  8, 128, 32768):.2f} GB"</span>)
+<span class="cm"># Output:
+# Llama-3 8B  @ 4K  seq: 0.53 GB
+# Llama-3 8B  @ 128K seq: 17.0 GB  ← KV alone fills an A100!
+# Llama-3 70B @ 4K  seq: 1.34 GB
+# Llama-3 70B @ 32K seq: 10.7 GB</span>
+</code></pre>
+    </div>
+
+    <h3>📈 Batch Size Impact</h3>
+    <p>
+      Serving 100 concurrent users each with a 4K context window on Llama-3 70B requires:
+      100 × 1.34 GB = 134 GB for KV cache alone — more than the model weights themselves (140 GB).
+      This is why KV cache management is the primary challenge in LLM serving.
+    </p>
+
+    <table class="data-table">
+      <thead><tr><th>Model</th><th>Seq Len</th><th>Batch=1</th><th>Batch=10</th><th>Batch=100</th></tr></thead>
+      <tbody>
+        <tr><td>Llama-3 8B</td><td>4K</td><td>0.53 GB</td><td>5.3 GB</td><td>53 GB</td></tr>
+        <tr><td>Llama-3 8B</td><td>32K</td><td>4.3 GB</td><td>43 GB</td><td>>GPU</td></tr>
+        <tr><td>Llama-3 70B</td><td>4K</td><td>1.34 GB</td><td>13.4 GB</td><td>134 GB</td></tr>
+        <tr><td>Llama-3 70B</td><td>32K</td><td>10.7 GB</td><td>107 GB</td><td>>GPU</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- CHAPTER 12 -->
+  <section class="chapter-section" id="ch12">
+    <div class="section-number">Chapter 12</div>
+    <h2>KV Cache Optimization</h2>
+    <p class="section-tagline">PagedAttention, Flash Attention, and GQA — the techniques that make long-context inference economically viable.</p>
+
+    <h3>📄 PagedAttention (vLLM)</h3>
+    <p>
+      Traditional KV cache allocates a contiguous block for each request's maximum sequence length
+      upfront — wasting up to 60-80% of memory on padding. vLLM's PagedAttention, inspired by
+      OS virtual memory, stores KV cache in non-contiguous <em>pages</em> (blocks of tokens),
+      allocated on demand.
+    </p>
+
+    <div class="diagram-block">
+Traditional KV Cache (contiguous, pre-allocated):
+  Request 1:  [KV₁ KV₂ KV₃ KV₄ __ __ __ __]  ← 50% wasted
+  Request 2:  [KV₁ KV₂ __ __ __ __ __ __]      ← 75% wasted
+  Request 3:  [KV₁ KV₂ KV₃ KV₄ KV₅ KV₆ __ __] ← 25% wasted
+
+PagedAttention (block-based, on-demand):
+  Physical blocks: [B0][B1][B2][B3][B4][B5][B6]
+  Request 1 → B0, B2          (logical: 0,1)
+  Request 2 → B1              (logical: 0)
+  Request 3 → B3, B5, B6      (logical: 0,1,2)
+  Memory waste: < 4%  ← near-optimal!
+</div>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>vLLM with PagedAttention</span></div>
+      <pre><code><span class="kw">from</span> vllm <span class="kw">import</span> LLM, SamplingParams
+
+<span class="cm"># vLLM automatically uses PagedAttention</span>
+llm = LLM(
+    model=<span class="st">"meta-llama/Meta-Llama-3-8B-Instruct"</span>,
+    max_model_len=<span class="nu">8192</span>,
+    gpu_memory_utilization=<span class="nu">0.9</span>,   <span class="cm"># use 90% of GPU for KV cache</span>
+    dtype=<span class="st">"bfloat16"</span>,
+)
+sampling = SamplingParams(temperature=<span class="nu">0.7</span>, top_p=<span class="nu">0.9</span>, max_tokens=<span class="nu">512</span>)
+
+prompts = [
+    <span class="st">"Explain the transformer architecture:"</span>,
+    <span class="st">"Write a Python function to sort a list:"</span>,
+]
+outputs = llm.generate(prompts, sampling)
+<span class="kw">for</span> out <span class="kw">in</span> outputs:
+    print(out.outputs[<span class="nu">0</span>].text)
+</code></pre>
+    </div>
+
+    <h3>⚡ Flash Attention: IO-Aware Exact Attention</h3>
+    <p>
+      Standard attention materializes the full N×N attention matrix in HBM (slow, O(N²) memory).
+      Flash Attention tiles the computation to fit in fast SRAM, never writing the full matrix to HBM.
+      Same mathematical result, 2-4× faster, O(N) memory.
+    </p>
+
+    <div class="diagram-block">
+Standard Attention (N=4096):
+  Q,K,V in HBM → load to SRAM
+  Compute S = QKᵀ/√d  → write N×N = 64M floats to HBM  ← SLOW
+  Compute P = softmax(S) → write 64M floats to HBM       ← SLOW
+  Compute O = PV        → write to HBM
+  Total HBM reads/writes: ~3 × N² × d
+
+Flash Attention (N=4096):
+  Split Q,K,V into tiles that fit in SRAM (~96KB)
+  For each tile pair: compute partial softmax in SRAM
+  Accumulate into output — never write N×N matrix to HBM
+  Total HBM reads/writes: ~N × d  (linear!)
+</div>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>Flash Attention 2 in PyTorch</span></div>
+      <pre><code><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+
+<span class="cm"># PyTorch 2.0+ uses Flash Attention automatically via scaled_dot_product_attention</span>
+<span class="kw">def</span> <span class="fn">flash_attention_forward</span>(Q, K, V, is_causal=<span class="kw">True</span>):
+    <span class="cm"># Automatically selects Flash Attention 2 when available</span>
+    <span class="kw">with</span> torch.backends.cuda.sdp_kernel(
+        enable_flash=<span class="kw">True</span>,
+        enable_math=<span class="kw">False</span>,    <span class="cm"># disable non-Flash fallback</span>
+        enable_mem_efficient=<span class="kw">False</span>
+    ):
+        out = F.scaled_dot_product_attention(
+            Q, K, V,
+            attn_mask=<span class="kw">None</span>,
+            dropout_p=<span class="nu">0.0</span>,
+            is_causal=is_causal     <span class="cm"># applies causal mask efficiently</span>
+        )
+    <span class="kw">return</span> out
+
+<span class="cm"># Load model with Flash Attention 2 enabled</span>
+<span class="kw">from</span> transformers <span class="kw">import</span> AutoModelForCausalLM
+model = AutoModelForCausalLM.from_pretrained(
+    <span class="st">"meta-llama/Meta-Llama-3-8B"</span>,
+    attn_implementation=<span class="st">"flash_attention_2"</span>,  <span class="cm"># use FA2</span>
+    torch_dtype=torch.bfloat16,
+    device_map=<span class="st">"auto"</span>,
+)
+</code></pre>
+    </div>
+
+    <h3>🗜️ KV Cache Quantization</h3>
+    <p>
+      The KV cache itself can be quantized (INT8 or even INT4) since small precision errors in
+      cached attention states accumulate less harmfully than weight errors.
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>KV Cache in INT8 with vLLM</span></div>
+      <pre><code><span class="kw">from</span> vllm <span class="kw">import</span> LLM
+
+llm = LLM(
+    model=<span class="st">"meta-llama/Meta-Llama-3-70B-Instruct"</span>,
+    kv_cache_dtype=<span class="st">"fp8"</span>,          <span class="cm"># FP8 KV cache (2× memory saving)</span>
+    quantization=<span class="st">"fp8"</span>,            <span class="cm"># weight quantization</span>
+    tensor_parallel_size=<span class="nu">4</span>,         <span class="cm"># 4 GPUs for 70B model</span>
+    gpu_memory_utilization=<span class="nu">0.92</span>,
+)
+<span class="cm"># FP8 KV cache: 1.34 GB → 0.67 GB per sequence for 70B @ 4K
+# Enables ~2× more concurrent requests</span>
+</code></pre>
+    </div>
+
+    <h3>🏎️ Continuous Batching</h3>
+    <p>
+      Traditional static batching waits for the entire batch to finish before starting new requests,
+      causing GPU idling. Continuous batching (Orca/vLLM) inserts new requests as soon as slots free
+      up, dramatically increasing throughput.
+    </p>
+
+    <div class="card-grid">
+      <div class="info-card">
+        <div class="card-icon">📄</div>
+        <h4>PagedAttention</h4>
+        <ul>
+          <li>OS-inspired virtual memory</li>
+          <li>Non-contiguous KV pages</li>
+          <li>&lt;4% memory waste</li>
+          <li>Prefix sharing across requests</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">⚡</div>
+        <h4>Flash Attention 2</h4>
+        <ul>
+          <li>SRAM-tiled computation</li>
+          <li>O(N) memory (vs O(N²))</li>
+          <li>2-4× faster than standard</li>
+          <li>Supports causal masking</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🔀</div>
+        <h4>GQA / MQA</h4>
+        <ul>
+          <li>Share K/V across Q heads</li>
+          <li>GQA: groups of 8 → 8× smaller KV</li>
+          <li>MQA: single K/V → max savings</li>
+          <li>Used by Llama-3, Mistral</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🔄</div>
+        <h4>Continuous Batching</h4>
+        <ul>
+          <li>No waiting for whole batch</li>
+          <li>New requests fill freed slots</li>
+          <li>3-10× throughput improvement</li>
+          <li>Core feature of vLLM</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout success">
+      <strong>Optimization Stack:</strong> The combination of (1) AWQ INT4 weights, (2) FP8 KV cache,
+      (3) Flash Attention 2, (4) GQA, and (5) PagedAttention with continuous batching can serve
+      Llama-3 70B at 5-10× higher throughput than a naïve BF16 implementation — at the same
+      hardware cost. This stack is what vLLM and TensorRT-LLM implement out of the box.
+    </div>
+
+    <div style="margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+      <a href="llm-inference-2.html" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;">← Part 2: Alignment</a>
+      <a href="llm-inference-4.html" style="background:var(--accent);color:#fff;padding:0.6rem 1.4rem;border-radius:8px;text-decoration:none;font-size:0.85rem;font-weight:700;">Part 4: Running Inference →</a>
+    </div>
+  </section>
+
+</main>
+<script>
+function toggleTheme(){const h=document.documentElement;h.dataset.theme=h.dataset.theme==='dark'?'light':'dark';}
+const sections=document.querySelectorAll('.chapter-section');
+const links=document.querySelectorAll('.sidebar a[href^="#"]');
+const obs=new IntersectionObserver(e=>{e.forEach(en=>{if(en.isIntersecting){links.forEach(l=>l.classList.remove('active'));const a=document.querySelector(`.sidebar a[href="#${en.target.id}"]`);if(a)a.classList.add('active');}});},{threshold:0.3});
+sections.forEach(s=>obs.observe(s));
+</script>
+</body>
+</html>

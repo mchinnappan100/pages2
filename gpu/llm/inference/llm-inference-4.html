@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Inference — Part 4: Running Inference with PyTorch & JAX</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <style>
+    :root{--bg-primary:#0f1117;--bg-secondary:#1a1d27;--bg-card:#1e2130;--accent:#f43f5e;--accent-2:#6366f1;--accent-3:#10b981;--text-primary:#e2e8f0;--text-muted:#94a3b8;--border:#2d3148;--code-bg:#111827;--code-border:#374151;--success:#10b981;--warning:#f59e0b;--danger:#f87171;}
+    [data-theme="light"]{--bg-primary:#f8fafc;--bg-secondary:#f1f5f9;--bg-card:#ffffff;--text-primary:#1e293b;--text-muted:#64748b;--border:#e2e8f0;--code-bg:#f1f5f9;--code-border:#cbd5e1;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Inter',system-ui,sans-serif;background:var(--bg-primary);color:var(--text-primary);line-height:1.75;display:flex;min-height:100vh;}
+    .sidebar{width:265px;min-height:100vh;background:var(--bg-secondary);border-right:1px solid var(--border);position:fixed;top:0;left:0;overflow-y:auto;padding:1.5rem 1rem;z-index:100;}
+    .sidebar-logo{font-size:1.1rem;font-weight:800;color:var(--accent);margin-bottom:0.2rem;}
+    .sidebar-subtitle{font-size:0.7rem;color:var(--text-muted);margin-bottom:1.5rem;line-height:1.4;}
+    .sidebar-section-label{font-size:0.63rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:1.1rem 0 0.4rem;}
+    .sidebar a{display:block;padding:0.38rem 0.75rem;border-radius:6px;font-size:0.81rem;color:var(--text-muted);text-decoration:none;transition:background 0.15s,color 0.15s;}
+    .sidebar a:hover,.sidebar a.active{background:var(--bg-card);color:var(--text-primary);}
+    .part-links{margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border);}
+    .part-links a{font-size:0.76rem;}
+    .part-links a.current{color:var(--accent);font-weight:700;}
+    .main{margin-left:265px;flex:1;padding:3rem 4rem;max-width:980px;}
+    .theme-toggle{position:fixed;top:1rem;right:1.5rem;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.9rem;font-size:0.78rem;cursor:pointer;color:var(--text-primary);z-index:200;}
+    .hero{margin-bottom:4rem;padding-bottom:2.5rem;border-bottom:1px solid var(--border);}
+    .hero-eyebrow{font-size:0.78rem;color:var(--accent);font-weight:700;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:0.8rem;}
+    .hero h1{font-size:clamp(1.9rem,4vw,2.9rem);font-weight:800;line-height:1.2;margin-bottom:1rem;}
+    .hero h1 em{color:var(--accent);font-style:normal;}
+    .hero-desc{font-size:1rem;color:var(--text-muted);max-width:620px;margin-bottom:1.75rem;}
+    .stat-pills{display:flex;gap:1rem;flex-wrap:wrap;}
+    .stat-pill{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.6rem 1.1rem;text-align:center;min-width:90px;}
+    .stat-pill .value{font-size:1.1rem;font-weight:800;color:var(--accent);display:block;}
+    .stat-pill .label{font-size:0.68rem;color:var(--text-muted);}
+    .chapter-section{margin-bottom:4.5rem;scroll-margin-top:2rem;}
+    .section-number{display:inline-block;font-size:0.72rem;font-weight:700;color:var(--accent);background:rgba(244,63,94,0.12);border-radius:4px;padding:0.15rem 0.55rem;margin-bottom:0.55rem;letter-spacing:0.08em;text-transform:uppercase;}
+    .chapter-section h2{font-size:1.8rem;font-weight:800;margin-bottom:0.4rem;}
+    .section-tagline{color:var(--text-muted);font-size:0.9rem;margin-bottom:2rem;font-style:italic;}
+    .chapter-section h3{font-size:1.1rem;font-weight:700;margin:2.2rem 0 0.8rem;}
+    .chapter-section h4{font-size:0.95rem;font-weight:600;margin:1.4rem 0 0.5rem;color:var(--accent-2);}
+    .chapter-section p{margin-bottom:1rem;font-size:0.92rem;}
+    .chapter-section ul,.chapter-section ol{padding-left:1.5rem;margin-bottom:1rem;font-size:0.9rem;color:var(--text-muted);}
+    .chapter-section li{margin-bottom:0.3rem;}
+    .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem;margin:1.5rem 0;}
+    .info-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.25rem;}
+    .info-card .card-icon{font-size:1.5rem;margin-bottom:0.5rem;}
+    .info-card h4{font-size:0.92rem;font-weight:700;margin-bottom:0.5rem;color:var(--text-primary);}
+    .info-card ul{list-style:none;padding:0;margin:0;}
+    .info-card ul li{font-size:0.81rem;color:var(--text-muted);padding:0.22rem 0;padding-left:1rem;position:relative;}
+    .info-card ul li::before{content:"▸";color:var(--accent);position:absolute;left:0;}
+    .callout{border-left:3px solid var(--accent);background:var(--bg-card);border-radius:0 8px 8px 0;padding:1rem 1.25rem;margin:1.75rem 0;font-size:0.87rem;}
+    .callout.warning{border-left-color:var(--warning);}
+    .callout.success{border-left-color:var(--success);}
+    .callout.info{border-left-color:var(--accent-2);}
+    .callout strong{color:var(--accent);}
+    .callout.warning strong{color:var(--warning);}
+    .callout.success strong{color:var(--success);}
+    .callout.info strong{color:var(--accent-2);}
+    .diagram-block{background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:1.25rem;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:0.73rem;color:#a5f3fc;line-height:1.55;margin:1.75rem 0;white-space:pre;}
+    .code-block-wrapper{margin:1.75rem 0;border-radius:10px;overflow:hidden;border:1px solid var(--code-border);}
+    .code-block-header{background:#1f2937;padding:0.55rem 1rem;font-size:0.74rem;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--code-border);}
+    .code-block-header .lang-tag{color:var(--accent);font-weight:700;font-family:'JetBrains Mono',monospace;}
+    pre{background:var(--code-bg);padding:1.25rem;overflow-x:auto;margin:0;}
+    code{font-family:'JetBrains Mono',monospace;font-size:0.79rem;line-height:1.75;}
+    p code,li code,td code{background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:0.1em 0.45em;font-size:0.81em;color:#f9a8d4;}
+    .kw{color:#c084fc;}.cm{color:#6b7280;font-style:italic;}.st{color:#86efac;}.fn{color:#60a5fa;}.nu{color:#fbbf24;}.ty{color:#67e8f9;}.op{color:#f9a8d4;}
+    .data-table{width:100%;border-collapse:collapse;font-size:0.84rem;margin:1.75rem 0;}
+    .data-table thead tr{background:var(--bg-card);border-bottom:2px solid var(--accent);}
+    .data-table th{text-align:left;padding:0.75rem 1rem;font-weight:700;color:var(--text-muted);font-size:0.76rem;text-transform:uppercase;letter-spacing:0.06em;}
+    .data-table td{padding:0.7rem 1rem;border-bottom:1px solid var(--border);vertical-align:top;}
+    .data-table tbody tr:hover{background:var(--bg-card);}
+    .badge{display:inline-block;font-size:0.68rem;font-weight:700;padding:0.1rem 0.5rem;border-radius:4px;}
+    .badge-green{background:rgba(16,185,129,0.15);color:#10b981;}
+    .badge-blue{background:rgba(96,165,250,0.15);color:#60a5fa;}
+    .badge-amber{background:rgba(251,191,36,0.15);color:#fbbf24;}
+    .badge-red{background:rgba(248,113,113,0.15);color:#f87171;}
+    .math-block{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem 1.5rem;margin:1.5rem 0;font-family:'JetBrains Mono',monospace;font-size:0.88rem;color:#fde68a;text-align:center;}
+    .flow-steps{margin:1.5rem 0;}
+    .flow-step{display:flex;gap:1rem;align-items:flex-start;padding:0.75rem 0;border-bottom:1px solid var(--border);}
+    .flow-step:last-child{border-bottom:none;}
+    .flow-step-num{min-width:2rem;height:2rem;border-radius:50%;background:rgba(244,63,94,0.15);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:0.78rem;font-weight:700;flex-shrink:0;}
+    .flow-step-content h4{font-size:0.9rem;font-weight:700;margin-bottom:0.25rem;}
+    .flow-step-content p{font-size:0.84rem;color:var(--text-muted);margin:0;}
+    .summary-box{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:2rem;margin:2rem 0;}
+    .summary-box h3{font-size:1.1rem;font-weight:800;margin-bottom:1.25rem;color:var(--text-primary);}
+    .summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+    .summary-item{background:var(--bg-secondary);border-radius:10px;padding:1rem;}
+    .summary-item .s-label{font-size:0.68rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin-bottom:0.35rem;}
+    .summary-item .s-value{font-size:0.88rem;font-weight:600;color:var(--text-primary);}
+    @media(max-width:768px){.sidebar{display:none;}.main{margin-left:0;padding:1.5rem;}.summary-grid{grid-template-columns:1fr;}}
+  </style>
+</head>
+<body>
+<button class="theme-toggle" onclick="toggleTheme()">🌓 Theme</button>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">🚀 LLM Inference</div>
+  <div class="sidebar-subtitle">Part 4 · Running Inference</div>
+  <div class="sidebar-section-label">Part 4 — Inference</div>
+  <a href="#ch13">13. Inference with PyTorch</a>
+  <a href="#ch14">14. Sampling & Decoding</a>
+  <a href="#ch15">15. Inference with JAX</a>
+  <a href="#ch16">16. Production & Benchmarks</a>
+  <div class="sidebar-section-label">All Parts</div>
+  <div class="part-links">
+    <a href="llm-inference-1.html">Part 1 · Foundations</a>
+    <a href="llm-inference-2.html">Part 2 · Alignment</a>
+    <a href="llm-inference-3.html">Part 3 · Quantization</a>
+    <a href="llm-inference-4.html" class="current">Part 4 · Running Inference</a>
+  </div>
+</aside>
+
+<main class="main">
+
+  <div class="hero">
+    <div class="hero-eyebrow">Part 4 of 4 · LLM Inference Book Series</div>
+    <h1>Running <em>Inference</em>:<br>PyTorch, JAX &amp; Production</h1>
+    <p class="hero-desc">
+      The final part brings everything together. Complete, runnable inference implementations
+      in PyTorch and JAX — from a minimal autoregressive loop to a production-grade serving
+      system with batching, sampling strategies, performance benchmarks, and deployment guidance.
+    </p>
+    <div class="stat-pills">
+      <div class="stat-pill"><span class="value">4</span><span class="label">Chapters</span></div>
+      <div class="stat-pill"><span class="value">~70</span><span class="label">min read</span></div>
+      <div class="stat-pill"><span class="value">Part 4</span><span class="label">of 4</span></div>
+    </div>
+  </div>
+
+  <!-- CHAPTER 13 -->
+  <section class="chapter-section" id="ch13">
+    <div class="section-number">Chapter 13</div>
+    <h2>Inference with PyTorch</h2>
+    <p class="section-tagline">From a minimal autoregressive loop to a full production-ready inference pipeline.</p>
+
+    <h3>🔧 Minimal Autoregressive Inference</h3>
+    <p>
+      The simplest complete inference loop: tokenize the prompt, repeatedly call the model for
+      the next-token logits, sample or argmax, append, repeat until EOS or max length.
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>Minimal Autoregressive Generation (PyTorch)</span></div>
+      <pre><code><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+<span class="kw">from</span> transformers <span class="kw">import</span> AutoTokenizer, AutoModelForCausalLM
+
+<span class="kw">def</span> <span class="fn">greedy_generate</span>(
+    model, tokenizer, prompt: str,
+    max_new_tokens: int = <span class="nu">200</span>,
+    device: str = <span class="st">"cuda"</span>
+) -> str:
+    <span class="cm">"""Pure autoregressive greedy decoding — no sampling."""</span>
+    model.eval()
+    input_ids = tokenizer(prompt, return_tensors=<span class="st">"pt"</span>).input_ids.to(device)
+    generated  = input_ids.clone()
+
+    <span class="kw">with</span> torch.no_grad():
+        <span class="kw">for</span> _ <span class="kw">in</span> range(max_new_tokens):
+            <span class="cm"># Forward pass: (batch, seq_len, vocab_size)</span>
+            logits     = model(generated).logits
+            next_logit = logits[:, -<span class="nu">1</span>, :]          <span class="cm"># last token position</span>
+            next_token = next_logit.argmax(dim=-<span class="nu">1</span>, keepdim=<span class="kw">True</span>)
+
+            <span class="cm"># Append generated token</span>
+            generated = torch.cat([generated, next_token], dim=-<span class="nu">1</span>)
+
+            <span class="cm"># Stop on EOS token</span>
+            <span class="kw">if</span> next_token.item() == tokenizer.eos_token_id:
+                <span class="kw">break</span>
+
+    <span class="cm"># Decode only the newly generated tokens</span>
+    new_tokens = generated[<span class="nu">0</span>, input_ids.shape[-<span class="nu">1</span>]:]
+    <span class="kw">return</span> tokenizer.decode(new_tokens, skip_special_tokens=<span class="kw">True</span>)
+
+
+<span class="cm"># Usage</span>
+model_id  = <span class="st">"meta-llama/Meta-Llama-3-8B-Instruct"</span>
+tokenizer = AutoTokenizer.from_pretrained(model_id)
+model     = AutoModelForCausalLM.from_pretrained(
+    model_id, torch_dtype=torch.bfloat16, device_map=<span class="st">"auto"</span>
+)
+
+prompt  = <span class="st">"Explain the KV cache in one paragraph:"</span>
+output  = <span class="fn">greedy_generate</span>(model, tokenizer, prompt)
+print(output)
+</code></pre>
+    </div>
+
+    <h3>🏎️ Production Inference with KV Cache & Flash Attention</h3>
+    <p>
+      The production version enables Flash Attention 2, uses the model's built-in <code>generate</code>
+      method (which includes KV caching automatically), and adds BF16 + torch.compile for maximum speed.
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>Production-Grade Inference (PyTorch)</span></div>
+      <pre><code><span class="kw">import</span> torch
+<span class="kw">from</span> transformers <span class="kw">import</span> (AutoTokenizer, AutoModelForCausalLM,
+                           TextStreamer, GenerationConfig)
+
+<span class="kw">class</span> <span class="ty">LlamaInference</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, model_id: str, device: str = <span class="st">"cuda"</span>):
+        self.tokenizer = AutoTokenizer.from_pretrained(model_id)
+        self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            torch_dtype=torch.bfloat16,
+            device_map=<span class="st">"auto"</span>,
+            attn_implementation=<span class="st">"flash_attention_2"</span>,   <span class="cm"># FA2</span>
+        )
+        self.model.eval()
+
+        <span class="cm"># Compile the model for faster repeated calls</span>
+        <span class="cm"># self.model = torch.compile(self.model, mode="reduce-overhead")</span>
+
+        self.gen_config = GenerationConfig(
+            do_sample=<span class="kw">True</span>,
+            temperature=<span class="nu">0.7</span>,
+            top_p=<span class="nu">0.9</span>,
+            top_k=<span class="nu">50</span>,
+            repetition_penalty=<span class="nu">1.1</span>,
+            max_new_tokens=<span class="nu">512</span>,
+            pad_token_id=self.tokenizer.eos_token_id,
+            eos_token_id=self.tokenizer.eos_token_id,
+        )
+
+    <span class="kw">def</span> <span class="fn">generate</span>(self, prompt: str, stream: bool = <span class="kw">False</span>) -> str:
+        <span class="cm"># Format as chat template</span>
+        messages = [{<span class="st">"role"</span>: <span class="st">"user"</span>, <span class="st">"content"</span>: prompt}]
+        text     = self.tokenizer.apply_chat_template(
+            messages, tokenize=<span class="kw">False</span>, add_generation_prompt=<span class="kw">True</span>
+        )
+        inputs   = self.tokenizer(text, return_tensors=<span class="st">"pt"</span>).to(self.model.device)
+
+        streamer = TextStreamer(self.tokenizer, skip_prompt=<span class="kw">True</span>) <span class="kw">if</span> stream <span class="kw">else</span> <span class="kw">None</span>
+
+        <span class="kw">with</span> torch.inference_mode():   <span class="cm"># faster than no_grad()</span>
+            output_ids = self.model.generate(
+                **inputs,
+                generation_config=self.gen_config,
+                streamer=streamer,
+                use_cache=<span class="kw">True</span>,       <span class="cm"># ← enables KV cache</span>
+            )
+
+        new_ids = output_ids[<span class="nu">0</span>, inputs[<span class="st">"input_ids"</span>].shape[-<span class="nu">1</span>]:]
+        <span class="kw">return</span> self.tokenizer.decode(new_ids, skip_special_tokens=<span class="kw">True</span>)
+
+    <span class="kw">def</span> <span class="fn">batch_generate</span>(self, prompts: list[str]) -> list[str]:
+        <span class="cm">"""Batched generation for higher throughput."""</span>
+        texts  = [self.tokenizer.apply_chat_template(
+                      [{<span class="st">"role"</span>: <span class="st">"user"</span>, <span class="st">"content"</span>: p}],
+                      tokenize=<span class="kw">False</span>, add_generation_prompt=<span class="kw">True</span>)
+                  <span class="kw">for</span> p <span class="kw">in</span> prompts]
+        inputs = self.tokenizer(texts, return_tensors=<span class="st">"pt"</span>, padding=<span class="kw">True</span>,
+                                truncation=<span class="kw">True</span>).to(self.model.device)
+        <span class="kw">with</span> torch.inference_mode():
+            out = self.model.generate(**inputs, generation_config=self.gen_config)
+        results = []
+        <span class="kw">for</span> i, ids <span class="kw">in</span> enumerate(out):
+            new  = ids[inputs[<span class="st">"input_ids"</span>].shape[-<span class="nu">1</span>]:]
+            results.append(self.tokenizer.decode(new, skip_special_tokens=<span class="kw">True</span>))
+        <span class="kw">return</span> results
+
+
+<span class="cm"># Example usage</span>
+engine = <span class="ty">LlamaInference</span>(<span class="st">"meta-llama/Meta-Llama-3-8B-Instruct"</span>)
+print(engine.<span class="fn">generate</span>(<span class="st">"What is Flash Attention?"</span>, stream=<span class="kw">True</span>))
+</code></pre>
+    </div>
+
+    <h3>📦 Quantized Inference with bitsandbytes</h3>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>INT4 Quantized Inference</span></div>
+      <pre><code><span class="kw">from</span> transformers <span class="kw">import</span> AutoModelForCausalLM, BitsAndBytesConfig
+<span class="kw">import</span> torch
+
+<span class="cm"># Load 70B model in 4-bit — fits in ~40 GB (two A100 GPUs)</span>
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=<span class="kw">True</span>,
+    bnb_4bit_quant_type=<span class="st">"nf4"</span>,
+    bnb_4bit_compute_dtype=torch.bfloat16,
+    bnb_4bit_use_double_quant=<span class="kw">True</span>,
+)
+model = AutoModelForCausalLM.from_pretrained(
+    <span class="st">"meta-llama/Meta-Llama-3-70B-Instruct"</span>,
+    quantization_config=bnb_config,
+    device_map=<span class="st">"auto"</span>,
+    attn_implementation=<span class="st">"flash_attention_2"</span>,
+)
+<span class="cm"># Memory: 70B × 0.5 bytes = ~35 GB + activations + KV cache</span>
+</code></pre>
+    </div>
+  </section>
+
+  <!-- CHAPTER 14 -->
+  <section class="chapter-section" id="ch14">
+    <div class="section-number">Chapter 14</div>
+    <h2>Sampling Strategies &amp; Decoding</h2>
+    <p class="section-tagline">Controlling the randomness and quality of generated text — the art and science of sampling.</p>
+
+    <h3>🎲 Temperature Scaling</h3>
+    <p>
+      Temperature divides logits before softmax. Low temperature sharpens the distribution
+      (more deterministic), high temperature flattens it (more random).
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>Complete Sampling Strategies</span></div>
+      <pre><code><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+
+<span class="kw">def</span> <span class="fn">sample_next_token</span>(
+    logits: torch.Tensor,          <span class="cm"># (vocab_size,)</span>
+    temperature: float = <span class="nu">1.0</span>,
+    top_k:       int   = <span class="nu">0</span>,
+    top_p:       float = <span class="nu">1.0</span>,
+    repetition_penalty: float = <span class="nu">1.0</span>,
+    past_ids:    torch.Tensor = <span class="kw">None</span>,
+) -> int:
+    <span class="cm">"""Apply temperature, top-k, top-p, and repetition penalty."""</span>
+
+    <span class="cm"># 1. Repetition penalty: reduce probability of seen tokens</span>
+    <span class="kw">if</span> repetition_penalty != <span class="nu">1.0</span> <span class="kw">and</span> past_ids <span class="kw">is not</span> <span class="kw">None</span>:
+        <span class="kw">for</span> token_id <span class="kw">in</span> past_ids.unique():
+            <span class="kw">if</span> logits[token_id] > <span class="nu">0</span>:
+                logits[token_id] /= repetition_penalty
+            <span class="kw">else</span>:
+                logits[token_id] *= repetition_penalty
+
+    <span class="cm"># 2. Temperature scaling</span>
+    <span class="kw">if</span> temperature != <span class="nu">1.0</span>:
+        logits = logits / temperature
+
+    <span class="cm"># 3. Top-k filtering: keep only top k tokens</span>
+    <span class="kw">if</span> top_k > <span class="nu">0</span>:
+        threshold = torch.topk(logits, top_k).values[-<span class="nu">1</span>]
+        logits    = logits.masked_fill(logits < threshold, <span class="nu">float</span>(<span class="st">'-inf'</span>))
+
+    <span class="cm"># 4. Top-p (nucleus) sampling: keep smallest set summing to ≥ p</span>
+    <span class="kw">if</span> top_p < <span class="nu">1.0</span>:
+        sorted_logits, sorted_idx = torch.sort(logits, descending=<span class="kw">True</span>)
+        cum_probs = sorted_logits.softmax(dim=-<span class="nu">1</span>).cumsum(dim=-<span class="nu">1</span>)
+        <span class="cm"># Remove tokens with cumulative probability above threshold</span>
+        remove_mask = cum_probs - sorted_logits.softmax(dim=-<span class="nu">1</span>) > top_p
+        sorted_logits[remove_mask] = <span class="nu">float</span>(<span class="st">'-inf'</span>)
+        <span class="cm"># Scatter back to original order</span>
+        logits = torch.zeros_like(logits).scatter_(<span class="nu">0</span>, sorted_idx, sorted_logits)
+
+    <span class="cm"># 5. Sample from the final distribution</span>
+    probs = F.softmax(logits, dim=-<span class="nu">1</span>)
+    <span class="kw">return</span> torch.multinomial(probs, num_samples=<span class="nu">1</span>).item()
+
+
+<span class="cm"># Greedy: temperature=0 (argmax)</span>
+<span class="cm"># Creative writing: temp=1.0, top_p=0.95</span>
+<span class="cm"># Code generation: temp=0.2, top_k=40</span>
+<span class="cm"># Factual QA: temp=0.1 (near-deterministic)</span>
+</code></pre>
+    </div>
+
+    <h3>📊 Sampling Parameter Guide</h3>
+    <table class="data-table">
+      <thead><tr><th>Task</th><th>Temperature</th><th>Top-p</th><th>Top-k</th><th>Rep. Penalty</th></tr></thead>
+      <tbody>
+        <tr><td>Factual QA</td><td>0.1</td><td>1.0</td><td>1 (greedy)</td><td>1.0</td></tr>
+        <tr><td>Code generation</td><td>0.2</td><td>0.95</td><td>40</td><td>1.05</td></tr>
+        <tr><td>Summarization</td><td>0.3</td><td>0.9</td><td>50</td><td>1.1</td></tr>
+        <tr><td>General chat</td><td>0.7</td><td>0.9</td><td>50</td><td>1.1</td></tr>
+        <tr><td>Creative writing</td><td>1.0–1.2</td><td>0.95</td><td>100</td><td>1.05</td></tr>
+        <tr><td>Brainstorming</td><td>1.2–1.5</td><td>1.0</td><td>0</td><td>1.0</td></tr>
+      </tbody>
+    </table>
+
+    <h3>⚡ Speculative Decoding</h3>
+    <p>
+      Speculative decoding uses a small fast <em>draft model</em> to propose K tokens, then verifies
+      all K with the large model in a single forward pass. Accepted tokens are kept; the first
+      rejected token is resampled from the target distribution.
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>Speculative Decoding</span></div>
+      <pre><code><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+
+<span class="kw">def</span> <span class="fn">speculative_decode</span>(
+    draft_model,   target_model,   tokenizer,
+    prompt: str,   K: int = <span class="nu">4</span>,    max_new: int = <span class="nu">200</span>
+) -> str:
+    ids = tokenizer(prompt, return_tensors=<span class="st">"pt"</span>).input_ids.cuda()
+    total_accepted = <span class="nu">0</span>
+
+    <span class="kw">while</span> ids.shape[-<span class="nu">1</span>] - len(tokenizer(prompt).input_ids) < max_new:
+        <span class="cm"># ── Draft: autoregressively generate K candidate tokens ──</span>
+        draft_ids = ids.clone()
+        draft_probs = []
+        <span class="kw">for</span> _ <span class="kw">in</span> range(K):
+            <span class="kw">with</span> torch.no_grad():
+                dlogits = draft_model(draft_ids).logits[:, -<span class="nu">1</span>, :]
+            dp = F.softmax(dlogits / <span class="nu">0.7</span>, dim=-<span class="nu">1</span>)
+            dt = torch.multinomial(dp, <span class="nu">1</span>)
+            draft_ids   = torch.cat([draft_ids, dt], dim=-<span class="nu">1</span>)
+            draft_probs.append(dp[<span class="nu">0</span>, dt[<span class="nu">0</span>, <span class="nu">0</span>]].item())
+
+        <span class="cm"># ── Target: verify all K+1 positions in ONE forward pass ──</span>
+        <span class="kw">with</span> torch.no_grad():
+            tlogits = target_model(draft_ids).logits[<span class="nu">0</span>, -K-<span class="nu">1</span>:, :]
+        target_probs = F.softmax(tlogits / <span class="nu">0.7</span>, dim=-<span class="nu">1</span>)
+
+        <span class="cm"># ── Accept/reject each draft token ──</span>
+        n_accepted = <span class="nu">0</span>
+        <span class="kw">for</span> i <span class="kw">in</span> range(K):
+            t_id    = draft_ids[<span class="nu">0</span>, ids.shape[-<span class="nu">1</span>] + i].item()
+            q       = target_probs[i, t_id].item()
+            p       = draft_probs[i]
+            r       = torch.rand(<span class="nu">1</span>).item()
+            <span class="kw">if</span> r <= min(<span class="nu">1.0</span>, q / p):
+                n_accepted += <span class="nu">1</span>
+            <span class="kw">else</span>:
+                <span class="kw">break</span>   <span class="cm"># reject this and all subsequent draft tokens</span>
+
+        <span class="cm"># Keep accepted tokens + one target-sampled correction token</span>
+        ids = draft_ids[:, :ids.shape[-<span class="nu">1</span>] + n_accepted]
+        bonus = torch.multinomial(target_probs[n_accepted], <span class="nu">1</span>).unsqueeze(<span class="nu">0</span>)
+        ids   = torch.cat([ids, bonus], dim=-<span class="nu">1</span>)
+        total_accepted += n_accepted + <span class="nu">1</span>
+
+        <span class="kw">if</span> ids[<span class="nu">0</span>, -<span class="nu">1</span>].item() == tokenizer.eos_token_id:
+            <span class="kw">break</span>
+
+    new_ids = ids[<span class="nu">0</span>, len(tokenizer(prompt).input_ids):]
+    <span class="kw">return</span> tokenizer.decode(new_ids, skip_special_tokens=<span class="kw">True</span>)
+</code></pre>
+    </div>
+  </section>
+
+  <!-- CHAPTER 15 -->
+  <section class="chapter-section" id="ch15">
+    <div class="section-number">Chapter 15</div>
+    <h2>Inference with JAX</h2>
+    <p class="section-tagline">Functional, JIT-compiled inference — ideal for TPU clusters and research workflows requiring extreme reproducibility.</p>
+
+    <h3>🔑 JAX Inference Fundamentals</h3>
+    <p>
+      JAX's key advantages for inference: <code>jax.jit</code> compiles Python functions to XLA,
+      eliminating Python overhead on repeated calls; <code>jax.vmap</code> vectorizes functions
+      over batch dimensions; <code>jax.pmap</code> shards computation across devices. Unlike PyTorch,
+      JAX uses explicit random keys for reproducibility.
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>JAX Transformer Inference (Flax)</span></div>
+      <pre><code><span class="kw">import</span> jax
+<span class="kw">import</span> jax.numpy <span class="kw">as</span> jnp
+<span class="kw">from</span> flax <span class="kw">import</span> linen <span class="kw">as</span> nn
+<span class="kw">from</span> functools <span class="kw">import</span> partial
+
+<span class="kw">class</span> <span class="ty">CausalSelfAttention</span>(nn.Module):
+    n_heads: int
+    d_model: int
+
+    <span class="op">@nn.compact</span>
+    <span class="kw">def</span> <span class="fn">__call__</span>(self, x, kv_cache=<span class="kw">None</span>, deterministic=<span class="kw">True</span>):
+        B, T, C = x.shape
+        H       = self.n_heads
+        D       = C // H
+
+        q = nn.Dense(C, use_bias=<span class="kw">False</span>, name=<span class="st">"wq"</span>)(x).reshape(B, T, H, D)
+        k = nn.Dense(C, use_bias=<span class="kw">False</span>, name=<span class="st">"wk"</span>)(x).reshape(B, T, H, D)
+        v = nn.Dense(C, use_bias=<span class="kw">False</span>, name=<span class="st">"wv"</span>)(x).reshape(B, T, H, D)
+
+        <span class="cm"># Append to KV cache if provided (for autoregressive decode)</span>
+        <span class="kw">if</span> kv_cache <span class="kw">is not</span> <span class="kw">None</span>:
+            k_cache, v_cache = kv_cache
+            k = jnp.concatenate([k_cache, k], axis=<span class="nu">1</span>)
+            v = jnp.concatenate([v_cache, v], axis=<span class="nu">1</span>)
+        new_cache = (k, v)
+
+        <span class="cm"># Transpose for batched matmul: (B, H, T, D)</span>
+        q, k, v = [a.transpose(<span class="nu">0</span>, <span class="nu">2</span>, <span class="nu">1</span>, <span class="nu">3</span>) <span class="kw">for</span> a <span class="kw">in</span> (q, k, v)]
+
+        scale  = D ** -<span class="nu">0.5</span>
+        scores = jnp.matmul(q, k.swapaxes(-<span class="nu">1</span>, -<span class="nu">2</span>)) * scale
+
+        <span class="cm"># Causal mask</span>
+        Tq, Tk = scores.shape[-<span class="nu">2</span>], scores.shape[-<span class="nu">1</span>]
+        mask   = jnp.tril(jnp.ones((Tq, Tk), dtype=bool), k=Tk - Tq)
+        scores = jnp.where(mask, scores, jnp.finfo(scores.dtype).min)
+
+        attn   = jax.nn.softmax(scores, axis=-<span class="nu">1</span>)
+        out    = jnp.matmul(attn, v).transpose(<span class="nu">0</span>, <span class="nu">2</span>, <span class="nu">1</span>, <span class="nu">3</span>).reshape(B, T, C)
+        out    = nn.Dense(C, use_bias=<span class="kw">False</span>, name=<span class="st">"wo"</span>)(out)
+        <span class="kw">return</span> out, new_cache
+
+
+<span class="kw">class</span> <span class="ty">TransformerBlock</span>(nn.Module):
+    n_heads: int
+    d_model: int
+    d_ffn:   int
+
+    <span class="op">@nn.compact</span>
+    <span class="kw">def</span> <span class="fn">__call__</span>(self, x, kv_cache=<span class="kw">None</span>):
+        <span class="cm"># Pre-norm + attention</span>
+        x_norm = nn.RMSNorm()(x)
+        attn_out, new_cache = <span class="ty">CausalSelfAttention</span>(
+            self.n_heads, self.d_model)(x_norm, kv_cache)
+        x = x + attn_out
+
+        <span class="cm"># Pre-norm + FFN (SwiGLU)</span>
+        x_norm = nn.RMSNorm()(x)
+        gate   = nn.Dense(self.d_ffn, use_bias=<span class="kw">False</span>)(x_norm)
+        up     = nn.Dense(self.d_ffn, use_bias=<span class="kw">False</span>)(x_norm)
+        ffn    = nn.Dense(self.d_model, use_bias=<span class="kw">False</span>)(jax.nn.silu(gate) * up)
+        x = x + ffn
+        <span class="kw">return</span> x, new_cache
+</code></pre>
+    </div>
+
+    <h3>⚡ JIT-Compiled Autoregressive Generation in JAX</h3>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>JAX JIT Inference Loop</span></div>
+      <pre><code><span class="kw">import</span> jax
+<span class="kw">import</span> jax.numpy <span class="kw">as</span> jnp
+<span class="kw">from</span> jax <span class="kw">import</span> random
+
+<span class="op">@partial</span>(jax.jit, static_argnames=[<span class="st">"temperature"</span>, <span class="st">"top_k"</span>])
+<span class="kw">def</span> <span class="fn">generate_step</span>(params, input_ids, kv_cache, rng_key,
+                   temperature: float = <span class="nu">0.7</span>, top_k: int = <span class="nu">50</span>):
+    <span class="cm">"""Single JAX-JIT-compiled generation step with KV cache."""</span>
+    <span class="cm"># Model forward pass</span>
+    logits, new_cache = model.apply(params, input_ids, kv_cache=kv_cache)
+    next_logits = logits[:, -<span class="nu">1</span>, :] / temperature   <span class="cm"># (B, vocab)</span>
+
+    <span class="cm"># Top-k filtering</span>
+    top_vals, _ = jax.lax.top_k(next_logits, top_k)
+    threshold   = top_vals[:, -<span class="nu">1</span>:] - <span class="nu">1e-6</span>
+    next_logits = jnp.where(next_logits >= threshold, next_logits, -<span class="nu">1e9</span>)
+
+    <span class="cm"># Sample — JAX requires explicit RNG key (no global state)</span>
+    next_token = random.categorical(rng_key, next_logits)  <span class="cm"># (B,)</span>
+    <span class="kw">return</span> next_token, new_cache
+
+
+<span class="kw">def</span> <span class="fn">jax_generate</span>(params, prompt_ids: jnp.ndarray,
+                  max_new_tokens: int = <span class="nu">200</span>, seed: int = <span class="nu">42</span>):
+    <span class="cm">"""Full JAX autoregressive generation loop."""</span>
+    rng        = random.PRNGKey(seed)
+    ids        = prompt_ids           <span class="cm"># (1, prompt_len)</span>
+    kv_cache   = <span class="kw">None</span>                 <span class="cm"># initialised on first step</span>
+    generated  = []
+
+    <span class="kw">for</span> _ <span class="kw">in</span> range(max_new_tokens):
+        rng, step_rng = random.split(rng)
+        next_tok, kv_cache = <span class="fn">generate_step</span>(
+            params, ids, kv_cache, step_rng
+        )
+        generated.append(int(next_tok[<span class="nu">0</span>]))
+        ids = next_tok[:, jnp.newaxis]   <span class="cm"># only feed new token (KV cache holds past)</span>
+        <span class="kw">if</span> int(next_tok[<span class="nu">0</span>]) == EOS_ID:
+            <span class="kw">break</span>
+
+    <span class="kw">return</span> generated
+
+
+<span class="cm"># On first call: JIT compilation (~10-30 sec), subsequent calls: native speed</span>
+<span class="cm"># Benefit: Python overhead eliminated entirely after first call</span>
+</code></pre>
+    </div>
+
+    <h3>🌐 Multi-Device Inference with pmap</h3>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>JAX Multi-GPU Inference with pmap</span></div>
+      <pre><code><span class="kw">import</span> jax
+<span class="kw">from</span> jax <span class="kw">import</span> pmap
+<span class="kw">import</span> jax.numpy <span class="kw">as</span> jnp
+
+n_devices = jax.device_count()
+print(<span class="st">f"Available devices: {n_devices}"</span>)  <span class="cm"># e.g., 4 GPUs or 8 TPU cores</span>
+
+<span class="cm"># Replicate model params across all devices</span>
+replicated_params = jax.device_put_replicated(params, jax.devices())
+
+<span class="op">@pmap</span>
+<span class="kw">def</span> <span class="fn">parallel_forward</span>(params, input_ids):
+    <span class="cm">"""Run inference on all devices simultaneously — different batch shards."""</span>
+    logits, _ = model.apply(params, input_ids)
+    <span class="kw">return</span> logits[:, -<span class="nu">1</span>, :]   <span class="cm"># (local_batch, vocab)</span>
+
+<span class="cm"># Batch must be divisible by n_devices</span>
+batch_size = <span class="nu">16</span>
+input_ids  = jnp.ones((<span class="nu">16</span>, <span class="nu">512</span>), dtype=jnp.int32)
+
+<span class="cm"># Reshape for pmap: (n_devices, batch_per_device, seq_len)</span>
+sharded_ids = input_ids.reshape(n_devices, batch_size // n_devices, <span class="nu">512</span>)
+logits      = <span class="fn">parallel_forward</span>(replicated_params, sharded_ids)
+<span class="cm"># logits shape: (n_devices, batch_per_device, vocab_size)</span>
+</code></pre>
+    </div>
+
+    <h3>🔄 PyTorch vs JAX for Inference</h3>
+    <table class="data-table">
+      <thead><tr><th>Aspect</th><th>PyTorch</th><th>JAX</th></tr></thead>
+      <tbody>
+        <tr><td>Ecosystem</td><td><span class="badge badge-green">Huge (HuggingFace, vLLM)</span></td><td><span class="badge badge-amber">Growing (Flax, MaxText)</span></td></tr>
+        <tr><td>Debugging</td><td>Easier (eager by default)</td><td>Harder (JIT tracing)</td></tr>
+        <tr><td>Reproducibility</td><td>Global RNG state</td><td><span class="badge badge-green">Explicit PRNG keys</span></td></tr>
+        <tr><td>TPU support</td><td>Limited (XLA backend)</td><td><span class="badge badge-green">Native (Google's stack)</span></td></tr>
+        <tr><td>JIT compilation</td><td><code>torch.compile</code></td><td><code>jax.jit</code> (always XLA)</td></tr>
+        <tr><td>Batching</td><td>Manual</td><td><code>vmap</code> (auto-vectorize)</td></tr>
+        <tr><td>Multi-device</td><td>DDP / FSDP</td><td><code>pmap</code> / <code>shard_map</code></td></tr>
+        <tr><td>Used by</td><td>Meta, Mistral, most OSS</td><td>Google (Gemini), DeepMind</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- CHAPTER 16 -->
+  <section class="chapter-section" id="ch16">
+    <div class="section-number">Chapter 16</div>
+    <h2>Production Systems &amp; Benchmarks</h2>
+    <p class="section-tagline">Serving LLMs at scale — frameworks, metrics, and real-world performance numbers.</p>
+
+    <h3>🏭 Production Serving Frameworks</h3>
+
+    <div class="card-grid">
+      <div class="info-card">
+        <div class="card-icon">⚡</div>
+        <h4>vLLM</h4>
+        <ul>
+          <li>PagedAttention + continuous batching</li>
+          <li>OpenAI-compatible API</li>
+          <li>AWQ / GPTQ / FP8 support</li>
+          <li>Multi-GPU tensor parallel</li>
+          <li>Best open-source throughput</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🎯</div>
+        <h4>TensorRT-LLM (NVIDIA)</h4>
+        <ul>
+          <li>Fused CUDA kernels</li>
+          <li>In-flight batching</li>
+          <li>FP8 / INT8 / INT4</li>
+          <li>Best raw latency on A100/H100</li>
+          <li>Triton Inference Server integration</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🦙</div>
+        <h4>llama.cpp</h4>
+        <ul>
+          <li>CPU + GPU inference</li>
+          <li>GGUF quantization format</li>
+          <li>Apple Silicon MPS support</li>
+          <li>Minimal dependencies</li>
+          <li>Best for local deployment</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🌐</div>
+        <h4>Ollama</h4>
+        <ul>
+          <li>One-command model serving</li>
+          <li>REST API out of the box</li>
+          <li>Wraps llama.cpp</li>
+          <li>Model library (pull/run)</li>
+          <li>Best developer experience</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>📊 Performance Benchmarks</h3>
+    <table class="data-table">
+      <thead><tr><th>Model</th><th>Hardware</th><th>Framework</th><th>Tokens/sec</th><th>VRAM</th></tr></thead>
+      <tbody>
+        <tr><td>Llama-3 8B (BF16)</td><td>A100 80GB</td><td>vLLM</td><td>~120 tok/s</td><td>16 GB</td></tr>
+        <tr><td>Llama-3 8B (INT4 AWQ)</td><td>A100 80GB</td><td>vLLM</td><td>~240 tok/s</td><td>4.5 GB</td></tr>
+        <tr><td>Llama-3 70B (BF16)</td><td>4×A100</td><td>vLLM</td><td>~35 tok/s</td><td>140 GB</td></tr>
+        <tr><td>Llama-3 70B (INT4 AWQ)</td><td>2×A100</td><td>vLLM</td><td>~55 tok/s</td><td>35 GB</td></tr>
+        <tr><td>Llama-3 8B (Q4_K_M)</td><td>Apple M3 Max</td><td>llama.cpp</td><td>~55 tok/s</td><td>5 GB</td></tr>
+        <tr><td>Llama-3 70B (Q4_K_M)</td><td>Apple M3 Max 128GB</td><td>llama.cpp</td><td>~8 tok/s</td><td>40 GB</td></tr>
+        <tr><td>Llama-3 8B (BF16)</td><td>RTX 4090</td><td>vLLM</td><td>~100 tok/s</td><td>16 GB</td></tr>
+      </tbody>
+    </table>
+
+    <h3>⚙️ vLLM Server Deployment</h3>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">bash</span><span>Launch vLLM OpenAI-Compatible Server</span></div>
+      <pre><code><span class="cm"># Install</span>
+pip install vllm
+
+<span class="cm"># Serve Llama-3 8B with INT4 AWQ quantization</span>
+python -m vllm.entrypoints.openai.api_server \
+    --model meta-llama/Meta-Llama-3-8B-Instruct \
+    --quantization awq \
+    --dtype float16 \
+    --max-model-len 8192 \
+    --gpu-memory-utilization 0.92 \
+    --tensor-parallel-size 1 \
+    --port 8000
+
+<span class="cm"># Serve Llama-3 70B across 4 GPUs</span>
+python -m vllm.entrypoints.openai.api_server \
+    --model meta-llama/Meta-Llama-3-70B-Instruct \
+    --quantization awq \
+    --tensor-parallel-size 4 \
+    --port 8000
+</code></pre>
+    </div>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>Query the vLLM Server (OpenAI API)</span></div>
+      <pre><code><span class="kw">from</span> openai <span class="kw">import</span> OpenAI
+
+client = OpenAI(
+    base_url=<span class="st">"http://localhost:8000/v1"</span>,
+    api_key=<span class="st">"not-needed"</span>,
+)
+
+<span class="cm"># Streaming generation</span>
+stream = client.chat.completions.create(
+    model=<span class="st">"meta-llama/Meta-Llama-3-8B-Instruct"</span>,
+    messages=[{<span class="st">"role"</span>: <span class="st">"user"</span>, <span class="st">"content"</span>: <span class="st">"Explain Flash Attention:"</span>}],
+    temperature=<span class="nu">0.7</span>,
+    max_tokens=<span class="nu">512</span>,
+    stream=<span class="kw">True</span>,
+)
+<span class="kw">for</span> chunk <span class="kw">in</span> stream:
+    <span class="kw">if</span> chunk.choices[<span class="nu">0</span>].delta.content:
+        print(chunk.choices[<span class="nu">0</span>].delta.content, end=<span class="st">""</span>, flush=<span class="kw">True</span>)
+</code></pre>
+    </div>
+
+    <h3>📐 End-to-End Inference Stack</h3>
+    <div class="diagram-block">
+User Request (HTTP)
+       │
+       ▼
+┌──────────────────────────────────────────────────┐
+│              Load Balancer / Router               │
+│          (round-robin or request-length aware)    │
+└────────────────────┬─────────────────────────────┘
+                     │
+          ┌──────────┴──────────┐
+          ▼                     ▼
+┌──────────────────┐   ┌──────────────────┐
+│  vLLM Worker 0   │   │  vLLM Worker 1   │
+│  (GPU 0,1 shard) │   │  (GPU 2,3 shard) │
+│  Llama-3 70B     │   │  Llama-3 70B     │
+│  KV Cache pool   │   │  KV Cache pool   │
+│  PagedAttention  │   │  PagedAttention  │
+└──────────────────┘   └──────────────────┘
+          │                     │
+          ▼                     ▼
+┌──────────────────────────────────────────────────┐
+│     Continuous Batching Scheduler                 │
+│  New requests slot in as completions finish       │
+└──────────────────────────────────────────────────┘
+       │
+       ▼
+Streaming tokens → User
+</div>
+
+    <!-- SERIES SUMMARY -->
+    <div class="summary-box">
+      <h3>📚 Series Summary — 4-Part LLM Inference</h3>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="s-label">Part 1 · Foundations</div>
+          <div class="s-value">Transformer architecture, tokenization, RoPE, attention, pretraining, scaling laws</div>
+        </div>
+        <div class="summary-item">
+          <div class="s-label">Part 2 · Alignment</div>
+          <div class="s-value">RLHF, reward models, PPO vs DPO, SFT, LoRA, QLoRA for efficient fine-tuning</div>
+        </div>
+        <div class="summary-item">
+          <div class="s-label">Part 3 · Quantization</div>
+          <div class="s-value">INT8/INT4/FP8, GPTQ/AWQ, KV cache memory formula, PagedAttention, Flash Attention 2</div>
+        </div>
+        <div class="summary-item">
+          <div class="s-label">Part 4 · Running Inference</div>
+          <div class="s-value">PyTorch & JAX inference code, sampling strategies, speculative decoding, vLLM production serving</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout success">
+      <strong>Recommended Learning Path:</strong> (1) Implement a minimal transformer from scratch (Part 1).
+      (2) Fine-tune Llama-3 8B with QLoRA + DPO on a custom dataset (Part 2).
+      (3) Quantize to AWQ INT4 and measure the quality-memory tradeoff (Part 3).
+      (4) Serve with vLLM and benchmark throughput vs latency at different batch sizes (Part 4).
+      At each step, you'll have built intuition that no amount of reading alone provides.
+    </div>
+
+    <div style="margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+      <a href="llm-inference-3.html" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;">← Part 3: Quantization</a>
+      <a href="llm-inference-1.html" style="background:var(--bg-card);border:1px solid var(--border);color:var(--text-primary);padding:0.6rem 1.4rem;border-radius:8px;text-decoration:none;font-size:0.85rem;font-weight:700;">↩ Back to Part 1</a>
+    </div>
+  </section>
+
+</main>
+
+<script>
+function toggleTheme(){const h=document.documentElement;h.dataset.theme=h.dataset.theme==='dark'?'light':'dark';}
+const sections=document.querySelectorAll('.chapter-section');
+const links=document.querySelectorAll('.sidebar a[href^="#"]');
+const obs=new IntersectionObserver(e=>{e.forEach(en=>{if(en.isIntersecting){links.forEach(l=>l.classList.remove('active'));const a=document.querySelector(`.sidebar a[href="#${en.target.id}"]`);if(a)a.classList.add('active');}});},{threshold:0.3});
+sections.forEach(s=>obs.observe(s));
+</script>
+</body>
+</html>

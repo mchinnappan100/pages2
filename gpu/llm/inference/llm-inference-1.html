@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Inference — Part 1: Foundations · Transformer Architecture & Pretraining</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <style>
+    :root {
+      --bg-primary:   #0f1117;
+      --bg-secondary: #1a1d27;
+      --bg-card:      #1e2130;
+      --accent:       #6366f1;
+      --accent-2:     #f59e0b;
+      --accent-3:     #10b981;
+      --text-primary: #e2e8f0;
+      --text-muted:   #94a3b8;
+      --border:       #2d3148;
+      --code-bg:      #111827;
+      --code-border:  #374151;
+      --success:      #10b981;
+      --warning:      #f59e0b;
+      --danger:       #f87171;
+    }
+    [data-theme="light"] {
+      --bg-primary:   #f8fafc;
+      --bg-secondary: #f1f5f9;
+      --bg-card:      #ffffff;
+      --text-primary: #1e293b;
+      --text-muted:   #64748b;
+      --border:       #e2e8f0;
+      --code-bg:      #f1f5f9;
+      --code-border:  #cbd5e1;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg-primary); color: var(--text-primary); line-height: 1.75; display: flex; min-height: 100vh; }
+    .sidebar { width: 265px; min-height: 100vh; background: var(--bg-secondary); border-right: 1px solid var(--border); position: fixed; top: 0; left: 0; overflow-y: auto; padding: 1.5rem 1rem; z-index: 100; }
+    .sidebar-logo { font-size: 1.1rem; font-weight: 800; color: var(--accent); margin-bottom: 0.2rem; }
+    .sidebar-subtitle { font-size: 0.7rem; color: var(--text-muted); margin-bottom: 1.5rem; line-height: 1.4; }
+    .sidebar-section-label { font-size: 0.63rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin: 1.1rem 0 0.4rem; }
+    .sidebar a { display: block; padding: 0.38rem 0.75rem; border-radius: 6px; font-size: 0.81rem; color: var(--text-muted); text-decoration: none; transition: background 0.15s, color 0.15s; }
+    .sidebar a:hover, .sidebar a.active { background: var(--bg-card); color: var(--text-primary); }
+    .toc-list { list-style: none; margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem; }
+    .toc-list li a { font-size: 0.78rem; color: var(--text-muted); padding: 0.28rem 0.75rem; }
+    .toc-list li a.active { color: var(--accent); background: rgba(99,102,241,0.08); border-radius: 5px; }
+    .part-links { margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+    .part-links a { font-size: 0.76rem; }
+    .part-links a.current { color: var(--accent); font-weight: 700; }
+    .main { margin-left: 265px; flex: 1; padding: 3rem 4rem; max-width: 980px; }
+    .theme-toggle { position: fixed; top: 1rem; right: 1.5rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.9rem; font-size: 0.78rem; cursor: pointer; color: var(--text-primary); z-index: 200; transition: background 0.15s; }
+    .theme-toggle:hover { background: var(--border); }
+    .hero { margin-bottom: 4rem; padding-bottom: 2.5rem; border-bottom: 1px solid var(--border); }
+    .hero-eyebrow { font-size: 0.78rem; color: var(--accent); font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 0.8rem; }
+    .hero h1 { font-size: clamp(1.9rem, 4vw, 2.9rem); font-weight: 800; line-height: 1.2; margin-bottom: 1rem; }
+    .hero h1 em { color: var(--accent); font-style: normal; }
+    .hero-desc { font-size: 1rem; color: var(--text-muted); max-width: 620px; margin-bottom: 1.75rem; }
+    .stat-pills { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .stat-pill { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem 1.1rem; text-align: center; min-width: 90px; }
+    .stat-pill .value { font-size: 1.1rem; font-weight: 800; color: var(--accent); display: block; }
+    .stat-pill .label { font-size: 0.68rem; color: var(--text-muted); }
+    .chapter-section { margin-bottom: 4.5rem; scroll-margin-top: 2rem; }
+    .section-number { display: inline-block; font-size: 0.72rem; font-weight: 700; color: var(--accent); background: rgba(99,102,241,0.12); border-radius: 4px; padding: 0.15rem 0.55rem; margin-bottom: 0.55rem; letter-spacing: 0.08em; text-transform: uppercase; }
+    .chapter-section h2 { font-size: 1.8rem; font-weight: 800; margin-bottom: 0.4rem; }
+    .section-tagline { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem; font-style: italic; }
+    .chapter-section h3 { font-size: 1.1rem; font-weight: 700; margin: 2.2rem 0 0.8rem; display: flex; align-items: center; gap: 0.5rem; }
+    .chapter-section h4 { font-size: 0.95rem; font-weight: 600; margin: 1.4rem 0 0.5rem; color: var(--accent-2); }
+    .chapter-section p { margin-bottom: 1rem; font-size: 0.92rem; }
+    .chapter-section ul, .chapter-section ol { padding-left: 1.5rem; margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-muted); }
+    .chapter-section li { margin-bottom: 0.3rem; }
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .info-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
+    .info-card .card-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .info-card h4 { font-size: 0.92rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-primary); }
+    .info-card ul { list-style: none; padding: 0; margin: 0; }
+    .info-card ul li { font-size: 0.81rem; color: var(--text-muted); padding: 0.22rem 0; padding-left: 1rem; position: relative; }
+    .info-card ul li::before { content: "▸"; color: var(--accent); position: absolute; left: 0; }
+    .callout { border-left: 3px solid var(--accent); background: var(--bg-card); border-radius: 0 8px 8px 0; padding: 1rem 1.25rem; margin: 1.75rem 0; font-size: 0.87rem; }
+    .callout.warning { border-left-color: var(--warning); }
+    .callout.success { border-left-color: var(--success); }
+    .callout strong { color: var(--accent); }
+    .callout.warning strong { color: var(--warning); }
+    .callout.success strong { color: var(--success); }
+    .diagram-block { background: var(--code-bg); border: 1px solid var(--code-border); border-radius: 8px; padding: 1.25rem; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.73rem; color: #a5f3fc; line-height: 1.55; margin: 1.75rem 0; white-space: pre; }
+    .code-block-wrapper { margin: 1.75rem 0; border-radius: 10px; overflow: hidden; border: 1px solid var(--code-border); }
+    .code-block-header { background: #1f2937; padding: 0.55rem 1rem; font-size: 0.74rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--code-border); }
+    .code-block-header .lang-tag { color: var(--accent); font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    pre { background: var(--code-bg); padding: 1.25rem; overflow-x: auto; margin: 0; }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.79rem; line-height: 1.75; }
+    p code, li code, td code { background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; padding: 0.1em 0.45em; font-size: 0.81em; color: #f9a8d4; }
+    .kw { color: #c084fc; } .cm { color: #6b7280; font-style: italic; } .st { color: #86efac; }
+    .fn { color: #60a5fa; } .nu { color: #fbbf24; } .ty { color: #67e8f9; } .op { color: #f9a8d4; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin: 1.75rem 0; }
+    .data-table thead tr { background: var(--bg-card); border-bottom: 2px solid var(--accent); }
+    .data-table th { text-align: left; padding: 0.75rem 1rem; font-weight: 700; color: var(--text-muted); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .data-table td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .data-table tbody tr:hover { background: var(--bg-card); }
+    .badge { display: inline-block; font-size: 0.68rem; font-weight: 700; padding: 0.1rem 0.5rem; border-radius: 4px; letter-spacing: 0.04em; }
+    .badge-green { background: rgba(16,185,129,0.15); color: #10b981; }
+    .badge-blue  { background: rgba(96,165,250,0.15);  color: #60a5fa; }
+    .badge-amber { background: rgba(251,191,36,0.15);  color: #fbbf24; }
+    .badge-red   { background: rgba(248,113,113,0.15); color: #f87171; }
+    .flow-steps { margin: 1.5rem 0; }
+    .flow-step { display: flex; gap: 1rem; align-items: flex-start; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
+    .flow-step:last-child { border-bottom: none; }
+    .flow-step-num { min-width: 2rem; height: 2rem; border-radius: 50%; background: rgba(99,102,241,0.15); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; flex-shrink: 0; }
+    .flow-step-content h4 { font-size: 0.9rem; font-weight: 700; margin-bottom: 0.25rem; }
+    .flow-step-content p { font-size: 0.84rem; color: var(--text-muted); margin: 0; }
+    .math-block { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem 1.5rem; margin: 1.5rem 0; font-family: 'JetBrains Mono', monospace; font-size: 0.88rem; color: #fde68a; text-align: center; }
+    @media (max-width: 768px) { .sidebar { display: none; } .main { margin-left: 0; padding: 1.5rem; } }
+  </style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()">🌓 Theme</button>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-logo">🧠 LLM Inference</div>
+  <div class="sidebar-subtitle">A 4-Part Deep Dive into Large Language Model Inference</div>
+
+  <div class="sidebar-section-label">Part 1 — Foundations</div>
+  <a href="#ch1">1. Transformer Architecture</a>
+  <a href="#ch2">2. Tokenization & Embeddings</a>
+  <a href="#ch3">3. Attention Mechanism</a>
+  <a href="#ch4">4. Pretraining</a>
+
+  <div class="sidebar-section-label">All Parts</div>
+  <div class="part-links">
+    <a href="llm-inference-1.html" class="current">Part 1 · Foundations</a>
+    <a href="llm-inference-2.html">Part 2 · Alignment</a>
+    <a href="llm-inference-3.html">Part 3 · Quantization</a>
+    <a href="llm-inference-4.html">Part 4 · Running Inference</a>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-eyebrow">Part 1 of 4 · LLM Inference Book Series</div>
+    <h1>Foundations: <em>Transformer</em><br>Architecture & Pretraining</h1>
+    <p class="hero-desc">
+      Everything begins here. Before we can optimize or run inference on a large language model,
+      we must understand how transformers are built, how they are pretrained on massive corpora,
+      and what mathematical machinery powers their ability to generate coherent text.
+    </p>
+    <div class="stat-pills">
+      <div class="stat-pill"><span class="value">4</span><span class="label">Chapters</span></div>
+      <div class="stat-pill"><span class="value">~60</span><span class="label">min read</span></div>
+      <div class="stat-pill"><span class="value">Part 1</span><span class="label">of 4</span></div>
+    </div>
+  </div>
+
+  <!-- CHAPTER 1 -->
+  <section class="chapter-section" id="ch1">
+    <div class="section-number">Chapter 1</div>
+    <h2>Transformer Architecture</h2>
+    <p class="section-tagline">The neural network that changed everything — from machine translation to trillion-parameter language models.</p>
+
+    <p>
+      The Transformer, introduced in "Attention Is All You Need" (Vaswani et al., 2017), replaced recurrent
+      networks with a purely attention-based architecture. Unlike RNNs that process tokens sequentially,
+      Transformers process all tokens in parallel, making them dramatically faster to train on modern hardware.
+    </p>
+
+    <h3>📐 High-Level Architecture</h3>
+    <p>
+      A decoder-only Transformer (the kind used in GPT, Llama, Claude) stacks N identical blocks.
+      Each block contains two sub-layers: multi-head self-attention and a position-wise feed-forward network.
+    </p>
+
+    <div class="diagram-block">
+Input Token IDs  [t₁, t₂, t₃, ..., tₙ]
+       │
+       ▼
+ Token Embedding  +  Positional Encoding
+       │
+       ▼
+┌─────────────────────────────────────────┐
+│         Transformer Block × N           │
+│                                         │
+│   ┌─────────────────────────────────┐   │
+│   │  LayerNorm (pre-norm style)     │   │
+│   │         ↓                       │   │
+│   │  Multi-Head Self-Attention      │   │
+│   │    (with causal mask)           │   │
+│   │         ↓                       │   │
+│   │  Residual Add: x = x + Attn(x) │   │
+│   └─────────────────────────────────┘   │
+│   ┌─────────────────────────────────┐   │
+│   │  LayerNorm                      │   │
+│   │         ↓                       │   │
+│   │  Feed-Forward Network (FFN)     │   │
+│   │    Linear → GELU → Linear       │   │
+│   │         ↓                       │   │
+│   │  Residual Add: x = x + FFN(x)  │   │
+│   └─────────────────────────────────┘   │
+└─────────────────────────────────────────┘
+       │
+       ▼
+ Final LayerNorm
+       │
+       ▼
+ Linear (LM Head)  →  Logits over vocabulary
+       │
+       ▼
+ Softmax  →  Probability distribution
+</div>
+
+    <h3>🔢 Key Dimensions</h3>
+    <div class="card-grid">
+      <div class="info-card">
+        <div class="card-icon">📏</div>
+        <h4>d_model</h4>
+        <ul>
+          <li>Residual stream width</li>
+          <li>Llama-2 7B: 4096</li>
+          <li>Llama-3 70B: 8192</li>
+          <li>GPT-4 (est.): 12288</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🔀</div>
+        <h4>n_heads</h4>
+        <ul>
+          <li>Parallel attention heads</li>
+          <li>head_dim = d_model / n_heads</li>
+          <li>Llama-2 7B: 32 heads</li>
+          <li>Each head: 128 dims</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🧱</div>
+        <h4>n_layers</h4>
+        <ul>
+          <li>Depth of the model</li>
+          <li>Llama-2 7B: 32 layers</li>
+          <li>Llama-3 70B: 80 layers</li>
+          <li>More layers = more capacity</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">⚡</div>
+        <h4>d_ffn</h4>
+        <ul>
+          <li>FFN inner dimension</li>
+          <li>Typically 4× d_model</li>
+          <li>SwiGLU: ~8/3 × d_model</li>
+          <li>Most params live here</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>🔗 Residual Connections</h3>
+    <p>
+      Every sub-layer output is added back to its input: <code>x = x + SubLayer(LN(x))</code>.
+      This is "pre-norm" style (used by Llama, GPT-2 variants). Residual connections allow gradients
+      to flow directly through the network during backpropagation, enabling training of very deep models
+      without vanishing gradients.
+    </p>
+
+    <h3>📐 Layer Normalization</h3>
+    <p>
+      RMSNorm (Root Mean Square Normalization) normalizes activations at each layer to prevent
+      internal covariate shift. Llama uses RMSNorm instead of LayerNorm — it drops the mean-subtraction
+      step, making it ~10% faster with negligible quality difference.
+    </p>
+
+    <div class="math-block">
+RMSNorm(x) = x / RMS(x) × γ
+
+where RMS(x) = sqrt( (1/d) × Σᵢ xᵢ² )
+</div>
+
+    <div class="callout success">
+      <strong>Key Insight:</strong> The Transformer's power comes from two things working together: (1) attention
+      allows every token to gather information from every other token in O(n²) time, and (2) the feed-forward
+      network processes each token independently but with rich non-linear transformations. Together they create
+      an extremely expressive function approximator.
+    </div>
+  </section>
+
+  <!-- CHAPTER 2 -->
+  <section class="chapter-section" id="ch2">
+    <div class="section-number">Chapter 2</div>
+    <h2>Tokenization &amp; Embeddings</h2>
+    <p class="section-tagline">How raw text becomes the numerical representations that neural networks can process.</p>
+
+    <h3>🔤 Byte Pair Encoding (BPE)</h3>
+    <p>
+      Modern LLMs use subword tokenization via BPE. The algorithm starts with individual characters and
+      iteratively merges the most frequent adjacent pairs into new tokens, building a vocabulary of
+      typically 32,000–128,000 tokens. This balances character-level flexibility with word-level efficiency.
+    </p>
+
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="flow-step-num">1</div>
+        <div class="flow-step-content">
+          <h4>Initialize with characters</h4>
+          <p>"hello" → ['h', 'e', 'l', 'l', 'o']</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-step-num">2</div>
+        <div class="flow-step-content">
+          <h4>Count pair frequencies across corpus</h4>
+          <p>Find the most frequent adjacent pair, e.g. ('l', 'l')</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-step-num">3</div>
+        <div class="flow-step-content">
+          <h4>Merge and add to vocabulary</h4>
+          <p>('l', 'l') → 'll' ; repeat until vocab_size reached</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-step-num">4</div>
+        <div class="flow-step-content">
+          <h4>Encode new text using merge rules</h4>
+          <p>"hello world" → [9906, 1917] (Llama 3 tokenizer)</p>
+        </div>
+      </div>
+    </div>
+
+    <h3>📦 Token Embeddings</h3>
+    <p>
+      The embedding table has shape <code>(vocab_size, d_model)</code>. Each token ID indexes into
+      this table to produce a dense vector. For Llama-3 8B: <code>(128256, 4096)</code> — that's
+      ~500M parameters just in the embedding layer, often weight-tied with the final LM head.
+    </p>
+
+    <h3>📍 Positional Encoding: RoPE</h3>
+    <p>
+      Transformers have no built-in notion of order. Rotary Position Embeddings (RoPE) solve this
+      by rotating the query and key vectors by an angle proportional to their position. This encodes
+      relative positions — a token at position 5 "knows" it's 3 steps from position 2.
+    </p>
+
+    <div class="math-block">
+RoPE rotates Q and K vectors by angle θ·m:
+  Q_rotated[i] = Q[i] · cos(m·θᵢ) + Q'[i] · sin(m·θᵢ)
+
+The attention score then depends on relative position (m - n):
+  score(q_m, k_n) = f(m - n)
+</div>
+
+    <div class="callout">
+      <strong>Why RoPE wins:</strong> Unlike learned absolute position embeddings (BERT, GPT-2),
+      RoPE generalizes to sequences longer than those seen during training. It's used in Llama,
+      Mistral, Falcon, GPT-NeoX, and most modern open-source models.
+    </div>
+  </section>
+
+  <!-- CHAPTER 3 -->
+  <section class="chapter-section" id="ch3">
+    <div class="section-number">Chapter 3</div>
+    <h2>The Attention Mechanism</h2>
+    <p class="section-tagline">The core operation that lets every token attend to every other token — the engine of contextual understanding.</p>
+
+    <h3>⚡ Scaled Dot-Product Attention</h3>
+    <p>
+      Given a sequence of tokens, attention produces output vectors by computing, for each query,
+      a weighted sum of value vectors — where weights are determined by similarity between the query
+      and all keys.
+    </p>
+
+    <div class="math-block">
+Attention(Q, K, V) = softmax( QKᵀ / √d_k ) · V
+
+Q = input × W_Q   (queries: what am I looking for?)
+K = input × W_K   (keys:    what do I contain?)
+V = input × W_V   (values:  what do I return if matched?)
+
+d_k = head dimension (e.g., 128 for Llama-2 7B)
+√d_k scaling: prevents dot products from growing too large in high dimensions
+</div>
+
+    <h3>🔀 Multi-Head Attention (MHA)</h3>
+    <p>
+      Instead of a single attention computation, MHA runs <em>h</em> independent attention heads in parallel,
+      each with its own W_Q, W_K, W_V projections. Outputs are concatenated and projected back.
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>Multi-Head Attention</span></div>
+      <pre><code><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+<span class="kw">import</span> torch.nn.functional <span class="kw">as</span> F
+<span class="kw">import</span> math
+
+<span class="kw">class</span> <span class="ty">MultiHeadAttention</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, d_model: <span class="ty">int</span>, n_heads: <span class="ty">int</span>):
+        <span class="fn">super</span>().<span class="fn">__init__</span>()
+        self.n_heads  = n_heads
+        self.head_dim = d_model // n_heads
+
+        self.W_q = nn.Linear(d_model, d_model, bias=<span class="kw">False</span>)
+        self.W_k = nn.Linear(d_model, d_model, bias=<span class="kw">False</span>)
+        self.W_v = nn.Linear(d_model, d_model, bias=<span class="kw">False</span>)
+        self.W_o = nn.Linear(d_model, d_model, bias=<span class="kw">False</span>)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x: torch.Tensor, mask=<span class="kw">None</span>):
+        B, T, C = x.shape
+        H, D    = self.n_heads, self.head_dim
+
+        <span class="cm"># Project and reshape to (B, n_heads, T, head_dim)</span>
+        q = self.W_q(x).view(B, T, H, D).transpose(<span class="nu">1</span>, <span class="nu">2</span>)
+        k = self.W_k(x).view(B, T, H, D).transpose(<span class="nu">1</span>, <span class="nu">2</span>)
+        v = self.W_v(x).view(B, T, H, D).transpose(<span class="nu">1</span>, <span class="nu">2</span>)
+
+        <span class="cm"># Attention scores</span>
+        scale  = math.sqrt(D)
+        scores = (q @ k.transpose(-<span class="nu">2</span>, -<span class="nu">1</span>)) / scale   <span class="cm"># (B,H,T,T)</span>
+
+        <span class="cm"># Causal mask: prevent attending to future tokens</span>
+        <span class="kw">if</span> mask <span class="kw">is not</span> <span class="kw">None</span>:
+            scores = scores.masked_fill(mask == <span class="nu">0</span>, <span class="nu">float</span>(<span class="st">'-inf'</span>))
+
+        attn   = F.softmax(scores, dim=-<span class="nu">1</span>)          <span class="cm"># (B,H,T,T)</span>
+        output = attn @ v                             <span class="cm"># (B,H,T,D)</span>
+
+        <span class="cm"># Concatenate heads and project</span>
+        output = output.transpose(<span class="nu">1</span>, <span class="nu">2</span>).contiguous().view(B, T, C)
+        <span class="kw">return</span> self.W_o(output)</code></pre>
+    </div>
+
+    <h3>🏎️ Grouped Query Attention (GQA)</h3>
+    <p>
+      MHA requires one K/V pair per head per token — expensive to cache. GQA reduces this by sharing
+      K and V across groups of Q heads. Llama-2 70B uses 8 KV heads with 64 Q heads (8:1 ratio),
+      reducing KV cache size by 8×.
+    </p>
+
+    <table class="data-table">
+      <thead><tr><th>Variant</th><th>Q Heads</th><th>K/V Heads</th><th>Cache Size</th><th>Model</th></tr></thead>
+      <tbody>
+        <tr><td>MHA</td><td>H</td><td>H</td><td>100%</td><td>GPT-2, BERT</td></tr>
+        <tr><td>GQA</td><td>H</td><td>H/G</td><td>1/G ×</td><td>Llama-2 70B, Llama-3</td></tr>
+        <tr><td>MQA</td><td>H</td><td>1</td><td>1/H ×</td><td>PaLM, Falcon</td></tr>
+      </tbody>
+    </table>
+
+    <h3>🔢 Feed-Forward Network (FFN)</h3>
+    <p>
+      The FFN applies two linear transformations with a non-linearity in between, independently to each
+      token position. Most modern LLMs use SwiGLU (Swish-Gated Linear Unit) which uses a gating mechanism.
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>SwiGLU FFN (Llama-style)</span></div>
+      <pre><code><span class="kw">class</span> <span class="ty">SwiGLUFFN</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, d_model: <span class="ty">int</span>, d_ffn: <span class="ty">int</span>):
+        <span class="fn">super</span>().<span class="fn">__init__</span>()
+        <span class="cm"># SwiGLU uses 3 projections instead of 2</span>
+        self.w_gate = nn.Linear(d_model, d_ffn, bias=<span class="kw">False</span>)
+        self.w_up   = nn.Linear(d_model, d_ffn, bias=<span class="kw">False</span>)
+        self.w_down = nn.Linear(d_ffn,   d_model, bias=<span class="kw">False</span>)
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, x: torch.Tensor) -> torch.Tensor:
+        <span class="cm"># Gate signal × up-projection, then down-project</span>
+        gate   = F.silu(self.w_gate(x))  <span class="cm"># SiLU = Swish activation</span>
+        up     = self.w_up(x)
+        <span class="kw">return</span> self.w_down(gate * up)</code></pre>
+    </div>
+  </section>
+
+  <!-- CHAPTER 4 -->
+  <section class="chapter-section" id="ch4">
+    <div class="section-number">Chapter 4</div>
+    <h2>Pretraining</h2>
+    <p class="section-tagline">How models acquire world knowledge — learning to predict the next token across trillions of examples.</p>
+
+    <h3>🎯 The Training Objective</h3>
+    <p>
+      LLMs are pretrained with <strong>Causal Language Modeling (CLM)</strong>: given a sequence of tokens,
+      predict the next token at each position. This is fully self-supervised — the data provides its own labels.
+    </p>
+
+    <div class="math-block">
+L = -Σₜ log P(token_t | token₁, token₂, ..., token_{t-1})
+
+Minimize the negative log-likelihood of the correct next token
+across all positions in the training sequence.
+</div>
+
+    <h3>📊 Scaling Laws</h3>
+    <p>
+      Kaplan et al. (2020) and Hoffmann et al. (2022, "Chinchilla") showed that model performance
+      follows power laws in compute, data, and parameters. The Chinchilla result: for a given compute
+      budget, you should roughly use equal scaling of parameters AND tokens.
+    </p>
+
+    <table class="data-table">
+      <thead><tr><th>Model</th><th>Parameters</th><th>Training Tokens</th><th>Tokens/Param</th></tr></thead>
+      <tbody>
+        <tr><td>GPT-3</td><td>175B</td><td>300B</td><td>1.7×</td></tr>
+        <tr><td>Chinchilla</td><td>70B</td><td>1.4T</td><td>20× <span class="badge badge-green">optimal</span></td></tr>
+        <tr><td>Llama-2 7B</td><td>7B</td><td>2T</td><td>286×</td></tr>
+        <tr><td>Llama-3 8B</td><td>8B</td><td>15T</td><td>1875× <span class="badge badge-amber">inference-opt</span></td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout warning">
+      <strong>Inference-Optimized Training:</strong> Llama-3 8B was deliberately over-trained on 15T tokens —
+      far beyond compute-optimal. The rationale: a smaller model trained on more data is cheaper to serve
+      at inference time, even if training cost is higher. This reflects production priorities.
+    </div>
+
+    <h3>🏗️ Training Infrastructure</h3>
+    <p>
+      Large model pretraining requires distributed training across hundreds or thousands of GPUs.
+      Three types of parallelism are typically combined:
+    </p>
+
+    <div class="card-grid">
+      <div class="info-card">
+        <div class="card-icon">📦</div>
+        <h4>Data Parallelism</h4>
+        <ul>
+          <li>Each GPU has full model copy</li>
+          <li>Different batch per GPU</li>
+          <li>AllReduce gradients after backward</li>
+          <li>FSDP: shards optimizer state</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">⚙️</div>
+        <h4>Tensor Parallelism</h4>
+        <ul>
+          <li>Split weight matrices across GPUs</li>
+          <li>Each GPU holds a column/row shard</li>
+          <li>AllReduce within each layer</li>
+          <li>Megatron-LM style</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🏗️</div>
+        <h4>Pipeline Parallelism</h4>
+        <ul>
+          <li>Different layers on different GPUs</li>
+          <li>Micro-batching to fill pipeline</li>
+          <li>Reduces P2P communication</li>
+          <li>GPipe / 1F1B schedules</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>📉 Training Stability Techniques</h3>
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="flow-step-num">1</div>
+        <div class="flow-step-content">
+          <h4>Mixed Precision (BF16/FP16)</h4>
+          <p>Train in BF16, keep FP32 master weights for optimizer. BF16 preferred for its wider dynamic range.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-step-num">2</div>
+        <div class="flow-step-content">
+          <h4>Gradient Clipping</h4>
+          <p>Clip gradient norm to ~1.0 to prevent explosive updates that crash training.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-step-num">3</div>
+        <div class="flow-step-content">
+          <h4>Learning Rate Schedule</h4>
+          <p>Linear warmup → cosine decay. Warmup stabilizes early training with random weights.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-step-num">4</div>
+        <div class="flow-step-content">
+          <h4>Flash Attention</h4>
+          <p>IO-aware attention — never materializes full N×N attention matrix. O(N) memory instead of O(N²).</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout success">
+      <strong>Pretraining produces the base model</strong> — a powerful next-token predictor with vast world
+      knowledge, but not yet aligned to human preferences. The next steps (RLHF, instruction tuning) turn
+      this raw capability into a helpful assistant. See Part 2.
+    </div>
+
+    <div style="margin-top:3rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+      <span style="color:var(--text-muted); font-size:0.85rem;">Part 1 of 4 — Foundations</span>
+      <a href="llm-inference-2.html" style="background:var(--accent); color:#fff; padding:0.6rem 1.4rem; border-radius:8px; text-decoration:none; font-size:0.85rem; font-weight:700;">Part 2: Alignment & Fine-Tuning →</a>
+    </div>
+  </section>
+
+</main>
+
+<script>
+function toggleTheme() {
+  const html = document.documentElement;
+  html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+}
+// Highlight active TOC link on scroll
+const sections = document.querySelectorAll('.chapter-section');
+const links = document.querySelectorAll('.sidebar a[href^="#"]');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const active = document.querySelector(`.sidebar a[href="#${e.target.id}"]`);
+      if (active) active.classList.add('active');
+    }
+  });
+}, { threshold: 0.3 });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Inference — Part 2: Alignment, RLHF & Fine-Tuning</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <style>
+    :root {--bg-primary:#0f1117;--bg-secondary:#1a1d27;--bg-card:#1e2130;--accent:#f59e0b;--accent-2:#6366f1;--accent-3:#10b981;--text-primary:#e2e8f0;--text-muted:#94a3b8;--border:#2d3148;--code-bg:#111827;--code-border:#374151;--success:#10b981;--warning:#f59e0b;--danger:#f87171;}
+    [data-theme="light"] {--bg-primary:#f8fafc;--bg-secondary:#f1f5f9;--bg-card:#ffffff;--text-primary:#1e293b;--text-muted:#64748b;--border:#e2e8f0;--code-bg:#f1f5f9;--code-border:#cbd5e1;}
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:'Inter',system-ui,sans-serif;background:var(--bg-primary);color:var(--text-primary);line-height:1.75;display:flex;min-height:100vh;}
+    .sidebar{width:265px;min-height:100vh;background:var(--bg-secondary);border-right:1px solid var(--border);position:fixed;top:0;left:0;overflow-y:auto;padding:1.5rem 1rem;z-index:100;}
+    .sidebar-logo{font-size:1.1rem;font-weight:800;color:var(--accent);margin-bottom:0.2rem;}
+    .sidebar-subtitle{font-size:0.7rem;color:var(--text-muted);margin-bottom:1.5rem;line-height:1.4;}
+    .sidebar-section-label{font-size:0.63rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--text-muted);margin:1.1rem 0 0.4rem;}
+    .sidebar a{display:block;padding:0.38rem 0.75rem;border-radius:6px;font-size:0.81rem;color:var(--text-muted);text-decoration:none;transition:background 0.15s,color 0.15s;}
+    .sidebar a:hover,.sidebar a.active{background:var(--bg-card);color:var(--text-primary);}
+    .part-links{margin-top:1.5rem;padding-top:1rem;border-top:1px solid var(--border);}
+    .part-links a{font-size:0.76rem;}
+    .part-links a.current{color:var(--accent);font-weight:700;}
+    .main{margin-left:265px;flex:1;padding:3rem 4rem;max-width:980px;}
+    .theme-toggle{position:fixed;top:1rem;right:1.5rem;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:0.4rem 0.9rem;font-size:0.78rem;cursor:pointer;color:var(--text-primary);z-index:200;}
+    .theme-toggle:hover{background:var(--border);}
+    .hero{margin-bottom:4rem;padding-bottom:2.5rem;border-bottom:1px solid var(--border);}
+    .hero-eyebrow{font-size:0.78rem;color:var(--accent);font-weight:700;letter-spacing:0.07em;text-transform:uppercase;margin-bottom:0.8rem;}
+    .hero h1{font-size:clamp(1.9rem,4vw,2.9rem);font-weight:800;line-height:1.2;margin-bottom:1rem;}
+    .hero h1 em{color:var(--accent);font-style:normal;}
+    .hero-desc{font-size:1rem;color:var(--text-muted);max-width:620px;margin-bottom:1.75rem;}
+    .stat-pills{display:flex;gap:1rem;flex-wrap:wrap;}
+    .stat-pill{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:0.6rem 1.1rem;text-align:center;min-width:90px;}
+    .stat-pill .value{font-size:1.1rem;font-weight:800;color:var(--accent);display:block;}
+    .stat-pill .label{font-size:0.68rem;color:var(--text-muted);}
+    .chapter-section{margin-bottom:4.5rem;scroll-margin-top:2rem;}
+    .section-number{display:inline-block;font-size:0.72rem;font-weight:700;color:var(--accent);background:rgba(245,158,11,0.12);border-radius:4px;padding:0.15rem 0.55rem;margin-bottom:0.55rem;letter-spacing:0.08em;text-transform:uppercase;}
+    .chapter-section h2{font-size:1.8rem;font-weight:800;margin-bottom:0.4rem;}
+    .section-tagline{color:var(--text-muted);font-size:0.9rem;margin-bottom:2rem;font-style:italic;}
+    .chapter-section h3{font-size:1.1rem;font-weight:700;margin:2.2rem 0 0.8rem;}
+    .chapter-section h4{font-size:0.95rem;font-weight:600;margin:1.4rem 0 0.5rem;color:var(--accent-2);}
+    .chapter-section p{margin-bottom:1rem;font-size:0.92rem;}
+    .chapter-section ul,.chapter-section ol{padding-left:1.5rem;margin-bottom:1rem;font-size:0.9rem;color:var(--text-muted);}
+    .chapter-section li{margin-bottom:0.3rem;}
+    .card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:1rem;margin:1.5rem 0;}
+    .info-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:1.25rem;}
+    .info-card .card-icon{font-size:1.5rem;margin-bottom:0.5rem;}
+    .info-card h4{font-size:0.92rem;font-weight:700;margin-bottom:0.5rem;color:var(--text-primary);}
+    .info-card ul{list-style:none;padding:0;margin:0;}
+    .info-card ul li{font-size:0.81rem;color:var(--text-muted);padding:0.22rem 0;padding-left:1rem;position:relative;}
+    .info-card ul li::before{content:"▸";color:var(--accent);position:absolute;left:0;}
+    .callout{border-left:3px solid var(--accent);background:var(--bg-card);border-radius:0 8px 8px 0;padding:1rem 1.25rem;margin:1.75rem 0;font-size:0.87rem;}
+    .callout.warning{border-left-color:var(--warning);}
+    .callout.success{border-left-color:var(--success);}
+    .callout.danger{border-left-color:var(--danger);}
+    .callout strong{color:var(--accent);}
+    .callout.warning strong{color:var(--warning);}
+    .callout.success strong{color:var(--success);}
+    .callout.danger strong{color:var(--danger);}
+    .diagram-block{background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:1.25rem;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:0.73rem;color:#a5f3fc;line-height:1.55;margin:1.75rem 0;white-space:pre;}
+    .code-block-wrapper{margin:1.75rem 0;border-radius:10px;overflow:hidden;border:1px solid var(--code-border);}
+    .code-block-header{background:#1f2937;padding:0.55rem 1rem;font-size:0.74rem;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--code-border);}
+    .code-block-header .lang-tag{color:var(--accent);font-weight:700;font-family:'JetBrains Mono',monospace;}
+    pre{background:var(--code-bg);padding:1.25rem;overflow-x:auto;margin:0;}
+    code{font-family:'JetBrains Mono',monospace;font-size:0.79rem;line-height:1.75;}
+    p code,li code,td code{background:var(--bg-card);border:1px solid var(--border);border-radius:4px;padding:0.1em 0.45em;font-size:0.81em;color:#f9a8d4;}
+    .kw{color:#c084fc;}.cm{color:#6b7280;font-style:italic;}.st{color:#86efac;}.fn{color:#60a5fa;}.nu{color:#fbbf24;}.ty{color:#67e8f9;}.op{color:#f9a8d4;}
+    .data-table{width:100%;border-collapse:collapse;font-size:0.84rem;margin:1.75rem 0;}
+    .data-table thead tr{background:var(--bg-card);border-bottom:2px solid var(--accent);}
+    .data-table th{text-align:left;padding:0.75rem 1rem;font-weight:700;color:var(--text-muted);font-size:0.76rem;text-transform:uppercase;letter-spacing:0.06em;}
+    .data-table td{padding:0.7rem 1rem;border-bottom:1px solid var(--border);vertical-align:top;}
+    .data-table tbody tr:hover{background:var(--bg-card);}
+    .badge{display:inline-block;font-size:0.68rem;font-weight:700;padding:0.1rem 0.5rem;border-radius:4px;letter-spacing:0.04em;}
+    .badge-green{background:rgba(16,185,129,0.15);color:#10b981;}
+    .badge-blue{background:rgba(96,165,250,0.15);color:#60a5fa;}
+    .badge-amber{background:rgba(251,191,36,0.15);color:#fbbf24;}
+    .badge-red{background:rgba(248,113,113,0.15);color:#f87171;}
+    .flow-steps{margin:1.5rem 0;}
+    .flow-step{display:flex;gap:1rem;align-items:flex-start;padding:0.75rem 0;border-bottom:1px solid var(--border);}
+    .flow-step:last-child{border-bottom:none;}
+    .flow-step-num{min-width:2rem;height:2rem;border-radius:50%;background:rgba(245,158,11,0.15);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:0.78rem;font-weight:700;flex-shrink:0;}
+    .flow-step-content h4{font-size:0.9rem;font-weight:700;margin-bottom:0.25rem;}
+    .flow-step-content p{font-size:0.84rem;color:var(--text-muted);margin:0;}
+    .math-block{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:1.25rem 1.5rem;margin:1.5rem 0;font-family:'JetBrains Mono',monospace;font-size:0.88rem;color:#fde68a;text-align:center;}
+    @media(max-width:768px){.sidebar{display:none;}.main{margin-left:0;padding:1.5rem;}}
+  </style>
+</head>
+<body>
+
+<button class="theme-toggle" onclick="toggleTheme()">🌓 Theme</button>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">🎯 LLM Inference</div>
+  <div class="sidebar-subtitle">Part 2 · Alignment, RLHF & Fine-Tuning</div>
+  <div class="sidebar-section-label">Part 2 — Alignment</div>
+  <a href="#ch5">5. RLHF Overview</a>
+  <a href="#ch6">6. Reward Model Training</a>
+  <a href="#ch7">7. PPO & DPO</a>
+  <a href="#ch8">8. Fine-Tuning (SFT & LoRA)</a>
+  <div class="sidebar-section-label">All Parts</div>
+  <div class="part-links">
+    <a href="llm-inference-1.html">Part 1 · Foundations</a>
+    <a href="llm-inference-2.html" class="current">Part 2 · Alignment</a>
+    <a href="llm-inference-3.html">Part 3 · Quantization</a>
+    <a href="llm-inference-4.html">Part 4 · Running Inference</a>
+  </div>
+</aside>
+
+<main class="main">
+
+  <div class="hero">
+    <div class="hero-eyebrow">Part 2 of 4 · LLM Inference Book Series</div>
+    <h1>Alignment: <em>RLHF</em>,<br>PPO, DPO &amp; Fine-Tuning</h1>
+    <p class="hero-desc">
+      A pretrained base model knows language but isn't yet helpful. This part covers the critical
+      alignment pipeline — RLHF, DPO, supervised fine-tuning, and parameter-efficient adaptation
+      with LoRA — that turns a raw model into a safe, helpful assistant.
+    </p>
+    <div class="stat-pills">
+      <div class="stat-pill"><span class="value">4</span><span class="label">Chapters</span></div>
+      <div class="stat-pill"><span class="value">~55</span><span class="label">min read</span></div>
+      <div class="stat-pill"><span class="value">Part 2</span><span class="label">of 4</span></div>
+    </div>
+  </div>
+
+  <!-- CHAPTER 5 -->
+  <section class="chapter-section" id="ch5">
+    <div class="section-number">Chapter 5</div>
+    <h2>RLHF: Reinforcement Learning from Human Feedback</h2>
+    <p class="section-tagline">Bridging the gap between next-token prediction and genuinely helpful behaviour.</p>
+
+    <p>
+      RLHF (Christiano et al., 2017; InstructGPT, 2022) is the technique that transformed GPT-3
+      into ChatGPT. It teaches models to be helpful, harmless, and honest by optimizing against
+      human preferences rather than just token prediction likelihood.
+    </p>
+
+    <h3>🗺️ The Three-Stage Pipeline</h3>
+
+    <div class="flow-steps">
+      <div class="flow-step">
+        <div class="flow-step-num">1</div>
+        <div class="flow-step-content">
+          <h4>Supervised Fine-Tuning (SFT)</h4>
+          <p>Fine-tune the pretrained model on high-quality demonstration data: (prompt, ideal response) pairs written by human annotators. This teaches the model the <em>format</em> of helpful responses.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-step-num">2</div>
+        <div class="flow-step-content">
+          <h4>Reward Model Training</h4>
+          <p>Collect human preference data: show two model responses to the same prompt, ask which is better. Train a reward model to predict these preferences as a scalar score.</p>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-step-num">3</div>
+        <div class="flow-step-content">
+          <h4>RL Fine-Tuning with PPO</h4>
+          <p>Use the reward model as a signal to fine-tune the SFT model via PPO. A KL-divergence penalty prevents the policy from drifting too far from the SFT model (reward hacking prevention).</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="diagram-block">
+Stage 1: SFT
+  Dataset: {(prompt₁, response₁), (prompt₂, response₂), ...}
+  Loss: standard cross-entropy on response tokens
+  Output: SFT model (π_sft)
+
+Stage 2: Reward Model
+  Dataset: {(prompt, response_win, response_lose)}
+  Loss: -log σ(r(prompt, response_win) - r(prompt, response_lose))
+  Output: reward model r_θ
+
+Stage 3: PPO Fine-Tuning
+  For each prompt x, generate response y ~ π_θ(y|x):
+    reward = r_θ(x, y) - β · KL(π_θ(y|x) ‖ π_sft(y|x))
+  Maximize expected reward via PPO update
+  Output: aligned model (π_RL)
+</div>
+
+    <h3>🧮 Why KL Penalty Matters</h3>
+    <p>
+      Without the KL penalty, the policy would discover degenerate strategies — outputs that score
+      high on the reward model but are garbage to humans ("reward hacking"). The penalty term keeps
+      the RL-tuned model close to the well-behaved SFT baseline.
+    </p>
+
+    <div class="math-block">
+Total Objective = E_{x,y}[ r_θ(x,y) ] - β · KL( π_RL(·|x) ‖ π_SFT(·|x) )
+
+β controls the tradeoff:
+  β → 0: maximize reward regardless of divergence (reward hacking)
+  β → ∞: never deviate from SFT (no alignment gain)
+  Typical β: 0.01 – 0.1
+</div>
+
+    <div class="callout warning">
+      <strong>Reward Hacking:</strong> A famous example — if the reward model prefers longer answers,
+      the policy learns to be verbose without being more helpful. Human evaluation is essential to
+      catch these failure modes. Constitutional AI (Anthropic) partially addresses this by using
+      an AI-generated set of principles as an additional constraint.
+    </div>
+  </section>
+
+  <!-- CHAPTER 6 -->
+  <section class="chapter-section" id="ch6">
+    <div class="section-number">Chapter 6</div>
+    <h2>Reward Model Training</h2>
+    <p class="section-tagline">Teaching a model to predict human preferences — the critic that guides alignment.</p>
+
+    <h3>🏗️ Architecture</h3>
+    <p>
+      The reward model is typically initialized from the SFT model with its language model head
+      replaced by a single scalar output head. It takes a prompt-response pair and outputs a
+      scalar score representing quality.
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>Reward Model (simplified)</span></div>
+      <pre><code><span class="kw">import</span> torch
+<span class="kw">import</span> torch.nn <span class="kw">as</span> nn
+
+<span class="kw">class</span> <span class="ty">RewardModel</span>(nn.Module):
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, base_model, d_model: <span class="ty">int</span>):
+        <span class="fn">super</span>().<span class="fn">__init__</span>()
+        self.base   = base_model          <span class="cm"># frozen or partially frozen LLM</span>
+        self.head   = nn.Linear(d_model, <span class="nu">1</span>, bias=<span class="kw">False</span>)  <span class="cm"># scalar output</span>
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, input_ids, attention_mask):
+        <span class="cm"># Get last hidden state from base model</span>
+        out    = self.base(input_ids, attention_mask=attention_mask,
+                           output_hidden_states=<span class="kw">True</span>)
+        hidden = out.hidden_states[-<span class="nu">1</span>]          <span class="cm"># (B, T, d_model)</span>
+        <span class="cm"># Use the last non-padding token as the reward signal</span>
+        seq_lens = attention_mask.sum(dim=<span class="nu">1</span>) - <span class="nu">1</span>  <span class="cm"># (B,)</span>
+        last_h   = hidden[torch.arange(hidden.size(<span class="nu">0</span>)), seq_lens]
+        reward   = self.head(last_h).squeeze(-<span class="nu">1</span>)   <span class="cm"># (B,)</span>
+        <span class="kw">return</span> reward
+
+<span class="kw">def</span> <span class="fn">bradley_terry_loss</span>(r_win: torch.Tensor, r_lose: torch.Tensor):
+    <span class="cm"># Preference loss: log-sigmoid of reward difference</span>
+    <span class="kw">return</span> -torch.log(torch.sigmoid(r_win - r_lose)).mean()
+</code></pre>
+    </div>
+
+    <h3>📊 Training Data Collection</h3>
+    <p>
+      Human annotators are shown pairs of model responses to the same prompt and asked to rank them.
+      This produces a dataset of <em>(prompt, chosen, rejected)</em> triples. Key considerations:
+    </p>
+    <ul>
+      <li><strong>Annotator agreement:</strong> preferences are noisy — only use pairs with high inter-annotator agreement</li>
+      <li><strong>Diversity:</strong> cover a wide range of topics and difficulty levels</li>
+      <li><strong>Calibration:</strong> avoid annotators who always prefer longer or more confident responses</li>
+      <li><strong>Scale:</strong> OpenAI used ~33K comparisons for InstructGPT; Llama 2 used ~1M</li>
+    </ul>
+  </section>
+
+  <!-- CHAPTER 7 -->
+  <section class="chapter-section" id="ch7">
+    <div class="section-number">Chapter 7</div>
+    <h2>PPO vs DPO: RL Algorithms for Alignment</h2>
+    <p class="section-tagline">Two approaches to the same goal — one online and complex, one offline and elegant.</p>
+
+    <h3>🔄 PPO (Proximal Policy Optimization)</h3>
+    <p>
+      PPO is an online RL algorithm that generates responses at training time and uses the reward
+      model to compute advantages. It requires running four models simultaneously (policy, reference,
+      reward, value), making it memory-intensive and complex to tune.
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>PPO Training Loop (conceptual)</span></div>
+      <pre><code><span class="kw">from</span> trl <span class="kw">import</span> PPOTrainer, PPOConfig
+
+config = PPOConfig(
+    model_name=<span class="st">"sft_model"</span>,
+    learning_rate=<span class="nu">1.41e-5</span>,
+    batch_size=<span class="nu">64</span>,
+    mini_batch_size=<span class="nu">8</span>,
+    gradient_accumulation_steps=<span class="nu">1</span>,
+    optimize_cuda_cache=<span class="kw">True</span>,
+    kl_penalty=<span class="st">"kl"</span>,      <span class="cm"># KL from reference model</span>
+    init_kl_coef=<span class="nu">0.2</span>,
+    adap_kl_ctrl=<span class="kw">True</span>,     <span class="cm"># adaptively adjust KL coefficient</span>
+)
+trainer = PPOTrainer(config, policy_model, ref_model, tokenizer,
+                     dataset, reward_model)
+
+<span class="kw">for</span> batch <span class="kw">in</span> trainer.dataloader:
+    <span class="cm"># Step 1: generate responses with current policy</span>
+    response_tensors = trainer.generate(batch[<span class="st">"input_ids"</span>],
+                                        max_new_tokens=<span class="nu">128</span>)
+
+    <span class="cm"># Step 2: score with reward model</span>
+    rewards = [reward_model(q, r) <span class="kw">for</span> q, r <span class="kw">in</span>
+               zip(batch[<span class="st">"input_ids"</span>], response_tensors)]
+
+    <span class="cm"># Step 3: PPO update</span>
+    stats = trainer.step(batch[<span class="st">"input_ids"</span>], response_tensors, rewards)
+</code></pre>
+    </div>
+
+    <h3>✨ DPO (Direct Preference Optimization)</h3>
+    <p>
+      DPO (Rafailov et al., 2023) bypasses the reward model entirely. It optimizes the policy
+      directly on preference data, showing that the RLHF objective has a closed-form solution
+      in terms of the policy and reference model. DPO is simpler, more stable, and competitive
+      with PPO.
+    </p>
+
+    <div class="math-block">
+DPO Loss:
+L_DPO = -E[ log σ( β · log(π_θ(y_w|x) / π_ref(y_w|x))
+                  - β · log(π_θ(y_l|x) / π_ref(y_l|x)) ) ]
+
+y_w = winning (preferred) response
+y_l = losing  (rejected)  response
+π_ref = frozen reference model (SFT checkpoint)
+β = temperature (typically 0.1)
+</div>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>DPO Training with TRL</span></div>
+      <pre><code><span class="kw">from</span> trl <span class="kw">import</span> DPOTrainer, DPOConfig
+<span class="kw">from</span> transformers <span class="kw">import</span> AutoModelForCausalLM, AutoTokenizer
+
+model   = AutoModelForCausalLM.from_pretrained(<span class="st">"sft_checkpoint"</span>)
+ref_model = AutoModelForCausalLM.from_pretrained(<span class="st">"sft_checkpoint"</span>)  <span class="cm"># frozen</span>
+tokenizer = AutoTokenizer.from_pretrained(<span class="st">"sft_checkpoint"</span>)
+
+<span class="cm"># Dataset format: {"prompt": ..., "chosen": ..., "rejected": ...}</span>
+config  = DPOConfig(
+    beta=<span class="nu">0.1</span>,
+    learning_rate=<span class="nu">5e-7</span>,
+    num_train_epochs=<span class="nu">1</span>,
+    per_device_train_batch_size=<span class="nu">2</span>,
+    gradient_accumulation_steps=<span class="nu">8</span>,
+    bf16=<span class="kw">True</span>,
+    max_length=<span class="nu">1024</span>,
+)
+trainer = DPOTrainer(model, ref_model, args=config,
+                     train_dataset=pref_dataset, tokenizer=tokenizer)
+trainer.train()
+</code></pre>
+    </div>
+
+    <table class="data-table">
+      <thead><tr><th>Aspect</th><th>PPO</th><th>DPO</th></tr></thead>
+      <tbody>
+        <tr><td>Models needed</td><td>4 (policy, ref, reward, value)</td><td>2 (policy, ref)</td></tr>
+        <tr><td>Training style</td><td>Online (generates during training)</td><td>Offline (fixed dataset)</td></tr>
+        <tr><td>Complexity</td><td><span class="badge badge-red">High</span></td><td><span class="badge badge-green">Low</span></td></tr>
+        <tr><td>Memory</td><td><span class="badge badge-red">Very high</span></td><td><span class="badge badge-green">Moderate</span></td></tr>
+        <tr><td>Stability</td><td>Requires careful tuning</td><td>Generally more stable</td></tr>
+        <tr><td>Quality</td><td>State of art (with effort)</td><td>Competitive in practice</td></tr>
+        <tr><td>Used by</td><td>OpenAI (InstructGPT)</td><td>Llama-3, Mistral, Zephyr</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- CHAPTER 8 -->
+  <section class="chapter-section" id="ch8">
+    <div class="section-number">Chapter 8</div>
+    <h2>Fine-Tuning: SFT &amp; LoRA</h2>
+    <p class="section-tagline">Adapting large models to specific tasks without retraining billions of parameters from scratch.</p>
+
+    <h3>📝 Supervised Fine-Tuning (SFT)</h3>
+    <p>
+      SFT is standard next-token prediction on a curated instruction-following dataset. The model
+      learns to format responses properly, follow system prompts, and maintain conversation context.
+      Loss is typically computed only on the assistant response tokens (not the prompt).
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>SFT Training Loop</span></div>
+      <pre><code><span class="kw">from</span> transformers <span class="kw">import</span> AutoModelForCausalLM, AutoTokenizer, TrainingArguments
+<span class="kw">from</span> trl <span class="kw">import</span> SFTTrainer
+<span class="kw">from</span> datasets <span class="kw">import</span> load_dataset
+
+model     = AutoModelForCausalLM.from_pretrained(<span class="st">"meta-llama/Meta-Llama-3-8B"</span>,
+                                                  torch_dtype=torch.bfloat16)
+tokenizer = AutoTokenizer.from_pretrained(<span class="st">"meta-llama/Meta-Llama-3-8B"</span>)
+dataset   = load_dataset(<span class="st">"HuggingFaceH4/ultrachat_200k"</span>, split=<span class="st">"train_sft"</span>)
+
+args = TrainingArguments(
+    output_dir=<span class="st">"./sft-llama3-8b"</span>,
+    per_device_train_batch_size=<span class="nu">2</span>,
+    gradient_accumulation_steps=<span class="nu">8</span>,    <span class="cm"># effective batch = 16</span>
+    num_train_epochs=<span class="nu">1</span>,
+    learning_rate=<span class="nu">2e-5</span>,
+    bf16=<span class="kw">True</span>,
+    lr_scheduler_type=<span class="st">"cosine"</span>,
+    warmup_ratio=<span class="nu">0.1</span>,
+    logging_steps=<span class="nu">10</span>,
+    save_steps=<span class="nu">500</span>,
+)
+trainer = SFTTrainer(model=model, tokenizer=tokenizer,
+                     args=args, train_dataset=dataset,
+                     max_seq_length=<span class="nu">4096</span>)
+trainer.train()
+</code></pre>
+    </div>
+
+    <h3>🔬 LoRA: Low-Rank Adaptation</h3>
+    <p>
+      LoRA (Hu et al., 2022) freezes the original model weights and injects trainable low-rank
+      decomposition matrices into each attention layer. Instead of updating W (d×d), we train
+      two small matrices A (d×r) and B (r×d) where r ≪ d.
+    </p>
+
+    <div class="math-block">
+Original forward: h = W·x
+
+LoRA forward:     h = W·x + (B·A)·x · (α/r)
+
+W frozen,  A and B trainable
+r = rank (e.g., 8, 16, 64)
+α = scaling factor
+
+Parameters saved:
+  Full fine-tune: d² parameters
+  LoRA (r=16):   2 × d × r  (e.g., 4096×16×2 = 131K vs 16.7M)
+</div>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>LoRA with PEFT</span></div>
+      <pre><code><span class="kw">from</span> peft <span class="kw">import</span> LoraConfig, get_peft_model, TaskType
+
+lora_config = LoraConfig(
+    task_type=TaskType.CAUSAL_LM,
+    r=<span class="nu">16</span>,                          <span class="cm"># rank</span>
+    lora_alpha=<span class="nu">32</span>,                  <span class="cm"># scaling = alpha/r = 2</span>
+    target_modules=[<span class="st">"q_proj"</span>, <span class="st">"v_proj"</span>,
+                    <span class="st">"k_proj"</span>, <span class="st">"o_proj"</span>],
+    lora_dropout=<span class="nu">0.05</span>,
+    bias=<span class="st">"none"</span>,
+)
+
+model = get_peft_model(base_model, lora_config)
+model.print_trainable_parameters()
+<span class="cm"># trainable params: 3,407,872  |  all params: 6,742,609,920
+# trainable%: 0.0506%  → 99.95% of weights frozen!</span>
+
+<span class="cm"># After training, merge LoRA weights back into base model:</span>
+merged_model = model.merge_and_unload()
+merged_model.save_pretrained(<span class="st">"./lora-merged-llama3"</span>)
+</code></pre>
+    </div>
+
+    <h3>💡 QLoRA: Quantized LoRA</h3>
+    <p>
+      QLoRA (Dettmers et al., 2023) combines 4-bit quantization of the base model with LoRA
+      adapters trained in 16-bit. This makes it possible to fine-tune a 70B model on a single
+      80GB A100 GPU.
+    </p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span class="lang-tag">python</span><span>QLoRA Setup</span></div>
+      <pre><code><span class="kw">from</span> transformers <span class="kw">import</span> BitsAndBytesConfig
+
+bnb_config = BitsAndBytesConfig(
+    load_in_4bit=<span class="kw">True</span>,
+    bnb_4bit_use_double_quant=<span class="kw">True</span>,   <span class="cm"># quantize quantization constants</span>
+    bnb_4bit_quant_type=<span class="st">"nf4"</span>,         <span class="cm"># NF4: optimal for normal distributions</span>
+    bnb_4bit_compute_dtype=torch.bfloat16
+)
+
+model = AutoModelForCausalLM.from_pretrained(
+    <span class="st">"meta-llama/Meta-Llama-3-70B"</span>,
+    quantization_config=bnb_config,
+    device_map=<span class="st">"auto"</span>,               <span class="cm"># auto-shard across GPUs</span>
+)
+<span class="cm"># Base model: 4-bit (frozen), LoRA adapters: BF16 (trainable)</span>
+model = get_peft_model(model, lora_config)
+<span class="cm"># 70B model now fits in ~40GB VRAM!</span>
+</code></pre>
+    </div>
+
+    <div class="card-grid">
+      <div class="info-card">
+        <div class="card-icon">⚡</div>
+        <h4>Full Fine-Tuning</h4>
+        <ul>
+          <li>All parameters updated</li>
+          <li>Best quality ceiling</li>
+          <li>Requires massive GPU RAM</li>
+          <li>Risk of catastrophic forgetting</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🔬</div>
+        <h4>LoRA</h4>
+        <ul>
+          <li>&lt;1% params trainable</li>
+          <li>~3% quality gap vs full</li>
+          <li>Fast, low-memory</li>
+          <li>Easy to share adapters</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🗜️</div>
+        <h4>QLoRA</h4>
+        <ul>
+          <li>4-bit base + LoRA adapters</li>
+          <li>70B on single A100 80GB</li>
+          <li>~5% quality gap vs full</li>
+          <li>State-of-art efficiency</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout success">
+      <strong>Practical Recommendation:</strong> For most teams, QLoRA + DPO is the production-ready
+      alignment recipe. Train on preference data with DPO, use QLoRA for memory efficiency, and
+      evaluate on MT-Bench or AlpacaEval to validate alignment quality. This stack can fine-tune
+      Llama-3 70B on a single A100 in under 24 hours.
+    </div>
+
+    <div style="margin-top:3rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
+      <a href="llm-inference-1.html" style="color:var(--text-muted);font-size:0.85rem;text-decoration:none;">← Part 1: Foundations</a>
+      <a href="llm-inference-3.html" style="background:var(--accent);color:#fff;padding:0.6rem 1.4rem;border-radius:8px;text-decoration:none;font-size:0.85rem;font-weight:700;">Part 3: Quantization →</a>
+    </div>
+  </section>
+
+</main>
+
+<script>
+function toggleTheme() {
+  const html = document.documentElement;
+  html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+}
+const sections = document.querySelectorAll('.chapter-section');
+const links = document.querySelectorAll('.sidebar a[href^="#"]');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.classList.remove('active'));
+      const a = document.querySelector(`.sidebar a[href="#${e.target.id}"]`);
+      if (a) a.classList.add('active');
+    }
+  });
+}, { threshold: 0.3 });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
