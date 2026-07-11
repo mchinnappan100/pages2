@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>git-ai — Building an AI-Powered Git Assistant in Go · Part 1</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <style>
+    :root {
+      --bg-primary:   #0f1117;
+      --bg-secondary: #1a1d27;
+      --bg-card:      #1e2130;
+      --accent:       #6366f1;
+      --accent-2:     #f59e0b;
+      --accent-3:     #10b981;
+      --text-primary: #e2e8f0;
+      --text-muted:   #94a3b8;
+      --border:       #2d3148;
+      --code-bg:      #111827;
+      --code-border:  #374151;
+      --success:      #10b981;
+      --warning:      #f59e0b;
+      --danger:       #f87171;
+    }
+    [data-theme="light"] {
+      --bg-primary:   #f8fafc;
+      --bg-secondary: #f1f5f9;
+      --bg-card:      #ffffff;
+      --text-primary: #1e293b;
+      --text-muted:   #64748b;
+      --border:       #e2e8f0;
+      --code-bg:      #f1f5f9;
+      --code-border:  #cbd5e1;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.75;
+      display: flex;
+      min-height: 100vh;
+    }
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 265px;
+      min-height: 100vh;
+      background: var(--bg-secondary);
+      border-right: 1px solid var(--border);
+      position: fixed;
+      top: 0; left: 0;
+      overflow-y: auto;
+      padding: 1.5rem 1rem;
+      z-index: 100;
+    }
+    .sidebar-logo { font-size: 1.15rem; font-weight: 800; color: var(--accent); margin-bottom: 0.2rem; }
+    .sidebar-subtitle { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 1.5rem; line-height: 1.4; }
+    .sidebar-section-label {
+      font-size: 0.63rem; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--text-muted); margin: 1.1rem 0 0.4rem;
+    }
+    .sidebar a {
+      display: block; padding: 0.38rem 0.75rem; border-radius: 6px;
+      font-size: 0.81rem; color: var(--text-muted); text-decoration: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .sidebar a:hover, .sidebar a.active {
+      background: var(--bg-card); color: var(--text-primary);
+    }
+    .toc-list { list-style: none; margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem; }
+    .toc-list li a { font-size: 0.78rem; color: var(--text-muted); padding: 0.28rem 0.75rem; }
+    .toc-list li a.active { color: var(--accent); background: rgba(99,102,241,0.08); border-radius: 5px; }
+    /* ── MAIN ── */
+    .main { margin-left: 265px; flex: 1; padding: 3rem 4rem; max-width: 980px; }
+    /* ── THEME TOGGLE ── */
+    .theme-toggle {
+      position: fixed; top: 1rem; right: 1.5rem;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 0.4rem 0.9rem; font-size: 0.78rem;
+      cursor: pointer; color: var(--text-primary); z-index: 200;
+      transition: background 0.15s;
+    }
+    .theme-toggle:hover { background: var(--border); }
+    /* ── HERO ── */
+    .hero { margin-bottom: 4rem; padding-bottom: 2.5rem; border-bottom: 1px solid var(--border); }
+    .hero-eyebrow {
+      font-size: 0.78rem; color: var(--accent); font-weight: 700;
+      letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 0.8rem;
+    }
+    .hero h1 { font-size: clamp(1.9rem, 4vw, 2.9rem); font-weight: 800; line-height: 1.2; margin-bottom: 1rem; }
+    .hero h1 em { color: var(--accent); font-style: normal; }
+    .hero-desc { font-size: 1rem; color: var(--text-muted); max-width: 620px; margin-bottom: 1.75rem; }
+    .stat-pills { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .stat-pill {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 0.6rem 1.1rem; text-align: center; min-width: 90px;
+    }
+    .stat-pill .value { font-size: 1.1rem; font-weight: 800; color: var(--accent); display: block; }
+    .stat-pill .label { font-size: 0.68rem; color: var(--text-muted); }
+    /* ── CHAPTER SECTIONS ── */
+    .chapter-section { margin-bottom: 4.5rem; scroll-margin-top: 2rem; }
+    .section-number {
+      display: inline-block; font-size: 0.72rem; font-weight: 700;
+      color: var(--accent); background: rgba(99,102,241,0.12);
+      border-radius: 4px; padding: 0.15rem 0.55rem; margin-bottom: 0.55rem;
+      letter-spacing: 0.08em; text-transform: uppercase;
+    }
+    .chapter-section h2 { font-size: 1.8rem; font-weight: 800; margin-bottom: 0.4rem; }
+    .section-tagline { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem; font-style: italic; }
+    .chapter-section h3 {
+      font-size: 1.1rem; font-weight: 700; margin: 2.2rem 0 0.8rem;
+      display: flex; align-items: center; gap: 0.5rem;
+    }
+    .chapter-section h4 { font-size: 0.95rem; font-weight: 600; margin: 1.4rem 0 0.5rem; color: var(--accent-2); }
+    .chapter-section p { margin-bottom: 1rem; font-size: 0.92rem; }
+    .chapter-section ul, .chapter-section ol {
+      padding-left: 1.5rem; margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-muted);
+    }
+    .chapter-section li { margin-bottom: 0.3rem; }
+    /* ── CARDS ── */
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .info-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
+    .info-card .card-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .info-card h4 { font-size: 0.92rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-primary); }
+    .info-card ul { list-style: none; padding: 0; margin: 0; }
+    .info-card ul li {
+      font-size: 0.81rem; color: var(--text-muted); padding: 0.22rem 0;
+      padding-left: 1rem; position: relative;
+    }
+    .info-card ul li::before { content: "▸"; color: var(--accent); position: absolute; left: 0; }
+    /* ── CALLOUTS ── */
+    .callout {
+      border-left: 3px solid var(--accent); background: var(--bg-card);
+      border-radius: 0 8px 8px 0; padding: 1rem 1.25rem;
+      margin: 1.75rem 0; font-size: 0.87rem;
+    }
+    .callout.warning { border-left-color: var(--warning); }
+    .callout.success { border-left-color: var(--success); }
+    .callout strong { color: var(--accent); }
+    .callout.warning strong { color: var(--warning); }
+    .callout.success strong { color: var(--success); }
+    /* ── DIAGRAM ── */
+    .diagram-block {
+      background: var(--code-bg); border: 1px solid var(--code-border);
+      border-radius: 8px; padding: 1.25rem; overflow-x: auto;
+      font-family: 'JetBrains Mono', monospace; font-size: 0.73rem;
+      color: #a5f3fc; line-height: 1.55; margin: 1.75rem 0; white-space: pre;
+    }
+    /* ── CODE BLOCKS ── */
+    .code-block-wrapper { margin: 1.75rem 0; border-radius: 10px; overflow: hidden; border: 1px solid var(--code-border); }
+    .code-block-header {
+      background: #1f2937; padding: 0.55rem 1rem; font-size: 0.74rem;
+      color: var(--text-muted); display: flex; justify-content: space-between;
+      align-items: center; border-bottom: 1px solid var(--code-border);
+    }
+    .code-block-header .lang-tag { color: var(--accent); font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    pre { background: var(--code-bg); padding: 1.25rem; overflow-x: auto; margin: 0; }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.79rem; line-height: 1.75; }
+    p code, li code, td code {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 4px; padding: 0.1em 0.45em; font-size: 0.81em; color: #f9a8d4;
+    }
+    .kw  { color: #c084fc; }
+    .cm  { color: #6b7280; font-style: italic; }
+    .st  { color: #86efac; }
+    .fn  { color: #60a5fa; }
+    .nu  { color: #fbbf24; }
+    .ty  { color: #67e8f9; }
+    .op  { color: #f9a8d4; }
+    /* ── TABLES ── */
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin: 1.75rem 0; }
+    .data-table thead tr { background: var(--bg-card); border-bottom: 2px solid var(--accent); }
+    .data-table th {
+      text-align: left; padding: 0.75rem 1rem; font-weight: 700;
+      color: var(--text-muted); font-size: 0.76rem;
+      text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .data-table td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .data-table tbody tr:hover { background: var(--bg-card); }
+    .badge {
+      display: inline-block; font-size: 0.68rem; font-weight: 700;
+      padding: 0.1rem 0.5rem; border-radius: 4px; letter-spacing: 0.04em;
+    }
+    .badge-green { background: rgba(16,185,129,0.15); color: #10b981; }
+    .badge-red   { background: rgba(248,113,113,0.15); color: #f87171; }
+    .badge-blue  { background: rgba(96,165,250,0.15);  color: #60a5fa; }
+    .badge-amber { background: rgba(251,191,36,0.15);  color: #fbbf24; }
+    /* ── TOOLS NOTE ── */
+    .tools-note {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1rem 1.25rem; font-size: 0.84rem;
+      color: var(--text-muted); margin-top: 1.5rem;
+    }
+    .tools-note strong { color: var(--text-primary); }
+    /* ── DECISION BOX ── */
+    .decision-box {
+      background: var(--bg-card); border: 1px solid var(--accent);
+      border-radius: 12px; padding: 1.4rem; margin: 1.75rem 0;
+    }
+    .decision-box .decision-label {
+      font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
+      color: var(--accent); font-weight: 700; margin-bottom: 0.5rem;
+    }
+    .decision-box .decision-title { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .decision-box p { font-size: 0.86rem; color: var(--text-muted); margin: 0; }
+    /* ── FLOW STEPS ── */
+    .flow-steps { margin: 1.5rem 0; }
+    .flow-step {
+      display: flex; gap: 1rem; align-items: flex-start;
+      padding: 0.75rem 0; border-bottom: 1px solid var(--border);
+    }
+    .flow-step:last-child { border-bottom: none; }
+    .flow-step-num {
+      min-width: 2rem; height: 2rem; border-radius: 50%;
+      background: rgba(99,102,241,0.15); color: var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.78rem; font-weight: 700; flex-shrink: 0;
+    }
+    .flow-step-body { font-size: 0.87rem; }
+    .flow-step-body strong { color: var(--text-primary); display: block; margin-bottom: 0.15rem; }
+    .flow-step-body span { color: var(--text-muted); }
+    /* ── FOOTER ── */
+    .chapter-footer {
+      border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 3.5rem;
+      font-size: 0.79rem; color: var(--text-muted);
+      display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
+    }
+    .chapter-footer a { color: var(--accent); text-decoration: none; }
+    /* ── RESPONSIVE ── */
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
+      .sidebar.open { transform: translateX(0); }
+      .main { margin-left: 0; padding: 1.5rem 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ SIDEBAR ═══════════════════════════ -->
+<nav class="sidebar">
+  <div class="sidebar-logo">⚡ git-ai</div>
+  <div class="sidebar-subtitle">Building an AI-Powered Git Assistant in Go<br>Part 1 of 2 · Chapters 1–10</div>
+
+  <div class="sidebar-section-label">Parts</div>
+  <a href="git-ai-book-part1.html" class="active">Part 1 · Foundations (Ch 1–10)</a>
+  <a href="git-ai-book-part2.html">Part 2 · Implementation (Ch 11–19)</a>
+
+  <div class="sidebar-section-label">Part 1 Contents</div>
+  <ul class="toc-list">
+    <li><a href="#ch1">1 · The Problem</a></li>
+    <li><a href="#ch2">2 · Design Decisions</a></li>
+    <li><a href="#ch3">3 · Choosing Go</a></li>
+    <li><a href="#ch4">4 · Architecture</a></li>
+    <li><a href="#ch5">5 · Project Structure</a></li>
+    <li><a href="#ch6">6 · Configuration</a></li>
+    <li><a href="#ch7">7 · The Git Layer</a></li>
+    <li><a href="#ch8">8 · The Provider System</a></li>
+    <li><a href="#ch9">9 · The Prompt Engine</a></li>
+    <li><a href="#ch10">10 · Context Builder</a></li>
+  </ul>
+</nav>
+
+<button class="theme-toggle" onclick="toggleTheme()">🌓 Theme</button>
+
+<!-- ═══════════════════════════ MAIN ═══════════════════════════ -->
+<main class="main">
+
+  <!-- HERO -->
+  <header class="hero">
+    <div class="hero-eyebrow">Part 1 of 2 · A Complete Engineering Guide</div>
+    <h1>git-ai<br><em>Building an AI-Powered Git Assistant in Go</em></h1>
+    <p style="font-size:0.82rem;color:var(--accent);font-weight:600;margin-bottom:0.5rem;letter-spacing:0.03em;">Author: Mohan Chinnappan</p>
+    <p class="hero-desc">
+      A local-first, privacy-preserving Git extension that uses Ollama and local LLMs to generate
+      commit messages, review staged changes, explain commits, produce changelogs, and answer
+      questions about your repository — all from a single native binary.
+    </p>
+    <div class="stat-pills">
+      <div class="stat-pill"><span class="value">1</span><span class="label">Binary</span></div>
+      <div class="stat-pill"><span class="value">0</span><span class="label">Runtime deps</span></div>
+      <div class="stat-pill"><span class="value">10</span><span class="label">Commands</span></div>
+      <div class="stat-pill"><span class="value">Local</span><span class="label">First</span></div>
+      <div class="stat-pill"><span class="value">Go</span><span class="label">Language</span></div>
+    </div>
+  </header>
+
+  <!-- ═══ CH 1 ═══ -->
+  <section class="chapter-section" id="ch1">
+    <span class="section-number">Chapter 01</span>
+    <h2>The Problem Worth Solving</h2>
+    <p class="section-tagline">Daily friction, the existing landscape, and a clear design philosophy</p>
+
+    <h3>1.1 The Daily Friction</h3>
+    <p>Every developer, every day, faces a set of small but cumulative frictions with Git. None of these problems are hard — but they are slow, and they compound.</p>
+
+    <div class="card-grid">
+      <div class="info-card">
+        <div class="card-icon">✍️</div>
+        <h4>Commit Messages</h4>
+        <ul>
+          <li>Staring at a diff for 30 seconds</li>
+          <li>Writing vague "fix stuff" messages</li>
+          <li>20 commits/week × 2 min = 40 hrs/year</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🔍</div>
+        <h4>History Archaeology</h4>
+        <ul>
+          <li>Reading a month-old commit</li>
+          <li>Wondering <em>why</em> a change was made</li>
+          <li>Tracing impact across files</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">⚔️</div>
+        <h4>Merge Conflicts</h4>
+        <ul>
+          <li>Neither side of the diff is obvious</li>
+          <li>Need to understand both intents</li>
+          <li>Risk of silent data loss</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">📋</div>
+        <h4>Release Notes</h4>
+        <ul>
+          <li>Needed at the last minute</li>
+          <li>Require reading all commits</li>
+          <li>Hard to write well under pressure</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🗺️</div>
+        <h4>New Codebases</h4>
+        <ul>
+          <li>A day spent just reading files</li>
+          <li>No map of the architecture</li>
+          <li>Can't ask the code questions</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🎓</div>
+        <h4>Git Concepts</h4>
+        <ul>
+          <li>"What does rebase actually do?"</li>
+          <li>Man pages are dense</li>
+          <li>Tutorials lack context</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>1.2 The Existing Landscape</h3>
+    <table class="data-table">
+      <thead><tr><th>Tool</th><th>Approach</th><th>Limitation</th></tr></thead>
+      <tbody>
+        <tr><td>GitHub Copilot</td><td>Cloud-based, IDE-integrated AI</td><td>Internet required, subscription, IDE lock-in</td></tr>
+        <tr><td>commitizen</td><td>Template-based prompts</td><td>No AI — developer still writes all content</td></tr>
+        <tr><td>conventional-changelog</td><td>Parses commit prefixes</td><td>Requires disciplined conventions in advance</td></tr>
+        <tr><td>Shell GPT scripts</td><td>Shell scripts calling OpenAI</td><td>API key required, no Git integration, no config</td></tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <strong>The Gap</strong><br>
+      A local-first, Git-integrated, configurable AI assistant that works offline, protects privacy,
+      and follows Git's own extensibility conventions. This is what git-ai fills.
+    </div>
+
+    <h3>1.3 Design Philosophy</h3>
+    <div class="flow-steps">
+      <div class="flow-step"><div class="flow-step-num">1</div><div class="flow-step-body"><strong>Local-first</strong><span>No cloud dependency by default. Your code never leaves your machine unless you explicitly configure an external provider.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">2</div><div class="flow-step-body"><strong>Advisory only</strong><span>AI output is always a suggestion. git-ai never commits, never pushes, never rewrites history.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">3</div><div class="flow-step-body"><strong>Git is the source of truth</strong><span>git-ai reads from Git; it never writes to it.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">4</div><div class="flow-step-body"><strong>Follow Git conventions</strong><span>External Git commands (<code>git-ai</code> on PATH) are Git's own extensibility model.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">5</div><div class="flow-step-body"><strong>Pluggable</strong><span>Providers, output formats, and capabilities are all extensible without changing core code.</span></div></div>
+    </div>
+
+    <h3>1.4 The Workflow git-ai Enables</h3>
+    <div class="diagram-block">
+┌─────────────────────────────────────────────────────────────────────┐
+│                       Developer Workflow                             │
+│                                                                      │
+│  git add .        →   git ai review    →   git ai commit            │
+│  (stage changes)      (AI reviews)        (AI writes message)       │
+│                                                                      │
+│  git merge feat   →   git ai conflicts →   resolve manually         │
+│  (conflict!)          (AI explains)        (human decides)          │
+│                                                                      │
+│  git log          →   git ai changelog →   paste to CHANGELOG.md    │
+│  (history)            (AI formats)         (human approves)         │
+│                                                                      │
+│  (new repo)       →   git ai repo      →   understand codebase      │
+│                        git ai ask           ask questions            │
+└─────────────────────────────────────────────────────────────────────┘</div>
+
+    <div class="callout success">
+      <strong>The Model</strong><br>
+      Git provides data. AI provides insight. Human provides judgement. This triangle never changes.
+    </div>
+  </section>
+
+  <!-- ═══ CH 2 ═══ -->
+  <section class="chapter-section" id="ch2">
+    <span class="section-number">Chapter 02</span>
+    <h2>Design Decisions</h2>
+    <p class="section-tagline">Every architectural choice made deliberately, with explicit trade-offs</p>
+
+    <h3>2.1 How to Integrate with Git</h3>
+    <p>Three approaches exist. The choice determines the entire user experience.</p>
+    <table class="data-table">
+      <thead><tr><th>Option</th><th>Mechanism</th><th>Pros</th><th>Cons</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>A: Git Hooks</strong></td>
+          <td>prepare-commit-msg hook</td>
+          <td>Automatic on every commit</td>
+          <td>Per-repo, runs without consent, slows commit path</td>
+        </tr>
+        <tr>
+          <td><strong>B: Git Alias</strong></td>
+          <td><code>alias.ai = !git-ai</code></td>
+          <td>Works immediately after config</td>
+          <td>Not discoverable, manual per-user setup required</td>
+        </tr>
+        <tr>
+          <td><strong>C: External Command ✅</strong></td>
+          <td><code>git-ai</code> binary on PATH</td>
+          <td>Zero config, discoverable, follows Git model</td>
+          <td>Binary must be on PATH</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="decision-box">
+      <div class="decision-label">Decision</div>
+      <div class="decision-title">Option C — External Git Command</div>
+      <p>Place a binary named <code>git-ai</code> on PATH. Git automatically maps <code>git ai &lt;args&gt;</code>
+      to <code>git-ai &lt;args&gt;</code>. This is exactly how <code>git lfs</code>, <code>git flow</code>,
+      and <code>git hub</code> work. Zero configuration from the user's perspective after install.</p>
+    </div>
+
+    <h3>2.2 The Provider Decision</h3>
+    <table class="data-table">
+      <thead><tr><th>Approach</th><th>Privacy</th><th>Cost</th><th>Offline</th><th>Latency</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>OpenAI API</td>
+          <td><span class="badge badge-red">Code sent to cloud</span></td>
+          <td>$$$</td>
+          <td><span class="badge badge-red">No</span></td>
+          <td>~1–3s</td>
+        </tr>
+        <tr>
+          <td>Anthropic Claude</td>
+          <td><span class="badge badge-red">Code sent to cloud</span></td>
+          <td>$$$</td>
+          <td><span class="badge badge-red">No</span></td>
+          <td>~1–3s</td>
+        </tr>
+        <tr>
+          <td>Ollama (local) ✅</td>
+          <td><span class="badge badge-green">Never leaves machine</span></td>
+          <td>Free</td>
+          <td><span class="badge badge-green">Yes</span></td>
+          <td>~2–10s</td>
+        </tr>
+        <tr>
+          <td>llama.cpp (local)</td>
+          <td><span class="badge badge-green">Never leaves machine</span></td>
+          <td>Free</td>
+          <td><span class="badge badge-green">Yes</span></td>
+          <td>~2–10s</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="decision-box">
+      <div class="decision-label">Decision</div>
+      <div class="decision-title">Ollama as default, pluggable provider interface for all others</div>
+      <p>The <code>Provider</code> interface means adding OpenAI, Anthropic, or Gemini is a single new package
+      implementing five methods. Existing commands need no changes.</p>
+    </div>
+
+    <h3>2.3 The Configuration Decision</h3>
+    <p>Git already has a configuration system: <code>~/.gitconfig</code> and <code>.git/config</code>. Every Git user already knows how to use <code>git config</code>.</p>
+
+    <div class="decision-box">
+      <div class="decision-label">Decision</div>
+      <div class="decision-title">Use Git's own config system — no new file formats</div>
+      <p>Users configure git-ai exactly like they configure Git itself. No new config file location, no new documentation burden.</p>
+    </div>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>~/.gitconfig — git-ai configuration</span><span class="lang-tag">ini</span></div>
+      <pre><code>[ai]
+    provider    = ollama
+    model       = llama3.2:latest
+    temperature = 0.2
+    maxTokens   = 4096
+
+[ai.ollama]
+    url = http://localhost:11434
+
+[ai.review]
+    severity = medium
+
+[ai.commit]
+    style = conventional</code></pre>
+    </div>
+
+    <h3>2.4 The Output Decision</h3>
+    <p>Developers use git-ai in two distinct contexts: interactive terminals and scripts/CI pipelines.</p>
+    <div class="decision-box">
+      <div class="decision-label">Decision</div>
+      <div class="decision-title"><code>--format</code> flag on every command: plain (default), markdown, json</div>
+      <p>JSON mode suppresses all decorative output and emits a single JSON object.
+      Every command becomes scriptable with zero post-processing.</p>
+    </div>
+  </section>
+
+  <!-- ═══ CH 3 ═══ -->
+  <section class="chapter-section" id="ch3">
+    <span class="section-number">Chapter 03</span>
+    <h2>Choosing Go</h2>
+    <p class="section-tagline">Why Go wins for CLI tools — and why Node.js loses at the distribution layer</p>
+
+    <h3>3.1 The Full Comparison</h3>
+    <table class="data-table">
+      <thead><tr><th>Requirement</th><th>Go</th><th>Node.js</th></tr></thead>
+      <tbody>
+        <tr><td>Single binary, no runtime</td><td><span class="badge badge-green">✅ go build → static binary</span></td><td><span class="badge badge-red">❌ Requires Node.js on PATH</span></td></tr>
+        <tr><td>Binary size</td><td>~8 MB stripped</td><td>50–80 MB with pkg/esbuild</td></tr>
+        <tr><td>Cold start time</td><td><span class="badge badge-green">~5–10 ms</span></td><td><span class="badge badge-amber">~80–250 ms</span></td></tr>
+        <tr><td>Cross-platform build</td><td><span class="badge badge-green">GOOS/GOARCH — one command</span></td><td>Complex with pkg or nexe</td></tr>
+        <tr><td>Git external command</td><td><span class="badge badge-green">Native binary — fits perfectly</span></td><td>Needs shebang wrapper + runtime</td></tr>
+        <tr><td>Type safety</td><td>Static, compiled — errors at build time</td><td>TypeScript adds types; runtime errors still possible</td></tr>
+        <tr><td>Standard library</td><td>HTTP, JSON, crypto all built-in</td><td>Similar via npm packages</td></tr>
+        <tr><td>Memory at rest</td><td>~10–15 MB</td><td>~40–80 MB</td></tr>
+      </tbody>
+    </table>
+
+    <h3>3.2 The Three Decisive Factors</h3>
+
+    <div class="card-grid">
+      <div class="info-card">
+        <div class="card-icon">📦</div>
+        <h4>Distribution</h4>
+        <ul>
+          <li>Single binary — copy anywhere</li>
+          <li><code>brew install git-ai</code> just works</li>
+          <li>No runtime dependency on target machine</li>
+          <li>curl + chmod = instant install</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">⚡</div>
+        <h4>Startup Time</h4>
+        <ul>
+          <li>git-ai is run after every <code>git add</code></li>
+          <li>5ms vs 200ms is perceptible in interactive use</li>
+          <li>Perceived as "instant" vs "loading"</li>
+          <li>Multiplies across many commands per day</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🔒</div>
+        <h4>Robustness</h4>
+        <ul>
+          <li>Static types catch errors at compile time</li>
+          <li>No undefined is not a function at runtime</li>
+          <li>Race detector built into test runner</li>
+          <li>One external dependency: cobra</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>3.3 The Go Toolchain</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>Go toolchain commands used in git-ai</span><span class="lang-tag">bash</span></div>
+      <pre><code><span class="cm"># Initialise the module — creates go.mod with the module path</span>
+go mod init github.com/mchinnappan/git-ai
+
+<span class="cm"># Add a dependency — downloads and pins cobra in go.sum</span>
+go get github.com/spf13/cobra@v1.8.1
+
+<span class="cm"># Tidy — removes unused deps, adds missing ones</span>
+go mod tidy
+
+<span class="cm"># Build — compiles to a native binary for the current OS/arch</span>
+go build -ldflags=<span class="st">"-s -w"</span> -o bin/git-ai ./cmd/git-ai
+
+<span class="cm"># Test — runs all *_test.go files in the module</span>
+go test ./...
+
+<span class="cm"># Cross-compile — macOS ARM64 from any host</span>
+<span class="ty">GOOS</span>=darwin <span class="ty">GOARCH</span>=arm64 go build -o dist/git-ai-darwin-arm64 ./cmd/git-ai</code></pre>
+    </div>
+
+    <div class="callout">
+      <strong>Only one external dependency</strong><br>
+      git-ai uses only <code>github.com/spf13/cobra</code> for the CLI framework.
+      HTTP client, JSON encoding, file I/O, process execution, and testing are all Go standard library.
+      This minimises supply-chain risk and keeps <code>go mod tidy</code> fast.
+    </div>
+  </section>
+
+  <!-- ═══ CH 4 ═══ -->
+  <section class="chapter-section" id="ch4">
+    <span class="section-number">Chapter 04</span>
+    <h2>Architecture</h2>
+    <p class="section-tagline">Four clean layers, one invariant: the repository is never modified</p>
+
+    <h3>4.1 The Layered Design</h3>
+    <div class="diagram-block">
+┌──────────────────────────────────────────────────────────────┐
+│                     CLI Layer  (cobra)                        │
+│          cmd/git-ai/main.go  +  commands/                     │
+│   commit  review  explain  diff  changelog  release  ...      │
+└────────────────────────┬─────────────────────────────────────┘
+                         │  calls
+┌────────────────────────▼─────────────────────────────────────┐
+│                  Orchestration Layer                          │
+│   config.Load() → git.* → prompt.Build() → provider.New()    │
+│            → Generate(prompt) → output.Print()               │
+└────────┬──────────────────────────────────┬──────────────────┘
+         │                                  │
+┌────────▼──────────┐            ┌──────────▼─────────────────┐
+│    Git Layer      │            │      Provider Layer          │
+│  internal/git/    │            │  internal/provider/          │
+│                   │            │    ollama/                   │
+│  StagedDiff()     │            │    openai/                   │
+│  CommitShow()     │            │    llamacpp/                 │
+│  LogRange()       │            │                              │
+│  Metadata()       │            │  interface Provider {        │
+│  ConflictedFiles()│            │    Generate(ctx, prompt)     │
+│                   │            │    IsAvailable()             │
+└───────────────────┘            └──────────────────────────────┘</div>
+
+    <h3>4.2 The Universal Data Flow</h3>
+    <p>The data flow for <em>every</em> command is identical. This consistency was a deliberate design decision — it makes commands easy to write, test, and reason about.</p>
+    <div class="flow-steps">
+      <div class="flow-step"><div class="flow-step-num">1</div><div class="flow-step-body"><strong>Parse CLI flags</strong><span>cobra parses --format, --style, --severity, --amend, etc.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">2</div><div class="flow-step-body"><strong>Load config</strong><span>internal/config reads git-config, applies defaults, returns Config struct.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">3</div><div class="flow-step-body"><strong>Check git repo</strong><span>internal/git — git rev-parse --show-toplevel. Exit 2 if not a repo.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">4</div><div class="flow-step-body"><strong>Gather context</strong><span>internal/git — StagedDiff(), CommitShow(), LogRange(), Metadata().</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">5</div><div class="flow-step-body"><strong>Build prompt</strong><span>internal/prompt — template + context + token budget truncation.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">6</div><div class="flow-step-body"><strong>Call provider</strong><span>internal/provider — POST /api/generate (or equivalent). Provider selected from config.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">7</div><div class="flow-step-body"><strong>Format output</strong><span>internal/output — plain, markdown, or JSON based on --format flag.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">8</div><div class="flow-step-body"><strong>Print to stdout</strong><span>fmt.Println(result). The response is printed and the program exits.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">9</div><div class="flow-step-body"><strong>Exit 0</strong><span><em>The repository is never touched.</em> This is the invariant that makes git-ai safe.</span></div></div>
+    </div>
+
+    <h3>4.3 The Provider Interface</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/provider/provider.go</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="kw">package</span> provider
+
+<span class="kw">import</span> <span class="st">"context"</span>
+
+<span class="cm">// Provider is the interface every AI backend must implement.</span>
+<span class="cm">// Adding a new backend (Anthropic, Gemini, LM Studio) means</span>
+<span class="cm">// implementing these six methods in a new package — nothing else changes.</span>
+<span class="kw">type</span> <span class="ty">Provider</span> <span class="kw">interface</span> {
+    <span class="fn">Initialize</span>() <span class="ty">error</span>
+    <span class="fn">IsAvailable</span>() (<span class="ty">bool</span>, <span class="ty">error</span>)
+    <span class="fn">Models</span>() ([]<span class="ty">string</span>, <span class="ty">error</span>)
+    <span class="fn">Generate</span>(ctx <span class="ty">context.Context</span>, prompt <span class="ty">string</span>) (<span class="ty">string</span>, <span class="ty">error</span>)
+    <span class="fn">Health</span>() <span class="ty">error</span>
+    <span class="fn">Version</span>() (<span class="ty">string</span>, <span class="ty">error</span>)
+}</code></pre>
+    </div>
+
+    <h3>4.4 The Registry Pattern</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/provider/registry.go — the factory function</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="cm">// New is the provider factory. Commands call provider.New(cfg) and receive</span>
+<span class="cm">// a Provider interface. They never import ollama, openai, or llamacpp directly.</span>
+<span class="kw">func</span> <span class="fn">New</span>(cfg *<span class="ty">config.Config</span>) (<span class="ty">Provider</span>, <span class="ty">error</span>) {
+    <span class="kw">switch</span> cfg.Provider {
+    <span class="kw">case</span> <span class="st">"ollama"</span>, <span class="st">""</span>:
+        <span class="kw">return</span> ollama.<span class="fn">New</span>(cfg.Ollama.URL, cfg.Model), <span class="kw">nil</span>
+    <span class="kw">case</span> <span class="st">"openai"</span>:
+        <span class="kw">return</span> openai.<span class="fn">New</span>(cfg.OpenAI.BaseURL, cfg.OpenAI.APIKey, cfg.Model), <span class="kw">nil</span>
+    <span class="kw">case</span> <span class="st">"llamacpp"</span>:
+        <span class="kw">return</span> llamacpp.<span class="fn">New</span>(cfg.LlamaCpp.URL, cfg.Model), <span class="kw">nil</span>
+    <span class="kw">default</span>:
+        <span class="kw">return</span> <span class="kw">nil</span>, fmt.<span class="fn">Errorf</span>(<span class="st">"unknown provider %q"</span>, cfg.Provider)
+    }
+}</code></pre>
+    </div>
+  </section>
+
+  <!-- ═══ CH 5 ═══ -->
+  <section class="chapter-section" id="ch5">
+    <span class="section-number">Chapter 05</span>
+    <h2>Project Structure</h2>
+    <p class="section-tagline">Why every file lives where it lives — and what Go's internal/ convention buys you</p>
+
+    <h3>5.1 The Full Directory Tree</h3>
+    <div class="diagram-block">
+git-ai/
+│
+├── cmd/
+│   └── git-ai/
+│       └── main.go          ← Entry point. Registers commands. Handles exit codes.
+│
+├── commands/                ← One file per subcommand.
+│   ├── errors.go            ← Typed exit codes (exitErr carries both message and code).
+│   ├── flags.go             ← Shared --format / -f flag helper.
+│   ├── commit.go            ← git ai commit  [--amend] [--style] [-f]
+│   ├── review.go            ← git ai review  [--severity] [--working-tree] [--commit]
+│   ├── explain.go           ← git ai explain &lt;ref|concept&gt;
+│   ├── diff.go              ← git ai diff    [ref]
+│   ├── changelog.go         ← git ai changelog [--from] [--to]
+│   ├── release.go           ← git ai release  [--from] [--version]
+│   ├── conflicts.go         ← git ai conflicts
+│   ├── repo.go              ← git ai repo
+│   ├── ask.go               ← git ai ask "&lt;question&gt;"
+│   └── plugins.go           ← git ai plugins
+│
+├── internal/                ← Private — not importable by external code.
+│   ├── config/
+│   │   ├── config.go        ← Reads git-config, applies defaults, Config struct.
+│   │   └── config_test.go
+│   ├── git/
+│   │   └── git.go           ← Thin wrappers around exec.Command("git", ...).
+│   ├── provider/
+│   │   ├── provider.go      ← The Provider interface.
+│   │   ├── registry.go      ← provider.New(cfg) factory.
+│   │   ├── ollama/          ← Ollama HTTP client.
+│   │   ├── openai/          ← OpenAI /v1/chat/completions client.
+│   │   └── llamacpp/        ← llama.cpp /completion client.
+│   ├── prompt/
+│   │   ├── prompt.go        ← All prompt templates. Build(kind, meta, diff).
+│   │   ├── prompt_test.go
+│   │   └── context.go       ← BuildRepoContext() — gathers repo intelligence.
+│   ├── output/
+│   │   └── output.go        ← Formatters: plain, markdown, JSON.
+│   └── plugin/
+│       ├── plugin.go        ← Discovers and runs git-ai-* binaries on PATH.
+│       └── plugin_test.go
+│
+├── go.mod                   ← Module. One external dep: cobra.
+├── go.sum
+├── Makefile                 ← build / install / test / lint / clean
+└── .gitignore</div>
+
+    <h3>5.2 Why <code>internal/</code>?</h3>
+    <p>Go's <code>internal/</code> convention makes packages private to the module. External code cannot import <code>github.com/mchinnappan/git-ai/internal/...</code>. This is intentional:</p>
+    <ul>
+      <li>The provider interface, prompt templates, and config schema are implementation details.</li>
+      <li>Future breaking changes to internal packages cannot break external importers.</li>
+      <li>Only <code>commands/</code> and <code>cmd/git-ai/main.go</code> form the public surface.</li>
+    </ul>
+
+    <h3>5.3 Why <code>commands/</code> is Separate from <code>cmd/git-ai/</code></h3>
+    <p><code>cmd/git-ai/main.go</code> is deliberately thin: register commands, execute cobra, handle exit codes. All logic lives in <code>commands/</code>. This separation means commands are testable without building the binary.</p>
+  </section>
+
+  <!-- ═══ CH 6 ═══ -->
+  <section class="chapter-section" id="ch6">
+    <span class="section-number">Chapter 06</span>
+    <h2>The Configuration System</h2>
+    <p class="section-tagline">Layered config using Git's own mechanism — no new file formats</p>
+
+    <h3>6.1 Priority Order</h3>
+    <div class="flow-steps">
+      <div class="flow-step"><div class="flow-step-num">1</div><div class="flow-step-body"><strong>CLI flags</strong><span>--style, --severity, --format — highest priority, override everything.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">2</div><div class="flow-step-body"><strong>Environment variables</strong><span>OPENAI_API_KEY — for secrets that should never be in config files.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">3</div><div class="flow-step-body"><strong>Repository .git/config</strong><span>Per-repo overrides — e.g. use openai for work repos, ollama for personal.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">4</div><div class="flow-step-body"><strong>User ~/.gitconfig</strong><span>Global defaults — model, provider, temperature.</span></div></div>
+      <div class="flow-step"><div class="flow-step-num">5</div><div class="flow-step-body"><strong>Built-in defaults</strong><span>Lowest priority. Safe values that work out-of-the-box with Ollama.</span></div></div>
+    </div>
+
+    <h3>6.2 Full Annotated Implementation</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/config/config.go</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="kw">package</span> config
+
+<span class="kw">import</span> (
+    <span class="st">"os"</span>       <span class="cm">// os.Getenv — reads OPENAI_API_KEY</span>
+    <span class="st">"os/exec"</span>  <span class="cm">// exec.Command — runs "git config --get &lt;key&gt;"</span>
+    <span class="st">"strconv"</span>  <span class="cm">// strconv.ParseFloat, Atoi — parses numeric values</span>
+    <span class="st">"strings"</span>  <span class="cm">// strings.TrimSpace — cleans git output</span>
+)
+
+<span class="cm">// Config is the fully-resolved configuration for one git-ai invocation.</span>
+<span class="cm">// Immutable after Load() returns.</span>
+<span class="kw">type</span> <span class="ty">Config</span> <span class="kw">struct</span> {
+    Provider    <span class="ty">string</span>
+    Model       <span class="ty">string</span>
+    Temperature <span class="ty">float64</span>
+    MaxTokens   <span class="ty">int</span>
+    Ollama      <span class="ty">OllamaConfig</span>
+    OpenAI      <span class="ty">OpenAIConfig</span>
+    LlamaCpp    <span class="ty">LlamaCppConfig</span>
+    Review      <span class="ty">ReviewConfig</span>
+    Commit      <span class="ty">CommitConfig</span>
+}
+
+<span class="kw">func</span> <span class="fn">Load</span>() (*<span class="ty">Config</span>, <span class="ty">error</span>) {
+    <span class="cm">// Start with safe, sensible defaults.</span>
+    cfg := &amp;<span class="ty">Config</span>{
+        Provider:    <span class="st">"ollama"</span>,
+        Model:       <span class="st">"llama3.2:latest"</span>,
+        Temperature: <span class="nu">0.2</span>,   <span class="cm">// low = focused, predictable output</span>
+        MaxTokens:   <span class="nu">4096</span>,
+        Ollama:      <span class="ty">OllamaConfig</span>{URL: <span class="st">"http://localhost:11434"</span>},
+        OpenAI:      <span class="ty">OpenAIConfig</span>{BaseURL: <span class="st">"https://api.openai.com"</span>},
+        LlamaCpp:    <span class="ty">LlamaCppConfig</span>{URL: <span class="st">"http://localhost:8080"</span>},
+        Review:      <span class="ty">ReviewConfig</span>{Severity: <span class="st">"medium"</span>},
+        Commit:      <span class="ty">CommitConfig</span>{Style: <span class="st">"conventional"</span>},
+    }
+
+    <span class="cm">// set overwrites *dest only when git config has a value.</span>
+    <span class="cm">// Preserves the default when the key is absent.</span>
+    set := <span class="kw">func</span>(dest *<span class="ty">string</span>, key <span class="ty">string</span>) {
+        <span class="kw">if</span> v := <span class="fn">gitConfig</span>(key); v != <span class="st">""</span> { *dest = v }
+    }
+
+    set(&amp;cfg.Provider, <span class="st">"ai.provider"</span>)
+    set(&amp;cfg.Model,    <span class="st">"ai.model"</span>)
+
+    <span class="cm">// Numeric values need explicit parsing.</span>
+    <span class="kw">if</span> v := <span class="fn">gitConfig</span>(<span class="st">"ai.temperature"</span>); v != <span class="st">""</span> {
+        <span class="kw">if</span> f, err := strconv.<span class="fn">ParseFloat</span>(v, <span class="nu">64</span>); err == <span class="kw">nil</span> { cfg.Temperature = f }
+    }
+    <span class="kw">if</span> v := <span class="fn">gitConfig</span>(<span class="st">"ai.maxTokens"</span>); v != <span class="st">""</span> {
+        <span class="kw">if</span> n, err := strconv.<span class="fn">Atoi</span>(v); err == <span class="kw">nil</span> { cfg.MaxTokens = n }
+    }
+
+    set(&amp;cfg.Ollama.URL,    <span class="st">"ai.ollama.url"</span>)
+    set(&amp;cfg.OpenAI.BaseURL,<span class="st">"ai.openai.url"</span>)
+    set(&amp;cfg.LlamaCpp.URL,  <span class="st">"ai.llamacpp.url"</span>)
+    set(&amp;cfg.Review.Severity,<span class="st">"ai.review.severity"</span>)
+    set(&amp;cfg.Commit.Style,  <span class="st">"ai.commit.style"</span>)
+
+    <span class="cm">// API key: git-config first (per-repo), then environment variable.</span>
+    <span class="kw">if</span> v := <span class="fn">gitConfig</span>(<span class="st">"ai.openai.apikey"</span>); v != <span class="st">""</span> {
+        cfg.OpenAI.APIKey = v
+    } <span class="kw">else if</span> v := os.<span class="fn">Getenv</span>(<span class="st">"OPENAI_API_KEY"</span>); v != <span class="st">""</span> {
+        cfg.OpenAI.APIKey = v
+    }
+    <span class="kw">return</span> cfg, <span class="kw">nil</span>
+}
+
+<span class="cm">// gitConfig runs "git config --get &lt;key&gt;" and returns trimmed output.</span>
+<span class="cm">// Returns "" if the key is absent — git exits 1 for missing keys, which is normal.</span>
+<span class="kw">func</span> <span class="fn">gitConfig</span>(key <span class="ty">string</span>) <span class="ty">string</span> {
+    out, err := exec.<span class="fn">Command</span>(<span class="st">"git"</span>, <span class="st">"config"</span>, <span class="st">"--get"</span>, key).<span class="fn">Output</span>()
+    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> <span class="st">""</span> }
+    <span class="kw">return</span> strings.<span class="fn">TrimSpace</span>(<span class="ty">string</span>(out))
+}</code></pre>
+    </div>
+
+    <h3>6.3 Configuring git-ai</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>Terminal — configuring git-ai globally and per-repo</span><span class="lang-tag">bash</span></div>
+      <pre><code><span class="cm"># Global defaults (applies everywhere)</span>
+git config --global ai.model       llama3.2:latest
+git config --global ai.provider    ollama
+git config --global ai.temperature 0.2
+
+<span class="cm"># Override for a specific work repository</span>
+cd ~/work/my-project
+git config ai.provider openai
+git config ai.model    gpt-4o
+<span class="kw">export</span> <span class="ty">OPENAI_API_KEY</span>=sk-...
+
+<span class="cm"># See what is in effect</span>
+git config --list | grep <span class="st">'^ai\.'</span></code></pre>
+    </div>
+  </section>
+
+  <!-- ═══ CH 7 ═══ -->
+  <section class="chapter-section" id="ch7">
+    <span class="section-number">Chapter 07</span>
+    <h2>The Git Layer</h2>
+    <p class="section-tagline">A thin, named wrapper around exec.Command — readable as documentation</p>
+
+    <h3>7.1 Design Rationale</h3>
+    <p>The git layer provides named functions for every operation git-ai needs. Commands never construct raw <code>exec.Command</code> calls. <code>git.StagedDiff()</code> is unambiguous; <code>exec.Command("git","diff","--cached")</code> is not.</p>
+
+    <h3>7.2 Full Annotated Implementation</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/git/git.go</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="kw">package</span> git
+
+<span class="kw">import</span> (
+    <span class="st">"errors"</span>   <span class="cm">// errors.As — unwraps ExitError to get stderr text</span>
+    <span class="st">"os/exec"</span>  <span class="cm">// exec.Command — spawns git subprocesses</span>
+    <span class="st">"strings"</span>  <span class="cm">// TrimSpace, Split</span>
+)
+
+<span class="cm">// Run executes "git &lt;args...&gt;" and returns stdout as a trimmed string.</span>
+<span class="cm">// On failure, returns stderr so callers see the same message a developer would.</span>
+<span class="kw">func</span> <span class="fn">Run</span>(args ...<span class="ty">string</span>) (<span class="ty">string</span>, <span class="ty">error</span>) {
+    out, err := exec.<span class="fn">Command</span>(<span class="st">"git"</span>, args...).<span class="fn">Output</span>()
+    <span class="kw">if</span> err != <span class="kw">nil</span> {
+        <span class="kw">var</span> exitErr *exec.<span class="ty">ExitError</span>
+        <span class="kw">if</span> errors.<span class="fn">As</span>(err, &amp;exitErr) {
+            <span class="kw">return</span> <span class="st">""</span>, errors.<span class="fn">New</span>(strings.<span class="fn">TrimSpace</span>(<span class="ty">string</span>(exitErr.Stderr)))
+        }
+        <span class="kw">return</span> <span class="st">""</span>, err
+    }
+    <span class="kw">return</span> strings.<span class="fn">TrimSpace</span>(<span class="ty">string</span>(out)), <span class="kw">nil</span>
+}
+
+<span class="cm">// RepoRoot verifies we are inside a git repo and returns the root path.</span>
+<span class="cm">// Commands call this first — failure → exit code 2.</span>
+<span class="kw">func</span> <span class="fn">RepoRoot</span>() (<span class="ty">string</span>, <span class="ty">error</span>) {
+    <span class="kw">return</span> <span class="fn">Run</span>(<span class="st">"rev-parse"</span>, <span class="st">"--show-toplevel"</span>)
+}
+
+<span class="cm">// StagedDiff returns changes in the index (what git commit would record).</span>
+<span class="cm">// This is the primary input for `git ai commit` and `git ai review`.</span>
+<span class="kw">func</span> <span class="fn">StagedDiff</span>() (<span class="ty">string</span>, <span class="ty">error</span>) {
+    <span class="kw">return</span> <span class="fn">Run</span>(<span class="st">"diff"</span>, <span class="st">"--cached"</span>)
+}
+
+<span class="cm">// CommitShow returns the full diff + metadata for a ref.</span>
+<span class="cm">// ref can be "HEAD", "HEAD~3", a SHA, or a tag name.</span>
+<span class="kw">func</span> <span class="fn">CommitShow</span>(ref <span class="ty">string</span>) (<span class="ty">string</span>, <span class="ty">error</span>) {
+    <span class="kw">return</span> <span class="fn">Run</span>(<span class="st">"show"</span>, ref)
+}
+
+<span class="cm">// LogRange returns one-line log for from..to (from exclusive, to inclusive).</span>
+<span class="kw">func</span> <span class="fn">LogRange</span>(from, to <span class="ty">string</span>) (<span class="ty">string</span>, <span class="ty">error</span>) {
+    <span class="kw">return</span> <span class="fn">Run</span>(<span class="st">"log"</span>, <span class="st">"--oneline"</span>, from+<span class="st">".."</span>+to)
+}
+
+<span class="cm">// ConflictedFiles returns files with unresolved merge conflicts.</span>
+<span class="cm">// --diff-filter=U selects only "Unmerged" entries.</span>
+<span class="kw">func</span> <span class="fn">ConflictedFiles</span>() ([]<span class="ty">string</span>, <span class="ty">error</span>) {
+    out, err := <span class="fn">Run</span>(<span class="st">"diff"</span>, <span class="st">"--name-only"</span>, <span class="st">"--diff-filter=U"</span>)
+    <span class="kw">if</span> err != <span class="kw">nil</span> || out == <span class="st">""</span> { <span class="kw">return</span> <span class="kw">nil</span>, err }
+    <span class="kw">return</span> strings.<span class="fn">Split</span>(out, <span class="st">"\n"</span>), <span class="kw">nil</span>
+}
+
+<span class="cm">// Metadata gathers a snapshot of repo state used in every prompt template.</span>
+<span class="cm">// Returns a map because templates reference keys by name, not position.</span>
+<span class="kw">func</span> <span class="fn">Metadata</span>() (<span class="kw">map</span>[<span class="ty">string</span>]<span class="ty">string</span>, <span class="ty">error</span>) {
+    meta := <span class="kw">map</span>[<span class="ty">string</span>]<span class="ty">string</span>{}
+    root, err := <span class="fn">RepoRoot</span>()
+    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> <span class="kw">nil</span>, err }
+    meta[<span class="st">"root"</span>] = root
+    branch, _ := <span class="fn">Run</span>(<span class="st">"rev-parse"</span>, <span class="st">"--abbrev-ref"</span>, <span class="st">"HEAD"</span>)
+    meta[<span class="st">"branch"</span>] = branch
+    head, _ := <span class="fn">Run</span>(<span class="st">"rev-parse"</span>, <span class="st">"--short"</span>, <span class="st">"HEAD"</span>)
+    meta[<span class="st">"head"</span>] = head
+    status, _ := <span class="fn">Run</span>(<span class="st">"status"</span>, <span class="st">"--short"</span>)
+    meta[<span class="st">"status"</span>] = status
+    <span class="kw">return</span> meta, <span class="kw">nil</span>
+}</code></pre>
+    </div>
+  </section>
+
+  <!-- ═══ CH 8 ═══ -->
+  <section class="chapter-section" id="ch8">
+    <span class="section-number">Chapter 08</span>
+    <h2>The Provider System</h2>
+    <p class="section-tagline">A clean interface, three implementations, one factory — extensible by design</p>
+
+    <h3>8.1 The Ollama Provider</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/provider/ollama/ollama.go — key methods</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="kw">type</span> <span class="ty">Provider</span> <span class="kw">struct</span> {
+    URL    <span class="ty">string</span>
+    Model  <span class="ty">string</span>
+    client *<span class="ty">http.Client</span>  <span class="cm">// reused across requests — not created per call</span>
+}
+
+<span class="cm">// New creates a Provider with a 120-second timeout.</span>
+<span class="cm">// 120s accommodates large diffs on slow hardware (e.g. CPU-only inference).</span>
+<span class="kw">func</span> <span class="fn">New</span>(url, model <span class="ty">string</span>) *<span class="ty">Provider</span> {
+    <span class="kw">return</span> &amp;<span class="ty">Provider</span>{
+        URL: url, Model: model,
+        client: &amp;<span class="ty">http.Client</span>{Timeout: <span class="nu">120</span> * time.Second},
+    }
+}
+
+<span class="cm">// Health pings the Ollama root — returns 200 OK with "Ollama is running".</span>
+<span class="kw">func</span> (p *<span class="ty">Provider</span>) <span class="fn">Health</span>() <span class="ty">error</span> {
+    resp, err := p.client.<span class="fn">Get</span>(p.URL)
+    <span class="kw">if</span> err != <span class="kw">nil</span> {
+        <span class="kw">return</span> fmt.<span class="fn">Errorf</span>(<span class="st">"ollama not reachable at %s: %w"</span>, p.URL, err)
+    }
+    resp.Body.<span class="fn">Close</span>()
+    <span class="kw">return</span> <span class="kw">nil</span>
+}
+
+<span class="cm">// Generate sends prompt to POST /api/generate with stream:false.</span>
+<span class="cm">// stream:false = single HTTP round-trip, full response in one JSON object.</span>
+<span class="kw">func</span> (p *<span class="ty">Provider</span>) <span class="fn">Generate</span>(ctx <span class="ty">context.Context</span>, prompt <span class="ty">string</span>) (<span class="ty">string</span>, <span class="ty">error</span>) {
+    body, _ := json.<span class="fn">Marshal</span>(<span class="ty">generateRequest</span>{
+        Model: p.Model, Prompt: prompt, Stream: <span class="kw">false</span>,
+    })
+    req, _ := http.<span class="fn">NewRequestWithContext</span>(ctx, <span class="st">"POST"</span>,
+        p.URL+<span class="st">"/api/generate"</span>, bytes.<span class="fn">NewReader</span>(body))
+    req.Header.<span class="fn">Set</span>(<span class="st">"Content-Type"</span>, <span class="st">"application/json"</span>)
+
+    resp, err := p.client.<span class="fn">Do</span>(req)
+    <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> <span class="st">""</span>, err }
+    <span class="kw">defer</span> resp.Body.<span class="fn">Close</span>()
+
+    raw, _ := io.<span class="fn">ReadAll</span>(resp.Body)
+    <span class="kw">var</span> gr <span class="ty">generateResponse</span>
+    json.<span class="fn">Unmarshal</span>(raw, &amp;gr)
+    <span class="kw">if</span> gr.Error != <span class="st">""</span> { <span class="kw">return</span> <span class="st">""</span>, fmt.<span class="fn">Errorf</span>(<span class="st">"ollama: %s"</span>, gr.Error) }
+    <span class="kw">return</span> gr.Response, <span class="kw">nil</span>
+}</code></pre>
+    </div>
+
+    <h3>8.2 Adding a New Provider — The Minimum Surface</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/provider/anthropic/anthropic.go — skeleton</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="kw">package</span> anthropic
+
+<span class="cm">// One new file. No changes to any existing code.</span>
+<span class="kw">type</span> <span class="ty">Provider</span> <span class="kw">struct</span> { apiKey, model <span class="ty">string</span>; client *<span class="ty">http.Client</span> }
+
+<span class="kw">func</span> <span class="fn">New</span>(apiKey, model <span class="ty">string</span>) *<span class="ty">Provider</span> { <span class="cm">/* ... */</span> }
+<span class="kw">func</span> (p *<span class="ty">Provider</span>) <span class="fn">Initialize</span>() <span class="ty">error</span>            { <span class="kw">return</span> p.<span class="fn">Health</span>() }
+<span class="kw">func</span> (p *<span class="ty">Provider</span>) <span class="fn">IsAvailable</span>() (<span class="ty">bool</span>, <span class="ty">error</span>)   { <span class="cm">/* ... */</span> }
+<span class="kw">func</span> (p *<span class="ty">Provider</span>) <span class="fn">Health</span>() <span class="ty">error</span>                 { <span class="cm">/* ping api.anthropic.com */</span> }
+<span class="kw">func</span> (p *<span class="ty">Provider</span>) <span class="fn">Version</span>() (<span class="ty">string</span>, <span class="ty">error</span>)      { <span class="kw">return</span> <span class="st">"claude-api-v1"</span>, <span class="kw">nil</span> }
+<span class="kw">func</span> (p *<span class="ty">Provider</span>) <span class="fn">Models</span>() ([]<span class="ty">string</span>, <span class="ty">error</span>)     { <span class="kw">return</span> []<span class="ty">string</span>{<span class="st">"claude-opus-4-8"</span>}, <span class="kw">nil</span> }
+<span class="kw">func</span> (p *<span class="ty">Provider</span>) <span class="fn">Generate</span>(ctx <span class="ty">context.Context</span>, prompt <span class="ty">string</span>) (<span class="ty">string</span>, <span class="ty">error</span>) {
+    <span class="cm">// POST https://api.anthropic.com/v1/messages</span>
+    <span class="cm">// x-api-key: &lt;key&gt;, anthropic-version: 2023-06-01</span>
+}</code></pre>
+    </div>
+    <p>Then add one case to <code>registry.go</code>:</p>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/provider/registry.go — add one case</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="kw">case</span> <span class="st">"anthropic"</span>:
+    <span class="kw">return</span> anthropic.<span class="fn">New</span>(cfg.Anthropic.APIKey, cfg.Model), <span class="kw">nil</span></code></pre>
+    </div>
+    <div class="callout success">
+      <strong>Zero blast radius</strong><br>
+      Adding a provider touches exactly two files: the new package file and one case in registry.go.
+      No commands, no prompt templates, no config struct need to change.
+    </div>
+  </section>
+
+  <!-- ═══ CH 9 ═══ -->
+  <section class="chapter-section" id="ch9">
+    <span class="section-number">Chapter 09</span>
+    <h2>The Prompt Engine</h2>
+    <p class="section-tagline">Deterministic templates, bounded context, explicit system instructions</p>
+
+    <h3>9.1 Three Design Principles</h3>
+    <div class="card-grid">
+      <div class="info-card">
+        <div class="card-icon">🎯</div>
+        <h4>Deterministic</h4>
+        <ul>
+          <li>Same inputs → identical prompt</li>
+          <li>Enables regression testing</li>
+          <li>Output is reproducible across runs</li>
+          <li>No random template selection</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">📏</div>
+        <h4>Bounded</h4>
+        <ul>
+          <li>Every prompt respects maxTokens</li>
+          <li>Large diffs are truncated visibly</li>
+          <li>Never silently cuts context</li>
+          <li>1 token ≈ 4 chars approximation</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">📋</div>
+        <h4>Explicit System Instructions</h4>
+        <ul>
+          <li>Every prompt begins with 4 rules</li>
+          <li>Prevents hallucination</li>
+          <li>Demands brevity and action</li>
+          <li>"Output ONLY…" eliminates preamble</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>9.2 The System Preamble</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/prompt/prompt.go — systemPrompt constant</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="cm">// systemPrompt appears in EVERY prompt. Four rules that dramatically improve output.</span>
+<span class="kw">const</span> systemPrompt = <span class="st">`You are an experienced software engineer reviewing a Git repository.
+Follow these rules:
+- Never invent facts.
+- Use only the supplied context.
+- If uncertain, say so.
+- Be concise and actionable.`</span></code></pre>
+    </div>
+
+    <h3>9.3 The Build Function — Dispatch Table</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/prompt/prompt.go — Build()</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="cm">// Build assembles a complete, token-budgeted prompt.</span>
+<span class="cm">//   kind      — template name ("commit", "review", "ask", etc.)</span>
+<span class="cm">//   meta      — key-value repo metadata (branch, head, existing_message, ...)</span>
+<span class="cm">//   diff      — raw content: diff text, log, conflict text, or repo context</span>
+<span class="cm">//   maxTokens — configured token budget</span>
+<span class="kw">func</span> <span class="fn">Build</span>(kind <span class="ty">string</span>, meta <span class="kw">map</span>[<span class="ty">string</span>]<span class="ty">string</span>, diff <span class="ty">string</span>, maxTokens <span class="ty">int</span>) <span class="ty">string</span> {
+    diff = <span class="fn">truncateDiff</span>(diff, maxTokens)  <span class="cm">// always truncate first</span>
+
+    <span class="kw">switch</span> kind {
+    <span class="kw">case</span> <span class="st">"commit"</span>:          <span class="kw">return</span> <span class="fn">commitPrompt</span>(meta, diff)
+    <span class="kw">case</span> <span class="st">"commit_amend"</span>:    <span class="kw">return</span> <span class="fn">commitAmendPrompt</span>(meta, diff)
+    <span class="kw">case</span> <span class="st">"review"</span>:          <span class="kw">return</span> <span class="fn">reviewPrompt</span>(meta, diff)
+    <span class="kw">case</span> <span class="st">"explain_commit"</span>:  <span class="kw">return</span> <span class="fn">explainCommitPrompt</span>(meta, diff)
+    <span class="kw">case</span> <span class="st">"explain_concept"</span>: <span class="kw">return</span> <span class="fn">explainConceptPrompt</span>(meta[<span class="st">"concept"</span>])
+    <span class="kw">case</span> <span class="st">"diff"</span>:            <span class="kw">return</span> <span class="fn">diffPrompt</span>(meta, diff)
+    <span class="kw">case</span> <span class="st">"changelog"</span>:       <span class="kw">return</span> <span class="fn">changelogPrompt</span>(meta, diff)
+    <span class="kw">case</span> <span class="st">"release"</span>:         <span class="kw">return</span> <span class="fn">releasePrompt</span>(meta, diff)
+    <span class="kw">case</span> <span class="st">"conflicts"</span>:       <span class="kw">return</span> <span class="fn">conflictsPrompt</span>(meta, diff)
+    <span class="kw">case</span> <span class="st">"repo"</span>:            <span class="kw">return</span> <span class="fn">repoPrompt</span>(diff)
+    <span class="kw">case</span> <span class="st">"ask"</span>:             <span class="kw">return</span> <span class="fn">askPrompt</span>(meta[<span class="st">"question"</span>], diff)
+    <span class="kw">default</span>:
+        <span class="kw">return</span> fmt.<span class="fn">Sprintf</span>(<span class="st">"%s\n\n%s"</span>, systemPrompt, diff)
+    }
+}</code></pre>
+    </div>
+
+    <h3>9.4 Token Budget Enforcement</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/prompt/prompt.go — truncateDiff()</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="cm">// truncateDiff trims diff content to fit within the token budget.</span>
+<span class="cm">// Approximation: 1 token ≈ 4 characters (standard for English/code text).</span>
+<span class="cm">// We reserve 512 tokens for the prompt template, leaving the rest for diff.</span>
+<span class="cm">// Lines are preserved whole — we never cut in the middle of a diff hunk.</span>
+<span class="kw">func</span> <span class="fn">truncateDiff</span>(diff <span class="ty">string</span>, maxTokens <span class="ty">int</span>) <span class="ty">string</span> {
+    budget := (maxTokens - <span class="nu">512</span>) * <span class="nu">4</span>  <span class="cm">// chars available for diff</span>
+    <span class="kw">if</span> budget &lt;= <span class="nu">0</span> { budget = <span class="nu">4096</span> }  <span class="cm">// safety floor</span>
+    <span class="kw">if</span> <span class="fn">len</span>(diff) &lt;= budget { <span class="kw">return</span> diff }  <span class="cm">// fits — return unchanged</span>
+
+    lines := strings.<span class="fn">Split</span>(diff, <span class="st">"\n"</span>)
+    <span class="kw">var</span> b strings.<span class="ty">Builder</span>
+    <span class="kw">for</span> _, line := <span class="kw">range</span> lines {
+        <span class="kw">if</span> b.<span class="fn">Len</span>()+<span class="fn">len</span>(line)+<span class="nu">1</span> &gt; budget {
+            <span class="cm">// Visible marker — developer knows context was cut</span>
+            b.<span class="fn">WriteString</span>(<span class="st">"\n[... diff truncated to fit token budget ...]"</span>)
+            <span class="kw">break</span>
+        }
+        b.<span class="fn">WriteString</span>(line)
+        b.<span class="fn">WriteByte</span>(<span class="st">'\n'</span>)
+    }
+    <span class="kw">return</span> b.<span class="fn">String</span>()
+}</code></pre>
+    </div>
+
+    <h3>9.5 Example: Commit Prompt</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/prompt/prompt.go — commitPrompt()</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="kw">func</span> <span class="fn">commitPrompt</span>(meta <span class="kw">map</span>[<span class="ty">string</span>]<span class="ty">string</span>, diff <span class="ty">string</span>) <span class="ty">string</span> {
+    <span class="kw">return</span> fmt.<span class="fn">Sprintf</span>(<span class="st">`%s
+
+Repository context:
+  Branch: %s
+  HEAD: %s
+
+Staged diff:
+%s
+
+Task: Write a concise commit message for these staged changes.
+- Use the Conventional Commits format (type(scope): description).
+- First line max 72 characters.
+- Add a blank line then a short body if the change needs explanation.
+- Output ONLY the commit message, nothing else.`</span>,
+        systemPrompt,       <span class="cm">// the four-rule system preamble</span>
+        meta[<span class="st">"branch"</span>],   <span class="cm">// e.g. "main" or "feature/auth"</span>
+        meta[<span class="st">"head"</span>],     <span class="cm">// e.g. "a3f9b12"</span>
+        diff)               <span class="cm">// truncated staged diff</span>
+}</code></pre>
+    </div>
+
+    <div class="callout warning">
+      <strong>Why "Output ONLY the commit message"?</strong><br>
+      Without this instruction, models prepend "Here is a commit message for your changes:"
+      and append "Let me know if you'd like me to adjust it." That prose is noise in a terminal.
+      The explicit constraint removes it entirely.
+    </div>
+  </section>
+
+  <!-- ═══ CH 10 ═══ -->
+  <section class="chapter-section" id="ch10">
+    <span class="section-number">Chapter 10</span>
+    <h2>The Context Builder</h2>
+    <p class="section-tagline">Gathering repository intelligence for repo and ask commands</p>
+
+    <h3>10.1 What It Gathers</h3>
+    <div class="card-grid">
+      <div class="info-card">
+        <div class="card-icon">📁</div>
+        <h4>File Tree</h4>
+        <ul>
+          <li>Two-level directory listing</li>
+          <li>Reveals structure and organisation</li>
+          <li>Skips dotfiles (.git, .github)</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">💻</div>
+        <h4>Languages</h4>
+        <ul>
+          <li>Detected from file extensions</li>
+          <li>Ranked by file count</li>
+          <li>Go, TS, Python, Rust, Java, ...</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">📦</div>
+        <h4>Dependencies</h4>
+        <ul>
+          <li>go.mod, package.json, requirements.txt</li>
+          <li>Cargo.toml, pom.xml, Gemfile</li>
+          <li>Capped at 40 lines each</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">📜</div>
+        <h4>Recent History</h4>
+        <ul>
+          <li>Last 20 commits, one-line format</li>
+          <li>Working tree status</li>
+          <li>Branch and HEAD SHA</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">📖</div>
+        <h4>README</h4>
+        <ul>
+          <li>README.md / README / README.txt</li>
+          <li>Capped at 2000 characters</li>
+          <li>Project description in its own words</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>10.2 Language Detection Implementation</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/prompt/context.go — detectLanguages()</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="cm">// detectLanguages walks two directory levels and counts file extensions.</span>
+<span class="cm">// Two levels is a deliberate trade-off: deep enough to detect real usage,</span>
+<span class="cm">// fast enough to not block the user waiting for a full recursive walk.</span>
+<span class="kw">func</span> <span class="fn">detectLanguages</span>(root <span class="ty">string</span>) []<span class="ty">string</span> {
+    counts := <span class="kw">map</span>[<span class="ty">string</span>]<span class="ty">int</span>{}
+    extLang := <span class="kw">map</span>[<span class="ty">string</span>]<span class="ty">string</span>{
+        <span class="st">".go"</span>: <span class="st">"Go"</span>, <span class="st">".ts"</span>: <span class="st">"TypeScript"</span>, <span class="st">".tsx"</span>: <span class="st">"TypeScript"</span>,
+        <span class="st">".js"</span>: <span class="st">"JavaScript"</span>, <span class="st">".py"</span>: <span class="st">"Python"</span>, <span class="st">".rs"</span>: <span class="st">"Rust"</span>,
+        <span class="st">".java"</span>: <span class="st">"Java"</span>, <span class="st">".rb"</span>: <span class="st">"Ruby"</span>, <span class="st">".cs"</span>: <span class="st">"C#"</span>,
+        <span class="st">".sh"</span>: <span class="st">"Shell"</span>, <span class="st">".toml"</span>: <span class="st">"TOML"</span>, <span class="st">".yaml"</span>: <span class="st">"YAML"</span>,
+    }
+    entries, _ := os.<span class="fn">ReadDir</span>(root)
+    <span class="kw">for</span> _, e := <span class="kw">range</span> entries {
+        <span class="kw">if</span> strings.<span class="fn">HasPrefix</span>(e.<span class="fn">Name</span>(), <span class="st">"."</span>) { <span class="kw">continue</span> }  <span class="cm">// skip .git, .github</span>
+        path := filepath.<span class="fn">Join</span>(root, e.<span class="fn">Name</span>())
+        <span class="kw">if</span> e.<span class="fn">IsDir</span>() {
+            sub, _ := os.<span class="fn">ReadDir</span>(path)
+            <span class="kw">for</span> _, s := <span class="kw">range</span> sub {
+                <span class="kw">if</span> lang, ok := extLang[filepath.<span class="fn">Ext</span>(s.<span class="fn">Name</span>())]; ok { counts[lang]++ }
+            }
+        } <span class="kw">else</span> {
+            <span class="kw">if</span> lang, ok := extLang[filepath.<span class="fn">Ext</span>(e.<span class="fn">Name</span>())]; ok { counts[lang]++ }
+        }
+    }
+    <span class="cm">// Sort by count descending, return names only.</span>
+    <span class="cm">// (insertion sort is fine — slice is at most ~20 entries)</span>
+    <span class="kw">return</span> <span class="fn">sortedLangs</span>(counts)
+}</code></pre>
+    </div>
+
+    <h3>10.3 The Ask Prompt</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/prompt/prompt.go — askPrompt()</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="kw">func</span> <span class="fn">askPrompt</span>(question, repoContext <span class="ty">string</span>) <span class="ty">string</span> {
+    <span class="kw">return</span> fmt.<span class="fn">Sprintf</span>(<span class="st">`%s
+
+Repository context:
+%s
+
+Question: %s
+
+Task: Answer the question using only the repository context supplied above.
+If the answer cannot be determined from the context, say so explicitly.
+Be concise and cite specific files or commits where relevant.`</span>,
+        systemPrompt, repoContext, question)
+}</code></pre>
+    </div>
+
+    <div class="callout">
+      <strong>"Say so explicitly"</strong><br>
+      Without this instruction, models answer questions the context doesn't support — confidently
+      and incorrectly. The explicit constraint forces honesty about knowledge boundaries.
+    </div>
+
+    <div class="tools-note">
+      <strong>Key packages used by the context builder:</strong>
+      <code>os.ReadDir</code> (directory walking),
+      <code>os.ReadFile</code> (README and manifests),
+      <code>path/filepath</code> (extension detection),
+      <code>strings.Builder</code> (efficient string construction).
+      No third-party dependencies.
+    </div>
+  </section>
+
+  <!-- SUPPORT -->
+  <section style="margin-top:3rem;padding:2rem;background:var(--bg-card);border:1px solid var(--border);border-radius:14px;">
+    <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent);font-weight:700;margin-bottom:0.6rem;">Support This Work</div>
+    <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:0.75rem;">If this tool has helped you ❤️</h2>
+    <p style="font-size:0.9rem;color:var(--text-muted);margin-bottom:1.25rem;">
+      Please consider donating to one of Mohan's suggested charities:
+    </p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-bottom:1.25rem;">
+      <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:1.1rem;">
+        <div style="font-size:1.3rem;margin-bottom:0.4rem;">🎗️</div>
+        <div style="font-weight:700;font-size:0.9rem;margin-bottom:0.35rem;">St. Jude Children's Research Hospital</div>
+        <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.65rem;">Fighting childhood cancer and other life-threatening diseases.</div>
+        <a href="https://www.stjude.org/donate" target="_blank" rel="noopener"
+           style="display:inline-block;background:var(--accent);color:#fff;font-size:0.78rem;font-weight:700;padding:0.4rem 0.9rem;border-radius:6px;text-decoration:none;">
+          Donate to St. Jude →
+        </a>
+      </div>
+      <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:1.1rem;">
+        <div style="font-size:1.3rem;margin-bottom:0.4rem;">🌍</div>
+        <div style="font-weight:700;font-size:0.9rem;margin-bottom:0.35rem;">Charities Supporting Developing Countries</div>
+        <div style="font-size:0.82rem;color:var(--text-muted);">Organisations providing food, clean water, education, or healthcare to communities in need.</div>
+      </div>
+    </div>
+    <p style="font-size:0.85rem;color:var(--text-muted);">Your generosity makes a real difference. Thank you.</p>
+  </section>
+
+  <!-- FOOTER -->
+  <footer class="chapter-footer">
+    <span>git-ai · Part 1 of 2 · Chapters 1–10</span>
+    <span><a href="git-ai-book-part2.html">Continue to Part 2 → Commands, Testing, Build &amp; Wiring to Git</a></span>
+  </footer>
+
+</main>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('theme', html.dataset.theme);
+  }
+  (function() {
+    const saved = localStorage.getItem('theme');
+    if (saved) document.documentElement.dataset.theme = saved;
+  })();
+
+  const sections = document.querySelectorAll('.chapter-section');
+  const tocLinks = document.querySelectorAll('.toc-list a');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        tocLinks.forEach(a => a.classList.remove('active'));
+        const active = document.querySelector(`.toc-list a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-25% 0px -65% 0px' });
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

@@ -1,0 +1,1336 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>git-ai — Building an AI-Powered Git Assistant in Go · Part 2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <style>
+    :root {
+      --bg-primary:   #0f1117;
+      --bg-secondary: #1a1d27;
+      --bg-card:      #1e2130;
+      --accent:       #6366f1;
+      --accent-2:     #f59e0b;
+      --accent-3:     #10b981;
+      --text-primary: #e2e8f0;
+      --text-muted:   #94a3b8;
+      --border:       #2d3148;
+      --code-bg:      #111827;
+      --code-border:  #374151;
+      --success:      #10b981;
+      --warning:      #f59e0b;
+      --danger:       #f87171;
+    }
+    [data-theme="light"] {
+      --bg-primary:   #f8fafc;
+      --bg-secondary: #f1f5f9;
+      --bg-card:      #ffffff;
+      --text-primary: #1e293b;
+      --text-muted:   #64748b;
+      --border:       #e2e8f0;
+      --code-bg:      #f1f5f9;
+      --code-border:  #cbd5e1;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.75;
+      display: flex;
+      min-height: 100vh;
+    }
+    .sidebar {
+      width: 265px; min-height: 100vh; background: var(--bg-secondary);
+      border-right: 1px solid var(--border); position: fixed;
+      top: 0; left: 0; overflow-y: auto; padding: 1.5rem 1rem; z-index: 100;
+    }
+    .sidebar-logo { font-size: 1.15rem; font-weight: 800; color: var(--accent); margin-bottom: 0.2rem; }
+    .sidebar-subtitle { font-size: 0.72rem; color: var(--text-muted); margin-bottom: 1.5rem; line-height: 1.4; }
+    .sidebar-section-label { font-size: 0.63rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin: 1.1rem 0 0.4rem; }
+    .sidebar a { display: block; padding: 0.38rem 0.75rem; border-radius: 6px; font-size: 0.81rem; color: var(--text-muted); text-decoration: none; transition: background 0.15s, color 0.15s; }
+    .sidebar a:hover, .sidebar a.active { background: var(--bg-card); color: var(--text-primary); }
+    .toc-list { list-style: none; margin-top: 0.75rem; border-top: 1px solid var(--border); padding-top: 0.75rem; }
+    .toc-list li a { font-size: 0.78rem; color: var(--text-muted); padding: 0.28rem 0.75rem; }
+    .toc-list li a.active { color: var(--accent); background: rgba(99,102,241,0.08); border-radius: 5px; }
+    .main { margin-left: 265px; flex: 1; padding: 3rem 4rem; max-width: 980px; }
+    .theme-toggle { position: fixed; top: 1rem; right: 1.5rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 0.4rem 0.9rem; font-size: 0.78rem; cursor: pointer; color: var(--text-primary); z-index: 200; transition: background 0.15s; }
+    .theme-toggle:hover { background: var(--border); }
+    .hero { margin-bottom: 4rem; padding-bottom: 2.5rem; border-bottom: 1px solid var(--border); }
+    .hero-eyebrow { font-size: 0.78rem; color: var(--accent); font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 0.8rem; }
+    .hero h1 { font-size: clamp(1.9rem, 4vw, 2.9rem); font-weight: 800; line-height: 1.2; margin-bottom: 1rem; }
+    .hero h1 em { color: var(--accent); font-style: normal; }
+    .hero-desc { font-size: 1rem; color: var(--text-muted); max-width: 620px; margin-bottom: 1.75rem; }
+    .stat-pills { display: flex; gap: 1rem; flex-wrap: wrap; }
+    .stat-pill { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem 1.1rem; text-align: center; min-width: 90px; }
+    .stat-pill .value { font-size: 1.1rem; font-weight: 800; color: var(--accent); display: block; }
+    .stat-pill .label { font-size: 0.68rem; color: var(--text-muted); }
+    .chapter-section { margin-bottom: 4.5rem; scroll-margin-top: 2rem; }
+    .section-number { display: inline-block; font-size: 0.72rem; font-weight: 700; color: var(--accent); background: rgba(99,102,241,0.12); border-radius: 4px; padding: 0.15rem 0.55rem; margin-bottom: 0.55rem; letter-spacing: 0.08em; text-transform: uppercase; }
+    .chapter-section h2 { font-size: 1.8rem; font-weight: 800; margin-bottom: 0.4rem; }
+    .section-tagline { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 2rem; font-style: italic; }
+    .chapter-section h3 { font-size: 1.1rem; font-weight: 700; margin: 2.2rem 0 0.8rem; display: flex; align-items: center; gap: 0.5rem; }
+    .chapter-section h4 { font-size: 0.95rem; font-weight: 600; margin: 1.4rem 0 0.5rem; color: var(--accent-2); }
+    .chapter-section p { margin-bottom: 1rem; font-size: 0.92rem; }
+    .chapter-section ul, .chapter-section ol { padding-left: 1.5rem; margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-muted); }
+    .chapter-section li { margin-bottom: 0.3rem; }
+    .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 1rem; margin: 1.5rem 0; }
+    .info-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; }
+    .info-card .card-icon { font-size: 1.5rem; margin-bottom: 0.5rem; }
+    .info-card h4 { font-size: 0.92rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text-primary); }
+    .info-card ul { list-style: none; padding: 0; margin: 0; }
+    .info-card ul li { font-size: 0.81rem; color: var(--text-muted); padding: 0.22rem 0; padding-left: 1rem; position: relative; }
+    .info-card ul li::before { content: "▸"; color: var(--accent); position: absolute; left: 0; }
+    .callout { border-left: 3px solid var(--accent); background: var(--bg-card); border-radius: 0 8px 8px 0; padding: 1rem 1.25rem; margin: 1.75rem 0; font-size: 0.87rem; }
+    .callout.warning { border-left-color: var(--warning); }
+    .callout.success { border-left-color: var(--success); }
+    .callout.danger  { border-left-color: var(--danger); }
+    .callout strong { color: var(--accent); }
+    .callout.warning strong { color: var(--warning); }
+    .callout.success strong { color: var(--success); }
+    .callout.danger  strong { color: var(--danger); }
+    .diagram-block { background: var(--code-bg); border: 1px solid var(--code-border); border-radius: 8px; padding: 1.25rem; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.73rem; color: #a5f3fc; line-height: 1.55; margin: 1.75rem 0; white-space: pre; }
+    .code-block-wrapper { margin: 1.75rem 0; border-radius: 10px; overflow: hidden; border: 1px solid var(--code-border); }
+    .code-block-header { background: #1f2937; padding: 0.55rem 1rem; font-size: 0.74rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--code-border); }
+    .code-block-header .lang-tag { color: var(--accent); font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    pre { background: var(--code-bg); padding: 1.25rem; overflow-x: auto; margin: 0; }
+    code { font-family: 'JetBrains Mono', monospace; font-size: 0.79rem; line-height: 1.75; }
+    p code, li code, td code { background: var(--bg-card); border: 1px solid var(--border); border-radius: 4px; padding: 0.1em 0.45em; font-size: 0.81em; color: #f9a8d4; }
+    .kw  { color: #c084fc; }
+    .cm  { color: #6b7280; font-style: italic; }
+    .st  { color: #86efac; }
+    .fn  { color: #60a5fa; }
+    .nu  { color: #fbbf24; }
+    .ty  { color: #67e8f9; }
+    .op  { color: #f9a8d4; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; margin: 1.75rem 0; }
+    .data-table thead tr { background: var(--bg-card); border-bottom: 2px solid var(--accent); }
+    .data-table th { text-align: left; padding: 0.75rem 1rem; font-weight: 700; color: var(--text-muted); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.06em; }
+    .data-table td { padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .data-table tbody tr:hover { background: var(--bg-card); }
+    .badge { display: inline-block; font-size: 0.68rem; font-weight: 700; padding: 0.1rem 0.5rem; border-radius: 4px; letter-spacing: 0.04em; }
+    .badge-green { background: rgba(16,185,129,0.15); color: #10b981; }
+    .badge-red   { background: rgba(248,113,113,0.15); color: #f87171; }
+    .badge-blue  { background: rgba(96,165,250,0.15);  color: #60a5fa; }
+    .badge-amber { background: rgba(251,191,36,0.15);  color: #fbbf24; }
+    .tools-note { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; font-size: 0.84rem; color: var(--text-muted); margin-top: 1.5rem; }
+    .tools-note strong { color: var(--text-primary); }
+    .decision-box { background: var(--bg-card); border: 1px solid var(--accent); border-radius: 12px; padding: 1.4rem; margin: 1.75rem 0; }
+    .decision-box .decision-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--accent); font-weight: 700; margin-bottom: 0.5rem; }
+    .decision-box .decision-title { font-size: 1rem; font-weight: 700; margin-bottom: 0.5rem; }
+    .decision-box p { font-size: 0.86rem; color: var(--text-muted); margin: 0; }
+    .flow-steps { margin: 1.5rem 0; }
+    .flow-step { display: flex; gap: 1rem; align-items: flex-start; padding: 0.75rem 0; border-bottom: 1px solid var(--border); }
+    .flow-step:last-child { border-bottom: none; }
+    .flow-step-num { min-width: 2rem; height: 2rem; border-radius: 50%; background: rgba(99,102,241,0.15); color: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; flex-shrink: 0; }
+    .flow-step-body { font-size: 0.87rem; }
+    .flow-step-body strong { color: var(--text-primary); display: block; margin-bottom: 0.15rem; }
+    .flow-step-body span { color: var(--text-muted); }
+    .roadmap-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap: 0.75rem; margin: 1.5rem 0; }
+    .roadmap-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; }
+    .roadmap-card .rv { font-size: 0.78rem; font-weight: 800; color: var(--accent); margin-bottom: 0.4rem; }
+    .roadmap-card ul { list-style: none; padding: 0; margin: 0; }
+    .roadmap-card ul li { font-size: 0.8rem; color: var(--text-muted); padding: 0.18rem 0; padding-left: 1rem; position: relative; }
+    .roadmap-card ul li::before { content: "✓"; color: var(--success); position: absolute; left: 0; font-size: 0.72rem; }
+    .roadmap-card ul li.planned::before { content: "○"; color: var(--text-muted); }
+    .json-schema { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem; margin: 1rem 0; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; color: var(--text-muted); }
+    .json-schema .jk { color: #86efac; }
+    .json-schema .jv { color: #f9a8d4; }
+    .chapter-footer { border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 3.5rem; font-size: 0.79rem; color: var(--text-muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+    .chapter-footer a { color: var(--accent); text-decoration: none; }
+    .appendix-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1.5rem 0; }
+    .appendix-block { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 1.1rem; }
+    .appendix-block h4 { font-size: 0.85rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--accent); }
+    .appendix-block table { width: 100%; font-size: 0.8rem; }
+    .appendix-block td { padding: 0.3rem 0.5rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .appendix-block td:first-child { font-family: 'JetBrains Mono', monospace; color: #f9a8d4; white-space: nowrap; }
+    @media (max-width: 900px) { .appendix-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { .sidebar { transform: translateX(-100%); transition: transform 0.3s; } .sidebar.open { transform: translateX(0); } .main { margin-left: 0; padding: 1.5rem 1.25rem; } }
+  </style>
+</head>
+<body>
+
+<nav class="sidebar">
+  <div class="sidebar-logo">⚡ git-ai</div>
+  <div class="sidebar-subtitle">Building an AI-Powered Git Assistant in Go<br>Part 2 of 2 · Chapters 11–19 + Appendices</div>
+
+  <div class="sidebar-section-label">Parts</div>
+  <a href="git-ai-book-part1.html">Part 1 · Foundations (Ch 1–10)</a>
+  <a href="git-ai-book-part2.html" class="active">Part 2 · Implementation (Ch 11–19)</a>
+
+  <div class="sidebar-section-label">Part 2 Contents</div>
+  <ul class="toc-list">
+    <li><a href="#ch11">11 · Commands Phase 1</a></li>
+    <li><a href="#ch12">12 · Commands Phase 2</a></li>
+    <li><a href="#ch13">13 · Commands Phase 3</a></li>
+    <li><a href="#ch14">14 · Plugin System</a></li>
+    <li><a href="#ch15">15 · Output Formatting</a></li>
+    <li><a href="#ch16">16 · Building with Make</a></li>
+    <li><a href="#ch17">17 · Wiring to Git</a></li>
+    <li><a href="#ch18">18 · Testing Strategy</a></li>
+    <li><a href="#ch19">19 · Roadmap</a></li>
+    <li><a href="#appendix">Appendices</a></li>
+  </ul>
+</nav>
+
+<button class="theme-toggle" onclick="toggleTheme()">🌓 Theme</button>
+
+<main class="main">
+
+  <header class="hero">
+    <div class="hero-eyebrow">Part 2 of 2 · Commands, Build, Testing &amp; Wiring to Git</div>
+    <h1>git-ai<br><em>Implementation, Testing &amp; Deployment</em></h1>
+    <p style="font-size:0.82rem;color:var(--accent);font-weight:600;margin-bottom:0.5rem;letter-spacing:0.03em;">Author: Mohan Chinnappan</p>
+    <p class="hero-desc">
+      All nine commands implemented, output formatted three ways, the build system
+      explained line by line, and the precise mechanism by which <code>git ai</code>
+      discovers and runs the binary.
+    </p>
+    <div class="stat-pills">
+      <div class="stat-pill"><span class="value">9</span><span class="label">Commands</span></div>
+      <div class="stat-pill"><span class="value">3</span><span class="label">Formats</span></div>
+      <div class="stat-pill"><span class="value">18</span><span class="label">Tests</span></div>
+      <div class="stat-pill"><span class="value">5</span><span class="label">Platforms</span></div>
+    </div>
+  </header>
+
+  <!-- ═══ CH 11 ═══ -->
+  <section class="chapter-section" id="ch11">
+    <span class="section-number">Chapter 11</span>
+    <h2>Commands — Phase 1</h2>
+    <p class="section-tagline">The error system, commit generation, staged review, and concept explanation</p>
+
+    <h3>11.1 The Error System</h3>
+    <p>Before any command runs, every error must carry a typed exit code. This is the foundation all commands build on.</p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>commands/errors.go — typed exit codes</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="kw">package</span> commands
+
+<span class="kw">import</span> <span class="st">"fmt"</span>
+
+<span class="cm">// exitErr pairs an error message with a numeric exit code.</span>
+<span class="cm">// Exit codes per spec §15:</span>
+<span class="cm">//   0 — success          3 — provider unavailable</span>
+<span class="cm">//   1 — generic error    4 — model unavailable</span>
+<span class="cm">//   2 — repo not found   5 — invalid config</span>
+<span class="kw">type</span> <span class="ty">exitErr</span> <span class="kw">struct</span> {
+    code <span class="ty">int</span>
+    msg  <span class="ty">string</span>
+}
+
+<span class="kw">func</span> (e *<span class="ty">exitErr</span>) <span class="fn">Error</span>() <span class="ty">string</span>  { <span class="kw">return</span> e.msg }
+<span class="kw">func</span> (e *<span class="ty">exitErr</span>) <span class="fn">ExitCode</span>() <span class="ty">int</span>  { <span class="kw">return</span> e.code }
+
+<span class="cm">// exitError constructs a typed error. main.go reads ExitCode() for os.Exit.</span>
+<span class="kw">func</span> <span class="fn">exitError</span>(code <span class="ty">int</span>, format <span class="ty">string</span>, a ...<span class="kw">any</span>) <span class="ty">error</span> {
+    <span class="kw">return</span> &amp;<span class="ty">exitErr</span>{code: code, msg: fmt.<span class="fn">Sprintf</span>(format, a...)}
+}</code></pre>
+    </div>
+
+    <h3>11.2 The Main Entry Point</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>cmd/git-ai/main.go</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="kw">package</span> main
+
+<span class="kw">func</span> <span class="fn">main</span>() {
+    root := &amp;<span class="ty">cobra.Command</span>{
+        Use:           <span class="st">"git-ai"</span>,
+        Short:         <span class="st">"AI-powered Git assistant (local LLM via Ollama)"</span>,
+        Version:       <span class="st">"0.2.0"</span>,
+        SilenceUsage:  <span class="kw">true</span>,   <span class="cm">// don't print usage on error</span>
+        SilenceErrors: <span class="kw">true</span>,   <span class="cm">// we format errors ourselves</span>
+        <span class="cm">// Forward unknown subcommands to git-ai-&lt;name&gt; plugin binaries.</span>
+        RunE: <span class="kw">func</span>(cmd *<span class="ty">cobra.Command</span>, args []<span class="ty">string</span>) <span class="ty">error</span> {
+            <span class="kw">if</span> <span class="fn">len</span>(args) == <span class="nu">0</span> { <span class="kw">return</span> cmd.<span class="fn">Help</span>() }
+            <span class="kw">return</span> plugin.<span class="fn">Run</span>(args[<span class="nu">0</span>], args[<span class="nu">1</span>:])
+        },
+    }
+
+    root.<span class="fn">AddCommand</span>(
+        commands.<span class="fn">NewCommitCmd</span>(),
+        commands.<span class="fn">NewReviewCmd</span>(),
+        commands.<span class="fn">NewExplainCmd</span>(),
+        commands.<span class="fn">NewDiffCmd</span>(),
+        commands.<span class="fn">NewChangelogCmd</span>(),
+        commands.<span class="fn">NewReleaseCmd</span>(),
+        commands.<span class="fn">NewConflictsCmd</span>(),
+        commands.<span class="fn">NewRepoCmd</span>(),
+        commands.<span class="fn">NewAskCmd</span>(),
+        commands.<span class="fn">NewPluginsCmd</span>(),
+    )
+
+    <span class="kw">if</span> err := root.<span class="fn">Execute</span>(); err != <span class="kw">nil</span> {
+        fmt.<span class="fn">Fprintf</span>(os.Stderr, <span class="st">"git-ai: %s\n"</span>, err)
+        code := <span class="nu">1</span>
+        <span class="kw">var</span> ec <span class="ty">exitCoder</span>
+        <span class="kw">if</span> errors.<span class="fn">As</span>(err, &amp;ec) { code = ec.<span class="fn">ExitCode</span>() }
+        os.<span class="fn">Exit</span>(code)
+    }
+}</code></pre>
+    </div>
+
+    <h3>11.3 git ai commit — Full Command</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>commands/commit.go — key sections annotated</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="kw">func</span> <span class="fn">NewCommitCmd</span>() *<span class="ty">cobra.Command</span> {
+    <span class="kw">var</span> style <span class="ty">string</span>   <span class="cm">// "conventional" | "short" | "detailed"</span>
+    <span class="kw">var</span> amend <span class="ty">bool</span>    <span class="cm">// true = regenerate message for HEAD</span>
+
+    cmd := &amp;<span class="ty">cobra.Command</span>{
+        Use:   <span class="st">"commit"</span>,
+        Short: <span class="st">"Generate a commit message for staged changes"</span>,
+        RunE: <span class="kw">func</span>(cmd *<span class="ty">cobra.Command</span>, args []<span class="ty">string</span>) <span class="ty">error</span> {
+            fmtFlag := <span class="fn">resolveFormat</span>(<span class="fn">addFormatFlagValue</span>(cmd))
+            cfg, _ := config.<span class="fn">Load</span>()
+            meta, err := git.<span class="fn">Metadata</span>()
+            <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> <span class="fn">exitError</span>(<span class="nu">2</span>, <span class="st">"not a git repository"</span>) }
+
+            <span class="kw">var</span> diff <span class="ty">string</span>
+            <span class="kw">if</span> amend {
+                <span class="cm">// --amend: show HEAD diff + any new staged changes</span>
+                diff, _ = git.<span class="fn">CommitShow</span>(<span class="st">"HEAD"</span>)
+                <span class="kw">if</span> staged, _ := git.<span class="fn">StagedDiff</span>(); staged != <span class="st">""</span> {
+                    diff += <span class="st">"\n\n--- Additional staged changes ---\n"</span> + staged
+                }
+                existing, _ := git.<span class="fn">Run</span>(<span class="st">"log"</span>, <span class="st">"-1"</span>, <span class="st">"--pretty=%B"</span>)
+                meta[<span class="st">"existing_message"</span>] = strings.<span class="fn">TrimSpace</span>(existing)
+            } <span class="kw">else</span> {
+                diff, err = git.<span class="fn">StagedDiff</span>()
+                <span class="kw">if</span> err != <span class="kw">nil</span> || diff == <span class="st">""</span> {
+                    <span class="kw">return</span> <span class="fn">exitError</span>(<span class="nu">1</span>, <span class="st">"no staged changes — run `git add` first"</span>)
+                }
+            }
+
+            p := ollama.<span class="fn">New</span>(cfg.Ollama.URL, cfg.Model)
+            <span class="kw">if</span> ok, err := p.<span class="fn">IsAvailable</span>(); !ok {
+                <span class="kw">return</span> <span class="fn">exitError</span>(<span class="nu">3</span>, <span class="st">"Ollama not available: %v"</span>, err)
+            }
+
+            kind := <span class="st">"commit"</span>
+            <span class="kw">if</span> amend { kind = <span class="st">"commit_amend"</span> }
+            prpt := prompt.<span class="fn">Build</span>(kind, meta, diff, cfg.MaxTokens)
+            result, err := p.<span class="fn">Generate</span>(context.<span class="fn">Background</span>(), prpt)
+
+            <span class="kw">if</span> fmtFlag == output.FormatJSON {
+                output.<span class="fn">PrintJSON</span>(<span class="kw">map</span>[<span class="ty">string</span>]<span class="ty">string</span>{
+                    <span class="st">"message"</span>: strings.<span class="fn">TrimSpace</span>(result),
+                    <span class="st">"amend"</span>:   fmt.<span class="fn">Sprintf</span>(<span class="st">"%v"</span>, amend),
+                })
+                <span class="kw">return</span> <span class="kw">nil</span>
+            }
+            output.<span class="fn">Header</span>(<span class="st">"Suggested commit message"</span>, fmtFlag)
+            fmt.<span class="fn">Println</span>(result)
+            output.<span class="fn">Advisory</span>(fmtFlag)
+            <span class="kw">return</span> <span class="kw">nil</span>
+        },
+    }
+    cmd.Flags().<span class="fn">StringVar</span>(&amp;style, <span class="st">"style"</span>, <span class="st">""</span>, <span class="st">"conventional, short, detailed"</span>)
+    cmd.Flags().<span class="fn">BoolVar</span>(&amp;amend, <span class="st">"amend"</span>, <span class="kw">false</span>, <span class="st">"regenerate message for HEAD"</span>)
+    <span class="fn">addFormatFlag</span>(cmd)
+    <span class="kw">return</span> cmd
+}</code></pre>
+    </div>
+
+    <h3>11.4 git ai explain — Concept vs. Ref Detection</h3>
+    <p><code>explain</code> has a unique challenge: its argument can be a commit ref (<code>HEAD</code>, <code>abc1234</code>) or a Git concept word (<code>rebase</code>, <code>stash</code>). The detection is a simple map lookup:</p>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>commands/explain.go — concept detection</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="cm">// gitConcepts is the set of argument values treated as Git concepts, not refs.</span>
+<span class="cm">// Anything not in this map goes to CommitShow() as a ref.</span>
+<span class="kw">var</span> gitConcepts = <span class="kw">map</span>[<span class="ty">string</span>]<span class="ty">bool</span>{
+    <span class="st">"rebase"</span>: <span class="kw">true</span>, <span class="st">"cherry-pick"</span>: <span class="kw">true</span>, <span class="st">"stash"</span>: <span class="kw">true</span>,
+    <span class="st">"bisect"</span>: <span class="kw">true</span>, <span class="st">"reflog"</span>:      <span class="kw">true</span>, <span class="st">"merge"</span>: <span class="kw">true</span>,
+    <span class="st">"reset"</span>:  <span class="kw">true</span>, <span class="st">"revert"</span>:      <span class="kw">true</span>, <span class="st">"tag"</span>:   <span class="kw">true</span>,
+}
+
+<span class="kw">if</span> gitConcepts[target] {
+    <span class="cm">// Concept — no git repo required, explain the term.</span>
+    meta := <span class="kw">map</span>[<span class="ty">string</span>]<span class="ty">string</span>{<span class="st">"concept"</span>: target}
+    prpt = prompt.<span class="fn">Build</span>(<span class="st">"explain_concept"</span>, meta, <span class="st">""</span>, cfg.MaxTokens)
+} <span class="kw">else</span> {
+    <span class="cm">// Ref — retrieve the commit diff and explain it.</span>
+    diff, err = git.<span class="fn">CommitShow</span>(target)
+    prpt = prompt.<span class="fn">Build</span>(<span class="st">"explain_commit"</span>, meta, diff, cfg.MaxTokens)
+}</code></pre>
+    </div>
+  </section>
+
+  <!-- ═══ CH 12 ═══ -->
+  <section class="chapter-section" id="ch12">
+    <span class="section-number">Chapter 12</span>
+    <h2>Commands — Phase 2</h2>
+    <p class="section-tagline">Diff explanation, changelog, release notes, and conflict analysis</p>
+
+    <h3>12.1 git ai diff</h3>
+    <p>Explains what a diff <em>means</em> architecturally — not just what changed line by line. Falls back gracefully: staged → working tree → ref argument.</p>
+
+    <div class="diagram-block">
+git ai diff              → staged changes (git diff --cached)
+                           falls back to working tree (git diff) if staged is empty
+git ai diff HEAD~2       → diff against a specific ref (git diff HEAD~2)
+git ai diff -f json      → machine-readable output</div>
+
+    <h3>12.2 git ai changelog — Log Range Discovery</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>commands/changelog.go — auto-discovering the range</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="cm">// If --from is not provided, find the last tag.</span>
+<span class="cm">// If no tags exist, use the very first commit (entire project history).</span>
+<span class="kw">if</span> from == <span class="st">""</span> {
+    lastTag, err := git.<span class="fn">Run</span>(<span class="st">"describe"</span>, <span class="st">"--tags"</span>, <span class="st">"--abbrev=0"</span>)
+    <span class="kw">if</span> err != <span class="kw">nil</span> || lastTag == <span class="st">""</span> {
+        <span class="cm">// No tags — use the root commit so the full history is covered.</span>
+        firstCommit, err := git.<span class="fn">Run</span>(<span class="st">"rev-list"</span>, <span class="st">"--max-parents=0"</span>, <span class="st">"HEAD"</span>)
+        <span class="kw">if</span> err != <span class="kw">nil</span> { <span class="kw">return</span> <span class="fn">exitError</span>(<span class="nu">1</span>, <span class="st">"could not determine range"</span>) }
+        from = firstCommit
+    } <span class="kw">else</span> {
+        from = lastTag
+    }
+}</code></pre>
+    </div>
+
+    <p>The changelog prompt enforces an exact output structure:</p>
+    <div class="callout">
+      <strong>Prompt instruction</strong><br>
+      "Use exactly these sections (omit empty ones): ## Added / ## Changed / ## Fixed / ## Removed / ## Security. Output ONLY the changelog Markdown, nothing else."
+    </div>
+
+    <h3>12.3 git ai release</h3>
+    <p>Release notes expand on the changelog with sections developers need when upgrading a dependency. The prompt adds:</p>
+    <div class="diagram-block">
+## Highlights
+## Bug Fixes
+## Breaking Changes
+## Migration Notes
+
+"If a section has nothing to report, write 'None.'"</div>
+
+    <h3>12.4 git ai conflicts — Safety-Critical Command</h3>
+    <p>The conflicts command is the most safety-critical. Three layers of protection prevent the AI from appearing to take action:</p>
+
+    <div class="card-grid">
+      <div class="info-card">
+        <div class="card-icon">🔒</div>
+        <h4>Prompt Constraint</h4>
+        <ul>
+          <li>"Do NOT output any modified file content"</li>
+          <li>"Your output is advisory only"</li>
+          <li>Prevents model from producing code to copy-paste</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">⚠️</div>
+        <h4>Advisory Footer</h4>
+        <ul>
+          <li>Always printed — non-negotiable</li>
+          <li>"No changes have been made to your repository"</li>
+          <li>Not suppressed even in JSON mode</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">📋</div>
+        <h4>Structured Output</h4>
+        <ul>
+          <li>## Reason for conflict</li>
+          <li>## Explanation of each side's intent</li>
+          <li>## Suggested resolution strategy</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CH 13 ═══ -->
+  <section class="chapter-section" id="ch13">
+    <span class="section-number">Chapter 13</span>
+    <h2>Commands — Phase 3</h2>
+    <p class="section-tagline">Repository intelligence — summarise and interrogate any codebase</p>
+
+    <h3>13.1 git ai repo — The Onboarding Command</h3>
+    <p><code>git ai repo</code> answers the most common question when joining a new project: <em>"What is this codebase?"</em></p>
+
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>Terminal — running git ai repo</span><span class="lang-tag">bash</span></div>
+      <pre><code>$ git ai repo
+
+  Branch:   main
+  HEAD:     a3f9b12
+  Provider: ollama
+  Model:    llama3.2:latest
+
+Repository summary
+------------------
+## Overview
+git-ai is a CLI tool that integrates local LLMs into the Git workflow...
+
+## Architecture
+The project follows a clean layered design:
+  cmd/git-ai/  — entry point and command registration
+  commands/    — one file per subcommand
+  internal/    — private packages: config, git, provider, prompt, output
+
+## Languages &amp; Technologies
+Primary: Go (1.22). One external dependency: cobra (CLI framework).
+
+## Key Dependencies
+- github.com/spf13/cobra v1.8.1 — command-line framework
+
+## Recent Activity
+3 commits in the last week: Phase 3 commands, plugin system, --format flag.</code></pre>
+    </div>
+
+    <h3>13.2 git ai ask — Open Q&amp;A</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>Terminal — asking questions about the repo</span><span class="lang-tag">bash</span></div>
+      <pre><code><span class="cm"># Architecture question</span>
+git ai ask <span class="st">"Why is the provider interface in a separate package?"</span>
+
+<span class="cm"># Navigation question</span>
+git ai ask <span class="st">"Which files would I modify to add a new command?"</span>
+
+<span class="cm"># Code question</span>
+git ai ask <span class="st">"What does the truncateDiff function do and why?"</span>
+
+<span class="cm"># Scripted Q&amp;A</span>
+git ai ask <span class="st">"What languages does this repo use?"</span> -f json | jq -r .answer</code></pre>
+    </div>
+
+    <div class="callout warning">
+      <strong>The "say so explicitly" rule</strong><br>
+      The ask prompt instructs: "If the answer cannot be determined from the context, say so explicitly."
+      Without this, models confidently answer questions the context doesn't support.
+      With it, the model says "I cannot determine this from the available context" — which is the honest and correct answer.
+    </div>
+  </section>
+
+  <!-- ═══ CH 14 ═══ -->
+  <section class="chapter-section" id="ch14">
+    <span class="section-number">Chapter 14</span>
+    <h2>The Plugin System</h2>
+    <p class="section-tagline">Extending git-ai without touching its source — the same model Git itself uses</p>
+
+    <h3>14.1 How It Works</h3>
+    <p>git-ai extends Git's own extensibility model one level deeper. Just as <code>git ai</code> maps to <code>git-ai</code>, a plugin binary <code>git-ai-security</code> becomes reachable as <code>git ai security</code>. This requires zero changes to git-ai itself.</p>
+
+    <div class="diagram-block">
+git ai security --severity high
+       │
+       ▼
+main.go: unknown command "security"
+       │
+       ▼  (cobra RunE fallback)
+plugin.Run("security", ["--severity", "high"])
+       │
+       ▼
+exec.LookPath("git-ai-security")   ← searches $PATH
+       │
+       ▼
+exec.Command("git-ai-security", "--severity", "high")
+       │    stdin/stdout/stderr inherited
+       ▼
+plugin executes, output flows to terminal</div>
+
+    <h3>14.2 Full Implementation</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/plugin/plugin.go</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="cm">// Run finds and executes a git-ai-&lt;name&gt; binary.</span>
+<span class="cm">// Stdin/stdout/stderr are inherited so the plugin is indistinguishable</span>
+<span class="cm">// from a built-in command from the user's perspective.</span>
+<span class="kw">func</span> <span class="fn">Run</span>(name <span class="ty">string</span>, args []<span class="ty">string</span>) <span class="ty">error</span> {
+    binary := <span class="st">"git-ai-"</span> + name
+
+    <span class="cm">// LookPath uses the same PATH search algorithm as the shell.</span>
+    path, err := exec.<span class="fn">LookPath</span>(binary)
+    <span class="kw">if</span> err != <span class="kw">nil</span> {
+        <span class="kw">return</span> fmt.<span class="fn">Errorf</span>(<span class="st">"plugin %q not found (looked for %q on PATH)"</span>, name, binary)
+    }
+
+    cmd := exec.<span class="fn">Command</span>(path, args...)
+    cmd.Stdin  = os.Stdin    <span class="cm">// allow interactive plugins</span>
+    cmd.Stdout = os.Stdout   <span class="cm">// output flows to terminal</span>
+    cmd.Stderr = os.Stderr   <span class="cm">// errors visible immediately</span>
+    cmd.Env    = os.<span class="fn">Environ</span>() <span class="cm">// full environment (PATH, HOME, etc.)</span>
+    <span class="kw">return</span> cmd.<span class="fn">Run</span>()
+}
+
+<span class="cm">// List returns all git-ai-* binaries found on PATH.</span>
+<span class="cm">// Used by `git ai plugins` to show available extensions.</span>
+<span class="kw">func</span> <span class="fn">List</span>() []<span class="ty">string</span> {
+    dirs := strings.<span class="fn">Split</span>(os.<span class="fn">Getenv</span>(<span class="st">"PATH"</span>), <span class="ty">string</span>(os.PathListSeparator))
+    seen := <span class="kw">map</span>[<span class="ty">string</span>]<span class="ty">bool</span>{}
+    <span class="kw">var</span> plugins []<span class="ty">string</span>
+    <span class="kw">for</span> _, dir := <span class="kw">range</span> dirs {
+        entries, _ := os.<span class="fn">ReadDir</span>(dir)
+        <span class="kw">for</span> _, e := <span class="kw">range</span> entries {
+            name := e.<span class="fn">Name</span>()
+            <span class="kw">if</span> strings.<span class="fn">HasPrefix</span>(name, <span class="st">"git-ai-"</span>) &amp;&amp; !e.<span class="fn">IsDir</span>() {
+                plug := strings.<span class="fn">TrimPrefix</span>(name, <span class="st">"git-ai-"</span>)
+                <span class="kw">if</span> !seen[plug] { seen[plug] = <span class="kw">true</span>; plugins = <span class="fn">append</span>(plugins, plug) }
+            }
+        }
+    }
+    <span class="kw">return</span> plugins
+}</code></pre>
+    </div>
+
+    <h3>14.3 Writing a Plugin</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>~/bin/git-ai-security — shell plugin example</span><span class="lang-tag">bash</span></div>
+      <pre><code>#!/bin/bash
+# git-ai-security: focused security review using a specialised model
+# Install: chmod +x ~/bin/git-ai-security   (~/bin must be on PATH)
+
+<span class="cm"># Pipe git-ai review JSON output into jq to extract security findings</span>
+git-ai review --severity low --format json \
+  | jq -r '.review' \
+  | grep -iE "security|injection|xss|csrf|sqli|auth" \
+  || echo "No security findings."</code></pre>
+    </div>
+
+    <div class="tools-note">
+      <strong>Plugin naming convention:</strong>
+      <code>git-ai-pr</code> → <code>git ai pr</code> &nbsp;|&nbsp;
+      <code>git-ai-security</code> → <code>git ai security</code> &nbsp;|&nbsp;
+      <code>git-ai-standup</code> → <code>git ai standup</code><br><br>
+      Any executable on PATH with the <code>git-ai-</code> prefix works.
+      Language doesn't matter — shell, Python, Go, Rust, or Node.js.
+    </div>
+  </section>
+
+  <!-- ═══ CH 15 ═══ -->
+  <section class="chapter-section" id="ch15">
+    <span class="section-number">Chapter 15</span>
+    <h2>Output Formatting</h2>
+    <p class="section-tagline">Three formats, one flag, zero decorative noise in JSON mode</p>
+
+    <h3>15.1 The Format-Aware Output Functions</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/output/output.go — format-aware functions</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="cm">// Header prints a section header — completely silent in JSON mode.</span>
+<span class="cm">// A header line in JSON output would corrupt the payload.</span>
+<span class="kw">func</span> <span class="fn">Header</span>(label <span class="ty">string</span>, format <span class="ty">Format</span>) {
+    <span class="kw">if</span> format == FormatJSON { <span class="kw">return</span> }
+    fmt.<span class="fn">Printf</span>(<span class="st">"\n%s\n%s\n"</span>, label, strings.<span class="fn">Repeat</span>(<span class="st">"-"</span>, <span class="fn">len</span>(label)))
+}
+
+<span class="cm">// RepoInfo prints branch/HEAD/provider/model — silent in JSON mode.</span>
+<span class="kw">func</span> <span class="fn">RepoInfo</span>(branch, head, provider, model <span class="ty">string</span>, format <span class="ty">Format</span>) {
+    <span class="kw">if</span> format == FormatJSON { <span class="kw">return</span> }
+    fmt.<span class="fn">Printf</span>(<span class="st">"  Branch:   %s\n  HEAD:     %s\n  Provider: %s\n  Model:    %s\n\n"</span>,
+        branch, head, provider, model)
+}
+
+<span class="cm">// Advisory prints "No changes made" footer — silent in JSON mode.</span>
+<span class="kw">func</span> <span class="fn">Advisory</span>(format <span class="ty">Format</span>) {
+    <span class="kw">if</span> format == FormatJSON { <span class="kw">return</span> }
+    fmt.<span class="fn">Println</span>(<span class="st">"\nNo changes have been made to your repository."</span>)
+}
+
+<span class="cm">// PrintJSON emits an arbitrary value as indented JSON — the only output</span>
+<span class="cm">// function called in JSON mode. All other decorative output is suppressed.</span>
+<span class="kw">func</span> <span class="fn">PrintJSON</span>(v <span class="kw">any</span>) {
+    b, _ := json.<span class="fn">MarshalIndent</span>(v, <span class="st">""</span>, <span class="st">"  "</span>)
+    fmt.<span class="fn">Println</span>(<span class="ty">string</span>(b))
+}</code></pre>
+    </div>
+
+    <h3>15.2 JSON Output Schemas</h3>
+    <div class="card-grid">
+      <div class="info-card">
+        <div class="card-icon">💬</div>
+        <h4>git ai commit -f json</h4>
+        <div class="json-schema">
+{<br>
+&nbsp;&nbsp;<span class="jk">"message"</span>: <span class="jv">"feat(config): add OpenAI..."</span>,<br>
+&nbsp;&nbsp;<span class="jk">"amend"</span>: <span class="jv">"false"</span><br>
+}
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🔍</div>
+        <h4>git ai review -f json</h4>
+        <div class="json-schema">
+{<br>
+&nbsp;&nbsp;<span class="jk">"review"</span>: <span class="jv">"## Bugs\nNone.\n..."</span><br>
+}
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">❓</div>
+        <h4>git ai ask -f json</h4>
+        <div class="json-schema">
+{<br>
+&nbsp;&nbsp;<span class="jk">"question"</span>: <span class="jv">"What does this do?"</span>,<br>
+&nbsp;&nbsp;<span class="jk">"answer"</span>: <span class="jv">"git-ai is a..."</span><br>
+}
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">📋</div>
+        <h4>git ai changelog -f json</h4>
+        <div class="json-schema">
+{<br>
+&nbsp;&nbsp;<span class="jk">"changelog"</span>: <span class="jv">"## Added\n..."</span>,<br>
+&nbsp;&nbsp;<span class="jk">"from"</span>: <span class="jv">"v0.1.0"</span>,<br>
+&nbsp;&nbsp;<span class="jk">"to"</span>: <span class="jv">"HEAD"</span><br>
+}
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">⚔️</div>
+        <h4>git ai conflicts -f json</h4>
+        <div class="json-schema">
+{<br>
+&nbsp;&nbsp;<span class="jk">"conflicted_files"</span>: <span class="jv">["foo.go"]</span>,<br>
+&nbsp;&nbsp;<span class="jk">"analysis"</span>: <span class="jv">"## Reason..."</span><br>
+}
+        </div>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🚀</div>
+        <h4>git ai release -f json</h4>
+        <div class="json-schema">
+{<br>
+&nbsp;&nbsp;<span class="jk">"release_notes"</span>: <span class="jv">"## Highlights..."</span>,<br>
+&nbsp;&nbsp;<span class="jk">"version"</span>: <span class="jv">"v1.1.0"</span><br>
+}
+        </div>
+      </div>
+    </div>
+
+    <h3>15.3 Scripting with JSON Output</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>Shell — scripting examples using -f json</span><span class="lang-tag">bash</span></div>
+      <pre><code><span class="cm"># Commit directly from the AI suggestion</span>
+MESSAGE=$(git ai commit -f json | jq -r <span class="st">'.message'</span>)
+git commit -m <span class="st">"$MESSAGE"</span>
+
+<span class="cm"># Block CI merge if high-severity issues found</span>
+REVIEW=$(git ai review -f json | jq -r <span class="st">'.review'</span>)
+<span class="kw">if</span> echo <span class="st">"$REVIEW"</span> | grep -qi <span class="st">"severity.*high"</span>; then
+  echo <span class="st">"High severity issues found — blocking merge"</span>
+  exit <span class="nu">1</span>
+fi
+
+<span class="cm"># Post review to Slack on every PR</span>
+git ai review -f json \
+  | jq -r <span class="st">'{text: .review}'</span> \
+  | curl -s -X POST <span class="st">"$SLACK_WEBHOOK"</span> \
+      -H <span class="st">'Content-Type: application/json'</span> \
+      --data @-
+
+<span class="cm"># Save changelog to file for release automation</span>
+git ai changelog -f json | jq -r <span class="st">'.changelog'</span> &gt; CHANGELOG.md</code></pre>
+    </div>
+  </section>
+
+  <!-- ═══ CH 16 ═══ -->
+  <section class="chapter-section" id="ch16">
+    <span class="section-number">Chapter 16</span>
+    <h2>Building with Make</h2>
+    <p class="section-tagline">Every Makefile target explained, cross-platform builds, goreleaser</p>
+
+    <h3>16.1 The Makefile</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>Makefile — annotated line by line</span><span class="lang-tag">makefile</span></div>
+      <pre><code><span class="cm"># .PHONY declares targets that don't produce files.</span>
+<span class="cm"># Without this, make would skip a target if a file named "build" existed.</span>
+.PHONY: build install test lint clean
+
+<span class="cm"># Output binary path — referenced in build and install targets.</span>
+BINARY := bin/git-ai
+
+<span class="cm"># build: compile the binary.</span>
+<span class="cm"># -ldflags="-s -w"</span>
+<span class="cm">#   -s  strips the symbol table      (~15% size reduction)</span>
+<span class="cm">#   -w  strips DWARF debug info       (~15% size reduction)</span>
+<span class="cm"># Combined: ~8 MB instead of ~12 MB, with zero runtime impact.</span>
+build:
+	go build -ldflags=<span class="st">"-s -w"</span> -o $(BINARY) ./cmd/git-ai
+
+<span class="cm"># install: build then copy to /usr/local/bin.</span>
+<span class="cm"># After this, `git ai` works in any terminal, any directory.</span>
+install: build
+	cp $(BINARY) /usr/local/bin/git-ai
+	@echo <span class="st">"Installed git-ai to /usr/local/bin/git-ai"</span>
+
+<span class="cm"># test: run all *_test.go files in the module.</span>
+<span class="cm"># ./... is Go's recursive package glob.</span>
+test:
+	go test ./...
+
+<span class="cm"># lint: static analysis (requires: brew install golangci-lint).</span>
+lint:
+	golangci-lint run
+
+<span class="cm"># clean: remove compiled artifacts.</span>
+clean:
+	rm -rf bin/</code></pre>
+    </div>
+
+    <h3>16.2 Cross-Platform Builds</h3>
+    <p>Go builds for any target from any host. No cross-compiler, no Docker, no VM required.</p>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>Shell — building for all platforms from one machine</span><span class="lang-tag">bash</span></div>
+      <pre><code><span class="cm"># macOS Apple Silicon (M1/M2/M3/M4)</span>
+<span class="ty">GOOS</span>=darwin  <span class="ty">GOARCH</span>=arm64 go build -o dist/git-ai-darwin-arm64  ./cmd/git-ai
+
+<span class="cm"># macOS Intel</span>
+<span class="ty">GOOS</span>=darwin  <span class="ty">GOARCH</span>=amd64 go build -o dist/git-ai-darwin-amd64  ./cmd/git-ai
+
+<span class="cm"># Linux x86_64 (most servers, CI runners)</span>
+<span class="ty">GOOS</span>=linux   <span class="ty">GOARCH</span>=amd64 go build -o dist/git-ai-linux-amd64   ./cmd/git-ai
+
+<span class="cm"># Linux ARM64 (Raspberry Pi, AWS Graviton, Apple M-series under Linux)</span>
+<span class="ty">GOOS</span>=linux   <span class="ty">GOARCH</span>=arm64 go build -o dist/git-ai-linux-arm64   ./cmd/git-ai
+
+<span class="cm"># Windows x86_64</span>
+<span class="ty">GOOS</span>=windows <span class="ty">GOARCH</span>=amd64 go build -o dist/git-ai-windows-amd64.exe ./cmd/git-ai</code></pre>
+    </div>
+
+    <h3>16.3 Production Release with goreleaser</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>.goreleaser.yaml — release automation config</span><span class="lang-tag">yaml</span></div>
+      <pre><code>version: 2
+
+builds:
+  - id: git-ai
+    main: ./cmd/git-ai
+    binary: git-ai
+    ldflags: ["-s", "-w"]
+    goos:   [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "git-ai_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude: ["^docs:", "^test:"]</code></pre>
+    </div>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>Shell — trigger a release</span><span class="lang-tag">bash</span></div>
+      <pre><code><span class="cm"># Tag, push, then release</span>
+git tag v0.2.0
+git push origin v0.2.0
+goreleaser release --clean
+
+<span class="cm"># Produces:</span>
+<span class="cm">#   dist/git-ai_0.2.0_darwin_arm64.tar.gz</span>
+<span class="cm">#   dist/git-ai_0.2.0_darwin_amd64.tar.gz</span>
+<span class="cm">#   dist/git-ai_0.2.0_linux_amd64.tar.gz</span>
+<span class="cm">#   dist/git-ai_0.2.0_linux_arm64.tar.gz</span>
+<span class="cm">#   dist/git-ai_0.2.0_windows_amd64.zip</span>
+<span class="cm">#   dist/checksums.txt</span>
+<span class="cm">#   → GitHub Release created automatically</span></code></pre>
+    </div>
+  </section>
+
+  <!-- ═══ CH 17 ═══ -->
+  <section class="chapter-section" id="ch17">
+    <span class="section-number">Chapter 17</span>
+    <h2>Wiring to Git</h2>
+    <p class="section-tagline">The exact mechanism by which <code>git ai</code> finds and runs the binary</p>
+
+    <h3>17.1 How Git Discovers External Commands</h3>
+    <p>Git's command dispatch works in two steps. This is documented in <code>git help git</code>:</p>
+
+    <div class="diagram-block">
+User types: git ai commit
+
+Step 1: Git checks built-in commands
+        commit ✓, push ✓, pull ✓, log ✓ ...
+        "ai" ✗ — not a built-in
+
+Step 2: Git searches PATH for "git-ai"
+        /usr/local/bin/git-ai ← found!
+
+Step 3: Git executes:
+        /usr/local/bin/git-ai commit
+
+Result: cobra receives ["commit"] as os.Args[1:]
+        → NewCommitCmd() runs</div>
+
+    <div class="callout success">
+      <strong>The rule</strong><br>
+      <code>git &lt;subcommand&gt;</code> → Git looks for <code>git-&lt;subcommand&gt;</code> on PATH.
+      The binary name must match exactly. The binary must be executable.
+      That is the entire contract.
+    </div>
+
+    <h3>17.2 Installation Methods</h3>
+    <table class="data-table">
+      <thead><tr><th>Method</th><th>Command</th><th>Best for</th></tr></thead>
+      <tbody>
+        <tr><td><code>make install</code></td><td><code>make install</code></td><td>Development machines — always uses latest build</td></tr>
+        <tr><td>PATH export</td><td><code>export PATH="$PWD/bin:$PATH"</code></td><td>Per-session during development</td></tr>
+        <tr><td>Homebrew</td><td><code>brew install git-ai</code></td><td>End-user distribution</td></tr>
+        <tr><td>curl install</td><td>curl binary URL → chmod +x → mv to /usr/local/bin</td><td>CI environments, VMs</td></tr>
+      </tbody>
+    </table>
+
+    <h3>17.3 Verifying the Wire</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>Shell — verifying the installation</span><span class="lang-tag">bash</span></div>
+      <pre><code><span class="cm"># Verify the binary is on PATH</span>
+which git-ai
+<span class="cm"># → /usr/local/bin/git-ai</span>
+
+<span class="cm"># Verify git maps it correctly</span>
+git ai --version
+<span class="cm"># → git-ai version 0.2.0</span>
+
+<span class="cm"># "No manual entry for git-ai" is expected and harmless —</span>
+<span class="cm"># git looks for a man page before discovering the binary.</span>
+<span class="cm"># The binary then shows its own --help output.</span>
+git ai --help</code></pre>
+    </div>
+
+    <h3>17.4 The Complete End-to-End Workflow</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>Shell — complete git-ai developer workflow</span><span class="lang-tag">bash</span></div>
+      <pre><code><span class="cm"># 1. Make changes</span>
+vim src/parser.go
+
+<span class="cm"># 2. Stage</span>
+git add src/parser.go
+
+<span class="cm"># 3. Review before committing</span>
+git ai review
+<span class="cm"># → Bugs: None. Security: None. Maintainability: ...</span>
+
+<span class="cm"># 4. Generate commit message</span>
+git ai commit
+<span class="cm"># → feat(parser): support recursive config includes</span>
+
+<span class="cm"># 5. Commit with the suggested message</span>
+git commit -m <span class="st">"feat(parser): support recursive config includes"</span>
+
+<span class="cm"># 6. Before a release</span>
+git ai changelog --from v0.1.0
+git ai release --version v0.2.0
+
+<span class="cm"># 7. Handle a merge conflict</span>
+git merge feature/config
+<span class="cm"># CONFLICT (content): Merge conflict in src/config.go</span>
+git ai conflicts
+<span class="cm"># → Reason: Both branches modified ConfigParser.parse()...</span>
+<span class="cm"># → Resolution: Keep HEAD signature, incorporate feat/config body...</span>
+
+<span class="cm"># 8. Understand a new codebase</span>
+git ai repo
+git ai ask <span class="st">"Which package handles HTTP requests?"</span></code></pre>
+    </div>
+  </section>
+
+  <!-- ═══ CH 18 ═══ -->
+  <section class="chapter-section" id="ch18">
+    <span class="section-number">Chapter 18</span>
+    <h2>Testing Strategy</h2>
+    <p class="section-tagline">Unit tests with mock HTTP servers, plugin discovery, prompt regression</p>
+
+    <h3>18.1 Test Pyramid</h3>
+    <div class="diagram-block">
+                    ┌──────────────────────────┐
+                    │  Integration Tests        │
+                    │  Real git repos + mock    │
+                    │  HTTP server  (2–5s)      │
+                    ├──────────────────────────┤
+                    │  Unit Tests               │
+                    │  Pure functions +         │
+                    │  httptest.Server  (&lt;1s)   │
+                    └──────────────────────────┘
+
+Packages tested:
+  internal/config    — default values, git-config reading
+  internal/prompt    — all 11 templates, truncation
+  internal/provider/ollama  — generate, health, models, error paths
+  internal/provider/openai  — generate, health, api errors
+  internal/plugin    — discovery, missing binary error</div>
+
+    <h3>18.2 Testing the Ollama Provider — Mock HTTP Server</h3>
+    <p>Using a real <code>httptest.Server</code> (not an interface mock) tests JSON serialisation, HTTP headers, and response parsing — things a pure mock cannot catch.</p>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/provider/ollama/ollama_test.go</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="cm">// mockServer creates a real HTTP server that responds like Ollama.</span>
+<span class="kw">func</span> <span class="fn">mockServer</span>(t *<span class="ty">testing.T</span>, response <span class="ty">string</span>) *<span class="ty">httptest.Server</span> {
+    t.<span class="fn">Helper</span>()
+    <span class="kw">return</span> httptest.<span class="fn">NewServer</span>(http.<span class="fn">HandlerFunc</span>(<span class="kw">func</span>(w <span class="ty">http.ResponseWriter</span>, r *<span class="ty">http.Request</span>) {
+        <span class="kw">switch</span> r.URL.Path {
+        <span class="kw">case</span> <span class="st">"/api/generate"</span>:
+            json.<span class="fn">NewEncoder</span>(w).<span class="fn">Encode</span>(<span class="ty">generateResponse</span>{Response: response})
+        <span class="kw">case</span> <span class="st">"/api/tags"</span>:
+            json.<span class="fn">NewEncoder</span>(w).<span class="fn">Encode</span>(<span class="kw">map</span>[<span class="ty">string</span>]<span class="kw">any</span>{
+                <span class="st">"models"</span>: []<span class="kw">map</span>[<span class="ty">string</span>]<span class="ty">string</span>{
+                    {<span class="st">"name"</span>: <span class="st">"llama3"</span>}, {<span class="st">"name"</span>: <span class="st">"mistral"</span>},
+                },
+            })
+        <span class="kw">default</span>:
+            w.<span class="fn">WriteHeader</span>(http.StatusOK) <span class="cm">// health check</span>
+        }
+    }))
+}
+
+<span class="kw">func</span> <span class="fn">TestGenerate</span>(t *<span class="ty">testing.T</span>) {
+    srv := <span class="fn">mockServer</span>(t, <span class="st">"feat: add feature"</span>)
+    <span class="kw">defer</span> srv.<span class="fn">Close</span>()
+
+    p := <span class="fn">New</span>(srv.URL, <span class="st">"llama3"</span>)
+    result, err := p.<span class="fn">Generate</span>(context.<span class="fn">Background</span>(), <span class="st">"write a commit message"</span>)
+    <span class="kw">if</span> err != <span class="kw">nil</span> { t.<span class="fn">Fatalf</span>(<span class="st">"Generate() error: %v"</span>, err) }
+    <span class="kw">if</span> result != <span class="st">"feat: add feature"</span> {
+        t.<span class="fn">Errorf</span>(<span class="st">"unexpected result: %q"</span>, result)
+    }
+}
+
+<span class="kw">func</span> <span class="fn">TestIsAvailableUnreachable</span>(t *<span class="ty">testing.T</span>) {
+    <span class="cm">// Port 1 is reserved and never has anything listening.</span>
+    p := <span class="fn">New</span>(<span class="st">"http://127.0.0.1:1"</span>, <span class="st">"llama3"</span>)
+    ok, err := p.<span class="fn">IsAvailable</span>()
+    <span class="kw">if</span> ok  { t.<span class="fn">Error</span>(<span class="st">"expected available=false"</span>) }
+    <span class="kw">if</span> err == <span class="kw">nil</span> { t.<span class="fn">Error</span>(<span class="st">"expected non-nil error"</span>) }
+}</code></pre>
+    </div>
+
+    <h3>18.3 Testing the Prompt Engine</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>internal/prompt/prompt_test.go — key test cases</span><span class="lang-tag">go</span></div>
+      <pre><code><span class="kw">func</span> <span class="fn">TestBuildCommit</span>(t *<span class="ty">testing.T</span>) {
+    p := <span class="fn">Build</span>(<span class="st">"commit"</span>, baseMeta, <span class="st">"diff --git a/foo.go"</span>, <span class="nu">4096</span>)
+    <span class="kw">if</span> !strings.<span class="fn">Contains</span>(p, <span class="st">"Conventional Commits"</span>) {
+        t.<span class="fn">Error</span>(<span class="st">"commit prompt should reference Conventional Commits"</span>)
+    }
+}
+
+<span class="kw">func</span> <span class="fn">TestTruncateDiff</span>(t *<span class="ty">testing.T</span>) {
+    line := strings.<span class="fn">Repeat</span>(<span class="st">"x"</span>, <span class="nu">100</span>)
+    large := strings.<span class="fn">Repeat</span>(line+<span class="st">"\n"</span>, <span class="nu">500</span>)
+
+    result := <span class="fn">truncateDiff</span>(large, <span class="nu">512</span>)   <span class="cm">// very small budget</span>
+
+    <span class="kw">if</span> !strings.<span class="fn">Contains</span>(result, <span class="st">"truncated"</span>) {
+        t.<span class="fn">Error</span>(<span class="st">"large diff should be truncated"</span>)
+    }
+    <span class="kw">if</span> <span class="fn">len</span>(result) &gt;= <span class="fn">len</span>(large) {
+        t.<span class="fn">Error</span>(<span class="st">"truncated diff should be shorter than original"</span>)
+    }
+}</code></pre>
+    </div>
+
+    <h3>18.4 Running Tests</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>Shell — test commands</span><span class="lang-tag">bash</span></div>
+      <pre><code><span class="cm"># Run all tests</span>
+go test ./...
+
+<span class="cm"># Verbose — show individual test names and pass/fail</span>
+go test -v ./...
+
+<span class="cm"># Race detector — catches concurrent access bugs</span>
+go test -race ./...
+
+<span class="cm"># Coverage report</span>
+go test -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out -o coverage.html
+
+<span class="cm"># Run only one package</span>
+go test -v ./internal/provider/ollama/...</code></pre>
+    </div>
+
+    <div class="diagram-block">
+Test output:
+?     github.com/mchinnappan/git-ai/cmd/git-ai       [no test files]
+?     github.com/mchinnappan/git-ai/commands          [no test files]
+ok    github.com/mchinnappan/git-ai/internal/config   0.496s
+ok    github.com/mchinnappan/git-ai/internal/plugin   0.721s
+ok    github.com/mchinnappan/git-ai/internal/prompt   0.346s
+ok    github.com/mchinnappan/git-ai/internal/provider/ollama   0.516s
+ok    github.com/mchinnappan/git-ai/internal/provider/openai   0.913s</div>
+  </section>
+
+  <!-- ═══ CH 19 ═══ -->
+  <section class="chapter-section" id="ch19">
+    <span class="section-number">Chapter 19</span>
+    <h2>Roadmap &amp; Extensions</h2>
+    <p class="section-tagline">What ships in each version, what comes next, and the lessons that shaped the design</p>
+
+    <h3>19.1 Version Roadmap</h3>
+    <div class="roadmap-grid">
+      <div class="roadmap-card">
+        <div class="rv">v0.1 ✅</div>
+        <ul>
+          <li>git ai commit</li>
+          <li>git ai review</li>
+          <li>git ai explain</li>
+        </ul>
+      </div>
+      <div class="roadmap-card">
+        <div class="rv">v0.2 ✅</div>
+        <ul>
+          <li>git ai diff</li>
+          <li>git ai changelog</li>
+          <li>git ai release</li>
+          <li>git ai conflicts</li>
+        </ul>
+      </div>
+      <div class="roadmap-card">
+        <div class="rv">v0.3 ✅</div>
+        <ul>
+          <li>git ai repo</li>
+          <li>git ai ask</li>
+          <li>Context builder</li>
+        </ul>
+      </div>
+      <div class="roadmap-card">
+        <div class="rv">v0.4 ✅</div>
+        <ul>
+          <li>OpenAI provider</li>
+          <li>llama.cpp provider</li>
+          <li>Plugin system</li>
+          <li>--format / --amend</li>
+        </ul>
+      </div>
+      <div class="roadmap-card">
+        <div class="rv">v0.5 ○</div>
+        <ul>
+          <li class="planned">Streaming output (--stream)</li>
+          <li class="planned">Anthropic provider</li>
+          <li class="planned">Gemini provider</li>
+        </ul>
+      </div>
+      <div class="roadmap-card">
+        <div class="rv">v1.0 ○</div>
+        <ul>
+          <li class="planned">Stable provider API</li>
+          <li class="planned">Homebrew formula</li>
+          <li class="planned">LM Studio provider</li>
+          <li class="planned">Rich config validation</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>19.2 Future Commands</h3>
+    <table class="data-table">
+      <thead><tr><th>Command</th><th>Description</th><th>Git input</th></tr></thead>
+      <tbody>
+        <tr><td><code>git ai pr</code></td><td>Generate a pull request description</td><td><code>git diff main...HEAD</code></td></tr>
+        <tr><td><code>git ai standup</code></td><td>Yesterday's commits as a standup summary</td><td><code>git log --since=yesterday</code></td></tr>
+        <tr><td><code>git ai blame &lt;file&gt; &lt;line&gt;</code></td><td>Explain why a line exists</td><td><code>git blame + git show</code></td></tr>
+        <tr><td><code>git ai test</code></td><td>Suggest tests for staged changes</td><td><code>git diff --cached</code></td></tr>
+        <tr><td><code>git ai refactor</code></td><td>Identify refactoring opportunities</td><td><code>git diff --cached</code></td></tr>
+      </tbody>
+    </table>
+
+    <h3>19.3 Architecture Lessons</h3>
+    <div class="card-grid">
+      <div class="info-card">
+        <div class="card-icon">🔌</div>
+        <h4>Lesson 1: Define the interface first</h4>
+        <ul>
+          <li>Provider interface before first implementation</li>
+          <li>Adding OpenAI/llama.cpp = zero command changes</li>
+          <li>Interface is the right abstraction boundary</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">📝</div>
+        <h4>Lesson 2: Prompts as code</h4>
+        <ul>
+          <li>Version-controlled Go functions</li>
+          <li>Testable, type-checked, deterministic</li>
+          <li>Bad prompt = compile-time or test-time failure</li>
+        </ul>
+      </div>
+      <div class="info-card">
+        <div class="card-icon">🔧</div>
+        <h4>Lesson 3: JSON output from day one</h4>
+        <ul>
+          <li>Makes every command scriptable</li>
+          <li>Turns git-ai into a platform</li>
+          <li>CI pipelines, Slack bots, IDE plugins</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="callout success">
+      <strong>The invariant that made everything else possible</strong><br>
+      Committing to "AI never modifies the repository" at the design phase made every other decision
+      simpler. Commands don't need undo logic. Output doesn't need confirmation prompts.
+      The safety guarantee is structural, not behavioral — it cannot be accidentally violated.
+    </div>
+  </section>
+
+  <!-- ═══ APPENDICES ═══ -->
+  <section class="chapter-section" id="appendix">
+    <span class="section-number">Appendices</span>
+    <h2>Quick Reference</h2>
+    <p class="section-tagline">All commands, all config keys, exit codes, and the 5-step install</p>
+
+    <h3>A — All Commands</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>All git-ai commands with flags</span><span class="lang-tag">bash</span></div>
+      <pre><code>git ai commit     [--amend] [--style conventional|short|detailed] [-f json]
+git ai review     [--working-tree] [--commit &lt;ref&gt;] [--severity low|medium|high] [-f json]
+git ai explain    &lt;ref|concept&gt; [-f json]
+git ai diff       [ref] [-f json]
+git ai changelog  [--from &lt;ref&gt;] [--to &lt;ref&gt;] [-f json]
+git ai release    [--from &lt;ref&gt;] [--version &lt;ver&gt;] [-f json]
+git ai conflicts  [-f json]
+git ai repo       [-f json]
+git ai ask        "&lt;question&gt;" [-f json]
+git ai plugins</code></pre>
+    </div>
+
+    <h3>B — All Configuration Keys</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>~/.gitconfig — complete git-ai configuration</span><span class="lang-tag">ini</span></div>
+      <pre><code>[ai]
+    provider    = ollama          <span class="cm"># ollama | openai | llamacpp</span>
+    model       = llama3.2:latest
+    temperature = 0.2             <span class="cm"># 0.0 = deterministic, 1.0 = creative</span>
+    maxTokens   = 4096
+
+[ai.ollama]
+    url = http://localhost:11434
+
+[ai.openai]
+    url    = https://api.openai.com
+    apikey = sk-...               <span class="cm"># or: export OPENAI_API_KEY=sk-...</span>
+
+[ai.llamacpp]
+    url = http://localhost:8080
+
+[ai.review]
+    severity = medium             <span class="cm"># low | medium | high</span>
+
+[ai.commit]
+    style = conventional          <span class="cm"># conventional | short | detailed</span></code></pre>
+    </div>
+
+    <h3>C — Exit Codes</h3>
+    <div class="appendix-grid">
+      <div class="appendix-block">
+        <h4>Exit Codes (spec §15)</h4>
+        <table>
+          <tr><td>0</td><td>Success</td></tr>
+          <tr><td>1</td><td>Generic error</td></tr>
+          <tr><td>2</td><td>Git repository not found</td></tr>
+          <tr><td>3</td><td>Provider unavailable</td></tr>
+          <tr><td>4</td><td>Model unavailable</td></tr>
+          <tr><td>5</td><td>Invalid configuration</td></tr>
+          <tr><td>6</td><td>Prompt exceeded limit</td></tr>
+        </table>
+      </div>
+      <div class="appendix-block">
+        <h4>Supported Providers</h4>
+        <table>
+          <tr><td>ollama</td><td>Default. Local, offline, free.</td></tr>
+          <tr><td>openai</td><td>OpenAI or any /v1/chat/completions API.</td></tr>
+          <tr><td>llamacpp</td><td>llama.cpp --server mode.</td></tr>
+          <tr><td>anthropic</td><td>Planned v0.5</td></tr>
+          <tr><td>gemini</td><td>Planned v0.5</td></tr>
+          <tr><td>lmstudio</td><td>Planned v1.0</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <h3>D — 5-Step Installation</h3>
+    <div class="code-block-wrapper">
+      <div class="code-block-header"><span>Shell — complete installation from scratch</span><span class="lang-tag">bash</span></div>
+      <pre><code><span class="cm"># 1. Clone and build</span>
+git clone https://github.com/mchinnappan/git-ai
+cd git-ai
+make install         <span class="cm"># builds + copies to /usr/local/bin/git-ai</span>
+
+<span class="cm"># 2. Start Ollama</span>
+ollama serve
+ollama pull llama3.2:latest
+
+<span class="cm"># 3. Configure</span>
+git config --global ai.model llama3.2:latest
+
+<span class="cm"># 4. Verify</span>
+git ai --version
+<span class="cm"># → git-ai version 0.2.0</span>
+
+<span class="cm"># 5. Use</span>
+git add .
+git ai review
+git ai commit</code></pre>
+    </div>
+
+    <div class="tools-note" style="margin-top:2rem;">
+      <strong>git-ai</strong> — local-first, AI-assisted, human-approved.<br>
+      MIT License · <strong>Author:</strong> Mohan Chinnappan · <strong>Language:</strong> Go 1.22 · <strong>External deps:</strong> 1 (cobra)
+    </div>
+  </section>
+
+  <!-- SUPPORT -->
+  <section style="margin-top:3rem;padding:2rem;background:var(--bg-card);border:1px solid var(--border);border-radius:14px;">
+    <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.1em;color:var(--accent);font-weight:700;margin-bottom:0.6rem;">Support This Work</div>
+    <h2 style="font-size:1.3rem;font-weight:800;margin-bottom:0.75rem;">If this tool has helped you ❤️</h2>
+    <p style="font-size:0.9rem;color:var(--text-muted);margin-bottom:1.25rem;">
+      Please consider donating to one of Mohan's suggested charities:
+    </p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-bottom:1.25rem;">
+      <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:1.1rem;">
+        <div style="font-size:1.3rem;margin-bottom:0.4rem;">🎗️</div>
+        <div style="font-weight:700;font-size:0.9rem;margin-bottom:0.35rem;">St. Jude Children's Research Hospital</div>
+        <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:0.65rem;">Fighting childhood cancer and other life-threatening diseases.</div>
+        <a href="https://www.stjude.org/donate" target="_blank" rel="noopener"
+           style="display:inline-block;background:var(--accent);color:#fff;font-size:0.78rem;font-weight:700;padding:0.4rem 0.9rem;border-radius:6px;text-decoration:none;">
+          Donate to St. Jude →
+        </a>
+      </div>
+      <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:10px;padding:1.1rem;">
+        <div style="font-size:1.3rem;margin-bottom:0.4rem;">🌍</div>
+        <div style="font-weight:700;font-size:0.9rem;margin-bottom:0.35rem;">Charities Supporting Developing Countries</div>
+        <div style="font-size:0.82rem;color:var(--text-muted);">Organisations providing food, clean water, education, or healthcare to communities in need.</div>
+      </div>
+    </div>
+    <p style="font-size:0.85rem;color:var(--text-muted);">Your generosity makes a real difference. Thank you.</p>
+  </section>
+
+  <footer class="chapter-footer">
+    <span>git-ai · Part 2 of 2 · Chapters 11–19 + Appendices</span>
+    <span><a href="git-ai-book-part1.html">← Back to Part 1 · Foundations</a></span>
+  </footer>
+
+</main>
+
+<script>
+  function toggleTheme() {
+    const html = document.documentElement;
+    html.dataset.theme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('theme', html.dataset.theme);
+  }
+  (function() {
+    const saved = localStorage.getItem('theme');
+    if (saved) document.documentElement.dataset.theme = saved;
+  })();
+
+  const sections = document.querySelectorAll('.chapter-section');
+  const tocLinks = document.querySelectorAll('.toc-list a');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        tocLinks.forEach(a => a.classList.remove('active'));
+        const active = document.querySelector(`.toc-list a[href="#${entry.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-25% 0px -65% 0px' });
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
