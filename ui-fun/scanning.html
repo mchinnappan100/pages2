@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCANNING // Radar HUD</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root[data-theme="dark"]{
+    --bg-0:#060a09;
+    --bg-1:#0b1210;
+    --bg-radial: radial-gradient(ellipse at 50% 42%, #10221c 0%, #081210 45%, #05090a 100%);
+    --ring:#1c3a33;
+    --ring-soft:#132724;
+    --tick:#2a4f47;
+    --accent:#8affd9;
+    --accent-dim:#3f7d6e;
+    --accent-glow: rgba(138,255,217,0.55);
+    --text-hi:#e9fff6;
+    --text-mid:#7fa79b;
+    --text-lo:#3f5f57;
+    --panel-border: rgba(138,255,217,0.14);
+    --scan-fade-end: rgba(138,255,217,0);
+    --grid-line: rgba(138,255,217,0.05);
+    --vignette: rgba(0,0,0,0.55);
+  }
+  :root[data-theme="light"]{
+    --bg-0:#eef3f1;
+    --bg-1:#e4ece9;
+    --bg-radial: radial-gradient(ellipse at 50% 42%, #f4f9f7 0%, #e7efec 45%, #d9e4e0 100%);
+    --ring:#b9cdc6;
+    --ring-soft:#cddcd6;
+    --tick:#9ab5ac;
+    --accent:#0f7a63;
+    --accent-dim:#5c9188;
+    --accent-glow: rgba(15,122,99,0.35);
+    --text-hi:#0c2621;
+    --text-mid:#3f6b60;
+    --text-lo:#7c968e;
+    --panel-border: rgba(15,122,99,0.18);
+    --scan-fade-end: rgba(15,122,99,0);
+    --grid-line: rgba(15,122,99,0.06);
+    --vignette: rgba(255,255,255,0.35);
+  }
+
+  html,body{ height:100%; }
+  body{
+    background: var(--bg-radial);
+    color: var(--text-hi);
+    font-family:'JetBrains Mono', monospace;
+    overflow: hidden;
+    transition: background 0.5s ease, color 0.5s ease;
+  }
+
+  .display-font{ font-family:'Rajdhani','JetBrains Mono',sans-serif; }
+
+  .hud-grid{
+    position:absolute; inset:0;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: radial-gradient(ellipse at 50% 45%, black 20%, transparent 75%);
+  }
+
+  .vignette{
+    position:absolute; inset:0;
+    background: radial-gradient(ellipse at 50% 50%, transparent 40%, var(--vignette) 100%);
+    pointer-events:none;
+  }
+
+  .scope{
+    position:relative;
+    width: min(62vw, 62vh, 640px);
+    height: min(62vw, 62vh, 640px);
+  }
+
+  .ring{
+    position:absolute; inset:0;
+    border-radius:50%;
+    border:1px solid var(--ring);
+  }
+  .ring.inner-25{ inset:25%; border-color: var(--ring-soft); }
+  .ring.inner-50{ inset:50%; border-color: var(--ring-soft); }
+
+  .tick{
+    position:absolute; left:50%; top:50%;
+    width:1px; height:50%;
+    transform-origin: top center;
+    background: linear-gradient(var(--tick), transparent 8%);
+  }
+  .tick.major{ background: linear-gradient(var(--tick), transparent 5%); }
+  .tick-cap{
+    position:absolute; left:50%; top:0;
+    width:1px; height:14px;
+    background: var(--tick);
+    transform: translateX(-50%);
+  }
+  .tick.major .tick-cap{ height:20px; background: var(--accent-dim); }
+
+  .heading-label{
+    position:absolute;
+    font-size:11px; letter-spacing:0.15em;
+    color: var(--text-mid);
+    transform: translate(-50%,-50%);
+  }
+
+  /* rotating sweep beam with trailing fade, via conic-gradient */
+  .sweep{
+    position:absolute; inset:0;
+    border-radius:50%;
+    background: conic-gradient(from 0deg,
+      var(--accent-glow) 0deg,
+      var(--scan-fade-end) 42deg,
+      transparent 360deg);
+    animation: rotate 4.5s linear infinite;
+    mix-blend-mode: screen;
+    filter: blur(0.3px);
+  }
+  :root[data-theme="light"] .sweep{ mix-blend-mode: multiply; opacity:0.75; }
+
+  .sweep-line{
+    position:absolute; left:50%; top:50%;
+    width:50%; height:1.5px;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent) 55%, transparent 100%);
+    transform-origin: left center;
+    animation: rotate 4.5s linear infinite;
+    box-shadow: 0 0 8px 1px var(--accent-glow);
+  }
+
+  @keyframes rotate{ to{ transform: rotate(360deg); } }
+
+  .blip{
+    position:absolute;
+    width:6px; height:6px;
+    border-radius:50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px 2px var(--accent-glow);
+    opacity:0;
+  }
+  .blip.pinging{ animation: blipPing 4.5s ease-in-out infinite; }
+
+  @keyframes blipPing{
+    0%, 100%{ opacity:0; transform: scale(0.6); }
+    6%{ opacity:1; transform: scale(1.15); }
+    14%{ opacity:0.85; transform: scale(1); }
+    30%{ opacity:0; transform: scale(0.9); }
+  }
+
+  .center-text{
+    position:absolute; left:50%; top:50%;
+    transform: translate(-50%,-50%);
+    text-align:center;
+    width: 80%;
+  }
+
+  .scanning-word{
+    font-family:'Rajdhani',sans-serif;
+    font-weight:700;
+    font-size: clamp(28px, 5vw, 52px);
+    letter-spacing: 0.08em;
+    color: var(--text-hi);
+    text-shadow: 0 0 18px var(--accent-glow), 0 0 2px var(--accent-glow);
+    animation: flicker 2.6s ease-in-out infinite;
+  }
+
+  @keyframes flicker{
+    0%, 100%{ opacity:1; }
+    50%{ opacity:0.86; }
+    52%{ opacity:1; }
+  }
+
+  .subtext{
+    margin-top:6px;
+    font-size:11px;
+    letter-spacing:0.35em;
+    color: var(--text-mid);
+  }
+
+  .subtext::after{
+    content:'...';
+    animation: dots 1.6s steps(4,end) infinite;
+  }
+
+  @keyframes dots{
+    0%{ content:''; }
+    25%{ content:'.'; }
+    50%{ content:'..'; }
+    75%{ content:'...'; }
+    100%{ content:''; }
+  }
+
+  .hud-corner{
+    font-size:10px;
+    letter-spacing:0.12em;
+    color: var(--text-mid);
+    line-height:1.6;
+  }
+  .hud-corner b{ color: var(--text-hi); font-weight:600; }
+  .status-dot{
+    display:inline-block; width:6px; height:6px; border-radius:50%;
+    background: var(--accent);
+    box-shadow: 0 0 6px 1px var(--accent-glow);
+    animation: pulse 1.8s ease-in-out infinite;
+    margin-right:6px;
+  }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:0.3; } }
+
+  .theme-toggle{
+    border:1px solid var(--panel-border);
+    color: var(--text-mid);
+    transition: all 0.2s ease;
+  }
+  .theme-toggle:hover{
+    color: var(--text-hi);
+    border-color: var(--accent-dim);
+  }
+
+  .noise{
+    position:absolute; inset:0;
+    opacity:0.035;
+    pointer-events:none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+</style>
+</head>
+<body class="relative w-full h-screen select-none">
+
+  <div class="hud-grid"></div>
+  <div class="noise"></div>
+
+  <!-- Top bar -->
+  <div class="absolute top-0 left-0 right-0 flex justify-between items-start p-5 md:p-8 z-20">
+    <div class="hud-corner">
+      <div><span class="status-dot"></span><b>SIGNAL</b> ACTIVE</div>
+      <div class="text-[var(--text-lo)] mt-0.5">FREQ 118.4 MHz</div>
+    </div>
+    <div class="hud-corner text-right">
+      <div>TGT <b>--</b></div>
+      <div>SRC-<b id="srcTag">MC1</b></div>
+    </div>
+  </div>
+
+  <!-- Radar scope -->
+  <div class="absolute inset-0 flex items-center justify-center z-10">
+    <div class="scope">
+      <div class="ring"></div>
+      <div class="ring inner-25"></div>
+      <div class="ring inner-50"></div>
+
+      <!-- ticks every 30deg, majors every 90 -->
+      <div id="ticks"></div>
+
+      <!-- heading labels -->
+      <div class="heading-label" style="left:50%; top:2%;">000</div>
+      <div class="heading-label" style="left:98%; top:50%;">090</div>
+      <div class="heading-label" style="left:50%; top:98%;">180</div>
+      <div class="heading-label" style="left:2%; top:50%;">270</div>
+
+      <!-- rotating sweep -->
+      <div class="sweep"></div>
+      <div class="sweep-line"></div>
+
+      <!-- blips -->
+      <div class="blip pinging" style="left:32%; top:38%; animation-delay:0.2s;"></div>
+      <div class="blip pinging" style="left:68%; top:62%; animation-delay:1.9s;"></div>
+      <div class="blip pinging" style="left:60%; top:28%; animation-delay:3.1s;"></div>
+
+      <div class="center-text">
+        <div class="scanning-word">SCANNING</div>
+        <div class="subtext">AWAITING CONTACT</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="vignette"></div>
+
+  <!-- Bottom bar -->
+  <div class="absolute bottom-0 left-0 right-0 flex justify-between items-end p-5 md:p-8 z-20">
+    <div class="hud-corner">
+      <div>LAT <b>11.016 N</b></div>
+      <div>LON <b>76.955 E</b></div>
+    </div>
+    <div class="hud-corner text-center">
+      <div><b id="siteName">MC · COIMBATORE</b></div>
+      <div id="dateTag" class="text-[var(--text-lo)]"></div>
+    </div>
+    <div class="hud-corner text-right flex items-center gap-3">
+      <div>
+        <div>SCAN <b>STANDBY</b></div>
+      </div>
+      <button id="themeBtn" class="theme-toggle rounded-full w-8 h-8 flex items-center justify-center text-xs">◐</button>
+    </div>
+  </div>
+
+  <script>
+    // generate ticks
+    const ticksEl = document.getElementById('ticks');
+    for(let deg=0; deg<360; deg+=15){
+      const t = document.createElement('div');
+      t.className = 'tick' + (deg % 90 === 0 ? ' major' : '');
+      t.style.transform = `translateX(-50%) rotate(${deg}deg)`;
+      const cap = document.createElement('div');
+      cap.className = 'tick-cap';
+      t.appendChild(cap);
+      ticksEl.appendChild(t);
+    }
+
+    // date tag
+    const dateTag = document.getElementById('dateTag');
+    const d = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    dateTag.textContent = `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()}`;
+
+    // theme toggle w/ localStorage persistence
+    const root = document.documentElement;
+    const btn = document.getElementById('themeBtn');
+    const saved = localStorage.getItem('radar-theme');
+    if(saved){ root.setAttribute('data-theme', saved); }
+    updateBtn();
+
+    btn.addEventListener('click', () => {
+      const cur = root.getAttribute('data-theme');
+      const next = cur === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      localStorage.setItem('radar-theme', next);
+      updateBtn();
+    });
+
+    function updateBtn(){
+      btn.textContent = root.getAttribute('data-theme') === 'dark' ? '◐' : '◑';
+    }
+  </script>
+</body>
+</html>
