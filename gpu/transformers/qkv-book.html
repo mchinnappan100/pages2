@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Query, Key &amp; Value — Complete Guide to Transformer Attention</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet"/>
+<style>
+:root[data-theme="dark"]{
+  --bg:#0b0f1a;--sidebar:#080c14;--surface:#111827;--surface2:#1a2235;
+  --border:#1f2d45;--accent:#a78bfa;--accent2:#34d399;--accent3:#fbbf24;--accent4:#f472b6;
+  --text:#e2e8f0;--text-muted:#64748b;--text-dim:#94a3b8;
+  --red:#ef4444;--green:#22c55e;--yellow:#eab308;
+  --code-bg:#060a12;--hero-bg:linear-gradient(135deg,#0d0a1a 0%,#0f0d1f 55%,#0b0f1a 100%);
+}
+:root[data-theme="light"]{
+  --bg:#fdf4ff;--sidebar:#f5f0ff;--surface:#ffffff;--surface2:#ede9fe;
+  --border:#ddd6fe;--accent:#7c3aed;--accent2:#059669;--accent3:#d97706;--accent4:#be185d;
+  --text:#0f172a;--text-muted:#64748b;--text-dim:#475569;
+  --red:#dc2626;--green:#16a34a;--yellow:#ca8a04;
+  --code-bg:#1e293b;--hero-bg:linear-gradient(135deg,#f5f0ff 0%,#ede9fe 55%,#ecfdf5 100%);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;font-size:15px;line-height:1.7}
+nav{width:272px;min-width:272px;background:var(--sidebar);border-right:1px solid var(--border);position:sticky;top:0;height:100vh;overflow-y:auto;display:flex;flex-direction:column;z-index:100}
+.nav-brand{padding:26px 22px 18px;border-bottom:1px solid var(--border)}
+.nav-brand .icon{width:44px;height:44px;background:linear-gradient(135deg,#a78bfa,#34d399);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:10px}
+.nav-brand h2{font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--text)}
+.nav-brand p{font-size:.7rem;color:var(--text-muted);margin-top:2px;letter-spacing:.04em;text-transform:uppercase}
+.theme-btn{margin:10px 12px;padding:7px 13px;border-radius:8px;background:var(--surface);border:1px solid var(--border);color:var(--text-dim);font-size:.77rem;cursor:pointer;font-family:'JetBrains Mono',monospace;display:flex;align-items:center;gap:7px;transition:all .18s}
+.theme-btn:hover{border-color:var(--accent);color:var(--accent)}
+nav ul{list-style:none;padding:12px 10px;flex:1}
+nav ul li a{display:flex;align-items:center;gap:10px;padding:8px 11px;border-radius:8px;color:var(--text-dim);text-decoration:none;font-size:.82rem;font-weight:500;transition:all .18s;margin-bottom:2px}
+nav ul li a:hover,nav ul li a.active{background:var(--surface);color:var(--accent)}
+nav ul li a .dot{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0;transition:background .18s}
+nav ul li a:hover .dot,nav ul li a.active .dot{background:var(--accent)}
+.nav-section-label{font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);padding:12px 12px 4px;font-family:'JetBrains Mono',monospace}
+main{flex:1;overflow-x:hidden}
+.hero{background:var(--hero-bg);border-bottom:1px solid var(--border);padding:68px 60px 56px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-80px;right:-60px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(167,139,250,.1) 0%,transparent 70%);pointer-events:none}
+.hero::after{content:'';position:absolute;bottom:-60px;left:35%;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(52,211,153,.07) 0%,transparent 70%);pointer-events:none}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:5px 15px;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.25);border-radius:20px;font-size:.73rem;font-family:'JetBrains Mono',monospace;color:var(--accent);margin-bottom:22px;letter-spacing:.05em;text-transform:uppercase}
+.hero h1{font-family:'Syne',sans-serif;font-weight:800;font-size:2.7rem;line-height:1.1;letter-spacing:-.03em;margin-bottom:14px;color:var(--text)}
+.hero h1 em{font-style:normal;color:var(--accent)}
+.hero p{font-size:.97rem;color:var(--text-dim);max-width:640px;line-height:1.75;margin-bottom:32px}
+.hero-stats{display:flex;gap:36px;flex-wrap:wrap}
+.hero-stat .num{font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:800;color:var(--accent);display:block;line-height:1}
+.hero-stat .lbl{font-size:.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-top:5px;font-family:'JetBrains Mono',monospace}
+.section{padding:60px 60px 0}
+.section-header{display:flex;align-items:center;gap:14px;margin-bottom:36px;padding-bottom:18px;border-bottom:1px solid var(--border)}
+.level-badge{width:48px;height:48px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:#000;flex-shrink:0}
+.b01{background:linear-gradient(135deg,#a78bfa,#7c3aed)}
+.b02{background:linear-gradient(135deg,#34d399,#059669)}
+.b03{background:linear-gradient(135deg,#fbbf24,#d97706)}
+.b04{background:linear-gradient(135deg,#f472b6,#be185d)}
+.b05{background:linear-gradient(135deg,#60a5fa,#2563eb)}
+.b06{background:linear-gradient(135deg,#f97316,#ea580c)}
+.b07{background:linear-gradient(135deg,#4ade80,#16a34a)}
+.b08{background:linear-gradient(135deg,#38bdf8,#0369a1)}
+.b09{background:linear-gradient(135deg,#e879f9,#9333ea)}
+.b10{background:linear-gradient(135deg,#fb923c,#c2410c)}
+.b11{background:linear-gradient(135deg,#2dd4bf,#0d9488)}
+.b12{background:linear-gradient(135deg,#facc15,#b45309)}
+.section-header-text h2{font-family:'Syne',sans-serif;font-size:1.5rem;font-weight:800;letter-spacing:-.02em;color:var(--text)}
+.section-header-text p{font-size:.78rem;color:var(--text-muted);font-family:'JetBrains Mono',monospace;margin-top:2px}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:22px;margin-bottom:56px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;transition:border-color .2s,transform .2s}
+.card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.card-head{padding:20px 22px 14px;display:flex;gap:13px;align-items:flex-start}
+.card-icon{font-size:1.75rem;flex-shrink:0;line-height:1}
+.card-head h3{font-family:'Syne',sans-serif;font-size:1rem;font-weight:700;color:var(--text);margin-bottom:5px}
+.card-head p{font-size:.81rem;color:var(--text-dim);line-height:1.6}
+.card-list{padding:0 22px 14px;list-style:none}
+.card-list li{font-size:.81rem;color:var(--text-dim);padding:4px 0;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;gap:8px}
+.card-list li:last-child{border-bottom:none}
+.card-list li::before{content:'›';color:var(--accent);font-weight:700;flex-shrink:0}
+.diag{background:var(--code-bg);border:1px solid var(--border);border-radius:12px;padding:24px 28px;margin-bottom:28px;font-family:'JetBrains Mono',monospace;font-size:.75rem;color:#7dd3fc;line-height:1.85;white-space:pre;overflow-x:auto}
+.diag .h{color:var(--accent);font-weight:700}
+.diag .b{color:var(--accent2)}
+.diag .g{color:var(--accent3)}
+.diag .y{color:var(--accent4)}
+.diag .c{color:#475569}
+.diag .r{color:#f472b6}
+.math-box{background:var(--code-bg);border:2px solid var(--accent);border-radius:12px;padding:20px 26px;margin-bottom:26px;font-family:'JetBrains Mono',monospace;font-size:.83rem;color:#c4b5fd;line-height:2;white-space:pre-wrap;overflow-x:auto}
+.code-block{background:var(--code-bg);border:1px solid var(--border);border-radius:12px;margin-bottom:28px;overflow:hidden}
+.code-block-header{padding:9px 17px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.code-block-header .lang{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em}
+.code-block-header .dots{display:flex;gap:5px}
+.code-block-header .dots span{width:10px;height:10px;border-radius:50%}
+.dr{background:#ef4444}.dy{background:#f59e0b}.dg{background:#22c55e}
+.code-block pre{padding:18px 22px;font-family:'JetBrains Mono',monospace;font-size:.77rem;line-height:1.82;color:#7dd3fc;overflow-x:auto;white-space:pre}
+.code-block pre .cm{color:#475569}.code-block pre .kw{color:#a78bfa}
+.code-block pre .st{color:#34d399}.code-block pre .nm{color:#fbbf24}.code-block pre .fn{color:#60a5fa}
+.info-box{border-radius:10px;padding:16px 20px;margin-bottom:22px;border-left:3px solid}
+.info-box.tip{background:rgba(52,211,153,.08);border-color:var(--accent2)}
+.info-box.note{background:rgba(167,139,250,.08);border-color:var(--accent)}
+.info-box.warn{background:rgba(251,191,36,.08);border-color:var(--accent3)}
+.info-box.paper{background:rgba(244,114,182,.07);border-color:var(--accent4)}
+.info-box .label{font-family:'JetBrains Mono',monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;font-weight:700;margin-bottom:5px}
+.info-box.tip .label{color:var(--accent2)}.info-box.note .label{color:var(--accent)}
+.info-box.warn .label{color:var(--accent3)}.info-box.paper .label{color:var(--accent4)}
+.info-box p{font-size:.83rem;color:var(--text-dim);line-height:1.65}
+.table-wrap{overflow-x:auto;margin-bottom:44px;border-radius:12px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:.82rem}
+thead th{background:var(--surface2);padding:11px 17px;text-align:left;font-family:'JetBrains Mono',monospace;font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-muted);border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid var(--border);transition:background .15s}
+tbody tr:hover{background:var(--surface)}
+tbody tr:last-child{border-bottom:none}
+tbody td{padding:11px 17px;color:var(--text-dim)}
+tbody td:first-child{font-weight:600;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:.77rem}
+.check{color:var(--green)}.cross{color:var(--red)}.partial{color:var(--yellow)}
+.prose{max-width:820px;margin-bottom:36px}
+.prose h3{font-family:'Syne',sans-serif;font-size:1.1rem;font-weight:700;color:var(--text);margin:26px 0 9px}
+.prose p{font-size:.9rem;color:var(--text-dim);line-height:1.78;margin-bottom:13px}
+.prose ul{padding-left:20px;margin-bottom:13px}
+.prose ul li{font-size:.88rem;color:var(--text-dim);margin-bottom:6px;line-height:1.65}
+.prose code{font-family:'JetBrains Mono',monospace;font-size:.79em;background:var(--surface2);padding:2px 6px;border-radius:4px;color:var(--accent)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px}
+@media(max-width:860px){.two-col{grid-template-columns:1fr}}
+.bp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;margin-bottom:56px}
+.bp-card{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:18px 20px}
+.bp-card h4{font-family:'Syne',sans-serif;font-size:.9rem;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.bp-card h4::before{content:'◆';color:var(--accent);font-size:.65rem}
+.bp-card p{font-size:.79rem;color:var(--text-dim);line-height:1.65}
+/* accordion */
+.accordion{margin-bottom:10px;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.accordion-btn{width:100%;background:var(--surface);border:none;padding:14px 18px;text-align:left;color:var(--text);font-family:'Syne',sans-serif;font-weight:700;font-size:.92rem;cursor:pointer;display:flex;justify-content:space-between;align-items:center;transition:background .15s}
+.accordion-btn:hover{background:var(--surface2)}
+.accordion-btn .chevron{font-size:.8rem;color:var(--accent);transition:transform .2s}
+.accordion-btn.open .chevron{transform:rotate(180deg)}
+.accordion-body{display:none;padding:14px 18px 16px;background:var(--surface2);font-size:.85rem;color:var(--text-dim);line-height:1.7;border-top:1px solid var(--border)}
+.accordion-body.show{display:block}
+/* calc widget */
+.calc-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px;margin-bottom:32px}
+.calc-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:18px}
+.calc-label{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.calc-textarea{width:100%;background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:.76rem;color:#7dd3fc;resize:vertical;min-height:80px;outline:none;transition:border-color .15s}
+.calc-textarea:focus{border-color:var(--accent)}
+.calc-btn{padding:10px 24px;background:var(--accent);color:#000;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-weight:800;font-size:.9rem;cursor:pointer;transition:opacity .15s}
+.calc-btn:hover{opacity:.85}
+.calc-output{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:18px 20px;font-family:'JetBrains Mono',monospace;font-size:.75rem;color:#7dd3fc;line-height:1.85;white-space:pre-wrap;min-height:60px;margin-top:14px}
+/* dk slider */
+.slider-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px 28px;margin-bottom:28px}
+.slider-label{font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--text-dim);margin-bottom:12px}
+input[type=range]{width:100%;accent-color:var(--accent);margin-bottom:12px}
+.slider-output{background:var(--code-bg);border:1px solid var(--border);border-radius:8px;padding:12px 16px;font-family:'JetBrains Mono',monospace;font-size:.75rem;color:#7dd3fc;white-space:pre;overflow-x:auto;line-height:1.7}
+/* sentence attention demo */
+.sent-wrap{font-family:'Syne',sans-serif;font-size:1.05rem;color:var(--text-dim);line-height:2;margin-bottom:28px;padding:18px 24px;background:var(--surface);border:1px solid var(--border);border-radius:12px}
+.sent-wrap .token{padding:2px 6px;border-radius:5px;cursor:pointer;transition:all .15s;position:relative}
+.sent-wrap .token:hover,.sent-wrap .token.active{background:rgba(167,139,250,.2);color:var(--accent)}
+.sent-wrap .token.highlight{background:rgba(52,211,153,.15);color:var(--accent2)}
+footer{background:var(--sidebar);border-top:1px solid var(--border);padding:26px 60px;font-size:.77rem;color:var(--text-muted);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+footer span{font-family:'JetBrains Mono',monospace}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+@media(max-width:900px){.hero{padding:38px 22px 44px}.hero h1{font-size:1.8rem}.section{padding:36px 22px 0}nav{display:none}.card-grid{grid-template-columns:1fr}.bp-grid{grid-template-columns:1fr}footer{padding:22px}.calc-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-brand"><div class="icon">🔑</div><h2>Q, K, V Attention</h2><p>Complete Guide</p></div>
+  <button class="theme-btn" onclick="toggleTheme()">🌓 Theme</button>
+  <ul>
+    <li class="nav-section-label">Foundations</li>
+    <li><a href="#why-attention"><span class="dot"></span>Why Attention?</a></li>
+    <li><a href="#equation"><span class="dot"></span>The Attention Equation</a></li>
+    <li><a href="#qkv-explained"><span class="dot"></span>Q, K, V Explained</a></li>
+    <li><a href="#origin"><span class="dot"></span>Where do Q, K, V Come From?</a></li>
+    <li class="nav-section-label">Mathematics</li>
+    <li><a href="#derivation"><span class="dot"></span>Mathematical Derivation</a></li>
+    <li><a href="#numerical"><span class="dot"></span>Numerical Example</a></li>
+    <li><a href="#sqrt-dk"><span class="dot"></span>Why √d_k?</a></li>
+    <li class="nav-section-label">Architecture</li>
+    <li><a href="#self-attention"><span class="dot"></span>Self-Attention</a></li>
+    <li><a href="#multihead"><span class="dot"></span>Multi-Head Attention</a></li>
+    <li><a href="#why-three"><span class="dot"></span>Why Three Matrices?</a></li>
+    <li class="nav-section-label">Practice</li>
+    <li><a href="#calculator"><span class="dot"></span>Interactive Calculator</a></li>
+    <li><a href="#llm-dims"><span class="dot"></span>Real LLM Dimensions</a></li>
+    <li><a href="#misconceptions"><span class="dot"></span>Common Misconceptions</a></li>
+    <li><a href="#interview"><span class="dot"></span>Interview Questions</a></li>
+    <li><a href="#summary"><span class="dot"></span>Summary</a></li>
+  </ul>
+</nav>
+<main>
+<div class="hero">
+  <div class="hero-badge">Transformer Architecture · Attention Mechanism</div>
+  <h1>Query, <em>Key</em> &amp; Value</h1>
+  <p>At the heart of every Transformer — GPT, BERT, Claude, Llama — is a single equation: <strong>Attention(Q,K,V) = softmax(QKᵀ / √d_k) V</strong>. Understanding Q, K, and V is understanding how language models read, relate, and retrieve. This book builds that understanding from first principles.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">3</span><span class="lbl">Learned projection matrices</span></div>
+    <div class="hero-stat"><span class="num">√d_k</span><span class="lbl">The scaling secret</span></div>
+    <div class="hero-stat"><span class="num">softmax</span><span class="lbl">Converts scores to weights</span></div>
+    <div class="hero-stat"><span class="num">MHA</span><span class="lbl">Multi-head attention</span></div>
+  </div>
+</div>
+
+
+<!-- ══ 01 WHY ATTENTION? ══ -->
+<section class="section" id="why-attention">
+  <div class="section-header"><div class="level-badge b01">01</div>
+    <div class="section-header-text"><h2>Why Attention?</h2><p>The coreference problem that motivated the mechanism</p></div>
+  </div>
+  <div class="prose">
+    <p>Consider this sentence: <em>"The animal didn't cross the street because <strong>it</strong> was too tired."</em> What does <strong>it</strong> refer to — the animal or the street? Humans resolve this instantly using context. Before Transformers, RNNs processed sequences token-by-token and compressed all prior context into a single fixed-size hidden state. By the time the model reached <em>it</em>, information about <em>animal</em> was often diluted beyond recovery.</p>
+    <p>The attention mechanism solves this directly: for every token, it looks at <em>all other tokens simultaneously</em> and decides how much to attend to each one. No compression bottleneck. No vanishing-gradient problem across long distances. The word <em>it</em> attends strongly to <em>animal</em> and weakly to <em>street</em> — and that relationship is learned entirely from data.</p>
+  </div>
+
+  <div class="sent-wrap" id="sent-demo">
+    <span class="token" data-word="animal" data-links="it">The</span>
+    <span class="token" data-word="animal" data-links="it"> animal</span>
+    <span class="token"> didn't</span>
+    <span class="token"> cross</span>
+    <span class="token"> the</span>
+    <span class="token"> street</span>
+    <span class="token"> because</span>
+    <span class="token active highlight" data-word="it" data-links="animal"> it</span>
+    <span class="token"> was</span>
+    <span class="token"> too</span>
+    <span class="token"> tired.</span>
+  </div>
+  <div style="font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--text-muted);margin-bottom:28px">
+    ↑ Hover over any word — highlighted tokens show what it attends to most strongly.
+  </div>
+
+  <div class="info-box note"><div class="label">The Key Insight</div>
+    <p>Attention replaces the sequential bottleneck of RNNs with a direct, all-to-all comparison. Every token can directly examine every other token in the same sequence — distance in the sequence doesn't degrade the signal. This is why Transformers outperform RNNs on tasks requiring long-range dependencies.</p>
+  </div>
+</section>
+
+
+<!-- ══ 02 THE ATTENTION EQUATION ══ -->
+<section class="section" id="equation">
+  <div class="section-header"><div class="level-badge b02">02</div>
+    <div class="section-header-text"><h2>The Attention Equation</h2><p>Every symbol unpacked — the full derivation in one formula</p></div>
+  </div>
+  <div class="math-box">Attention(Q, K, V)  =  softmax( Q Kᵀ / √d_k )  ·  V
+
+Where:
+  Q  ∈  ℝ^{n × d_k}    (n tokens, each projected to d_k dims)
+  K  ∈  ℝ^{m × d_k}    (m key vectors, same projection dim)
+  V  ∈  ℝ^{m × d_v}    (m value vectors, projection dim d_v)
+
+  Q Kᵀ              →  ℝ^{n × m}  raw attention scores (dot products)
+  Q Kᵀ / √d_k       →  scaled scores  (prevent softmax saturation)
+  softmax(...)       →  ℝ^{n × m}  attention weights (each row sums to 1)
+  softmax(...) · V   →  ℝ^{n × d_v}  weighted sum of values  =  output</div>
+
+  <div class="card-grid">
+    <div class="card"><div class="card-head"><span class="card-icon">🔍</span><div><h3>Q — Query</h3><p>"What am I looking for?" — the representation of the current token transformed to ask a question of all other tokens.</p></div></div>
+      <ul class="card-list"><li>Computed as Q = X Wq</li><li>One query vector per token in the sequence</li><li>Dimension: d_k (typically 64 in GPT-2 per head)</li><li>Analogous to a search query in a retrieval system</li></ul></div>
+    <div class="card"><div class="card-head"><span class="card-icon">🗝️</span><div><h3>K — Key</h3><p>"What information do I advertise?" — each token projects itself to a key that describes what it contains.</p></div></div>
+      <ul class="card-list"><li>Computed as K = X Wk</li><li>One key vector per token in the sequence</li><li>Dot product Q·K = relevance score</li><li>Analogous to document tags in a search index</li></ul></div>
+    <div class="card"><div class="card-head"><span class="card-icon">💎</span><div><h3>V — Value</h3><p>"What information should I send?" — the actual content retrieved from a token once it has been deemed relevant by the Q-K match.</p></div></div>
+      <ul class="card-list"><li>Computed as V = X Wv</li><li>One value vector per token in the sequence</li><li>Weighted and summed to produce output</li><li>Analogous to document content in a search result</li></ul></div>
+  </div>
+</section>
+
+
+<!-- ══ 03 Q K V EXPLAINED ══ -->
+<section class="section" id="qkv-explained">
+  <div class="section-header"><div class="level-badge b03">03</div>
+    <div class="section-header-text"><h2>Q, K, V Explained</h2><p>The database analogy — the most intuitive mental model</p></div>
+  </div>
+  <div class="prose">
+    <p>The clearest intuition for Q, K, V comes from information retrieval. Imagine a library database. You type in a search query (Q). Each book has metadata tags (K) describing what it contains. When you find a relevant book, you retrieve its actual content (V). Attention does exactly this — but in a soft, differentiable way where all books are retrieved simultaneously, weighted by relevance.</p>
+  </div>
+  <div class="diag"><span class="h">The Database Analogy</span>
+
+<span class="b">Soft Key-Value Store</span>
+┌────────────────────────────────────────────────────────────────┐
+│  Key₁ = "animal concepts"   │  Value₁ = [0.3, 0.8, ...]       │
+│  Key₂ = "street concepts"   │  Value₂ = [0.1, 0.2, ...]       │
+│  Key₃ = "tiredness/state"   │  Value₃ = [0.7, 0.4, ...]       │
+│  Key₄ = "negation"          │  Value₄ = [0.0, 0.9, ...]       │
+└────────────────────────────────────────────────────────────────┘
+
+Query = "what does 'it' refer to?"  →  [0.6, 0.1, ...]
+
+Score = Q · Kᵀ:
+  Q · Key₁ =  <span class="b">0.89</span>   (high → animal strongly relevant to 'it')
+  Q · Key₂ =  <span class="c">0.12</span>   (low  → street not very relevant)
+  Q · Key₃ =  <span class="g">0.45</span>   (mid  → state somewhat relevant)
+  Q · Key₄ =  <span class="c">0.03</span>   (low  → negation not relevant)
+
+Softmax weights: [<span class="b">0.72</span>, <span class="c">0.04</span>, <span class="g">0.20</span>, <span class="c">0.04</span>]
+
+Output = 0.72·Value₁ + 0.04·Value₂ + 0.20·Value₃ + 0.04·Value₄
+       = <span class="b">weighted blend dominated by "animal"</span>
+
+<span class="g">Hard retrieval:</span>  pick ONE key  →  rigid, not differentiable
+<span class="b">Soft retrieval:</span>  weight ALL keys  →  smooth, gradient flows through</div>
+
+  <div class="info-box tip"><div class="label">Key Difference from a Real Database</div>
+    <p>A real database either retrieves a document or doesn't. Attention <em>always</em> retrieves all values, just with different weights. At extreme temperatures (before training converges), every value contributes equally. As training proceeds, the weights sharpen — producing near-hard retrieval for clear relationships. This soft-to-hard spectrum is what makes attention both differentiable (for gradient descent) and expressive (for complex reasoning).</p>
+  </div>
+</section>
+
+
+<!-- ══ 04 WHERE DO Q K V COME FROM? ══ -->
+<section class="section" id="origin">
+  <div class="section-header"><div class="level-badge b04">04</div>
+    <div class="section-header-text"><h2>Where Do Q, K, V Come From?</h2><p>Three learned linear projections of the same input embedding</p></div>
+  </div>
+  <div class="prose">
+    <p>Q, K, and V are not separate inputs — they all come from the <em>same</em> input sequence X. Each token's embedding is projected three times using three learned weight matrices: W_Q, W_K, and W_V. These matrices are what the model learns during training. Different heads in multi-head attention use different W_Q, W_K, W_V matrices — allowing each head to extract different relational information from the same input.</p>
+  </div>
+  <div class="diag"><span class="h">From Embedding to Q, K, V</span>
+
+Input sequence X  ∈  ℝ^{n × d_model}
+  (n tokens, each embedded in d_model dimensions)
+
+                    <span class="b">X</span>  [token₁, token₂, ..., tokenₙ]
+                    │
+          ┌─────────┼─────────┐
+          │         │         │
+        <span class="h">×W_Q</span>      <span class="b">×W_K</span>      <span class="g">×W_V</span>
+    (d_model×d_k)  (d_model×d_k)  (d_model×d_v)
+          │         │         │
+          ▼         ▼         ▼
+      <span class="h">Q</span> ∈ ℝ^{n×d_k}  <span class="b">K</span> ∈ ℝ^{n×d_k}  <span class="g">V</span> ∈ ℝ^{n×d_v}
+
+Then:
+  scores  = Q Kᵀ / √d_k        ∈ ℝ^{n × n}
+  weights = softmax(scores)     ∈ ℝ^{n × n}  (each row sums to 1)
+  output  = weights · V         ∈ ℝ^{n × d_v}
+
+<span class="c">W_Q, W_K, W_V are the ONLY parameters in attention.
+They are learned end-to-end via backpropagation.</span></div>
+
+  <div class="info-box note"><div class="label">Why Project at All?</div>
+    <p>Why not just use X directly as Q, K, and V? Because the raw embedding must simultaneously encode position, meaning, and context. Projecting through W_Q, W_K, W_V lets the model <em>disentangle</em> these roles: W_Q carves out "what to look for," W_K carves out "what I have," and W_V carves out "what to communicate." The expressivity of multi-head attention comes entirely from these three independent projections.</p>
+  </div>
+</section>
+
+
+<!-- ══ 05 MATHEMATICAL DERIVATION ══ -->
+<section class="section" id="derivation">
+  <div class="section-header"><div class="level-badge b05">05</div>
+    <div class="section-header-text"><h2>Mathematical Derivation</h2><p>Step-by-step from input embedding to context vector</p></div>
+  </div>
+  <div class="prose">
+    <p>Let X ∈ ℝ^{n × d_model} be the input (n tokens, each a d_model-dimensional embedding). The three projection matrices are learnable parameters W_Q ∈ ℝ^{d_model × d_k}, W_K ∈ ℝ^{d_model × d_k}, and W_V ∈ ℝ^{d_model × d_v}. The full derivation proceeds in five steps.</p>
+  </div>
+  <div class="math-box">Step 1: Compute projections
+  Q = X · W_Q        shape: (n, d_model) × (d_model, d_k)  =  (n, d_k)
+  K = X · W_K        shape: (n, d_model) × (d_model, d_k)  =  (n, d_k)
+  V = X · W_V        shape: (n, d_model) × (d_model, d_v)  =  (n, d_v)
+
+Step 2: Compute raw attention scores
+  S = Q · Kᵀ         shape: (n, d_k) × (d_k, n)  =  (n, n)
+  S[i,j] = qᵢ · kⱼ  = dot product of token i's query and token j's key
+
+Step 3: Scale (prevent softmax saturation)
+  S_scaled = S / √d_k
+
+Step 4: Apply softmax row-wise
+  A = softmax(S_scaled)    A ∈ (n, n),  each row sums to 1
+  A[i,j]  = how much token i attends to token j
+
+Step 5: Weighted sum of values
+  Output = A · V     shape: (n, n) × (n, d_v)  =  (n, d_v)
+  Output[i] = Σⱼ A[i,j] · vⱼ   (weighted average of all value vectors)</div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Scaled dot-product attention from scratch</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">def</span> <span class="fn">softmax</span>(x, axis=-<span class="nm">1</span>):
+    x = x - x.max(axis=axis, keepdims=<span class="nm">True</span>)   <span class="cm"># numerical stability</span>
+    e = np.exp(x)
+    <span class="kw">return</span> e / e.sum(axis=axis, keepdims=<span class="nm">True</span>)
+
+<span class="kw">def</span> <span class="fn">scaled_dot_product_attention</span>(Q, K, V, mask=<span class="nm">None</span>):
+    <span class="st">"""
+    Q: (n, d_k)  — query vectors
+    K: (m, d_k)  — key vectors
+    V: (m, d_v)  — value vectors
+    """</span>
+    d_k = Q.shape[-<span class="nm">1</span>]
+
+    <span class="cm"># Step 2+3: scaled dot-product scores</span>
+    scores = Q @ K.T / np.sqrt(d_k)        <span class="cm"># (n, m)</span>
+
+    <span class="cm"># Optional causal mask (decoder self-attention)</span>
+    <span class="kw">if</span> mask <span class="kw">is not</span> <span class="nm">None</span>:
+        scores = np.where(mask == <span class="nm">0</span>, -<span class="nm">1e9</span>, scores)
+
+    <span class="cm"># Step 4: attention weights</span>
+    attn_weights = softmax(scores, axis=-<span class="nm">1</span>)   <span class="cm"># (n, m)</span>
+
+    <span class="cm"># Step 5: weighted sum of values</span>
+    output = attn_weights @ V                  <span class="cm"># (n, d_v)</span>
+
+    <span class="kw">return</span> output, attn_weights
+
+<span class="cm"># ── Small example ─────────────────────────────────────────────────</span>
+np.random.seed(<span class="nm">42</span>)
+d_model, d_k, d_v, n = <span class="nm">8</span>, <span class="nm">4</span>, <span class="nm">4</span>, <span class="nm">3</span>
+
+X   = np.random.randn(n, d_model)
+W_Q = np.random.randn(d_model, d_k) / np.sqrt(d_model)
+W_K = np.random.randn(d_model, d_k) / np.sqrt(d_model)
+W_V = np.random.randn(d_model, d_v) / np.sqrt(d_model)
+
+Q, K, V = X @ W_Q, X @ W_K, X @ W_V
+out, weights = scaled_dot_product_attention(Q, K, V)
+
+<span class="fn">print</span>(<span class="st">f"Q shape:      {Q.shape}"</span>)       <span class="cm"># (3, 4)</span>
+<span class="fn">print</span>(<span class="st">f"Scores shape: {(Q @ K.T).shape}"</span>) <span class="cm"># (3, 3)</span>
+<span class="fn">print</span>(<span class="st">f"Weights:\n{weights.round(3)}"</span>)    <span class="cm"># rows sum to 1</span>
+<span class="fn">print</span>(<span class="st">f"Output shape: {out.shape}"</span>)       <span class="cm"># (3, 4)</span></pre>
+  </div>
+</section>
+
+
+<!-- ══ 06 NUMERICAL EXAMPLE ══ -->
+<section class="section" id="numerical">
+  <div class="section-header"><div class="level-badge b06">06</div>
+    <div class="section-header-text"><h2>Numerical Example</h2><p>Hand-computed step-by-step — two tokens, tiny matrices</p></div>
+  </div>
+  <div class="prose">
+    <p>Let's compute attention by hand for two tokens: "cat" and "sat". Each token is embedded in 4 dimensions. We use tiny 4×2 projection matrices so all arithmetic can be followed manually.</p>
+  </div>
+  <div class="diag"><span class="h">Setup: 2 tokens, d_model=4, d_k=d_v=2</span>
+
+X = [[1, 0, 1, 0],    <span class="c">← "cat" embedding</span>
+     [0, 1, 0, 1]]    <span class="c">← "sat" embedding</span>
+
+W_Q = [[1, 0],        W_K = [[0, 1],        W_V = [[1, 0],
+       [0, 1],               [1, 0],               [0, 1],
+       [1, 0],               [0, 1],               [1, 0],
+       [0, 1]]               [1, 0]]               [0, 1]]
+
+<span class="h">Step 1: Compute Q, K, V</span>
+Q = X @ W_Q = [[1,0,1,0]·W_Q, [0,1,0,1]·W_Q]
+            = [[<span class="b">2</span>, <span class="b">0</span>],         <span class="c">← query for "cat"</span>
+               [<span class="b">0</span>, <span class="b">2</span>]]         <span class="c">← query for "sat"</span>
+
+K = X @ W_K = [[<span class="g">0</span>, <span class="g">2</span>],         <span class="c">← key for "cat"</span>
+               [<span class="g">2</span>, <span class="g">0</span>]]         <span class="c">← key for "sat"</span>
+
+V = X @ W_V = [[<span class="y">2</span>, <span class="y">0</span>],         <span class="c">← value for "cat"</span>
+               [<span class="y">0</span>, <span class="y">2</span>]]         <span class="c">← value for "sat"</span>
+
+<span class="h">Step 2: Raw scores S = Q @ Kᵀ</span>
+S = [[2,0],[0,2]] @ [[0,2],[2,0]] (transposed)
+  = [[2·0 + 0·2,  2·2 + 0·0],
+     [0·0 + 2·2,  0·2 + 2·0]]
+  = [[<span class="b"> 0</span>, <span class="b"> 4</span>],    <span class="c">← cat attends: 0 to itself, 4 to "sat"</span>
+     [<span class="b"> 4</span>, <span class="b"> 0</span>]]    <span class="c">← sat attends: 4 to "cat", 0 to itself</span>
+
+<span class="h">Step 3: Scale by √d_k = √2 ≈ 1.414</span>
+S_scaled = [[<span class="g">0.00</span>, <span class="g">2.83</span>],
+            [<span class="g">2.83</span>, <span class="g">0.00</span>]]
+
+<span class="h">Step 4: Softmax (row-wise)</span>
+Row 0: softmax([0.00, 2.83]) = [<span class="r">0.057</span>, <span class="b">0.943</span>]  → cat looks mostly at "sat"
+Row 1: softmax([2.83, 0.00]) = [<span class="b">0.943</span>, <span class="r">0.057</span>]  → sat looks mostly at "cat"
+
+<span class="h">Step 5: Output = Attn_weights @ V</span>
+cat output = 0.057·[2,0] + 0.943·[0,2] = [<span class="b">0.11</span>, <span class="b">1.89</span>]
+sat output = 0.943·[2,0] + 0.057·[0,2] = [<span class="b">1.89</span>, <span class="b">0.11</span>]
+
+<span class="g">Result: each token's output is dominated by the OTHER token's value.
+The attention pattern has discovered a symmetric mutual-attention structure.</span></div>
+</section>
+
+
+<!-- ══ 07 WHY SQRT DK? ══ -->
+<section class="section" id="sqrt-dk">
+  <div class="section-header"><div class="level-badge b07">07</div>
+    <div class="section-header-text"><h2>Why Divide by √d_k?</h2><p>Preventing softmax saturation — the scaling trick explained</p></div>
+  </div>
+  <div class="prose">
+    <p>The dot product Q·K is a sum of d_k products. Each term has variance approximately 1 (assuming zero-mean, unit-variance initialisation). The sum of d_k such terms has variance d_k — so the standard deviation grows as <code>√d_k</code>. With large d_k (e.g. 64 or 128), raw dot products become large in magnitude. Feeding large values into softmax pushes it into regions where gradients are near zero — the model gets stuck.</p>
+    <p>Dividing by √d_k normalises the scores back to unit variance, keeping softmax in its sensitive, gradient-rich regime throughout training.</p>
+  </div>
+  <div class="diag"><span class="h">Softmax Saturation — Why √d_k Matters</span>
+
+If q, k ∼ 𝒩(0,1) independently, d_k components:
+  Var(qᵀk) = Σᵢ Var(qᵢkᵢ) = d_k × 1 = <span class="r">d_k</span>
+  Std(qᵀk) = √d_k
+
+Without scaling (d_k = 64):
+  scores ≈ [-52, -48, +71, -60, ...]  (large magnitudes)
+  softmax([-52, -48, +71, -60, ...])  ≈  [0.000, 0.000, <span class="r">1.000</span>, 0.000]
+  → "winner takes all" — gradients ≈ 0 everywhere else
+
+With scaling (÷ √64 = 8):
+  scores ÷ 8 ≈ [-6.5, -6.0, +8.9, -7.5, ...]  (still large)
+  → still somewhat peaked but gradients flow
+
+  scores ÷ 8 for well-initialised network ≈ [-0.8, 0.3, 1.1, -0.4]
+  softmax ≈  [<span class="b">0.12</span>, <span class="b">0.38</span>, <span class="b">0.42</span>, <span class="b">0.17</span>]
+  → <span class="g">smooth distribution, rich gradients, model can learn</span></div>
+
+  <!-- dk slider -->
+  <div class="slider-wrap">
+    <div class="slider-label">Adjust d_k — watch how softmax sharpens as d_k grows (scores fixed at σ=1)</div>
+    <input type="range" id="dk-slider" min="1" max="512" value="64" step="1" oninput="updateDkDemo()"/>
+    <div id="dk-output" class="slider-output"></div>
+  </div>
+
+  <div class="info-box warn"><div class="label">The Insight in One Line</div>
+    <p>Large d_k → large dot products → softmax saturates → zero gradients → no learning. Dividing by √d_k keeps the input to softmax in the regime where it is differentiable and informative. This single division is what makes large-head-size attention trainable.</p>
+  </div>
+</section>
+
+
+<!-- ══ 08 SELF-ATTENTION ══ -->
+<section class="section" id="self-attention">
+  <div class="section-header"><div class="level-badge b08">08</div>
+    <div class="section-header-text"><h2>Self-Attention</h2><p>Every token queries every other token in the same sequence</p></div>
+  </div>
+  <div class="prose">
+    <p>In <strong>self-attention</strong>, Q, K, and V all come from the same sequence X. Every token queries every other token — including itself. The result is a new representation of each token that has been enriched by relevant context from the full sequence. This is the foundational operation in every Transformer encoder layer (BERT-style) and every Transformer decoder layer (GPT-style, with causal masking).</p>
+    <h3>Causal Masking (Decoder)</h3>
+    <p>In autoregressive models (GPT, Llama, Claude), a causal mask prevents each token from attending to <em>future</em> tokens. The upper triangle of the score matrix is set to −∞ before softmax, which zeroes out those attention weights. This ensures that during training, the model predicts each token using only the tokens that would be available at inference time.</p>
+  </div>
+  <div class="two-col">
+    <div class="diag"><span class="h">Encoder Self-Attention (Bidirectional)</span>
+
+Sequence: [The, cat, sat, on, mat]
+
+Token "cat" can attend to ALL tokens:
+  "cat" → "The"    [0.12]
+  "cat" → "cat"    [0.05]  ← itself
+  "cat" → "sat"    [<span class="b">0.48</span>]  ← strong (verb for cat)
+  "cat" → "on"     [0.20]
+  "cat" → "mat"    [0.15]
+
+Attention matrix (full, no mask):
+     The  cat  sat  on  mat
+The [  ·    ·    ·   ·    · ]
+cat [  ·    ·    ·   ·    · ]
+sat [  ·    ·    ·   ·    · ]
+on  [  ·    ·    ·   ·    · ]
+mat [  ·    ·    ·   ·    · ]
+
+<span class="b">All entries filled — every pair computed.</span></div>
+    <div class="diag"><span class="h">Decoder Self-Attention (Causal / Masked)</span>
+
+Sequence: [The, cat, sat, on, mat]
+
+Causal mask: token i can only attend to j ≤ i
+
+     The  cat  sat  on  mat
+The [  ·    ✗    ✗   ✗    ✗ ]   <span class="c">future masked</span>
+cat [  ·    ·    ✗   ✗    ✗ ]
+sat [  ·    ·    ·   ✗    ✗ ]
+on  [  ·    ·    ·   ·    ✗ ]
+mat [  ·    ·    ·   ·    · ]
+
+✗ → score set to -∞ → softmax weight = 0
+
+<span class="r">Prevents information from future leaking into past.
+Required for autoregressive generation (GPT, Llama).</span></div>
+  </div>
+</section>
+
+
+<!-- ══ 09 MULTI-HEAD ATTENTION ══ -->
+<section class="section" id="multihead">
+  <div class="section-header"><div class="level-badge b09">09</div>
+    <div class="section-header-text"><h2>Multi-Head Attention</h2><p>Run attention h times in parallel — each head learns different relationships</p></div>
+  </div>
+  <div class="prose">
+    <p>Single-head attention can only learn one type of relationship per layer. Multi-Head Attention (MHA) runs h independent attention heads in parallel, each with its own W_Q, W_K, W_V matrices projected to smaller dimension d_k = d_model / h. The outputs are concatenated and projected through W_O back to d_model.</p>
+    <p>Different heads learn different things: one head might attend to syntactic subjects, another to positional neighbors, another to semantic coreferences. The diversity of learned relationships is what gives Transformers their representational power.</p>
+  </div>
+  <div class="diag"><span class="h">Multi-Head Attention — Full Architecture</span>
+
+Input X ∈ ℝ^{n × d_model}   (d_model = 512 in original Transformer)
+  │
+  ├──────────────────────────────────────┐
+  │  Split into h=8 heads (d_k = 64 ea) │
+  │                                      │
+  │  Head 1: Q₁=XW_Q¹, K₁=XW_K¹, V₁=XW_V¹  →  out₁ ∈ ℝ^{n×64}
+  │  Head 2: Q₂=XW_Q², K₂=XW_K², V₂=XW_V²  →  out₂ ∈ ℝ^{n×64}
+  │  ...                                  ...
+  │  Head 8: Q₈=XW_Q⁸, K₈=XW_K⁸, V₈=XW_V⁸  →  out₈ ∈ ℝ^{n×64}
+  │                                      │
+  │  Concatenate: [out₁ ‖ out₂ ‖ ... ‖ out₈]  ∈ ℝ^{n × 512}
+  │                                      │
+  └─────────────── ×W_O (512×512) ───────┘
+                          │
+                Output ∈ ℝ^{n × d_model}
+
+<span class="h">Parameter count per MHA layer:</span>
+  W_Q, W_K, W_V per head: h × 3 × (d_model × d_k)
+                         = 8 × 3 × (512 × 64)  = <span class="b">786,432 params</span>
+  W_O:                    d_model × d_model     = <span class="b">262,144 params</span>
+  Total MHA layer:        <span class="b">~1.05M parameters</span>
+
+<span class="g">h=8 heads, each learning a different subspace of attention →
+richer representations than a single head at full dimension.</span></div>
+
+  <div class="code-block">
+    <div class="code-block-header"><span class="lang">Python · Multi-Head Attention from scratch</span><div class="dots"><span class="dr"></span><span class="dy"></span><span class="dg"></span></div></div>
+    <pre><span class="kw">import</span> numpy <span class="kw">as</span> np
+
+<span class="kw">class</span> <span class="fn">MultiHeadAttention</span>:
+    <span class="kw">def</span> <span class="fn">__init__</span>(self, d_model, num_heads):
+        assert d_model % num_heads == <span class="nm">0</span>
+        self.h      = num_heads
+        self.d_k    = d_model // num_heads
+        self.d_model = d_model
+        scale = <span class="nm">1</span> / np.sqrt(d_model)
+        <span class="cm"># One projection matrix per head, stored as (h, d_model, d_k)</span>
+        self.W_Q = np.random.randn(num_heads, d_model, self.d_k) * scale
+        self.W_K = np.random.randn(num_heads, d_model, self.d_k) * scale
+        self.W_V = np.random.randn(num_heads, d_model, self.d_k) * scale
+        self.W_O = np.random.randn(d_model, d_model) * scale
+
+    <span class="kw">def</span> <span class="fn">forward</span>(self, X):
+        n = X.shape[<span class="nm">0</span>]
+        head_outputs = []
+        <span class="kw">for</span> i <span class="kw">in</span> range(self.h):
+            Q = X @ self.W_Q[i]              <span class="cm"># (n, d_k)</span>
+            K = X @ self.W_K[i]
+            V = X @ self.W_V[i]
+            scores  = Q @ K.T / np.sqrt(self.d_k)
+            weights = self.<span class="fn">softmax</span>(scores)
+            head_outputs.append(weights @ V) <span class="cm"># (n, d_k)</span>
+        concat = np.concatenate(head_outputs, axis=-<span class="nm">1</span>)  <span class="cm"># (n, d_model)</span>
+        <span class="kw">return</span> concat @ self.W_O
+
+    <span class="kw">def</span> <span class="fn">softmax</span>(self, x):
+        e = np.exp(x - x.max(axis=-<span class="nm">1</span>, keepdims=<span class="nm">True</span>))
+        <span class="kw">return</span> e / e.sum(axis=-<span class="nm">1</span>, keepdims=<span class="nm">True</span>)
+
+<span class="cm"># Usage</span>
+mha = MultiHeadAttention(d_model=<span class="nm">512</span>, num_heads=<span class="nm">8</span>)
+X   = np.random.randn(<span class="nm">10</span>, <span class="nm">512</span>)     <span class="cm"># 10 tokens</span>
+out = mha.forward(X)
+<span class="fn">print</span>(f<span class="st">f"Output shape: {out.shape}"</span>)  <span class="cm"># (10, 512)</span></pre>
+  </div>
+</section>
+
+
+<!-- ══ 10 WHY THREE MATRICES? ══ -->
+<section class="section" id="why-three">
+  <div class="section-header"><div class="level-badge b10">10</div>
+    <div class="section-header-text"><h2>Why Three Matrices?</h2><p>The expressivity argument — separate roles vs. one shared representation</p></div>
+  </div>
+  <div class="prose">
+    <p>The natural question is: why not use X directly as Q, K, and V, skipping the projections? The answer is that a single vector cannot simultaneously play three different roles well. The projection matrices allow the model to <em>disentangle</em> what a token is looking for (Q), what it offers as a match (K), and what it actually contributes to the output (V). Without this separation, the model is far less expressive.</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Approach</th><th>Expressivity</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>X as Q, K, V (no projection)</td><td class="cross">Very limited</td><td>One vector must encode all three roles; roles interfere with each other</td></tr>
+      <tr><td>Q=K=V (shared single W)</td><td class="partial">Limited</td><td>Query and key live in same space; different strengths of matching become conflated</td></tr>
+      <tr><td>Separate W_Q, W_K (V=X)</td><td class="partial">Better</td><td>Matching is expressive but value is constrained to raw embedding</td></tr>
+      <tr><td>Separate W_Q, W_K, W_V</td><td class="check">Full</td><td>Model can independently optimise what to match and what to output; maximum flexibility</td></tr>
+      <tr><td>Multi-Head with separate W per head</td><td class="check">Maximum</td><td>Each head learns a different subspace; diverse relational patterns captured in parallel</td></tr>
+    </tbody>
+  </table></div>
+  <div class="info-box tip"><div class="label">Intuition for the Value Separation</div>
+    <p>Why must V be separate from K? Because what makes a token <em>matchable</em> (its key) need not be the same as what information it <em>contributes</em> when matched (its value). In a sentence, the word "bank" might have a key that encodes "financial institution or riverbank — context needed," while its value encodes a richer blend of both senses. Separating K and V lets the matching criterion differ from the contribution content.</p>
+  </div>
+</section>
+
+
+<!-- ══ 11 INTERACTIVE CALCULATOR ══ -->
+<section class="section" id="calculator">
+  <div class="section-header"><div class="level-badge b11">11</div>
+    <div class="section-header-text"><h2>Interactive Calculator</h2><p>Enter your own Q, K, V matrices and see every step computed live</p></div>
+  </div>
+  <div class="prose">
+    <p>Enter Q, K, and V as space-separated rows (one row per line). The calculator will compute raw scores, scaled scores, softmax weights, and the final output — showing every intermediate step.</p>
+  </div>
+  <div class="calc-wrap">
+    <div class="calc-row">
+      <div>
+        <div class="calc-label">Q — Query matrix</div>
+        <textarea class="calc-textarea" id="q-input" rows="3">1 0
+0 1</textarea>
+      </div>
+      <div>
+        <div class="calc-label">K — Key matrix</div>
+        <textarea class="calc-textarea" id="k-input" rows="3">1 1
+0 1</textarea>
+      </div>
+      <div>
+        <div class="calc-label">V — Value matrix</div>
+        <textarea class="calc-textarea" id="v-input" rows="3">10 20
+50 60</textarea>
+      </div>
+    </div>
+    <button class="calc-btn" onclick="runCalc()">▶ Calculate</button>
+    <div id="calc-result" class="calc-output">Results will appear here…</div>
+  </div>
+</section>
+
+
+<!-- ══ 12 REAL LLM DIMENSIONS ══ -->
+<section class="section" id="llm-dims">
+  <div class="section-header"><div class="level-badge b12">12</div>
+    <div class="section-header-text"><h2>Real LLM Dimensions</h2><p>Q, K, V shapes in production models</p></div>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Model</th><th>d_model</th><th>Heads (h)</th><th>d_k per head</th><th>d_v per head</th><th>KV Heads</th><th>Context</th></tr></thead>
+    <tbody>
+      <tr><td>GPT-2 Small</td><td>768</td><td>12</td><td>64</td><td>64</td><td>12 (MHA)</td><td>1,024</td></tr>
+      <tr><td>GPT-2 XL</td><td>1,600</td><td>25</td><td>64</td><td>64</td><td>25 (MHA)</td><td>1,024</td></tr>
+      <tr><td>GPT-3 175B</td><td>12,288</td><td>96</td><td>128</td><td>128</td><td>96 (MHA)</td><td>2,048</td></tr>
+      <tr><td>Llama 3 8B</td><td>4,096</td><td>32</td><td>128</td><td>128</td><td class="partial">8 (GQA)</td><td>8,192</td></tr>
+      <tr><td>Llama 3 70B</td><td>8,192</td><td>64</td><td>128</td><td>128</td><td class="partial">8 (GQA)</td><td>8,192</td></tr>
+      <tr><td>Llama 3 405B</td><td>16,384</td><td>128</td><td>128</td><td>128</td><td class="partial">8 (GQA)</td><td>131,072</td></tr>
+    </tbody>
+  </table></div>
+  <div class="info-box note"><div class="label">Grouped Query Attention (GQA)</div>
+    <p>Modern large models like Llama 3 use <strong>Grouped Query Attention</strong>: fewer KV heads than Q heads. For Llama 3 70B, 64 query heads share only 8 KV head pairs — each KV head is shared by 8 query heads. This dramatically reduces the KV cache size at inference time (8× smaller than full MHA) with negligible quality loss. The Q projection is still full-rank (64 heads); only K and V are compressed.</p>
+  </div>
+  <div class="info-box tip"><div class="label">KV Cache Memory Formula</div>
+    <p>At inference, the KV cache stores past K and V vectors for every layer and every token. Memory = <code>2 × num_layers × num_kv_heads × d_v × context_length × bytes_per_element</code>. For Llama 3 70B (80 layers, 8 KV heads, d_v=128, FP16): at 8,192 context = 2 × 80 × 8 × 128 × 8,192 × 2 bytes ≈ <strong>2.7 GB</strong>. This is why GQA is critical for long-context inference.</p>
+  </div>
+</section>
+
+
+<!-- ══ 13 COMMON MISCONCEPTIONS ══ -->
+<section class="section" id="misconceptions">
+  <div class="section-header"><div class="level-badge b01">13</div>
+    <div class="section-header-text"><h2>Common Misconceptions</h2><p>What Q, K, V are NOT — clearing up the confusion</p></div>
+  </div>
+
+  <div class="accordion">
+    <button class="accordion-btn" onclick="toggleAccordion(this)">
+      "Query is a question in natural language" <span class="chevron">▼</span>
+    </button>
+    <div class="accordion-body">
+      <strong>False.</strong> Q is a learned vector in ℝ^{d_k} — a dense floating-point representation, not a sentence or natural language string. The word "query" is an analogy to information retrieval, not a linguistic claim. A query vector for the word "it" might look like <code>[0.3, -0.8, 1.2, ...]</code> — uninterpretable in isolation, but geometrically close to vectors that match coreference targets.
+    </div>
+  </div>
+
+  <div class="accordion">
+    <button class="accordion-btn" onclick="toggleAccordion(this)">
+      "Q, K, V are different inputs to the model" <span class="chevron">▼</span>
+    </button>
+    <div class="accordion-body">
+      <strong>False in self-attention.</strong> All three come from the same input X — they are different projections of the same sequence. The misconception often arises from cross-attention (used in encoder-decoder models like the original Transformer for machine translation), where Q comes from the decoder and K, V come from the encoder. In self-attention, Q = K = V = "the same sequence projected three different ways."
+    </div>
+  </div>
+
+  <div class="accordion">
+    <button class="accordion-btn" onclick="toggleAccordion(this)">
+      "Attention weights tell you what the model is 'thinking about'" <span class="chevron">▼</span>
+    </button>
+    <div class="accordion-body">
+      <strong>Partially misleading.</strong> Attention weights show which tokens attended to which — but they are not a direct window into model reasoning. High attention to a token does not mean that token is important for the final prediction; the value vector might have low norm, or a subsequent layer might suppress that signal. Attention is not explanation; it is one of many representations in a deep stack. Use attribution methods (integrated gradients, activation patching) for causal analysis.
+    </div>
+  </div>
+
+  <div class="accordion">
+    <button class="accordion-btn" onclick="toggleAccordion(this)">
+      "The softmax always produces sharp (near one-hot) attention" <span class="chevron">▼</span>
+    </button>
+    <div class="accordion-body">
+      <strong>Not always.</strong> Softmax sharpness depends on the magnitude of the input scores. With small scores (early training, small d_k), softmax produces nearly uniform weights — every token contributes equally. As training proceeds and d_k grows, the weights sharpen. Some heads in trained models deliberately maintain broad, diffuse attention (global context heads); others are sharply peaked (local, syntactic heads). The √d_k scaling is designed to give softmax room to be expressive — neither too uniform nor too peaked.
+    </div>
+  </div>
+
+  <div class="accordion">
+    <button class="accordion-btn" onclick="toggleAccordion(this)">
+      "Multi-head attention is just attention run multiple times for speed" <span class="chevron">▼</span>
+    </button>
+    <div class="accordion-body">
+      <strong>False.</strong> Each head uses <em>different</em> W_Q, W_K, W_V matrices — projecting the input into different subspaces. One head might learn syntactic dependencies, another co-reference, another positional proximity. Running the same attention multiple times would just produce identical results. The diversity of learned subspaces is the entire point of multi-head attention. It is not a speed trick — it is an expressivity technique.
+    </div>
+  </div>
+  <div style="height:16px"></div>
+</section>
+
+
+<!-- ══ 14 INTERVIEW QUESTIONS ══ -->
+<section class="section" id="interview">
+  <div class="section-header"><div class="level-badge b02">14</div>
+    <div class="section-header-text"><h2>Interview Questions</h2><p>Common questions on Q, K, V — with complete answers</p></div>
+  </div>
+
+  <div class="accordion">
+    <button class="accordion-btn" onclick="toggleAccordion(this)">
+      Q1: Explain scaled dot-product attention in one paragraph. <span class="chevron">▼</span>
+    </button>
+    <div class="accordion-body">
+      Given queries Q, keys K, and values V (all linear projections of the input), we compute a dot product between every query and every key to get relevance scores, scale them by 1/√d_k to prevent softmax saturation, apply softmax row-wise to get attention weights that sum to 1, then compute a weighted sum of the value vectors. The output for each token is a context-informed representation that blends in information from all other tokens proportional to their relevance to that token.
+    </div>
+  </div>
+
+  <div class="accordion">
+    <button class="accordion-btn" onclick="toggleAccordion(this)">
+      Q2: What is the time and space complexity of self-attention? <span class="chevron">▼</span>
+    </button>
+    <div class="accordion-body">
+      <strong>Time: O(n² · d_k)</strong> — computing Q·Kᵀ requires n² dot products each of dimension d_k. <strong>Space: O(n²)</strong> — the full attention matrix is n × n. This quadratic scaling in sequence length n is the fundamental bottleneck of standard attention and motivates Flash Attention (which achieves the same result in O(n) memory by tiling the computation) and linear attention approximations.
+    </div>
+  </div>
+
+  <div class="accordion">
+    <button class="accordion-btn" onclick="toggleAccordion(this)">
+      Q3: What is the difference between self-attention and cross-attention? <span class="chevron">▼</span>
+    </button>
+    <div class="accordion-body">
+      In <strong>self-attention</strong>, Q, K, and V all come from the same sequence X. In <strong>cross-attention</strong> (used in encoder-decoder architectures), Q comes from one sequence (the decoder) while K and V come from a different sequence (the encoder output). This lets the decoder attend to the encoder's representation — for example, in machine translation, the decoder generating the English translation can attend directly to the French encoder states.
+    </div>
+  </div>
+
+  <div class="accordion">
+    <button class="accordion-btn" onclick="toggleAccordion(this)">
+      Q4: What happens if we set d_k very large without the √d_k scaling? <span class="chevron">▼</span>
+    </button>
+    <div class="accordion-body">
+      The dot products Q·K grow with variance proportional to d_k. With large d_k and no scaling, the scores fed into softmax become very large in magnitude. Softmax in this regime produces near one-hot outputs — extremely sharp attention weights where nearly all weight is on a single token. This kills gradient flow: the gradient of softmax is proportional to p(1-p), which approaches 0 when p approaches 0 or 1. The model effectively stops learning. The √d_k divisor keeps the scores at unit variance, maintaining gradients throughout training.
+    </div>
+  </div>
+
+  <div class="accordion">
+    <button class="accordion-btn" onclick="toggleAccordion(this)">
+      Q5: How does Grouped Query Attention (GQA) differ from standard MHA? <span class="chevron">▼</span>
+    </button>
+    <div class="accordion-body">
+      In Multi-Head Attention (MHA), every query head has its own K and V projection matrices. In GQA, query heads are divided into groups, and all heads within a group share the same K and V matrices. For example, Llama 3 70B has 64 query heads but only 8 KV heads — 8 groups of 8 queries each. This reduces the number of K and V parameters and — critically — reduces the KV cache size at inference by 8×. The quality loss is negligible because V information is less sensitive to per-head specialisation than Q.
+    </div>
+  </div>
+
+  <div style="height:16px"></div>
+</section>
+
+
+<!-- ══ 15 SUMMARY ══ -->
+<section class="section" id="summary">
+  <div class="section-header"><div class="level-badge b03">15</div>
+    <div class="section-header-text"><h2>Summary</h2><p>The complete Q, K, V pipeline — end to end</p></div>
+  </div>
+  <div class="diag"><span class="h">Q, K, V — Complete Pipeline</span>
+
+<span class="b">Input Sequence X</span>  ∈ ℝ^{n × d_model}
+  │   (n tokens, each d_model-dimensional embedding)
+  │
+  ├──────────────────────────────────────────────┐
+  │  <span class="h">Three independent linear projections</span>          │
+  │                                              │
+  │  Q = X·W_Q  ∈ ℝ^{n×d_k}  "what I seek"      │
+  │  K = X·W_K  ∈ ℝ^{n×d_k}  "what I offer"     │
+  │  V = X·W_V  ∈ ℝ^{n×d_v}  "what I send"      │
+  └──────────────────────────────────────────────┘
+  │
+  ▼
+<span class="g">Raw scores = Q · Kᵀ</span>          ∈ ℝ^{n × n}
+  (how much each token's query matches each token's key)
+  │
+  ▼
+<span class="g">Scaled scores = raw / √d_k</span>
+  (prevent softmax saturation for large d_k)
+  │
+  ▼
+<span class="g">Attention weights = softmax(scaled)</span>  ∈ ℝ^{n × n}
+  (rows sum to 1 — "how much to attend to each token")
+  │
+  ▼
+<span class="b">Output = weights · V</span>          ∈ ℝ^{n × d_v}
+  (for each token: weighted average of all value vectors)
+  │
+  ▼
+<span class="b">Context-enriched token representations</span>
+  (each token now contains information from relevant context)
+
+──────────────────────────────────────────────────────────────────
+<span class="h">Key takeaways:</span>
+
+  1. Q, K, V all come from the <span class="b">same input X</span> via learned projections
+  2. The dot product Q·K measures <span class="b">relevance</span> (query-key compatibility)
+  3. √d_k prevents <span class="b">softmax saturation</span> for large-dimension heads
+  4. V is <span class="b">independent</span> of K — what to send ≠ what to advertise
+  5. Multi-head attention runs h independent Q/K/V triples in parallel
+  6. Self-attn: Q=K=V=X. Cross-attn: Q from decoder, K/V from encoder
+  7. GQA: fewer KV heads → <span class="b">smaller KV cache</span> at inference time</div>
+
+  <div class="info-box tip"><div class="label">Book Summary</div>
+    <p>Attention(Q,K,V) = softmax(QKᵀ/√d_k)V is a soft, differentiable retrieval mechanism. Q asks a question, K describes what each token has, and V delivers the answer. All three are linear projections of the same input — allowing the model to simultaneously attend to different aspects of the sequence. The √d_k scaling prevents training collapse. Multi-head attention runs this in parallel h times with different projections, giving each head room to specialise. This mechanism, replicated across dozens of layers, is the engine of every modern language model.</p>
+  </div>
+  <div style="height:64px"></div>
+</section>
+
+<footer><span>Q, K, V — Complete Guide to Transformer Attention</span><span>Scaled Dot-Product · Multi-Head · GQA · Self-Attention · Cross-Attention</span></footer>
+</main>
+
+<script>
+/* ── theme ── */
+function toggleTheme(){document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';}
+
+/* ── nav highlight ── */
+const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){document.querySelectorAll('nav ul li a').forEach(l=>l.classList.remove('active'));const a=document.querySelector(`nav ul li a[href="#${x.target.id}"]`);if(a)a.classList.add('active');}});},{threshold:0.3});
+document.querySelectorAll('section[id]').forEach(s=>io.observe(s));
+
+/* ── accordion ── */
+function toggleAccordion(btn){
+  const body=btn.nextElementSibling;
+  const open=body.classList.toggle('show');
+  btn.classList.toggle('open',open);
+}
+
+/* ── sentence attention demo ── */
+const attentionMap={
+  'animal':['it','The'],
+  'it':['animal'],
+  'street':['it','because'],
+  'tired':['animal','it']
+};
+document.querySelectorAll('.token').forEach(t=>{
+  t.addEventListener('mouseenter',()=>{
+    const w=t.dataset.word;
+    document.querySelectorAll('.token').forEach(tt=>tt.classList.remove('active','highlight'));
+    if(!w)return;
+    t.classList.add('active');
+    const links=t.dataset.links?t.dataset.links.split(','):[];
+    document.querySelectorAll('.token').forEach(tt=>{
+      if(tt.dataset.word&&links.includes(tt.dataset.word.trim()))tt.classList.add('highlight');
+    });
+  });
+  t.addEventListener('mouseleave',()=>{
+    document.querySelectorAll('.token').forEach(tt=>tt.classList.remove('active','highlight'));
+  });
+});
+
+/* ── √dk slider ── */
+function updateDkDemo(){
+  const dk=parseInt(document.getElementById('dk-slider').value);
+  // Fixed scores drawn from N(0,1) seed
+  const rawScores=[0.84,-0.23,1.42,-0.61,0.29,-1.08,0.73,-0.34];
+  const n=rawScores.length;
+  const scaled=rawScores.map(s=>s);                    // without
+  const scaledDk=rawScores.map(s=>s/Math.sqrt(dk));   // with
+  function softmax(arr){const m=Math.max(...arr);const e=arr.map(x=>Math.exp(x-m));const s=e.reduce((a,b)=>a+b,0);return e.map(x=>x/s);}
+  const smRaw=softmax(scaled);
+  const smScaled=softmax(scaledDk);
+  const entropy=arr=>-arr.reduce((a,p)=>a+(p>1e-10?p*Math.log2(p):0),0);
+  let out=`d_k = ${dk}   √d_k = ${Math.sqrt(dk).toFixed(3)}\n\n`;
+  out+=`Raw scores (σ=1):     [${rawScores.map(s=>s.toFixed(3).padStart(7)).join(', ')}]\n`;
+  out+=`Scaled (÷√${dk}):   [${scaledDk.map(s=>s.toFixed(3).padStart(7)).join(', ')}]\n\n`;
+  out+=`Softmax WITHOUT scaling: [${smRaw.map(s=>s.toFixed(3).padStart(7)).join(', ')}]\n`;
+  out+=`Softmax WITH ÷√d_k:      [${smScaled.map(s=>s.toFixed(3).padStart(7)).join(', ')}]\n\n`;
+  out+=`Entropy WITHOUT: ${entropy(smRaw).toFixed(3)} bits  (lower = sharper / more "peaked")\n`;
+  out+=`Entropy WITH   : ${entropy(smScaled).toFixed(3)} bits  (higher = smoother / better gradients)`;
+  document.getElementById('dk-output').textContent=out;
+}
+updateDkDemo();
+
+/* ── interactive calculator ── */
+function parseMatrix(str){
+  const rows=str.trim().split('\n').map(r=>r.trim().split(/\s+/).map(Number));
+  if(rows.some(r=>r.some(isNaN)))throw new Error('Invalid number in matrix');
+  const cols=rows[0].length;
+  if(rows.some(r=>r.length!==cols))throw new Error('Rows have different lengths');
+  return rows;
+}
+function matMul(A,B){
+  const m=A.length,k=A[0].length,n=B[0].length;
+  if(B.length!==k)throw new Error(`Shape mismatch: (${m},${k}) @ (${B.length},${n})`);
+  return Array.from({length:m},(_,i)=>Array.from({length:n},(_,j)=>A[i].reduce((s,_,l)=>s+A[i][l]*B[l][j],0)));
+}
+function transpose(M){return M[0].map((_,j)=>M.map(r=>r[j]));}
+function softmaxRows(M){return M.map(row=>{const m=Math.max(...row);const e=row.map(x=>Math.exp(x-m));const s=e.reduce((a,b)=>a+b,0);return e.map(x=>x/s);});}
+function fmtMat(M,decimals=4){return M.map(r=>'  ['+r.map(x=>x.toFixed(decimals).padStart(9)).join(', ')+']').join('\n');}
+function runCalc(){
+  const out=document.getElementById('calc-result');
+  try{
+    const Q=parseMatrix(document.getElementById('q-input').value);
+    const K=parseMatrix(document.getElementById('k-input').value);
+    const V=parseMatrix(document.getElementById('v-input').value);
+    const dk=Q[0].length;
+    const scores=matMul(Q,transpose(K));
+    const scaled=scores.map(r=>r.map(s=>s/Math.sqrt(dk)));
+    const weights=softmaxRows(scaled);
+    const output=matMul(weights,V);
+    let txt='';
+    txt+=`Q shape: (${Q.length}, ${Q[0].length})  |  K shape: (${K.length}, ${K[0].length})  |  V shape: (${V.length}, ${V[0].length})\n`;
+    txt+=`d_k = ${dk}   √d_k = ${Math.sqrt(dk).toFixed(4)}\n\n`;
+    txt+=`Step 2: Raw scores  S = Q · Kᵀ  →  shape (${scores.length}, ${scores[0].length})\n${fmtMat(scores)}\n\n`;
+    txt+=`Step 3: Scaled scores  S / √d_k\n${fmtMat(scaled)}\n\n`;
+    txt+=`Step 4: Attention weights  softmax(scaled)  [each row sums to 1]\n${fmtMat(weights)}\n\n`;
+    txt+=`Step 5: Output  = weights · V  →  shape (${output.length}, ${output[0].length})\n${fmtMat(output)}`;
+    out.textContent=txt;
+  }catch(e){out.textContent='Error: '+e.message;}
+}
+runCalc();
+</script>
+</body>
+</html>
