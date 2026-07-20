@@ -37,7 +37,7 @@ nav ul li a:hover,nav ul li a.active{background:var(--surface);color:var(--accen
 nav ul li a .dot{width:7px;height:7px;border-radius:50%;background:var(--border);flex-shrink:0;transition:background .18s}
 nav ul li a:hover .dot,nav ul li a.active .dot{background:var(--accent)}
 .nav-section-label{font-size:.64rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);padding:12px 12px 4px;font-family:'JetBrains Mono',monospace}
-main{flex:1;overflow-x:hidden}
+main{flex:1;overflow-x:hidden;padding-bottom:72px}
 .hero{background:var(--hero-bg);border-bottom:1px solid var(--border);padding:68px 60px 56px;position:relative;overflow:hidden}
 .hero::before{content:'';position:absolute;top:-80px;right:-60px;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle,rgba(167,139,250,.1) 0%,transparent 70%);pointer-events:none}
 .hero::after{content:'';position:absolute;bottom:-60px;left:35%;width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(52,211,153,.07) 0%,transparent 70%);pointer-events:none}
@@ -129,6 +129,20 @@ footer span{font-family:'JetBrains Mono',monospace}
 ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:var(--bg)}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--accent)}
 @media(max-width:900px){.hero{padding:38px 22px 44px}.hero h1{font-size:1.8rem}.section{padding:36px 22px 0}nav{display:none}.card-grid{grid-template-columns:1fr}.bp-grid{grid-template-columns:1fr}footer{padding:22px}}
+/* ── audio player ── */
+.audio-bar{position:fixed;bottom:0;left:0;right:0;z-index:200;background:var(--sidebar);border-top:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.audio-btn{width:36px;height:36px;border-radius:50%;background:var(--accent);border:none;color:#000;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .15s}
+.audio-btn:hover{opacity:.8}
+.audio-btn.stop-btn{background:var(--surface2);border:1px solid var(--border);color:var(--text-dim)}
+.audio-btn.stop-btn:hover{border-color:var(--accent);color:var(--accent)}
+.audio-progress-wrap{flex:1;min-width:120px;display:flex;flex-direction:column;gap:4px}
+.audio-progress-track{width:100%;height:4px;background:var(--border);border-radius:2px;cursor:pointer;position:relative}
+.audio-progress-fill{height:100%;background:var(--accent);border-radius:2px;width:0%;transition:width .1s linear;pointer-events:none}
+.audio-label{font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--text-muted);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+.audio-speed{font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--text-dim);background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 8px;cursor:pointer;transition:all .15s}
+.audio-speed:hover{border-color:var(--accent);color:var(--accent)}
+.audio-vol{width:64px;accent-color:var(--accent)}
+.audio-reading-highlight{background:rgba(167,139,250,.18)!important;border-radius:4px;outline:2px solid rgba(167,139,250,.4)}
 </style>
 </head>
 <body>
@@ -695,10 +709,123 @@ The policy is updated as capabilities and safety techniques evolve.</span></div>
 
 <footer><span>AI Safety — Complete Guide</span><span>Alignment · Interpretability · Governance · RSP · Red-teaming · Deployment</span></footer>
 </main>
+<!-- ── Audio player bar ── -->
+<div class="audio-bar" id="audio-bar">
+  <button class="audio-btn" id="audio-play-btn" title="Play / Pause" onclick="audioToggle()">▶</button>
+  <button class="audio-btn stop-btn" title="Stop" onclick="audioStop()">■</button>
+  <div class="audio-progress-wrap">
+    <div class="audio-label" id="audio-label">Press ▶ to read the book aloud</div>
+    <div class="audio-progress-track" id="audio-track" onclick="audioSeek(event)">
+      <div class="audio-progress-fill" id="audio-fill"></div>
+    </div>
+  </div>
+  <select class="audio-speed" id="audio-speed" onchange="audioSetSpeed()" title="Playback speed">
+    <option value="0.7">0.7×</option>
+    <option value="0.85">0.85×</option>
+    <option value="1" selected>1×</option>
+    <option value="1.2">1.2×</option>
+    <option value="1.5">1.5×</option>
+    <option value="1.75">1.75×</option>
+    <option value="2">2×</option>
+  </select>
+  <input class="audio-vol" type="range" id="audio-vol" min="0" max="1" step="0.05" value="1" title="Volume" oninput="audioSetVol()"/>
+</div>
+
 <script>
 function toggleTheme(){document.documentElement.dataset.theme=document.documentElement.dataset.theme==='dark'?'light':'dark';}
 const io=new IntersectionObserver(e=>{e.forEach(x=>{if(x.isIntersecting){document.querySelectorAll('nav ul li a').forEach(l=>l.classList.remove('active'));const a=document.querySelector(`nav ul li a[href="#${x.target.id}"]`);if(a)a.classList.add('active');}});},{threshold:0.3});
 document.querySelectorAll('section[id]').forEach(s=>io.observe(s));
+
+/* ── Audio read-aloud engine using Web Speech API ── */
+(function(){
+  const synth = window.speechSynthesis;
+  if(!synth){ document.getElementById('audio-bar').style.display='none'; return; }
+
+  function buildChunks(){
+    const chunks=[];
+    document.querySelectorAll(
+      '.hero h1, .hero p, .section-header-text h2, .section-header-text p, ' +
+      '.prose p, .prose h3, .info-box p, .card-head h3, .card-head p, ' +
+      '.bp-card h4, .bp-card p'
+    ).forEach(el=>{
+      const txt = el.innerText.replace(/\s+/g,' ').trim();
+      if(txt.length > 8) chunks.push({el, txt});
+    });
+    return chunks;
+  }
+
+  let chunks=[], idx=0, playing=false, paused=false;
+  let curUtter=null, highlightEl=null;
+
+  function clearHighlight(){
+    if(highlightEl){highlightEl.classList.remove('audio-reading-highlight');highlightEl=null;}
+  }
+  function highlight(el){
+    clearHighlight();
+    if(!el) return;
+    highlightEl=el;
+    el.classList.add('audio-reading-highlight');
+    el.scrollIntoView({behavior:'smooth',block:'center'});
+  }
+  function updateProgress(){
+    const pct = chunks.length>1 ? (idx/(chunks.length-1))*100 : 0;
+    document.getElementById('audio-fill').style.width = pct+'%';
+    document.getElementById('audio-label').textContent =
+      chunks[idx] ? `§${idx+1}/${chunks.length} — ${chunks[idx].txt.slice(0,60)}…` : 'Done';
+  }
+  function speakChunk(i){
+    if(i>=chunks.length){ audioStop(); document.getElementById('audio-label').textContent='✓ Finished'; return; }
+    idx=i;
+    const {el,txt}=chunks[i];
+    highlight(el);
+    updateProgress();
+    const u=new SpeechSynthesisUtterance(txt);
+    u.rate=parseFloat(document.getElementById('audio-speed').value);
+    u.volume=parseFloat(document.getElementById('audio-vol').value);
+    u.onend=()=>{ if(playing&&!paused) speakChunk(i+1); };
+    u.onerror=()=>{ if(playing&&!paused) speakChunk(i+1); };
+    curUtter=u;
+    synth.speak(u);
+  }
+  window.audioToggle=function(){
+    if(!playing&&!paused){
+      chunks=buildChunks(); idx=0; playing=true; paused=false;
+      document.getElementById('audio-play-btn').textContent='⏸';
+      synth.cancel();
+      speakChunk(0);
+    } else if(playing&&!paused){
+      synth.pause(); paused=true; playing=false;
+      document.getElementById('audio-play-btn').textContent='▶';
+    } else {
+      synth.resume(); playing=true; paused=false;
+      document.getElementById('audio-play-btn').textContent='⏸';
+    }
+  };
+  window.audioStop=function(){
+    synth.cancel(); playing=false; paused=false; idx=0;
+    document.getElementById('audio-play-btn').textContent='▶';
+    document.getElementById('audio-fill').style.width='0%';
+    document.getElementById('audio-label').textContent='Press ▶ to read the book aloud';
+    clearHighlight();
+  };
+  window.audioSetSpeed=function(){};
+  window.audioSetVol=function(){};
+  window.audioSeek=function(e){
+    if(!chunks.length) chunks=buildChunks();
+    const track=document.getElementById('audio-track');
+    const pct=e.offsetX/track.offsetWidth;
+    const target=Math.floor(pct*chunks.length);
+    synth.cancel();
+    idx=target; playing=true; paused=false;
+    document.getElementById('audio-play-btn').textContent='⏸';
+    speakChunk(target);
+  };
+  document.addEventListener('keydown',e=>{
+    if(e.code==='Space'&&e.target.tagName!=='INPUT'&&e.target.tagName!=='TEXTAREA'&&e.target.tagName!=='SELECT'){
+      e.preventDefault(); audioToggle();
+    }
+  });
+})();
 </script>
 </body>
 </html>
