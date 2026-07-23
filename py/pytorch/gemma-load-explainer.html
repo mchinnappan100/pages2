@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gemma-4-31B Loading — Explained</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #f4f6fb;
+  --bg-card:   #ffffff;
+  --bg-code:   #0f1117;
+  --ink:       #1a1d2e;
+  --ink-soft:  #5a607a;
+  --line:      #e2e6f0;
+  --shadow:    0 2px 10px rgba(0,0,0,.07);
+
+  --c-meta:    #0284c7;  /* sky */
+  --c-meta-bg: #f0f9ff;
+  --c-meta-bd: #bae6fd;
+
+  --c-tok:     #7c3aed;  /* violet */
+  --c-tok-bg:  #f5f3ff;
+  --c-tok-bd:  #ddd6fe;
+
+  --c-wt:      #dc2626;  /* red */
+  --c-wt-bg:   #fef2f2;
+  --c-wt-bd:   #fecaca;
+
+  --c-bar:     #22c55e;
+  --c-bar-dim: #334155;
+
+  --c-tag-meta: #0369a1;
+  --c-tag-tok:  #6d28d9;
+  --c-tag-wt:   #b91c1c;
+
+  --font-display: 'Syne', sans-serif;
+  --font-body:    'DM Sans', sans-serif;
+  --font-mono:    'JetBrains Mono', monospace;
+}
+
+html.dark {
+  --bg:        #0d1117;
+  --bg-card:   #161b27;
+  --bg-code:   #080b10;
+  --ink:       #dde2f0;
+  --ink-soft:  #8892b0;
+  --line:      #242c3d;
+  --shadow:    0 2px 14px rgba(0,0,0,.4);
+
+  --c-meta-bg: #082030;
+  --c-meta-bd: #0c4a6e;
+  --c-tok-bg:  #1e0f40;
+  --c-tok-bd:  #4c1d95;
+  --c-wt-bg:   #2a0a0a;
+  --c-wt-bd:   #7f1d1d;
+  --c-bar-dim: #1e2a3a;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.65;
+  transition: background .25s, color .25s;
+}
+
+/* ── HEADER ───────────────────────────── */
+.hdr {
+  background: linear-gradient(135deg, #0f1b35 0%, #1a3a6b 100%);
+  color: #fff;
+  padding: 28px 40px 24px;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  flex-wrap: wrap; gap: 16px;
+}
+.hdr-left { display: flex; align-items: center; gap: 18px; }
+.model-badge {
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 14px;
+  padding: 10px 16px;
+  font-family: var(--font-mono);
+  font-size: 13px; font-weight: 600;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.model-badge small { display: block; opacity: .65; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; margin-bottom: 2px; }
+.hdr-title h1 { font-family: var(--font-display); font-size: 22px; font-weight: 800; }
+.hdr-title p  { font-size: 13px; opacity: .7; margin-top: 3px; }
+.hdr-stats {
+  display: flex; gap: 24px; flex-wrap: wrap; margin-top: 4px;
+}
+.stat { text-align: center; }
+.stat-val { font-family: var(--font-mono); font-size: 22px; font-weight: 700; color: #60a5fa; }
+.stat-lbl { font-size: 11px; opacity: .6; letter-spacing: .06em; text-transform: uppercase; margin-top: 2px; }
+
+.tm-btn {
+  display: flex; align-items: center;
+  background: rgba(255,255,255,.12); border-radius: 24px;
+  padding: 3px; gap: 2px; cursor: pointer; user-select: none; align-self: flex-start;
+}
+.tm-half {
+  width: 34px; height: 30px; border-radius: 22px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; transition: background .2s;
+}
+.tm-half.on { background: rgba(255,255,255,.25); }
+
+/* ── LAYOUT ───────────────────────────── */
+.wrap { max-width: 1100px; margin: 0 auto; padding: 36px 24px 60px; }
+
+/* ── CODE BLOCK ───────────────────────── */
+.code-card {
+  background: var(--bg-code);
+  border-radius: 14px; overflow: hidden;
+  box-shadow: var(--shadow); margin-bottom: 40px;
+  border: 1px solid #1e2535;
+}
+.code-topbar {
+  background: #1a2035; padding: 10px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.dots { display: flex; gap: 6px; }
+.dot  { width: 12px; height: 12px; border-radius: 50%; }
+.dot-r { background: #ff5f57; } .dot-y { background: #febc2e; } .dot-g { background: #28c840; }
+.code-label { font-family: var(--font-mono); font-size: 11px; color: #8892b0; letter-spacing: .08em; }
+pre {
+  padding: 22px 24px; overflow-x: auto;
+  font-family: var(--font-mono); font-size: 13.5px; line-height: 1.75;
+  color: #abb2bf;
+}
+.kw  { color: #c678dd; } .fn  { color: #61afef; }
+.str { color: #98c379; } .cm  { color: #5c6370; font-style: italic; }
+.py  { color: #e5c07b; }
+
+/* ── SECTION TITLE ────────────────────── */
+.section-title {
+  font-family: var(--font-display);
+  font-size: 18px; font-weight: 800; margin-bottom: 16px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-title::after {
+  content: ''; flex: 1; height: 1px; background: var(--line);
+}
+
+/* ── DOWNLOAD TERMINAL ────────────────── */
+.terminal {
+  background: var(--bg-code);
+  border-radius: 14px; overflow: hidden;
+  box-shadow: var(--shadow); margin-bottom: 40px;
+  border: 1px solid #1e2535;
+}
+.terminal-bar {
+  background: #1a2035; padding: 10px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.terminal-body { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+
+.dl-row { display: flex; flex-direction: column; gap: 5px; }
+.dl-meta {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.dl-name  { font-family: var(--font-mono); font-size: 12.5px; color: #abb2bf; }
+.dl-pct   { font-family: var(--font-mono); font-size: 12px; color: #98c379; white-space: nowrap; }
+.dl-speed { font-family: var(--font-mono); font-size: 11.5px; color: #5c6a80; white-space: nowrap; }
+.bar-wrap { height: 8px; background: var(--c-bar-dim); border-radius: 4px; overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 4px; background: var(--c-bar); transition: width 1s ease; }
+.bar-fill.partial { background: #38bdf8; }
+
+/* ── FILE CARDS ───────────────────────── */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px; margin-bottom: 40px;
+}
+.file-card {
+  background: var(--bg-card);
+  border-radius: 14px; padding: 20px 22px;
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  display: flex; flex-direction: column; gap: 10px;
+  transition: transform .15s, box-shadow .15s;
+}
+.file-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,.1); }
+
+.fc-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.fc-name { font-family: var(--font-mono); font-size: 13px; font-weight: 600; word-break: break-all; }
+.fc-size {
+  font-family: var(--font-mono); font-size: 11px;
+  background: var(--line); color: var(--ink-soft);
+  padding: 2px 8px; border-radius: 999px; white-space: nowrap; flex-shrink: 0;
+}
+.fc-tag {
+  display: inline-block;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+  letter-spacing: .08em; text-transform: uppercase;
+  padding: 3px 10px; border-radius: 999px; border: 1px solid;
+  width: fit-content;
+}
+.fc-tag.meta { color: var(--c-tag-meta); border-color: var(--c-meta-bd); background: var(--c-meta-bg); }
+.fc-tag.tok  { color: var(--c-tag-tok);  border-color: var(--c-tok-bd);  background: var(--c-tok-bg); }
+.fc-tag.wt   { color: var(--c-tag-wt);   border-color: var(--c-wt-bd);   background: var(--c-wt-bg); }
+
+.fc-desc { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
+.fc-detail {
+  font-size: 12px; color: var(--ink-soft);
+  background: var(--bg); border-radius: 8px; padding: 8px 12px;
+  border: 1px solid var(--line); font-family: var(--font-mono);
+  line-height: 1.7;
+}
+.fc-detail b { color: var(--ink); font-weight: 600; }
+
+/* ── MATH BOX ─────────────────────────── */
+.math-box {
+  background: var(--bg-card); border-radius: 14px;
+  padding: 28px 32px; border: 1px solid var(--line);
+  box-shadow: var(--shadow); margin-bottom: 40px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+}
+.math-item { display: flex; flex-direction: column; gap: 8px; }
+.math-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--ink-soft); }
+.math-eq {
+  font-family: var(--font-mono); font-size: 15px; font-weight: 600;
+  color: var(--ink); background: var(--bg); padding: 10px 14px;
+  border-radius: 8px; border: 1px solid var(--line);
+}
+.math-eq .hl { color: var(--c-meta); }
+.math-note { font-size: 12.5px; color: var(--ink-soft); }
+
+/* ── LOAD ORDER ───────────────────────── */
+.order-list { display: flex; flex-direction: column; gap: 0; margin-bottom: 40px; }
+.order-step {
+  display: flex; align-items: stretch; gap: 0;
+}
+.order-left {
+  display: flex; flex-direction: column; align-items: center; width: 48px; flex-shrink: 0;
+}
+.order-num {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+  color: #fff; flex-shrink: 0; z-index: 1;
+}
+.order-line { flex: 1; width: 2px; background: var(--line); margin: 0 auto; }
+.order-step:last-child .order-line { display: none; }
+
+.order-body {
+  background: var(--bg-card); border-radius: 12px;
+  border: 1px solid var(--line); box-shadow: var(--shadow);
+  padding: 14px 18px; margin-bottom: 12px; flex: 1;
+}
+.order-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+.order-files { font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft); }
+.order-why   { font-size: 13px; color: var(--ink-soft); margin-top: 6px; }
+
+.clr-meta { background: var(--c-meta); }
+.clr-tok  { background: var(--c-tok); }
+.clr-wt   { background: var(--c-wt); }
+
+/* ── FOOTER ───────────────────────────── */
+footer {
+  text-align: center; font-size: 12px; color: var(--ink-soft);
+  padding: 20px; border-top: 1px solid var(--line);
+  font-style: italic;
+}
+
+@media (max-width: 680px) {
+  .hdr { padding: 20px; }
+  .hdr-stats { gap: 16px; }
+  .math-box { grid-template-columns: 1fr; }
+  .cards-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="hdr">
+  <div class="hdr-left">
+    <div>
+      <div class="model-badge">
+        <small>HuggingFace Model</small>
+        google/gemma-4-31B-it
+      </div>
+    </div>
+    <div class="hdr-title">
+      <h1>Model Loading — Explained</h1>
+      <p>What every file does when you call <code style="background:rgba(255,255,255,.12);padding:2px 7px;border-radius:5px;font-size:12px">AutoModelForMultimodalLM.from_pretrained()</code></p>
+    </div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:14px">
+    <div class="tm-btn" id="tmBtn">
+      <div class="tm-half on" id="tmLight">☀️</div>
+      <div class="tm-half"    id="tmDark">🌙</div>
+    </div>
+    <div class="hdr-stats">
+      <div class="stat"><div class="stat-val">31B</div><div class="stat-lbl">Parameters</div></div>
+      <div class="stat"><div class="stat-val">62.5 GB</div><div class="stat-lbl">bfloat16 weights</div></div>
+      <div class="stat"><div class="stat-val">7</div><div class="stat-lbl">Files loaded</div></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- CODE -->
+  <div class="section-title">📄 The Code</div>
+  <div class="code-card">
+    <div class="code-topbar">
+      <div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+      <div class="code-label">load_gemma.py</div>
+      <div></div>
+    </div>
+    <pre><span class="kw">from</span> transformers <span class="kw">import</span> <span class="fn">AutoProcessor</span>, <span class="fn">AutoModelForMultimodalLM</span>
+
+MODEL_ID = <span class="str">"google/gemma-4-31B-it"</span>
+
+<span class="cm"># Load model</span>
+processor = <span class="fn">AutoProcessor</span>.<span class="fn">from_pretrained</span>(MODEL_ID)
+model = <span class="fn">AutoModelForMultimodalLM</span>.<span class="fn">from_pretrained</span>(
+    MODEL_ID,
+    dtype=<span class="str">"auto"</span>,       <span class="cm"># → bfloat16 on modern GPUs</span>
+    device_map=<span class="str">"auto"</span>  <span class="cm"># → spread across all available GPUs / CPU</span>
+)</pre>
+  </div>
+
+  <!-- DOWNLOAD TERMINAL -->
+  <div class="section-title">⬇️ Live Download Progress (from screenshot)</div>
+  <div class="terminal">
+    <div class="terminal-bar">
+      <div class="dots"><div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div></div>
+      <div class="code-label">HuggingFace Hub — downloading google/gemma-4-31B-it</div>
+      <div></div>
+    </div>
+    <div class="terminal-body">
+
+      <div class="dl-row">
+        <div class="dl-meta">
+          <span class="dl-name">processor_config.json</span>
+          <span class="dl-pct">100%</span>
+          <span class="dl-speed">1.69k/1.69k &nbsp;[87.9 kB/s]</span>
+        </div>
+        <div class="bar-wrap"><div class="bar-fill" style="width:100%"></div></div>
+      </div>
+
+      <div class="dl-row">
+        <div class="dl-meta">
+          <span class="dl-name">chat_template.jinja</span>
+          <span class="dl-pct">100%</span>
+          <span class="dl-speed">18.7k/18.7k &nbsp;[1.18 MB/s]</span>
+        </div>
+        <div class="bar-wrap"><div class="bar-fill" style="width:100%"></div></div>
+      </div>
+
+      <div class="dl-row">
+        <div class="dl-meta">
+          <span class="dl-name">config.json</span>
+          <span class="dl-pct">100%</span>
+          <span class="dl-speed">4.62k/4.62k &nbsp;[174 kB/s]</span>
+        </div>
+        <div class="bar-wrap"><div class="bar-fill" style="width:100%"></div></div>
+      </div>
+
+      <div class="dl-row">
+        <div class="dl-meta">
+          <span class="dl-name">tokenizer_config.json</span>
+          <span class="dl-pct">100%</span>
+          <span class="dl-speed">3.08k/3.08k &nbsp;[115 kB/s]</span>
+        </div>
+        <div class="bar-wrap"><div class="bar-fill" style="width:100%"></div></div>
+      </div>
+
+      <div class="dl-row">
+        <div class="dl-meta">
+          <span class="dl-name">tokenizer.json &nbsp;— reconstructing</span>
+          <span class="dl-pct">100%</span>
+          <span class="dl-speed">32.2 MB / 32.2 MB &nbsp;[3.08 MB/s]</span>
+        </div>
+        <div class="bar-wrap"><div class="bar-fill" style="width:100%"></div></div>
+      </div>
+
+      <div class="dl-row">
+        <div class="dl-meta">
+          <span class="dl-name">tokenizer.json &nbsp;— downloading bytes</span>
+          <span class="dl-pct">~27%</span>
+          <span class="dl-speed">8.75 MB &nbsp;[836 kB/s]</span>
+        </div>
+        <div class="bar-wrap"><div class="bar-fill partial" style="width:27%"></div></div>
+      </div>
+
+      <div class="dl-row">
+        <div class="dl-meta">
+          <span class="dl-name">model.safetensors.index.json</span>
+          <span class="dl-pct">100%</span>
+          <span class="dl-speed">120k/120k &nbsp;[5.40 MB/s]</span>
+        </div>
+        <div class="bar-wrap"><div class="bar-fill" style="width:100%"></div></div>
+      </div>
+
+      <div class="dl-row">
+        <div class="dl-meta">
+          <span class="dl-name">Downloading bytes (weight shards)</span>
+          <span class="dl-pct">~7%</span>
+          <span class="dl-speed">4.37 GB &nbsp;[52.1 MB/s]</span>
+        </div>
+        <div class="bar-wrap"><div class="bar-fill partial" style="width:7%"></div></div>
+      </div>
+
+      <div class="dl-row">
+        <div class="dl-meta">
+          <span class="dl-name">Reconstructing (incomplete total…)</span>
+          <span class="dl-pct">3%</span>
+          <span class="dl-speed">2.08 GB / 62.5 GB &nbsp;[29.0 MB/s]</span>
+        </div>
+        <div class="bar-wrap"><div class="bar-fill partial" style="width:3%"></div></div>
+      </div>
+
+      <div class="dl-row">
+        <div class="dl-meta">
+          <span class="dl-name">Fetching 2 files</span>
+          <span class="dl-pct">0%</span>
+          <span class="dl-speed">0/2 &nbsp;[?it/s]</span>
+        </div>
+        <div class="bar-wrap"><div class="bar-fill partial" style="width:0%"></div></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FILE CARDS -->
+  <div class="section-title">🗂️ What Each File Does</div>
+  <div class="cards-grid">
+
+    <div class="file-card">
+      <div class="fc-top">
+        <div class="fc-name">processor_config.json</div>
+        <div class="fc-size">1.69 kB</div>
+      </div>
+      <div class="fc-tag meta">Config / Metadata</div>
+      <div class="fc-desc">Tells <code>AutoProcessor</code> how to pre-process <strong>multimodal inputs</strong> — image resize dimensions, pixel normalization values, and how image tokens are coupled with text tokens.</div>
+      <div class="fc-detail"><b>Used by:</b> AutoProcessor<br><b>Contains:</b> image_size, mean/std, patch_size</div>
+    </div>
+
+    <div class="file-card">
+      <div class="fc-top">
+        <div class="fc-name">chat_template.jinja</div>
+        <div class="fc-size">18.7 kB</div>
+      </div>
+      <div class="fc-tag meta">Config / Metadata</div>
+      <div class="fc-desc">A <strong>Jinja2 template</strong> that formats conversation turns (<code>user</code> / <code>assistant</code> roles + system prompt) into the exact string format Gemma was fine-tuned on. Wrong template → garbage output.</div>
+      <div class="fc-detail"><b>Used by:</b> tokenizer.apply_chat_template()<br><b>Largest</b> config file because it handles many edge cases</div>
+    </div>
+
+    <div class="file-card">
+      <div class="fc-top">
+        <div class="fc-name">config.json</div>
+        <div class="fc-size">4.62 kB</div>
+      </div>
+      <div class="fc-tag meta">Config / Metadata</div>
+      <div class="fc-desc">The model's <strong>architecture blueprint</strong>. Defines every structural hyperparameter so the framework can instantiate the right class with the right dimensions before loading any weights.</div>
+      <div class="fc-detail"><b>Contains:</b> num_layers, hidden_size, num_heads,<br>vocab_size, attention_type, max_position</div>
+    </div>
+
+    <div class="file-card">
+      <div class="fc-top">
+        <div class="fc-name">tokenizer_config.json</div>
+        <div class="fc-size">3.08 kB</div>
+      </div>
+      <div class="fc-tag meta">Config / Metadata</div>
+      <div class="fc-desc">Tokenizer settings — which tokenizer class to instantiate, BOS/EOS token IDs, padding side (left/right), and any special tokens added during instruction-tuning.</div>
+      <div class="fc-detail"><b>Contains:</b> bos_token, eos_token, pad_token,<br>padding_side, tokenizer_class</div>
+    </div>
+
+    <div class="file-card">
+      <div class="fc-top">
+        <div class="fc-name">tokenizer.json</div>
+        <div class="fc-size">32.2 MB</div>
+      </div>
+      <div class="fc-tag tok">Tokenizer</div>
+      <div class="fc-desc">The full <strong>SentencePiece / BPE vocabulary</strong> — all ~256k tokens, their merge rules, and token→id mappings. Large because Gemma uses a bigger vocabulary than GPT-2-era models to better handle multilingual text and code.</div>
+      <div class="fc-detail"><b>Contains:</b> vocab (~256k entries), merges,<br>special_tokens, added_tokens<br><b>Note:</b> downloaded once then cached</div>
+    </div>
+
+    <div class="file-card">
+      <div class="fc-top">
+        <div class="fc-name">model.safetensors.index.json</div>
+        <div class="fc-size">120 kB</div>
+      </div>
+      <div class="fc-tag wt">Weights</div>
+      <div class="fc-desc">A <strong>shard manifest</strong> — maps every tensor name (e.g. <code>model.layers.0.self_attn.q_proj.weight</code>) to the shard file it lives in. Required because 62.5 GB can't fit in a single file.</div>
+      <div class="fc-detail"><b>Contains:</b> {"weight_map": {"layer.0.w": "shard-00001-of-00015.safetensors", ...}}</div>
+    </div>
+
+    <div class="file-card">
+      <div class="fc-top">
+        <div class="fc-name">*.safetensors shards</div>
+        <div class="fc-size">62.5 GB total</div>
+      </div>
+      <div class="fc-tag wt">Weights</div>
+      <div class="fc-desc">The actual <strong>31 billion learned parameters</strong> split across multiple shard files. Each shard is a memory-safe binary format (no arbitrary code execution, unlike pickle). Downloaded in parallel at ~52 MB/s.</div>
+      <div class="fc-detail"><b>dtype:</b> bfloat16 (2 bytes/param)<br><b>31B × 2 bytes = ~62 GB on disk</b><br><b>device_map="auto"</b> spreads across GPUs+CPU</div>
+    </div>
+
+  </div>
+
+  <!-- MATH -->
+  <div class="section-title">🔢 Why 62.5 GB?</div>
+  <div class="math-box">
+    <div class="math-item">
+      <div class="math-label">bfloat16 (dtype="auto")</div>
+      <div class="math-eq"><span class="hl">31,000,000,000</span> params × <span class="hl">2</span> bytes = <span class="hl">~62 GB</span></div>
+      <div class="math-note">Modern GPUs (Ampere+) support bfloat16 natively. Same exponent range as float32 — far fewer NaN/inf than float16.</div>
+    </div>
+    <div class="math-item">
+      <div class="math-label">float32 (would be)</div>
+      <div class="math-eq">31B params × <span class="hl">4</span> bytes = <span class="hl">~124 GB</span></div>
+      <div class="math-note">bfloat16 halves memory with negligible accuracy loss for inference. float32 would need ~4 A100-80GB cards just for weights.</div>
+    </div>
+    <div class="math-item">
+      <div class="math-label">int8 quantized</div>
+      <div class="math-eq">31B params × <span class="hl">1</span> byte = <span class="hl">~31 GB</span></div>
+      <div class="math-note">Pass <code>load_in_8bit=True</code> (bitsandbytes) to halve again at a small accuracy cost.</div>
+    </div>
+    <div class="math-item">
+      <div class="math-label">int4 quantized (GPTQ/AWQ)</div>
+      <div class="math-eq">31B params × <span class="hl">0.5</span> bytes = <span class="hl">~15.5 GB</span></div>
+      <div class="math-note">Fits in a single consumer GPU (24 GB). Use <code>load_in_4bit=True</code> or a pre-quantized GPTQ model.</div>
+    </div>
+  </div>
+
+  <!-- LOAD ORDER -->
+  <div class="section-title">📋 Load Order &amp; Why</div>
+  <div class="order-list">
+
+    <div class="order-step">
+      <div class="order-left">
+        <div class="order-num clr-meta">1</div>
+        <div class="order-line"></div>
+      </div>
+      <div class="order-body">
+        <div class="order-title">Architecture config</div>
+        <div class="order-files">config.json</div>
+        <div class="order-why">Must come first — the framework reads this to know which Python class to instantiate and what tensor shapes to allocate memory for.</div>
+      </div>
+    </div>
+
+    <div class="order-step">
+      <div class="order-left">
+        <div class="order-num clr-tok">2</div>
+        <div class="order-line"></div>
+      </div>
+      <div class="order-body">
+        <div class="order-title">Tokenizer files</div>
+        <div class="order-files">tokenizer_config.json &nbsp;→&nbsp; tokenizer.json &nbsp;→&nbsp; chat_template.jinja</div>
+        <div class="order-why">Loads the full vocabulary and chat formatting rules. Independent of model weights — the processor and tokenizer are ready to encode inputs while weights are still downloading.</div>
+      </div>
+    </div>
+
+    <div class="order-step">
+      <div class="order-left">
+        <div class="order-num clr-meta">3</div>
+        <div class="order-line"></div>
+      </div>
+      <div class="order-body">
+        <div class="order-title">Processor config</div>
+        <div class="order-files">processor_config.json</div>
+        <div class="order-why">Configures the image pre-processing pipeline so the AutoProcessor knows how to turn raw images into pixel tensors the model expects.</div>
+      </div>
+    </div>
+
+    <div class="order-step">
+      <div class="order-left">
+        <div class="order-num clr-wt">4</div>
+        <div class="order-line"></div>
+      </div>
+      <div class="order-body">
+        <div class="order-title">Shard manifest</div>
+        <div class="order-files">model.safetensors.index.json</div>
+        <div class="order-why">Tells the loader which shard file holds which tensor. With <code>device_map="auto"</code> this also drives which shard goes to which GPU, so the loader can stream shards directly to the right device.</div>
+      </div>
+    </div>
+
+    <div class="order-step">
+      <div class="order-left">
+        <div class="order-num clr-wt">5</div>
+        <div class="order-line"></div>
+      </div>
+      <div class="order-body">
+        <div class="order-title">Weight shards (parallel download)</div>
+        <div class="order-files">model-00001-of-N.safetensors &nbsp;… &nbsp;model-NNNN-of-N.safetensors</div>
+        <div class="order-why">The heaviest step — 62.5 GB streamed in parallel. HuggingFace Hub downloads multiple shards concurrently (shown as "Fetching 2 files"). Each shard is written to disk cache then memory-mapped into the model.</div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<footer>
+  google/gemma-4-31B-it · HuggingFace Transformers · bfloat16 · device_map="auto"
+</footer>
+
+<script>
+  const root  = document.documentElement;
+  const btn   = document.getElementById('tmBtn');
+  const light = document.getElementById('tmLight');
+  const dark  = document.getElementById('tmDark');
+  const stored = localStorage.getItem('gemma-explain-theme');
+  if (stored === 'dark' || (!stored && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    root.classList.add('dark');
+    light.classList.remove('on'); dark.classList.add('on');
+  }
+  btn.addEventListener('click', () => {
+    const isDark = root.classList.toggle('dark');
+    light.classList.toggle('on', !isDark); dark.classList.toggle('on', isDark);
+    localStorage.setItem('gemma-explain-theme', isDark ? 'dark' : 'light');
+  });
+</script>
+</body>
+</html>
