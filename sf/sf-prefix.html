@@ -1,0 +1,1103 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Salesforce Record ID Prefix Decoder</title>
+<script src="https://cdn.tailwindcss.com"></script>
+
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+
+<script>
+tailwind.config = {
+  darkMode: 'class',
+  theme: {
+    extend: {
+      fontFamily: { mono: ['JetBrains Mono', 'Fira Code', 'monospace'] },
+      colors: {
+        brand: { DEFAULT: '#e8613a', light: '#f07a55', dark: '#c44d28' },
+      }
+    }
+  }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: 'Inter', sans-serif; }
+  .mono { font-family: 'JetBrains Mono', monospace; }
+  .prefix-badge {
+    cursor: pointer;
+    transition: all .15s;
+  }
+  .prefix-badge:hover { transform: scale(1.08); }
+  .prefix-badge:active { transform: scale(.95); }
+  tr { transition: background .1s; }
+  mark { background: #f59e0b33; color: #fbbf24; border-radius: 2px; padding: 0 1px; }
+  .scrollbar-thin::-webkit-scrollbar { width: 5px; height: 5px; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: #1e293b; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+  #decoder-input::placeholder { color: #64748b; }
+  .fade-in { animation: fadeIn .2s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+  .toast {
+    position: fixed; bottom: 28px; right: 28px; z-index: 999;
+    background: #1e293b; border: 1px solid #334155;
+    color: #94a3b8; padding: 10px 18px; border-radius: 10px;
+    font-size: .82rem; opacity: 0; transition: opacity .2s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen">
+
+<!-- ── Toast ─────────────────────────────────────────── -->
+<div id="toast" class="toast">Copied!</div>
+
+<!-- ── Header ────────────────────────────────────────── -->
+<header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-50">
+  <div class="max-w-7xl mx-auto px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="w-9 h-9 rounded-lg bg-brand flex items-center justify-center text-white font-bold text-sm mono shrink-0">SF</div>
+      <div>
+        <h1 class="text-lg font-bold leading-tight text-white">Record ID Prefix Decoder</h1>
+        <p class="text-xs text-slate-400 leading-none mt-0.5">Salesforce Key Prefix Reference · <a href="https://help.salesforce.com/s/articleView?id=000385203&type=1" target="_blank" class="text-brand hover:underline">Article 000385203</a></p>
+      </div>
+    </div>
+    <div class="flex items-center gap-4 text-sm text-slate-400">
+      <span><span id="totalCount" class="text-white font-semibold mono">757</span> prefixes</span>
+      <span><span id="shownCount" class="text-brand font-semibold mono">757</span> shown</span>
+    </div>
+  </div>
+</header>
+
+<!-- ── ID Decoder ─────────────────────────────────────── -->
+<div class="max-w-7xl mx-auto px-6 pt-6">
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-5">
+    <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">⚡ Paste a Salesforce Record ID to Decode It</p>
+    <div class="flex flex-col sm:flex-row gap-3">
+      <div class="relative flex-1">
+        <input id="decoder-input" type="text"
+          placeholder="e.g.  003D0000001aH2AIAA  or  00D000000000001AAA"
+          class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 mono text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition" />
+        <button onclick="clearDecoder()" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-lg leading-none" title="Clear">×</button>
+      </div>
+      <button onclick="decodeId()" class="bg-brand hover:bg-brand-dark text-white font-semibold px-6 py-3 rounded-lg text-sm transition shrink-0">Decode</button>
+    </div>
+    <div id="decoder-result" class="hidden mt-4 fade-in"></div>
+  </div>
+
+  <!-- ── Search + Filter ───────────────────────────────── -->
+  <div class="flex flex-col sm:flex-row gap-3 mb-4">
+    <div class="relative flex-1">
+      <svg class="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
+      <input id="searchInput" type="text" placeholder="Search entity name or prefix…"
+        oninput="applySearch()"
+        class="w-full bg-slate-900 border border-slate-800 rounded-lg pl-10 pr-10 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-brand focus:ring-1 focus:ring-brand transition" />
+      <button onclick="clearSearch()" id="clearBtn" class="hidden absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-lg">×</button>
+    </div>
+    <select id="sortSelect" onchange="applySearch()"
+      class="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2.5 text-sm text-slate-300 focus:outline-none focus:border-brand cursor-pointer">
+      <option value="entity">Sort: Entity A→Z</option>
+      <option value="prefix">Sort: Prefix A→Z</option>
+      <option value="none">Sort: Original Order</option>
+    </select>
+    <button onclick="exportCSV()"
+      class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 hover:text-white text-sm font-medium px-4 py-2.5 rounded-lg transition flex items-center gap-2 shrink-0">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M8 12l4 4 4-4M12 3v13"/></svg>
+      CSV
+    </button>
+  </div>
+
+  <!-- ── Table ─────────────────────────────────────────── -->
+  <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden mb-10">
+    <div class="overflow-x-auto scrollbar-thin max-h-[70vh] overflow-y-auto scrollbar-thin">
+      <table class="w-full text-sm">
+        <thead class="sticky top-0 z-10">
+          <tr class="bg-slate-800 text-slate-300 text-xs uppercase tracking-wider">
+            <th class="px-5 py-3 text-left font-semibold w-8">#</th>
+            <th class="px-5 py-3 text-left font-semibold">Entity / Object</th>
+            <th class="px-5 py-3 text-left font-semibold w-36">Prefix</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody" class="divide-y divide-slate-800/60">
+          <!-- filled by JS -->
+        </tbody>
+      </table>
+    </div>
+    <div id="noResults" class="hidden text-center py-16 text-slate-500">
+      <div class="text-4xl mb-3">🔍</div>
+      <div class="font-medium">No matches found</div>
+      <div class="text-xs mt-1">Try a different entity name or prefix</div>
+    </div>
+  </div>
+
+  <!-- ── Resources ────────────────────────────────────── -->
+  <div class="bg-slate-900 border border-slate-800 rounded-xl p-5 mb-6">
+    <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">📚 Resources</p>
+    <ul class="space-y-2 text-sm">
+      <li class="flex items-start gap-2">
+        <span class="text-brand mt-0.5">→</span>
+        <a href="https://help.salesforce.com/s/articleView?id=000385203&type=1" target="_blank"
+          class="text-sky-400 hover:text-sky-300 hover:underline transition">
+          Salesforce Help Article 000385203 — Record ID Key Prefix Reference
+        </a>
+      </li>
+      <li class="flex items-start gap-2">
+        <span class="text-brand mt-0.5">→</span>
+        <a href="https://help.salesforce.com/s/articleView?id=000340200" target="_blank"
+          class="text-sky-400 hover:text-sky-300 hover:underline transition">
+          Find Object Type from Record ID Prefix — Article 000340200
+        </a>
+      </li>
+      <li class="flex items-start gap-2">
+        <span class="text-brand mt-0.5">→</span>
+        <a href="http://www.fishofprey.com/2011/09/obscure-salesforce-object-key-prefixes.html" target="_blank"
+          class="text-sky-400 hover:text-sky-300 hover:underline transition">
+          FishofPrey.com — Obscure Salesforce Object Key Prefixes (community updates)
+        </a>
+      </li>
+    </ul>
+  </div>
+  <!-- ── Footer note ───────────────────────────────────── -->
+  <p class="text-xs text-slate-600 text-center pb-8">This list is not updated with every Salesforce release. Always verify against the source articles above.</p>
+</div>
+
+<script>
+// ── Raw data (tab-separated from prefix.txt) ──────────────────────────────────
+const RAW = `Account\t001
+Contact\t003
+User\t005
+Opportunity\t006
+Activity\t007
+Organization\t00D
+Profile\t00e
+Page Layout\t00h
+OpportunityContactRole\t00K
+Lead\t00Q
+RecordType\t012
+RecordTypePicklist\t013
+EmailMessage\t02s
+ContentDocument\t069
+ConnectedApplication\t0H4
+JobTracker\t0JT
+UserListViewCriterion\t0JU
+PlatformAction\t0JV
+SetupNode\t0JW
+SetupCustomNode\t0JX
+MacroAction\t0JY
+Macro\t0JZ
+ReadOnlyOauthToken\t0Ja
+ReadOnlyOauthTokenScope\t0Jb
+ForecastingCategoryMapping\t0Jd
+UserProvisioningConfig\t0Je
+DomainSite\t0Jf
+ForecastingTypeToCategory\t0Jg
+MacroInstruction\t0Ji
+CopySuspension\t0Jj
+ReadOnlySecurityToken\t0Jk
+ReadOnlyLoginIp\t0Jl
+ReadOnlyLoginIpEmail\t0Jm
+PlatformActionList\t0Jn
+PlatformActionListItem\t0Jo
+ReadOnlyClientBrowser\t0Jp
+SCSInboundSettings\t0Jq
+ThirdPartyAccountLink\t0Jr
+SkinnyIndex\t0Js
+SkinnyIndexColumn\t0Jt
+RelationshipInfo\t0Ju
+RelationshipDomain\t0Jv
+StandardAction\t0Jy
+TodayGoal\t0Jz
+ActionKnowledgeSubmit\t0K0
+ActionChatterPost\t0K2
+ActionChatterPostRecipient\t0K3
+SamplingStrategy\t0K4
+SampledEntity\t0K6
+StorageConfigAuditTrail\t0K7
+QueueRoutingConfig\t0K9
+UserConfigTransferSkill\t0KA
+UserConfigTransferButton\t0KB
+TabDefinition\t0KD
+SqlIdToRequestMap\t0KG
+InstalledSubscriberPackageVersion\t0KM
+SecurityHealthCheckRisks\t0KO
+PresenceConfigDeclineReason\t0KP
+PresenceDeclineReason\t0KR
+StandardValueSet\t0KY
+ReportInstanceQuery\t0KZ
+SurveyEmailBranding\t0Ka
+SyncTransactionLog\t0Kb
+SurveyQuestionChoice\t0Kc
+Survey\t0Kd
+SurveyPage\t0Ke
+TwoFactorMethodsInfo\t0Kg
+FormulaFunctionCategory\t0Kh
+SurveyInvitation\t0Ki
+CustomAppMetrics\t0Km
+FormulaFunction\t0Kn
+GlobalVariable\t0Ko
+TwoFactorMethodsInfoLocal\t0Kp
+LoginFlow\t0Kq
+SurveyQuestionResponse\t0Kr
+SurveyVersion\t0Ks
+AssociatedLocation\t0Kt
+SurveyQuestion\t0Ku
+ResourcePreference\t0Kz
+TenantPlatformLicense\t0L2
+TenantUserLicense\t0L3
+TenantEditionLicense\t0L4
+TenantAddOnLicense\t0L5
+TenantLicensingRequest\t0LC
+RecalcCampaignStats\t0LD
+SamlSsoConfig\t0LE
+ReportInstance\t0LG
+SocialKeyJobLog\t0LH
+SocialKeyEntityErrorLog\t0LI
+ModerationRule\t0LJ
+KeywordList\t0LM
+StorageSizeJob\t0LN
+SetupAssistantAnswer\t0LO
+UserCriteria\t0LV
+LicensedCustomPermission\t0Lc
+LicenseDefinition\t0Ld
+ExternalServiceRegistration\t0Le
+UserFeedChannel\t0Lf
+UserSetupAppInfo\t0Lg
+AssetTokenEvent\t0Li
+AnalyticActionConfiguration\t0Lj
+NavigationLinkSet\t0Lm
+AutoActivityCaptureMetrics\t0Lo
+EmbeddedServiceDetail\t0Lq
+AvroSchema\t0Ls
+ProductTransfer\t0Lu
+BrandingSet\t0Lw
+AIModel\t0Lx
+BrandingSetProperty\t0Ly
+FlexiPage\t0M0
+SocialUserAuth\t0M1
+FlexiPageRegion\t0M2
+SocialKeyParentRecord\t0M3
+SocialKeyPersonaRecord\t0M4
+Territory2Type\t0M5
+StreamingChannel\t0M6
+SandboxObserver\t0M9
+Territory2Model\t0MA
+SearchPromotionRule\t0MD
+SessionLevelPolicy\t0ME
+SynonymDictionary\t0MF
+TransitionMessage\t0MH
+Territory2\t0MI
+SystemStreamingChannel\t0MJ
+XCleanMatchRateMetrics\t0MK
+LayoutSectionState\t0MN
+AppNotifTypeOrgSetting\t0MO
+UserCustomBadge\t0MQ
+MetricsDataFile\t0MR
+ContentOrgMetrics\t0MT
+UserFavorite\t0MV
+BuffaloOrgEstimate\t0MW
+ChatterExtension\t0MY
+SourceMember\t0MZ
+SandboxObserver2\t0Ma
+ChatterExtensionInstance\t0Mb
+FieldServiceMobileSettings\t0Mf
+AppExtension\t0Mg
+NavigationMenuItem\t0Mi
+MessagingChannel\t0Mj
+WindowsPushApplicationSetup\t0Mk
+FeedEntityRead\t0Mp
+FeedRead\t0Ms
+BuffaloMigrationEvent\t0Mt
+BuffaloMigrationManagement\t0Mu
+MessagingSession\t0Mw
+SurveyResponse\t0My
+DomainProvision\t0Mz
+UserMembershipSharingRule\t0N0
+UserCriteriaSharingRule\t0N1
+UserShare\t0N2
+UserSharingRuleFilterItem\t0N3
+RuleTerritory2Association\t0N4
+ServicePresenceStatus\t0N5
+ServiceChannel\t0N9
+SecureAgent\t0NB
+ServiceChannelStatus\t0NC
+SecureAgentPlugin\t0ND
+SecureAgentPluginProperty\t0NE
+TransactionSecurityPolicy\t0NI
+S2XAdminError\t0NK
+StandardReportType\t0NL
+SearchQuerySuggestion\t0NM
+PostArchivalDeletionRequest\t0NN
+ReputationLevel\t0NU
+ReputationPointsRule\t0NV
+SOSDeployment\t0NW
+SOSSession - SOS video calls\t0NX
+SOSSessionActivity\t0NZ
+UserListView\t0Na
+PresenceUserConfig\t0Nd
+PresenceUserConfigUser\t0Ne
+PresenceUserConfigProfile\t0Nf
+CleanInfo\t0Ng
+CleanActivityLog\t0Nh
+UserProvAccount\t0Ni
+CleanEntityError\t0Nj
+LiveChatBlockingRule\t0No
+XCleanBulkJob\t0Np
+SharedPicklistDefinition\t0Nt
+EntityParticle\t0Nv
+UserAppMenuCustomization\t0Nw
+XinstanceInfo\t0O0
+TwoFactorU2F\t0O1
+FieldMappingField\t0O6
+FieldMappingRow\t0O7
+FieldMapping\t0O8
+Shipment\t0OB
+TransactionSecurityCondition\t0OC
+InteractionCountReport\t0OD
+SubscriberTabSetMember\t0OE
+FlexipageComponentMetrics / BulkDedupeJob\t0OF
+BaseEventInterface / DuplicateRuleJob\t0OG
+OperatingHours\t0OH
+MatchingRuleJob\t0OI
+OrgLifecycleNotification\t0OL
+ProcessInstanceNode\t0OO
+VisualforceAccessMetrics\t0OP
+NetworkAffinity\t0OV
+WaveCompatibilityCheckItem\t0OZ
+ComponentResponseCache\t0Oa
+ChatterExtensionConfig\t0Ob
+DashboardComponentColumn\t0Oe
+DashboardComponentResult\t0Of
+CaseSubjectParticle\t0Oi
+ScorecardMetric\t0Om
+PendingChangeContainer\t0Oq
+DatasetExportEvent\t0Or
+FlowVariableAssignment\t0P0
+Certificate\t0P1
+CertificateIp\t0P2
+CalendarSharing\t0P9
+MessagingEndUser\t0PA
+DuplicateJob\t0PB
+DuplicateJobMatchingRule\t0PC
+CustomPermissionDependency\t0PD
+ParallelJobItemData\t0PF
+Individual\t0PK
+PermissionSetLicense\t0PL
+DuplicateJobDefinition\t0PO
+DuplicateJobMatchingRuleDefinition\t0PP
+ProcessTimeQueue\t0PQ
+PermissionSet - Permission set metadata\t0PS
+PushUpgradeExcludedOrg\t0PX
+MetadataContainerMember\t0PZ
+PermissionSetAssignment\t0Pa
+ChannelProgram\t0Pk
+ChannelProgramLevel\t0Pl
+ChannelProgramMember\t0Pm
+EinsteinApplication\t0Pp
+PredictionConfig\t0Pq
+PredictionField\t0Pr
+PushBackDefinition\t0Ps
+PackageVersionInstallRequestError\t0Pt
+PackageVersionUninstallRequestError\t0Pu
+BigObjectsRecordMetrics\t0Pv
+DatasetExport\t0Px
+DatasetExportPart\t0Py
+EventTypeDefinition\t0Pz
+Quote Doc\t0Q0
+OutgoingEmail\t0Q1
+OutgoingEmailRelation\t0Q3
+UserMetrics\t0Q5
+DirectMessageMemberActivity\t0Q7
+FeedSignal\t0QJ
+PinnedEntity\t0QK
+EinsteinAppAnalytics\t0QM
+FTestGenInterface\t0QO
+FTestGenBodyInterface\t0QP
+MetadataContainerMemberWithSymbolTable\t0QT
+ShareInterface\t0QU
+MultiCurrency\t0QV
+MetadataContainerMemberWithBody\t0QY
+Auditable\t0QZ
+EntityEventInterface\t0Qb
+ActionQuickCreate\t0Qc
+DataExportEventInterface\t0Qd
+TransactionSecurityEventInterface\t0Qg
+SoftDeletable\t0Qi
+RecordUserAccessInterface\t0Qj
+UserNavItem\t0Qk
+ScorecardAssociation\t0Qn
+ExternalCredential\t0Qo
+SandOmBulkExport\t0Qp
+VerificationHistory\t0Qt
+SecureAgentsCluster\t0Qy
+Nameable\t0Qz
+QuoteDocument\t0QD
+QuoteLineItem\t0QL
+QuoteTemplateRichTextData\t0QR
+UserTerritory2Association\t0R0
+UserServicePresence\t0R1
+UiPlugin\t0R2
+PartnerFundAllocation\t0R8
+ActivityRelation\t0RA
+PartnerFundClaim\t0RB
+CollaborationGroupRank\t0RC
+RecommendationDefinition\t0RD
+EventRelation\t0RE
+SandOmExportedBlob\t0RH
+PartnerFundRequest\t0RJ
+FlowCategory\t0RL
+BigObjectCounter\t0RM
+TaskRelation\t0RT
+LightningBolt\t0RX
+CustomSettingNameIndex\t0RY
+PlinyPhysicalDeleteJob\t0RZ
+LightningComponentBundle\t0Rb
+LightningComponentResource\t0Rd
+LinkedInLeadGenToken\t0Rf
+InteractionLCMetrics\t0Rg
+TopicDataCategoryRule\t0Rh
+LinkedInLeadGenConfig\t0Ri
+FlowCategoryItem\t0Rl
+LinkedInLeadGenAdAccount\t0Rp
+LightningBoltItem\t0Rr
+FolderClosure\t0Rt
+LightningBoltImage\t0Ru
+LightningBoltFeature\t0Rv
+PersonalizedUnswdQuestion\t0Rx
+LightningExperienceTheme\t0S1
+S2XPushSubscription\t0S2
+ProfileSkillEndorsement\t0SE
+ServiceReportLayout\t0SL
+ProfileSkillUser\t0SM
+AuthProvider\t0SO
+SocialPersona\t0SP
+SignupRequest\t0SR
+SocialPost\t0ST
+AqtIncidentDetection\t0SU
+ReportInstanceCsvResult\t0SV
+MetadataContainerMemberWithBinaryBody\t0Sa
+ProfileSkill\t0Sk
+ReturnOrderLineItem\t0Sn
+ActionOverrideMetrics\t0Sy
+SetupFlowProgress\t0T0
+IndividualShare\t0T5
+EmailDomainFilter\t0T6
+ProdDbHammerRequest\t0TH
+TopicIndex\t0TI
+EventTypeFieldDefinition\t0TJ
+Topic\t0TO
+WaveAssetEvent\t0TN
+CloudConfiguration\t0TR
+ProductRequest\t0TS
+Trialforce Template\t0TT
+TopicOntology\t0TY
+MetadataComponentDependency\t0Tj
+ValidationRuleInfo\t0Ts
+TopicTerm\t0Tt
+BaseSessionInterface\t0Tv
+ProductRequestLineItem\t0Tw
+LightningUsageByPageMetrics\t0U5
+SsoUserMapping\t0UM
+BotSessionsMetrics\t0US
+TenantUsageEntitlement\t0UT
+LbpmMetrics\t0Ua
+WorkThanks\t0W0
+WorkBadgeDefinition\t0W1
+WorkBadge\t0W2
+WorkReward\t0W3
+WorkRewardFund\t0W4
+WorkAccess\t0W5
+WorkPerformanceCycle\t0W7
+WorkFeedbackQuestionSet\t0W8
+WorkFeedbackQuestion\t0WA
+WorkFeedback\t0WB
+WorkFeedbackRequest\t0WC
+WorkCoaching\t0WD
+WorkGoal\t0WE
+WorkGoalCollaborator\t0WF
+WorkGoalLink\t0WG
+WorkRewardFundType\t0WH
+Goal\t0WI
+Metric\t0WJ
+GoalLink\t0WK
+WorkFeedbackTemplate\t0WL
+MetricDataLink\t0WM
+WorkOrder\t0WO
+NamedCredential\t0XA
+ListEmail\t0XB
+WorkSkillRoutingAttribute\t0Xb
+ExternalDataSource - Data Source for External Objects\t0XC
+ListEmailRecipientSource\t0XD
+ListEmailSentResult\t0XE
+CustomHttpHeader\t0XH
+SalesforceIqUser\t0XR
+ExternalDataUserAuth\t0XU
+SourceChangeNotification\t0Xv
+LoginHistory\t0Ya
+SetupAuditTrail\t0Ym
+RateLimitIntBuckets\t0Yq
+ParallelJobStatus\t0Ys
+IdpEventLog\t0Yu
+UserLogin\t0Yw
+FileInspectionResult\t0ZA
+SendEmailActionDefinition\t0ZQ
+ForecastingDisplayedFamily\t0Zx
+FlexipagePageTypeMetrics\t0a2
+AuraDefinitionChange\t0aD
+AuraDefinitionBundleInfo\t0ab
+AuraDefinitionInfo\t0ad
+AudienceMembership\t0am
+CustomIndexDefinition\t0c0
+CustomIndexFieldDefinition\t0c1
+ChatterActivity\t0ca
+OauthConsumerScope\t0cs
+OrgDeleteRequest\t0dr
+ProfileClientSettings\t0e1
+EntityBlacklist\t0eb
+Endorsement\t0en
+CommChannelLayout\t0eo
+CommChannelLayoutItem\t0ep
+CommChannelLayoutMapping\t0eq
+FeedRecommendationInfo\t0fr
+CaseArticle\t0gv
+HashtagCount\t0hc
+HashtagDefinition\t0hd
+Hashtag\t0ht
+KnowledgeableUser\t0in
+UserListPreference\t0ka
+ManagedTopicLocation\t0mt
+ProcessNodeSecurity\t0ns
+RemoteProxy - Remote Site Setting to allow access to an external URL.\t0rp
+ChatterAnswersReputationLevel\t0rs
+ChatterAnswersActivity\t0sa
+ServiceProvider\t0sp
+ScheduledRecommendation\t0sr
+TagDefinition\t0t0
+TopicRecordSetting\t0tR
+TopicSuggestionSetting\t0tS
+TopicComputeStatus\t0ta
+TopicUserEvent\t0te
+TopicGroupActivity\t0tg
+TopicNameChange\t0tn
+TrendingTopic\t0tr
+ProcessTransitionSecurity\t0ts
+TopicUserActivity\t0tu
+UserPermissionAccess\t0up
+UserRecSummary\t0ur
+UserLicense\t100
+ExternalString - Custom Label\t101
+FeatureLicense\t102
+TaskRecurrenceException\t10y
+EventRecurrenceException\t10z
+ObjectPermissions Doc\t110
+EventComments\t111
+ProposedEventTime\t112
+ProposedEventResponse\t113
+DBCThumbnail\t11a
+Address\t130
+Location\t131
+OpportunitySplitType\t149
+EmbeddedServiceBranding\t19i
+CleanAccountBackup\t1AB
+AssetRelationship\t1AR
+AccountCleanInfo\t1CA
+CleanContactBackup\t1CB
+ContactCleanInfo\t1CC
+PathAssistantStepInfo\t1CF
+LeadCleanInfo\t1CL
+PathAssistant\t1CP
+PathAssistantStepItem\t1CS
+DigitalSignature\t1DS
+EncryptionStatistics\t1ED
+DataDotComFieldSetting\t1EF
+EncryptableDataProblem\t1EP
+DataDotComEntitySetting\t1ES
+EventType / CustomEvent\t1EV
+EventTypeParameter\t1Ep
+CleanFieldSettingOld\t1FS
+CleanJobSetting\t1JS
+FieldHistoryArchive\t1HA
+LoginEvent\t1HB
+PlatformEventMetric\t1HC
+ComparisonSummary\t1L7
+ComparisonResult\t1L8
+CleanLeadBackup\t1LB
+MaintenanceAsset\t1MA
+MetaMindConnection\t1MC
+MaintenancePlan\t1MP
+PersonAccountMetrics\t1Mc
+NamespaceRegistry\t1NR
+CaseExternalDocument\t1OZ
+MenuItem\t1S1
+StampAssignment\t1SA
+ServiceReport\t1SR
+Stamp\t1ST
+ServiceTerritoryLocation\t1Sl
+LinkedArticle\t1WK
+WorkOrderLineItem\t1WL
+BranchMerge\t1bm
+Branch\t1br
+ChangeListBranch\t1cb
+Integration\t1ci
+ChangeList\t1cl
+ServiceCrewMember\t1cm
+ServiceCrew\t1cr
+MetadataContainer - from the Tooling API\t1dc
+IDEWorkspace\t1de
+ApexExecutionOverlayAction\t1do
+IDEPerspective\t1dp
+ContainerAsyncRequest - from the Tooling API\t1dr
+GitHubRepositoryLink\t1gh
+GitHubPushOperation\t1gp
+MetadataRevisionTemplate\t1mr
+LightningToggleMetrics\t1o1
+PartitionLevelMember\t1pm
+PartitionLevelScheme\t1ps
+Repository\t1rp
+ResetAsyncRequest\t1rr
+StagingArea\t1sa
+TimeSheetEntry\t1te
+TimeSheet\t1ts
+RegisteredExternalService\t1uu
+VersionedContentEntity\t1vc
+ChunkableTask\t200
+ChunkableEntityTally\t201
+ChunkableEntityChunk\t202
+ChunkableEntityTally2\t203
+SfdcPartner\t204
+ChunkableEntityChunk2\t205
+SFDC_DIVISION\t208
+EmailRelay\t26Z
+ActiveScratchOrg\t2AS
+ChunkableTask2\t2CE
+EncryptionStatisticsChunk\t2ED
+EncryptableDataProblemChunk\t2EP
+CleanFactEntityClaim\t2FE
+CleanFactFieldClaim\t2FF
+PermissionSetLicenseAssign\t2LA
+PersonalizationResource\t2hf
+ScratchOrgInfo\t2SR
+ReturnOrder\t2oN
+FlowDefinition - InteractionDefinition - Visual Workflow or Flow\t300
+InteractionDefinitionVersion\t301
+InteractionScreenFieldParam\t307
+InteractionCondition\t308
+InteractionOperand\t309
+InteractionAllocator\t30A
+InteractionChoice\t30C
+InteractionDecision\t30D
+InteractionForm\t30F
+InteractionConnector\t30L
+InteractionQuestion\t30Q
+InteractionReference\t30R
+InteractionStatement\t30S
+InteractionVariable\t30V
+InteractionWait\t30W
+ProcessPlugin\t30X
+InteractionAllocation\t30a
+InteractionConstant\t30c
+InteractionDataColumn\t30d
+InteractionWaitEvent\t30e
+InteractionFormula\t30f
+InteractionLayoutGroup\t30g
+InteractionApexCall\t30m
+InteractionWaitEventParam\t30p
+InteractionResource\t30r
+InteractionTodo\t30t
+InteractionValueList\t30v
+InteractionLayoutDetail\t310
+Subinteraction\t31A
+SubinteractionVariableAssignment\t31C
+InteractionSwitch\t31S
+InteractionFieldValue\t31V
+InteractionChoiceLookup\t31c
+InteractionDataSource\t31d
+InteractionDataInput\t31i
+InteractionDataOutput\t31o
+InteractionValueListEntry\t31v
+InteractionFieldMetaData\t31w
+InteractionStage\t31x
+FlowStageRelation\t31y
+FlowRecordRelation\t31z
+EventDeliveryData\t3DP
+EventDelivery\t3DS
+EventSubscriptionHandleData\t3HP
+EventDelivery (2)\t3Db
+EventDeliveryParam\t3Dp
+ProfileIpRestrictionMetrics\t3J5
+DataDotComCleanMetrics\t3M0
+OrgObjectsMetrics\t3M1
+OrgStandardObjectsMetrics\t3M2
+ChatterMetrics\t3M3
+ChatterOrgWideMetrics\t3M4
+NetworkCustomerLoginMetrics\t3M5
+NetworkPartnerLoginMetrics\t3M6
+PermissionSetMetricsByOrg\t3MA
+DataDotComSocialMetrics\t3MB
+OpportunityMetrics\t3MC
+ContentMetrics\t3MD
+CustomObjectUsageMetrics\t3ME
+SharingRowCauseMetrics\t3MF
+SharingMetrics\t3MG
+IdeaMetrics\t3MH
+UserDimMetrics\t3MI
+PermissionSetLicenseMetrics\t3MJ
+OpptyAndPricingMetrics\t3MK
+ChatterGroupConMetrics\t3MM
+ChatterUserNetworkMetrics\t3MN
+QuickActionMetrics\t3MO
+VisualforceMetrics\t3MQ
+EventLogFileMetrics\t3MR
+DataDotComListPoolMetrics\t3MS
+ProcessMetrics\t3MT
+DeclarativePlatformMetrics\t3MU
+SharingUserMetrics\t3MV
+PlatformOrgObjectMetrics\t3MW
+InteractionLanguageMetrics\t3Ml
+InteractionTranslMetrics\t3Mt
+ExtIdentityLoginMetrics\t3N1
+CustomObjectUserLicenseMetrics\t3NA
+DialerMinutesMetrics\t3NC
+OpportunitySplitMetrics\t3NO
+SandboxOrgDimensionMetrics\t3NS
+SandboxDimensionMetrics\t3NT
+DataDotComCleanPrefMetrics\t3NU
+TwoFactorMetrics\t3NV
+NetworkPowerCustomerLoginMetrics\t3NW
+LightningComponentMetrics\t3NX
+ChatterUniqueContributorDailyMetrics\t3NY
+ChatterActivityDailyMetrics\t3NZ
+EventParameterData\t3PP
+EventParameter\t3PS
+ProcessPluginParameter\t3PX
+EventPublication\t3Pb
+EventPublicationHandle\t3Ph
+EventPublicationParam\t3Pp
+EventSubscriptionData\t3SP
+EventSubscription\t3SS
+LightningUsageByBrowserMetrics\t3mK
+ApexClassMember\t400
+ApexTriggerMember\t401
+ApexPageMember\t402
+ApexComponentMember\t403
+WorkflowRuleMember\t404
+ValidationRuleMember\t405
+WorkflowFieldUpdateMember\t406
+WorkflowTaskMember\t407
+WorkflowAlertMember\t408
+WorkflowOutboundMessageMember\t410
+CustomFieldMember\t412
+ContentLogMetricsByFileType\t413
+PendingChange\t4A0
+ApexClassVersion\t4F0
+ApexTriggerVersion\t4F1
+ApexPageVersion\t4F2
+ApexComponentVersion\t4F3
+CustomFieldVersion\t4F4
+EntityDefinitionVersion\t4F5
+NetworkCustomerDailyLoginMetrics\t4M5
+NetworkPartnerDailyLoginMetrics\t4M6
+CooperSettingsMetrics\t4NA
+SupportOrgWideMetrics\t4NB
+LightningServiceMetrics\t4NC
+UtilityBarMetrics\t4ND
+NetworkPCustDailyLoginMetrics\t4NW
+Package2UpgradeExport\t4Wz
+CompactLayoutItemInfo\t4ci
+CompactLayoutInfo\t4cl
+SearchLayout\t4co
+DataType\t4dt
+FieldDefinition\t4fe
+UserFieldAccess\t4fp
+ServiceFieldDataType\t4ft
+EntityDefinition\t4ie
+Publisher\t4pb
+PicklistValueInfo\t4pv
+Service\t4sr
+ServiceDataType\t4st
+ServiceVersion\t4sv
+ApexPageInfo\t4ve
+WebServiceDefinition\t4ws
+WsdlDataType\t4wt
+XmlSchema\t4xs
+Case\t500
+Solution\t501
+Entitlement\t550
+EntitlementTemplate\t551
+SlaProcess\t552
+CaseMilestone\t555
+MilestoneType\t557
+LiveChatTranscript\t570
+LiveChatVisitor\t571
+LiveChatDeployment\t572
+LiveChatButton\t573
+QuickText\t574
+ChatSession\t5CS
+SessionPermSetActivation\t5Pa
+SegmentSpace\t5Sp
+BILLING_DIVISION\t600
+BILLING_ORDER\t601
+CURRENCY\t602
+PLAN\t604
+PRODUCT\t605
+BILLING_ORDER_ITEM\t606
+PLAN_PRODUCT\t607
+ForecastShare\t608
+LightningUsageByAppTypeMetrics\t62C
+AssociationQueueItem\t6AA
+EventAssociationItem\t6AB
+MailAssociationItem\t6AC
+TaskAssociationItem\t6AD
+SegmentSpaceChunk\t6SS
+PartitionStatus\t6pS
+MetadataChangeTemplate\t700
+Campaign\t701
+AsyncApexJob\t707
+BatchApexRelationship\t708
+ApexTestQueueItem\t709
+AssetShare\t70a
+AssetOwnerSharingRule\t70b
+AssetCriteriaSharingRule\t70c
+AssetSharingRuleFilterItem\t70d
+LoginIp\t710
+ApiLoginKey\t711
+LoginIpEmail\t712
+ClientBrowser\t713
+ApexCodeCoverage\t714
+ApexCodeCoverageAggregate\t715
+ApexOrgWideCoverage\t716
+Photo\t729
+FieldHistory\t737
+AsyncApiJob - Bulk Query Job\t750
+AsyncApiBatch - Bulk Query Batch\t751
+AsyncApiQueryResult - Bulk Query Result\t752
+TempStore\t753
+AsyncApiJobOptions\t754
+LinkedInLeadGen\t7Eh
+UiStyleDefinition\t766
+UiStyle\t777
+LeadConvertMapping\t7Eq
+LightningComponentTag\t7Er
+DebugLevel\t7dl
+LightningUsageByFlexiPageMetrics\t7pV
+TraceFlag\t7tf
+S2XGoogleServiceAccount\t7tg
+Contract\t800
+Order\t801
+OrderItem\t802
+INVOICE\t803
+INVOICE_ITEM\t804
+PAYMENT\t805
+Approval\t806
+URI_BLOCK_RULE\t807
+OrganizationValue\t80D
+ServiceContract\t810
+ContractLineItem\t811
+S2XTransaction\t817
+S2XRecordMap\t820
+S2XUserMap\t822
+S2XServiceAccount\t823
+S2XTransactionLock\t824
+S2XEventRecordMap\t825
+ActivityRecurrence\t828
+ActivityExtension\t829
+ActivityRecurrenceException\t82B
+OauthConsumer - Remote Access\t888
+OauthConsumerAsset\t889
+Question\t906
+Reply\t907
+QuestionSubscription\t910
+QuestionReportAbuse\t911
+ReplyReportAbuse\t912
+PackageBooleanValue\t9BV
+PackageDateValue\t9DV
+PackageIntegerValue\t9NV
+LicenseManagementOrgCertificate\t9yZ
+Custom Objects (starts at a00)\ta00
+Platform Events (starts at e00)\te00
+Custom Metadata (starts at m00)\tm00
+BigObjects (starts at z00)\tz00
+KnowledgeArticleVersion\tka0-kzz
+KnowledgeArticle\tkA0-kZz
+PermissionSet Profile match\tX00
+Custom Field Id (query string)\tCF00N`;
+
+// ── Parse ─────────────────────────────────────────────────────────────────────
+const DATA = RAW.trim().split('\n').map((line, i) => {
+  const tab = line.indexOf('\t');
+  return { id: i + 1, entity: line.slice(0, tab), prefix: line.slice(tab + 1) };
+});
+
+document.getElementById('totalCount').textContent = DATA.length;
+
+// ── Build prefix lookup map ───────────────────────────────────────────────────
+const LOOKUP = {};
+DATA.forEach(d => {
+  const key = d.prefix.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 3);
+  if (!LOOKUP[key]) LOOKUP[key] = [];
+  LOOKUP[key].push(d);
+});
+
+// ── Highlight helper ──────────────────────────────────────────────────────────
+function highlight(text, q) {
+  if (!q) return escHtml(text);
+  const esc = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return escHtml(text).replace(new RegExp(`(${esc})`, 'gi'), '<mark>$1</mark>');
+}
+function escHtml(t) {
+  return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Render table ──────────────────────────────────────────────────────────────
+let currentData = [...DATA];
+
+function renderTable(rows, q = '') {
+  const tbody = document.getElementById('tableBody');
+  const noRes = document.getElementById('noResults');
+  document.getElementById('shownCount').textContent = rows.length;
+
+  if (!rows.length) {
+    tbody.innerHTML = '';
+    noRes.classList.remove('hidden');
+    return;
+  }
+  noRes.classList.add('hidden');
+
+  // Color coding by prefix first char group
+  const colorMap = {
+    '0': 'text-sky-400', '1': 'text-violet-400', '2': 'text-pink-400',
+    '3': 'text-amber-400', '4': 'text-emerald-400', '5': 'text-teal-400',
+    '6': 'text-cyan-400',  '7': 'text-indigo-400', '8': 'text-rose-400',
+    '9': 'text-orange-400', 'a': 'text-lime-400', 'e': 'text-green-400',
+    'm': 'text-yellow-400', 'z': 'text-red-400',
+    'k': 'text-fuchsia-400', 'x': 'text-purple-400', 'c': 'text-blue-400',
+  };
+
+  tbody.innerHTML = rows.map((row, idx) => {
+    const c = colorMap[(row.prefix[0] || '').toLowerCase()] || 'text-slate-400';
+    const bgAlt = idx % 2 === 0 ? '' : 'bg-slate-900/40';
+    return `<tr class="${bgAlt} hover:bg-slate-800/70 group cursor-default">
+      <td class="px-5 py-2.5 text-slate-600 mono text-xs">${row.id}</td>
+      <td class="px-5 py-2.5 text-slate-200">${highlight(row.entity, q)}</td>
+      <td class="px-5 py-2.5">
+        <button onclick="copyPrefix('${row.prefix}')" title="Click to copy"
+          class="prefix-badge mono text-xs font-semibold px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700 ${c} hover:border-slate-500">
+          ${highlight(row.prefix, q)}
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Search + Sort ─────────────────────────────────────────────────────────────
+function applySearch() {
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+  const sort = document.getElementById('sortSelect').value;
+  const clearBtn = document.getElementById('clearBtn');
+  clearBtn.classList.toggle('hidden', !q);
+
+  let rows = q
+    ? DATA.filter(d => d.entity.toLowerCase().includes(q) || d.prefix.toLowerCase().includes(q))
+    : [...DATA];
+
+  if (sort === 'entity') rows.sort((a, b) => a.entity.localeCompare(b.entity));
+  else if (sort === 'prefix') rows.sort((a, b) => a.prefix.localeCompare(b.prefix, undefined, { sensitivity: 'base' }));
+
+  currentData = rows;
+  renderTable(rows, q);
+}
+
+function clearSearch() {
+  document.getElementById('searchInput').value = '';
+  applySearch();
+}
+
+// ── ID Decoder ────────────────────────────────────────────────────────────────
+function decodeId() {
+  const raw   = document.getElementById('decoder-input').value.trim().replace(/\s+/g, '');
+  const el    = document.getElementById('decoder-result');
+
+  if (!raw) { el.classList.add('hidden'); return; }
+
+  // Strip spaces/dashes, take first 3 chars
+  const prefix3 = raw.slice(0, 3);
+  const key     = prefix3.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  // Try exact match first, then fuzzy
+  const matches = DATA.filter(d => {
+    const dp = d.prefix.replace(/[^a-z0-9]/gi,'').toLowerCase();
+    return dp === key || d.prefix.toLowerCase() === prefix3.toLowerCase();
+  });
+
+  if (matches.length) {
+    el.innerHTML = `
+      <div class="flex flex-wrap gap-3">
+        ${matches.map(m => `
+          <div class="flex items-center gap-3 bg-slate-800 border border-slate-700 rounded-lg px-4 py-3 min-w-0">
+            <span class="mono text-brand font-bold text-lg">${escHtml(m.prefix)}</span>
+            <span class="text-slate-300 font-medium">${escHtml(m.entity)}</span>
+          </div>`).join('')}
+      </div>
+      <p class="mt-2 text-xs text-slate-500">Extracted prefix: <span class="mono text-slate-300">${escHtml(prefix3)}</span> from ID: <span class="mono text-slate-400">${escHtml(raw.slice(0,3))}<span class="text-slate-600">${escHtml(raw.slice(3,6))}</span><span class="text-slate-700">${escHtml(raw.slice(6))}</span></span></p>`;
+    el.classList.remove('hidden');
+    el.classList.add('fade-in');
+  } else {
+    el.innerHTML = `
+      <div class="flex items-center gap-3 bg-slate-800/60 border border-slate-700 rounded-lg px-4 py-3 text-slate-400">
+        <span class="text-2xl">🔍</span>
+        <div>
+          <span class="font-medium text-white">Prefix <span class="mono text-brand">${escHtml(prefix3)}</span> not found</span>
+          <p class="text-xs mt-0.5">This may be a Custom Object (a00+), Platform Event (e00+), Custom Metadata (m00+), or a newer prefix not listed here.</p>
+        </div>
+      </div>`;
+    el.classList.remove('hidden');
+    el.classList.add('fade-in');
+  }
+}
+
+function clearDecoder() {
+  document.getElementById('decoder-input').value = '';
+  document.getElementById('decoder-result').classList.add('hidden');
+}
+
+// Enter key on decoder
+document.getElementById('decoder-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') decodeId();
+});
+
+// ── Copy to clipboard ─────────────────────────────────────────────────────────
+function copyPrefix(prefix) {
+  navigator.clipboard.writeText(prefix).then(() => showToast(`Copied: ${prefix}`));
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+// ── CSV export ────────────────────────────────────────────────────────────────
+function exportCSV() {
+  const rows = ['#,Entity,Prefix', ...currentData.map(d => `${d.id},"${d.entity.replace(/"/g,'""')}",${d.prefix}`)];
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'sf-record-id-prefixes.csv';
+  a.click();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+renderTable(DATA);
+
+// Also trigger decode when user types a full-looking ID
+document.getElementById('decoder-input').addEventListener('input', e => {
+  const v = e.target.value.replace(/\s+/g,'');
+  if (v.length >= 15) decodeId();
+  else if (!v) document.getElementById('decoder-result').classList.add('hidden');
+});
+</script>
+</body>
+</html>
