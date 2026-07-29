@@ -1,0 +1,85 @@
+<!DOCTYPE html><html class="dark"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config={darkMode:'class'};</script>
+<title>Salesforce Session IP Locking Guide</title></head>
+<link rel="icon" type="image/x-icon"
+        href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+<div class="max-w-5xl mx-auto p-8">
+<div class="flex justify-between items-center"><h1 class="text-4xl font-bold">Salesforce Session Setting: Lock Sessions to Originating IP</h1>
+<button onclick="document.documentElement.classList.toggle('dark');localStorage.theme=document.documentElement.classList.contains('dark')?'dark':'light';" class="px-4 py-2 rounded bg-blue-600 text-white">Toggle Theme</button></div>
+<script>if(localStorage.theme==='light')document.documentElement.classList.remove('dark');</script>
+
+<div class="mt-6 p-4 border-l-4 border-yellow-500 bg-yellow-100 dark:bg-yellow-900/30">
+<p><b>Warning:</b> Enabling <code>Lock sessions to the IP address from which they originated</code> can cause repeated authentication or "Too Many Redirects" in environments where client IP addresses change.</p></div>
+
+<h2 class="text-2xl font-semibold mt-8">Overview</h2>
+<p class="mt-2">This setting binds an authenticated Salesforce session to the public IP address used during login. If subsequent requests arrive from a different IP, Salesforce invalidates the session and redirects the user for authentication.</p>
+
+<h2 class="text-2xl font-semibold mt-8">Redirect Loop</h2>
+<div class="bg-white dark:bg-gray-800 rounded shadow p-4 font-mono text-sm">
+User Login → Session Created (IP=A)<br>
+↓<br>
+Next Request (IP=B)<br>
+↓<br>
+Salesforce Invalidates Session<br>
+↓<br>
+Redirect to SSO/Login<br>
+↓<br>
+Authenticated Again<br>
+↓<br>
+Request from Different IP<br>
+↓<br>
+Loop Continues 🔁
+</div>
+
+<h2 class="text-2xl font-semibold mt-8">Common Causes</h2>
+<ul class="list-disc ml-8 space-y-2">
+<li>F5 or load balancers using multiple SNAT addresses</li>
+<li>VPN exit node changes</li>
+<li>Zscaler / Netskope / Secure Web Gateway</li>
+<li>Wi-Fi ↔ Cellular switching</li>
+<li>Multiple Internet gateways or NAT pools</li>
+</ul>
+
+<h2 class="text-2xl font-semibold mt-8">Symptoms</h2>
+<table class="w-full mt-4 border-collapse">
+<tr class="bg-gray-200 dark:bg-gray-700"><th class="border p-2">Symptom</th><th class="border p-2">Description</th></tr>
+<tr><td class="border p-2">Too Many Redirects</td><td class="border p-2">Browser repeatedly redirects to login.</td></tr>
+<tr><td class="border p-2">Login Loop</td><td class="border p-2">Successful authentication never reaches Salesforce.</td></tr>
+<tr><td class="border p-2">OAuth Failures</td><td class="border p-2">Connected apps lose session.</td></tr>
+</table>
+
+<h2 class="text-2xl font-semibold mt-8">Diagnosis</h2>
+<ol class="list-decimal ml-8">
+<li>Review Salesforce Login History.</li>
+<li>Review IdP logs for repeated SAML/OAuth authentication.</li>
+<li>Verify whether outbound IP changes during the session.</li>
+<li>Review F5 SNAT and persistence configuration.</li>
+</ol>
+
+<h2 class="text-2xl font-semibold mt-8">Recommendations</h2>
+<div class="grid md:grid-cols-2 gap-4 mt-4">
+<div class="bg-green-100 dark:bg-green-900/30 p-4 rounded">
+<h3 class="font-bold">Recommended</h3>
+<ul class="list-disc ml-6">
+<li>MFA</li><li>Trusted IP Ranges</li><li>Login IP Ranges</li><li>Conditional Access</li><li>Session Security Levels</li>
+</ul></div>
+<div class="bg-red-100 dark:bg-red-900/30 p-4 rounded">
+<h3 class="font-bold">Use with Caution</h3>
+<p>Enable IP locking only when outbound client IPs remain stable throughout the session.</p>
+</div></div>
+
+<h2 class="text-2xl font-semibold mt-8">F5 Considerations</h2>
+<ul class="list-disc ml-8">
+<li>Enable persistence (source IP or cookie).</li>
+<li>Avoid rotating SNAT addresses.</li>
+<li>Maintain consistent egress IP.</li>
+<li>Validate SSL termination configuration.</li>
+</ul>
+
+<div class="mt-8 p-5 rounded bg-blue-100 dark:bg-blue-900/30">
+<h2 class="text-xl font-bold">Summary</h2>
+<p>If enabling this setting immediately causes redirect loops, IP address changes are the most likely root cause. Modern authentication controls such as MFA and conditional access usually provide stronger security with fewer usability issues.</p>
+</div>
+</div></body></html>
