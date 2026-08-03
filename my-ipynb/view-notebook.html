@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Jupyter Notebook Viewer</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+<!-- Monaco Editor CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js"></script>
+
+<!-- Marked.js for Markdown rendering -->
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<!-- KaTeX for math rendering -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" />
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+<!-- highlight.js for code output highlighting -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" id="hljs-theme"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+<style>
+/* ── CSS Variables ─────────────────────────────────────────────────────── */
+:root[data-theme="dark"] {
+  --bg:        #0d1117; --bg2: #161b22; --bg3: #21262d;
+  --border:    #30363d; --text: #e6edf3; --text2: #8b949e; --text3: #6e7681;
+  --accent:    #58a6ff; --accent2: #1f6feb; --green: #3fb950; --orange: #d29922;
+  --red:       #f85149; --purple: #a78bfa;
+  --code-bg:   #0d1117; --md-bg: #161b22;
+  --sidebar-w: 280px;
+  --splitter-w: 5px;
+}
+:root[data-theme="light"] {
+  --bg:        #f6f8fa; --bg2: #ffffff; --bg3: #f0f3f7;
+  --border:    #d0d7de; --text: #1f2328; --text2: #57606a; --text3: #6e7781;
+  --accent:    #0969da; --accent2: #0550ae; --green: #1a7f37; --orange: #9a6700;
+  --red:       #cf222e; --purple: #6639ba;
+  --code-bg:   #f6f8fa; --md-bg: #ffffff;
+  --sidebar-w: 280px; --splitter-w: 5px;
+}
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+html,body { height: 100%; font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); overflow: hidden; }
+
+/* ── LAYOUT ──────────────────────────────────────────────────────────────── */
+#app { display: flex; height: 100vh; flex-direction: column; }
+
+/* ── TOP BAR ──────────────────────────────────────────────────────────────── */
+#topbar {
+  height: 48px; min-height: 48px;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px; padding: 0 14px;
+  z-index: 100;
+}
+.tb-logo { display: flex; align-items: center; gap: 8px; }
+.tb-logo .icon { font-size: 1.3rem; }
+.tb-logo h1 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 1rem;
+              background: linear-gradient(90deg, #58a6ff, #a78bfa); -webkit-background-clip: text;
+              -webkit-text-fill-color: transparent; background-clip: text; }
+.tb-sep { flex: 1; }
+.tb-btn {
+  padding: 5px 13px; border-radius: 7px; border: 1px solid var(--border);
+  background: var(--bg3); color: var(--text2); cursor: pointer; font-size: 0.78rem;
+  font-weight: 500; transition: all 0.18s; white-space: nowrap; display: flex; align-items: center; gap: 5px;
+}
+.tb-btn:hover { border-color: var(--accent); color: var(--accent); }
+.tb-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+#nb-title {
+  font-size: 0.85rem; color: var(--text2); font-family: 'JetBrains Mono', monospace;
+  max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Upload button */
+#uploadBtn { position: relative; overflow: hidden; }
+#uploadBtn input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* ── BODY ──────────────────────────────────────────────────────────────── */
+#body { display: flex; flex: 1; overflow: hidden; }
+
+/* ── SIDEBAR ──────────────────────────────────────────────────────────────── */
+#sidebar {
+  width: var(--sidebar-w); min-width: 160px; max-width: 500px;
+  background: var(--bg2); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden; transition: width 0.2s;
+}
+#sidebar-header {
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+}
+#sidebar-header h2 { font-size: 0.78rem; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: 0.06em; flex: 1; }
+#sidebar-search {
+  margin: 8px 10px; padding: 6px 10px;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  color: var(--text); font-size: 0.8rem; outline: none; width: calc(100% - 20px);
+}
+#sidebar-search:focus { border-color: var(--accent); }
+#file-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+.file-item {
+  display: flex; align-items: center; gap: 8px; padding: 7px 12px;
+  cursor: pointer; transition: background 0.15s; border-radius: 0;
+  font-size: 0.8rem; color: var(--text2);
+}
+.file-item:hover { background: var(--bg3); color: var(--text); }
+.file-item.active { background: rgba(88,166,255,0.12); color: var(--accent); font-weight: 600; }
+.file-item .fi-icon { font-size: 0.9rem; flex-shrink: 0; }
+.file-item .fi-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.file-item .fi-badge {
+  font-size: 0.65rem; background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 10px; padding: 1px 6px; white-space: nowrap; flex-shrink: 0;
+}
+
+/* ── SPLITTER ──────────────────────────────────────────────────────────────── */
+#splitter {
+  width: var(--splitter-w); background: var(--border); cursor: col-resize;
+  flex-shrink: 0; transition: background 0.2s; position: relative;
+  display: flex; align-items: center; justify-content: center;
+}
+#splitter:hover, #splitter.dragging { background: var(--accent); }
+#splitter::after {
+  content: '⋮'; color: var(--text3); font-size: 0.8rem; line-height: 1;
+  position: absolute; pointer-events: none;
+}
+
+/* ── MAIN CONTENT ──────────────────────────────────────────────────────────── */
+#main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+
+/* ── TOOLBAR ──────────────────────────────────────────────────────────────── */
+#toolbar {
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  padding: 6px 14px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.view-tab {
+  padding: 4px 14px; border-radius: 6px; border: 1px solid var(--border);
+  background: none; color: var(--text2); cursor: pointer; font-size: 0.78rem;
+  font-weight: 500; transition: all 0.15s;
+}
+.view-tab:hover { background: var(--bg3); color: var(--text); }
+.view-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+#cell-count { font-size: 0.75rem; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+
+/* ── CONTENT AREA ──────────────────────────────────────────────────────────── */
+#content-area { flex: 1; display: flex; overflow: hidden; }
+
+/* ── NOTEBOOK VIEW ──────────────────────────────────────────────────────────── */
+#notebook-view {
+  flex: 1; overflow-y: auto; padding: 20px 24px; display: none;
+}
+#notebook-view.active { display: block; }
+
+/* ── CELLS ──────────────────────────────────────────────────────────────── */
+.nb-cell {
+  margin-bottom: 12px; border-radius: 10px;
+  border: 1px solid var(--border); overflow: hidden;
+  transition: border-color 0.2s;
+}
+.nb-cell:hover { border-color: #444c56; }
+
+/* Cell header */
+.cell-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 12px; border-bottom: 1px solid var(--border);
+  background: var(--bg3); font-size: 0.72rem; font-family: 'JetBrains Mono', monospace;
+}
+.cell-type-badge {
+  padding: 1px 8px; border-radius: 10px; font-size: 0.68rem; font-weight: 600;
+}
+.cell-type-code { background: rgba(88,166,255,0.12); color: var(--accent); }
+.cell-type-markdown { background: rgba(52,211,153,0.12); color: #34d399; }
+.cell-type-raw { background: rgba(167,139,250,0.12); color: var(--purple); }
+.cell-num { color: var(--text3); }
+.cell-header-sep { flex: 1; }
+.cell-copy-btn {
+  background: none; border: none; color: var(--text3); cursor: pointer;
+  font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; transition: color 0.2s;
+}
+.cell-copy-btn:hover { color: var(--text); }
+
+/* Code cell source */
+.cell-source-wrap { background: var(--code-bg); }
+.cell-monaco { height: 0; overflow: hidden; }
+
+/* Markdown cell */
+.cell-markdown {
+  padding: 14px 18px; background: var(--md-bg);
+  line-height: 1.75; font-size: 0.93rem;
+}
+.cell-markdown h1 { font-family: 'Syne',sans-serif; font-size: 1.7rem; font-weight: 800; margin: 0.6em 0 0.4em; letter-spacing: -0.02em; }
+.cell-markdown h2 { font-family: 'Syne',sans-serif; font-size: 1.3rem; font-weight: 700; margin: 0.8em 0 0.3em; border-bottom: 1px solid var(--border); padding-bottom: 0.3em; }
+.cell-markdown h3 { font-size: 1.05rem; font-weight: 600; margin: 0.7em 0 0.25em; }
+.cell-markdown p { margin: 0.5em 0; }
+.cell-markdown code { font-family: 'JetBrains Mono',monospace; font-size: 0.83em; background: var(--bg3); padding: 2px 6px; border-radius: 4px; }
+.cell-markdown pre { background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; margin: 0.6em 0; }
+.cell-markdown pre code { background: none; padding: 0; }
+.cell-markdown ul, .cell-markdown ol { padding-left: 1.5em; margin: 0.4em 0; }
+.cell-markdown li { margin: 0.25em 0; }
+.cell-markdown table { border-collapse: collapse; width: 100%; margin: 0.8em 0; }
+.cell-markdown th, .cell-markdown td { border: 1px solid var(--border); padding: 6px 12px; font-size: 0.85rem; }
+.cell-markdown th { background: var(--bg3); font-weight: 600; }
+.cell-markdown blockquote { border-left: 3px solid var(--accent); margin: 0.5em 0; padding: 0.4em 1em; background: rgba(88,166,255,0.05); color: var(--text2); }
+.cell-markdown a { color: var(--accent); text-decoration: none; }
+.cell-markdown a:hover { text-decoration: underline; }
+
+/* Cell output */
+.cell-output { border-top: 1px solid var(--border); }
+.output-header {
+  padding: 3px 12px; background: var(--bg3); font-size: 0.68rem;
+  color: var(--text3); font-family: 'JetBrains Mono',monospace; letter-spacing: 0.04em;
+}
+.output-text {
+  padding: 10px 14px; font-family: 'JetBrains Mono',monospace; font-size: 0.8rem;
+  white-space: pre-wrap; overflow-x: auto; background: var(--code-bg); line-height: 1.65;
+}
+.output-text.stdout { color: #e6edf3; }
+.output-text.stderr { color: #ffa657; background: rgba(255,166,87,0.04); }
+.output-text.error  { color: #f85149; background: rgba(248,81,73,0.04); }
+.output-image { padding: 10px; background: var(--bg2); text-align: center; }
+.output-image img { max-width: 100%; border-radius: 6px; }
+.output-html { padding: 10px 14px; background: var(--bg2); overflow-x: auto; }
+
+/* ── MONACO RAW SOURCE VIEW ──────────────────────────────────────────────── */
+#source-view { flex: 1; display: none; overflow: hidden; }
+#source-view.active { display: flex; flex-direction: column; }
+#monaco-editor { flex: 1; }
+
+/* ── WELCOME SCREEN ──────────────────────────────────────────────────────── */
+#welcome {
+  flex: 1; display: flex; flex-direction: column; align-items: center;
+  justify-content: center; gap: 1.5rem; padding: 2rem;
+  opacity: 1; transition: opacity 0.3s;
+}
+#welcome.hidden { display: none; }
+.welcome-icon { font-size: 4rem; }
+.welcome-title { font-family: 'Syne',sans-serif; font-size: 1.8rem; font-weight: 800;
+                  background: linear-gradient(135deg, #58a6ff, #a78bfa); -webkit-background-clip: text;
+                  -webkit-text-fill-color: transparent; background-clip: text; }
+.welcome-sub { color: var(--text2); font-size: 0.9rem; text-align: center; max-width: 400px; line-height: 1.6; }
+.welcome-hint { font-size: 0.78rem; color: var(--text3); font-family: 'JetBrains Mono',monospace; }
+
+/* ── LOADING ──────────────────────────────────────────────────────────────── */
+#loading {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  z-index: 999; align-items: center; justify-content: center;
+}
+#loading.active { display: flex; }
+.spinner {
+  width: 40px; height: 40px; border: 3px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── SCROLLBARS ──────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+/* ── ANIMATIONS ──────────────────────────────────────────────────────────── */
+.nb-cell { animation: fadeIn 0.2s ease both; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── RESPONSIVE ──────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  #sidebar { width: 200px; --sidebar-w: 200px; }
+  #notebook-view { padding: 10px; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <div class="tb-logo">
+      <span class="icon">📓</span>
+      <h1>Notebook Viewer</h1>
+    </div>
+    <span id="nb-title">No notebook selected</span>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" id="uploadBtn" title="Upload a .ipynb file">
+      📤 Upload
+      <input type="file" accept=".ipynb,application/json" id="fileInput" />
+    </button>
+    <button class="tb-btn" onclick="toggleTheme()" id="themeBtn">☀️ Light</button>
+    <button class="tb-btn" onclick="collapseAllCells()">⊟ Collapse</button>
+    <button class="tb-btn" onclick="expandAllCells()">⊞ Expand</button>
+  </div>
+
+  <div id="body">
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+      <div id="sidebar-header">
+        <span>📁</span>
+        <h2>Notebooks</h2>
+      </div>
+      <input id="sidebar-search" type="text" placeholder="🔍 Filter…" oninput="filterFiles()" />
+      <div id="file-list"></div>
+    </div>
+
+    <!-- SPLITTER -->
+    <div id="splitter"></div>
+
+    <!-- MAIN -->
+    <div id="main">
+      <div id="toolbar">
+        <button class="view-tab active" id="tab-rendered" onclick="switchView('rendered')">📖 Rendered</button>
+        <button class="view-tab" id="tab-source" onclick="switchView('source')">⌨️ Source (Monaco)</button>
+        <span id="cell-count"></span>
+      </div>
+
+      <div id="content-area">
+        <!-- WELCOME -->
+        <div id="welcome">
+          <div class="welcome-icon">📓</div>
+          <div class="welcome-title">Jupyter Notebook Viewer</div>
+          <div class="welcome-sub">Select a notebook from the panel on the left, paste a URL with <code>?nb=url</code>, or upload a <code>.ipynb</code> file.</div>
+          <div class="welcome-hint">Press <kbd>/</kbd> to filter notebooks</div>
+        </div>
+
+        <!-- NOTEBOOK RENDERED VIEW -->
+        <div id="notebook-view"></div>
+
+        <!-- MONACO SOURCE VIEW -->
+        <div id="source-view">
+          <div id="monaco-editor"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- LOADING OVERLAY -->
+<div id="loading"><div class="spinner"></div></div>
+
+<script>
+// ── BUILT-IN NOTEBOOK LIST ─────────────────────────────────────────────────
+const NOTEBOOKS = [
+  { name: 'nb01_maths_for_llms.ipynb',     label: 'Maths for LLMs',          icon: '📐', cells: 10 },
+  { name: 'nb02_linear_algebra.ipynb',      label: 'Linear Algebra',           icon: '🔢', cells: 8  },
+  { name: 'nb03_llm_pytorch.ipynb',         label: 'LLM — PyTorch',            icon: '🔥', cells: 7  },
+  { name: 'nb04_llm_jax.ipynb',             label: 'LLM — JAX',               icon: '⚡', cells: 6  },
+  { name: 'nb05_python_examples.ipynb',     label: 'Python Examples',          icon: '🐍', cells: 10 },
+  { name: 'nb06_data_dashboards.ipynb',     label: 'Data Dashboards',          icon: '📊', cells: 5  },
+  { name: 'nb07_numpy_special.ipynb',       label: 'NumPy Special',            icon: '🔢', cells: 6  },
+  { name: 'nb08_sklearn_predictive_ai.ipynb','label': 'Sklearn Predictive AI', icon: '🌿', cells: 5  },
+  { name: 'nb09_data360_rag.ipynb',         label: 'Data360 & RAG',           icon: '🗄️', cells: 5  },
+  { name: 'nb10_agents_python.ipynb',       label: 'Agents in Python',         icon: '🤖', cells: 6  },
+];
+
+// ── STATE ──────────────────────────────────────────────────────────────────
+let currentNb       = null;    // parsed notebook JSON
+let currentNbName   = '';
+let monacoEditor    = null;
+let monacoLoaded    = false;
+let currentView     = 'rendered';  // 'rendered' | 'source'
+let cellEditors     = {};          // cellIdx → monaco editor instance
+let collapsed       = {};          // cellIdx → bool
+
+// ── MONACO SETUP ──────────────────────────────────────────────────────────
+require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+require(['vs/editor/editor.main'], function () {
+  monacoLoaded = true;
+  // Create the raw source view editor (read-only)
+  monacoEditor = monaco.editor.create(document.getElementById('monaco-editor'), {
+    value: '',
+    language: 'json',
+    theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'vs-dark' : 'vs',
+    readOnly: true,
+    fontSize: 13,
+    fontFamily: "'JetBrains Mono', monospace",
+    lineNumbers: 'on',
+    minimap: { enabled: true },
+    wordWrap: 'on',
+    scrollBeyondLastLine: false,
+    renderLineHighlight: 'all',
+    smoothScrolling: true,
+    cursorSmoothCaretAnimation: 'on',
+  });
+});
+
+// ── SIDEBAR RENDERING ──────────────────────────────────────────────────────
+function buildSidebar(filter = '') {
+  const list = document.getElementById('file-list');
+  const q = filter.toLowerCase();
+  list.innerHTML = '';
+  NOTEBOOKS.filter(nb => nb.label.toLowerCase().includes(q) || nb.name.toLowerCase().includes(q))
+    .forEach(nb => {
+      const div = document.createElement('div');
+      div.className = 'file-item' + (nb.name === currentNbName ? ' active' : '');
+      div.innerHTML = `<span class="fi-icon">${nb.icon}</span>
+        <span class="fi-name" title="${nb.name}">${nb.label}</span>
+        <span class="fi-badge">${nb.cells}c</span>`;
+      div.onclick = () => loadNotebook(nb.name);
+      list.appendChild(div);
+    });
+}
+buildSidebar();
+
+function filterFiles() {
+  buildSidebar(document.getElementById('sidebar-search').value);
+}
+
+// ── KEYBOARD SHORTCUTS ─────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement !== document.getElementById('sidebar-search')) {
+    e.preventDefault();
+    document.getElementById('sidebar-search').focus();
+  }
+  if (e.key === 'Escape') document.getElementById('sidebar-search').value = '';
+});
+
+// ── LOAD NOTEBOOK ──────────────────────────────────────────────────────────
+async function loadNotebook(filename, rawJson = null) {
+  showLoading(true);
+  try {
+    let nb;
+    if (rawJson) {
+      nb = rawJson;
+      currentNbName = filename;
+    } else {
+      const res = await fetch(filename);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      nb = await res.json();
+      currentNbName = filename;
+    }
+    currentNb = nb;
+    document.getElementById('nb-title').textContent = currentNbName;
+    buildSidebar(document.getElementById('sidebar-search').value);
+    hideWelcome();
+    renderNotebook(nb);
+    if (monacoLoaded && monacoEditor) {
+      monacoEditor.setValue(JSON.stringify(nb, null, 2));
+      monacoEditor.setScrollPosition({ scrollTop: 0 });
+    }
+    if (currentView === 'source') switchView('source');
+    else switchView('rendered');
+  } catch (e) {
+    alert('Failed to load notebook: ' + e.message);
+  } finally {
+    showLoading(false);
+  }
+}
+
+// ── RENDER NOTEBOOK ────────────────────────────────────────────────────────
+function renderNotebook(nb) {
+  const view = document.getElementById('notebook-view');
+  view.innerHTML = '';
+  cellEditors = {};
+  collapsed   = {};
+
+  const cells = nb.cells || [];
+  document.getElementById('cell-count').textContent =
+    `${cells.length} cells · ${cells.filter(c=>c.cell_type==='code').length} code · ${cells.filter(c=>c.cell_type==='markdown').length} md`;
+
+  cells.forEach((cell, idx) => {
+    const el = renderCell(cell, idx);
+    el.style.animationDelay = Math.min(idx * 0.025, 0.5) + 's';
+    view.appendChild(el);
+  });
+
+  // Trigger KaTeX math rendering after DOM is ready
+  setTimeout(() => {
+    if (typeof renderMathInElement !== 'undefined') {
+      renderMathInElement(view, {
+        delimiters: [
+          { left: '$$', right: '$$', display: true },
+          { left: '$', right: '$', display: false },
+          { left: '\\[', right: '\\]', display: true },
+          { left: '\\(', right: '\\)', display: false },
+        ],
+        throwOnError: false,
+      });
+    }
+    // highlight.js on output code blocks
+    view.querySelectorAll('.output-text code').forEach(el => hljs.highlightElement(el));
+  }, 80);
+
+  // Create Monaco editors for code cells
+  setTimeout(() => initCellEditors(cells), 150);
+}
+
+function renderCell(cell, idx) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'nb-cell';
+  wrapper.id = `cell-${idx}`;
+
+  const src = Array.isArray(cell.source) ? cell.source.join('') : (cell.source || '');
+  const type = cell.cell_type || 'code';
+
+  // ── Cell Header ────────────────────────────────────────────────────────
+  const hdr = document.createElement('div');
+  hdr.className = 'cell-header';
+  const execCount = (cell.execution_count !== null && cell.execution_count !== undefined)
+    ? `[${cell.execution_count}]` : '[ ]';
+  hdr.innerHTML = `
+    <span class="cell-type-badge cell-type-${type}">${type}</span>
+    ${type === 'code' ? `<span class="cell-num">${execCount}</span>` : ''}
+    <span class="cell-header-sep"></span>
+    <button class="cell-copy-btn" onclick="copyCell(${idx})" title="Copy source">📋</button>
+    <button class="cell-copy-btn" onclick="toggleCell(${idx})" title="Toggle">⊟</button>`;
+  wrapper.appendChild(hdr);
+
+  // ── Cell Body ──────────────────────────────────────────────────────────
+  const body = document.createElement('div');
+  body.id = `cell-body-${idx}`;
+
+  if (type === 'markdown') {
+    const mdDiv = document.createElement('div');
+    mdDiv.className = 'cell-markdown';
+    mdDiv.innerHTML = typeof marked !== 'undefined' ? marked.parse(src) : escapeHtml(src);
+    body.appendChild(mdDiv);
+  } else {
+    // Monaco placeholder for code cells
+    const monacoWrap = document.createElement('div');
+    monacoWrap.className = 'cell-source-wrap';
+    const monacoDiv = document.createElement('div');
+    monacoDiv.id = `monaco-cell-${idx}`;
+    monacoDiv.className = 'cell-monaco';
+    // Initial height estimate: count lines, min 3 lines, max 40
+    const lineCount = Math.max(3, Math.min(40, src.split('\n').length));
+    monacoDiv.style.height = (lineCount * 19 + 12) + 'px';
+    monacoWrap.appendChild(monacoDiv);
+    body.appendChild(monacoWrap);
+
+    // Outputs
+    const outputs = cell.outputs || [];
+    if (outputs.length > 0) {
+      const outDiv = document.createElement('div');
+      outDiv.className = 'cell-output';
+      const outHdr = document.createElement('div');
+      outHdr.className = 'output-header';
+      outHdr.textContent = `OUTPUT (${outputs.length})`;
+      outDiv.appendChild(outHdr);
+      outputs.forEach(out => { outDiv.appendChild(renderOutput(out)); });
+      body.appendChild(outDiv);
+    }
+  }
+
+  wrapper.appendChild(body);
+  return wrapper;
+}
+
+// ── RENDER OUTPUT ──────────────────────────────────────────────────────────
+function renderOutput(out) {
+  const div = document.createElement('div');
+
+  if (out.output_type === 'stream') {
+    div.className = `output-text ${out.name || 'stdout'}`;
+    const text = Array.isArray(out.text) ? out.text.join('') : (out.text || '');
+    div.textContent = text;
+  } else if (out.output_type === 'error') {
+    div.className = 'output-text error';
+    const tb = out.traceback || [out.ename + ': ' + out.evalue];
+    // Strip ANSI colour codes for clean display
+    div.textContent = tb.join('\n').replace(/\x1b\[[0-9;]*m/g, '');
+  } else if (out.output_type === 'display_data' || out.output_type === 'execute_result') {
+    const data = out.data || {};
+    if (data['image/png']) {
+      const imgDiv = document.createElement('div');
+      imgDiv.className = 'output-image';
+      const img = document.createElement('img');
+      img.src = 'data:image/png;base64,' + data['image/png'];
+      img.alt = 'Output image';
+      imgDiv.appendChild(img);
+      return imgDiv;
+    } else if (data['image/jpeg']) {
+      const imgDiv = document.createElement('div');
+      imgDiv.className = 'output-image';
+      const img = document.createElement('img');
+      img.src = 'data:image/jpeg;base64,' + data['image/jpeg'];
+      img.alt = 'Output image';
+      imgDiv.appendChild(img);
+      return imgDiv;
+    } else if (data['text/html']) {
+      div.className = 'output-html';
+      const html = Array.isArray(data['text/html']) ? data['text/html'].join('') : data['text/html'];
+      div.innerHTML = html;
+    } else if (data['text/plain']) {
+      div.className = 'output-text stdout';
+      const text = Array.isArray(data['text/plain']) ? data['text/plain'].join('') : data['text/plain'];
+      div.textContent = text;
+    }
+  }
+  return div;
+}
+
+// ── INIT MONACO CODE CELL EDITORS ─────────────────────────────────────────
+function initCellEditors(cells) {
+  if (!monacoLoaded) { setTimeout(() => initCellEditors(cells), 300); return; }
+  cells.forEach((cell, idx) => {
+    if (cell.cell_type !== 'code') return;
+    const container = document.getElementById(`monaco-cell-${idx}`);
+    if (!container || container._monacoEditor) return;
+    const src = Array.isArray(cell.source) ? cell.source.join('') : (cell.source || '');
+    const editor = monaco.editor.create(container, {
+      value: src,
+      language: 'python',
+      theme: document.documentElement.getAttribute('data-theme') === 'dark' ? 'vs-dark' : 'vs',
+      readOnly: true,
+      fontSize: 13,
+      fontFamily: "'JetBrains Mono', monospace",
+      lineNumbers: 'on',
+      minimap: { enabled: false },
+      scrollBeyondLastLine: false,
+      wordWrap: 'off',
+      renderLineHighlight: 'line',
+      automaticLayout: true,
+      scrollbar: { vertical: 'hidden', horizontal: 'auto' },
+      overviewRulerLanes: 0,
+    });
+    container._monacoEditor = editor;
+    cellEditors[idx] = editor;
+  });
+}
+
+// ── VIEW SWITCHING ─────────────────────────────────────────────────────────
+function switchView(view) {
+  currentView = view;
+  document.getElementById('tab-rendered').classList.toggle('active', view === 'rendered');
+  document.getElementById('tab-source').classList.toggle('active', view === 'source');
+  document.getElementById('notebook-view').classList.toggle('active', view === 'rendered');
+  document.getElementById('source-view').classList.toggle('active', view === 'source');
+  if (view === 'source' && monacoEditor) {
+    setTimeout(() => monacoEditor.layout(), 50);
+  }
+}
+
+// ── CELL ACTIONS ──────────────────────────────────────────────────────────
+function toggleCell(idx) {
+  const body = document.getElementById(`cell-body-${idx}`);
+  if (!body) return;
+  collapsed[idx] = !collapsed[idx];
+  body.style.display = collapsed[idx] ? 'none' : '';
+  const btn = document.querySelector(`#cell-${idx} .cell-copy-btn:last-child`);
+  if (btn) btn.textContent = collapsed[idx] ? '⊞' : '⊟';
+}
+
+function collapseAllCells() {
+  if (!currentNb) return;
+  currentNb.cells.forEach((_, idx) => { collapsed[idx] = false; toggleCell(idx); });
+}
+
+function expandAllCells() {
+  if (!currentNb) return;
+  currentNb.cells.forEach((_, idx) => {
+    const body = document.getElementById(`cell-body-${idx}`);
+    if (body) { body.style.display = ''; collapsed[idx] = false; }
+    const btn = document.querySelector(`#cell-${idx} .cell-copy-btn:last-child`);
+    if (btn) btn.textContent = '⊟';
+  });
+}
+
+function copyCell(idx) {
+  if (!currentNb || !currentNb.cells[idx]) return;
+  const src = currentNb.cells[idx].source;
+  const text = Array.isArray(src) ? src.join('') : (src || '');
+  navigator.clipboard.writeText(text).then(() => {
+    const btns = document.querySelectorAll(`#cell-${idx} .cell-copy-btn`);
+    if (btns[0]) { btns[0].textContent = '✓'; setTimeout(() => { btns[0].textContent = '📋'; }, 1500); }
+  });
+}
+
+// ── SPLITTER (animated drag) ───────────────────────────────────────────────
+(function () {
+  const splitter = document.getElementById('splitter');
+  const sidebar  = document.getElementById('sidebar');
+  let dragging = false, startX = 0, startW = 0;
+
+  splitter.addEventListener('mousedown', e => {
+    dragging = true; startX = e.clientX; startW = sidebar.offsetWidth;
+    splitter.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const delta = e.clientX - startX;
+    const newW  = Math.max(160, Math.min(600, startW + delta));
+    sidebar.style.width = newW + 'px';
+    // Relayout Monaco editors
+    Object.values(cellEditors).forEach(ed => ed && ed.layout && ed.layout());
+    if (monacoEditor) monacoEditor.layout && monacoEditor.layout();
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    splitter.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+})();
+
+// ── UPLOAD ────────────────────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', function (e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const nb = JSON.parse(ev.target.result);
+      loadNotebook(file.name, nb);
+    } catch (err) {
+      alert('Invalid .ipynb file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  this.value = '';   // reset so same file can be re-uploaded
+});
+
+// ── ?nb= URL PARAMETER ───────────────────────────────────────────────────
+function checkUrlParam() {
+  const params = new URLSearchParams(window.location.search);
+  const nbUrl  = params.get('nb');
+  if (nbUrl) {
+    showLoading(true);
+    fetch(nbUrl)
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(nb => loadNotebook(decodeURIComponent(nbUrl).split('/').pop(), nb))
+      .catch(e => { alert('Failed to load notebook from URL: ' + e.message); showLoading(false); });
+  }
+}
+
+// ── THEME ─────────────────────────────────────────────────────────────────
+function toggleTheme() {
+  const html = document.documentElement;
+  const isDark = html.getAttribute('data-theme') === 'dark';
+  const newTheme = isDark ? 'light' : 'dark';
+  html.setAttribute('data-theme', newTheme);
+  document.getElementById('themeBtn').textContent = isDark ? '🌙 Dark' : '☀️ Light';
+  // Update all Monaco editors
+  const monacoTheme = isDark ? 'vs' : 'vs-dark';
+  if (monacoLoaded) {
+    monaco.editor.setTheme(monacoTheme);
+  }
+  // Update hljs stylesheet
+  const hlLink = document.getElementById('hljs-theme');
+  if (hlLink) {
+    hlLink.href = isDark
+      ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css'
+      : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
+  }
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────
+function showLoading(v) { document.getElementById('loading').classList.toggle('active', v); }
+function hideWelcome()  { document.getElementById('welcome').classList.add('hidden'); }
+function escapeHtml(s)  {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── BOOT ──────────────────────────────────────────────────────────────────
+checkUrlParam();
+</script>
+</body>
+</html>
