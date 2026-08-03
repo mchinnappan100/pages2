@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chiroscope — A Reading of the Hand</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root[data-theme="dark"]{
+    --bg: #100E1A;
+    --bg-2: #171331;
+    --surface: #1C1832;
+    --surface-2: #241E3E;
+    --ink: #EDE7F6;
+    --ink-dim: #A79EC7;
+    --gold: #C9A15C;
+    --gold-bright: #E7C989;
+    --accent: #7C6AD6;
+    --line: #362F55;
+    --shadow: rgba(0,0,0,0.55);
+    --vignette: radial-gradient(ellipse at 50% -10%, rgba(124,106,214,0.18), transparent 55%);
+  }
+  :root[data-theme="light"]{
+    --bg: #F4EBD9;
+    --bg-2: #EEE1C4;
+    --surface: #FBF4E6;
+    --surface-2: #EFE2C6;
+    --ink: #2B2116;
+    --ink-dim: #756449;
+    --gold: #8C5A2B;
+    --gold-bright: #A8763E;
+    --accent: #6E4A2E;
+    --line: #D6C6A0;
+    --shadow: rgba(60,45,20,0.16);
+    --vignette: radial-gradient(ellipse at 50% -10%, rgba(140,90,43,0.10), transparent 55%);
+  }
+  html{ background: var(--bg); }
+  body{
+    background-color: var(--bg);
+    background-image: var(--vignette);
+    color: var(--ink);
+    font-family: 'EB Garamond', serif;
+    transition: background-color .4s ease, color .4s ease;
+  }
+  .font-display{ font-family: 'Cinzel', serif; letter-spacing: .12em; }
+  .font-heading{ font-family: 'Playfair Display', serif; }
+  .font-mono{ font-family: 'Space Mono', monospace; letter-spacing: .04em; }
+
+  .surface{ background: var(--surface); border: 1px solid var(--line); }
+  .surface-2{ background: var(--surface-2); border: 1px solid var(--line); }
+  .text-ink{ color: var(--ink); }
+  .text-dim{ color: var(--ink-dim); }
+  .text-gold{ color: var(--gold); }
+  .border-line{ border-color: var(--line); }
+  .bg-accent{ background: var(--accent); }
+  .ring-gold{ box-shadow: 0 0 0 1px var(--gold); }
+
+  .btn-gold{
+    background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+    color: var(--bg);
+    font-family: 'Space Mono', monospace;
+    letter-spacing: .08em;
+    transition: transform .2s ease, box-shadow .2s ease, filter .2s ease;
+  }
+  .btn-gold:hover{ filter: brightness(1.08); transform: translateY(-1px); }
+  .btn-gold:disabled{ opacity: .35; filter: none; transform: none; cursor: not-allowed; }
+
+  .btn-ghost{
+    border: 1px solid var(--line);
+    color: var(--ink);
+    font-family: 'Space Mono', monospace;
+    letter-spacing: .08em;
+    transition: border-color .2s ease, background .2s ease;
+  }
+  .btn-ghost:hover{ border-color: var(--gold); background: var(--surface-2); }
+
+  .divider{
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--line) 20%, var(--line) 80%, transparent);
+  }
+
+  /* Hand SVG line-draw animation */
+  .hand-line{
+    fill: none;
+    stroke: var(--gold);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1.6s cubic-bezier(.65,0,.35,1);
+  }
+  .hand-outline{
+    fill: var(--surface-2);
+    stroke: var(--ink-dim);
+    stroke-width: 1.3;
+    opacity: .85;
+  }
+  .hand-label{
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: .1em;
+    fill: var(--gold);
+  }
+  .hand-leader{
+    stroke: var(--line);
+    stroke-width: 1;
+    stroke-dasharray: 2 3;
+  }
+
+  @keyframes drift{
+    0%{ transform: translateY(0px); }
+    50%{ transform: translateY(-6px); }
+    100%{ transform: translateY(0px); }
+  }
+  .drift{ animation: drift 6s ease-in-out infinite; }
+
+  @keyframes fade-in-up{
+    from{ opacity:0; transform: translateY(10px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  .reveal{ animation: fade-in-up .6s ease both; }
+
+  .step-num{
+    font-family: 'Space Mono', monospace;
+    color: var(--gold);
+    border: 1px solid var(--line);
+  }
+
+  video::-webkit-media-controls{ display: none !important; }
+
+  .scrollbar-thin::-webkit-scrollbar{ width: 6px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb{ background: var(--line); border-radius: 3px; }
+
+  .loader-quill{
+    width: 3px; height: 3px; border-radius: 50%;
+    background: var(--gold);
+    box-shadow: 8px 0 0 var(--gold), 16px 0 0 var(--gold), 24px 0 0 var(--gold);
+    animation: quill-pulse 1.2s ease-in-out infinite;
+  }
+  @keyframes quill-pulse{
+    0%, 100%{ opacity:.25; } 50%{ opacity:1; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .drift, .reveal, .loader-quill{ animation: none !important; }
+    .hand-line{ transition: none !important; }
+  }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- NAV -->
+<header class="sticky top-0 z-40 backdrop-blur" style="background: color-mix(in srgb, var(--bg) 82%, transparent); border-bottom:1px solid var(--line);">
+  <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <svg width="26" height="26" viewBox="0 0 26 26" class="text-gold" style="color:var(--gold)">
+        <circle cx="13" cy="13" r="10.5" fill="none" stroke="currentColor" stroke-width="1"/>
+        <path d="M13 5 L13 21 M5 13 L21 13" stroke="currentColor" stroke-width="0.6" opacity="0.5"/>
+        <circle cx="13" cy="13" r="2.4" fill="currentColor"/>
+      </svg>
+      <span class="font-display text-sm md:text-base text-ink">CHIROSCOPE</span>
+    </div>
+    <button id="themeToggle" class="btn-ghost rounded-full px-4 py-2 text-xs flex items-center gap-2">
+      <span id="themeIcon">☾</span>
+      <span id="themeLabel">GRIMOIRE</span>
+    </button>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="max-w-6xl mx-auto px-6 pt-14 pb-10 grid md:grid-cols-2 gap-10 items-center">
+  <div class="reveal">
+    <p class="font-mono text-xs text-dim uppercase mb-4">Chirology · The study of the hand</p>
+    <h1 class="font-heading text-4xl md:text-5xl leading-[1.1] mb-6">
+      Every palm carries a map<br> drawn before you learned<br> to <em>read</em> anything at all.
+    </h1>
+    <p class="text-dim text-lg leading-relaxed mb-8 max-w-md">
+      Show us your hand — by camera or photograph — and we'll walk its lines with you: life, heart, head, and fate, the four old roads of the palm.
+    </p>
+    <div class="flex items-center gap-4">
+      <button onclick="document.getElementById('capture').scrollIntoView({behavior:'smooth'})" class="btn-gold rounded-full px-7 py-3 text-xs uppercase">Begin the Reading</button>
+      <span class="font-mono text-xs text-dim">takes about a minute</span>
+    </div>
+
+    <div class="mt-10 flex gap-8">
+      <div>
+        <div class="step-num w-7 h-7 rounded-full flex items-center justify-center text-[11px] mb-2">01</div>
+        <p class="font-mono text-xs text-dim">CAPTURE</p>
+      </div>
+      <div>
+        <div class="step-num w-7 h-7 rounded-full flex items-center justify-center text-[11px] mb-2">02</div>
+        <p class="font-mono text-xs text-dim">CONSULT</p>
+      </div>
+      <div>
+        <div class="step-num w-7 h-7 rounded-full flex items-center justify-center text-[11px] mb-2">03</div>
+        <p class="font-mono text-xs text-dim">REVEAL</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="reveal drift flex justify-center" style="animation-delay:.15s">
+    <div id="heroHand" class="w-full max-w-sm"></div>
+  </div>
+</section>
+
+<div class="max-w-6xl mx-auto px-6"><div class="divider"></div></div>
+
+<!-- CAPTURE -->
+<section id="capture" class="max-w-4xl mx-auto px-6 py-16">
+  <div class="text-center mb-10">
+    <p class="font-mono text-xs text-dim uppercase mb-3">Step 01 &amp; 02</p>
+    <h2 class="font-heading text-3xl mb-3">Present your palm</h2>
+    <p class="text-dim max-w-md mx-auto">Flatten your hand, palm facing the lens, in even light. Or bring a photograph you already have.</p>
+  </div>
+
+  <div class="surface rounded-2xl p-2 max-w-sm mx-auto flex mb-8">
+    <button id="tabCamera" class="flex-1 py-2.5 rounded-xl font-mono text-xs uppercase transition">Use Camera</button>
+    <button id="tabUpload" class="flex-1 py-2.5 rounded-xl font-mono text-xs uppercase transition">Upload Photo</button>
+  </div>
+
+  <!-- Camera panel -->
+  <div id="panelCamera" class="hidden">
+    <div class="surface rounded-3xl p-6 md:p-8">
+      <div class="relative rounded-2xl overflow-hidden border border-line" style="aspect-ratio:4/3; background: var(--surface-2);">
+        <video id="video" class="w-full h-full object-cover hidden" autoplay playsinline muted></video>
+        <canvas id="canvas" class="hidden"></canvas>
+        <img id="camSnapshot" class="w-full h-full object-cover hidden" alt="Captured hand">
+        <div id="camPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center gap-3 text-dim">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V9a1 1 0 011-1z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          <p class="font-mono text-xs">Camera not started</p>
+        </div>
+      </div>
+      <div class="flex items-center justify-center gap-4 mt-6">
+        <button id="btnStartCam" class="btn-gold rounded-full px-6 py-2.5 text-xs uppercase">Start Camera</button>
+        <button id="btnSnap" class="btn-gold rounded-full px-6 py-2.5 text-xs uppercase hidden">Capture</button>
+        <button id="btnRetakeCam" class="btn-ghost rounded-full px-6 py-2.5 text-xs uppercase hidden">Retake</button>
+      </div>
+      <p id="camError" class="text-center font-mono text-xs mt-4 hidden" style="color:#C8654A"></p>
+    </div>
+  </div>
+
+  <!-- Upload panel -->
+  <div id="panelUpload" class="hidden">
+    <div class="surface rounded-3xl p-6 md:p-8">
+      <label id="dropZone" for="fileInput" class="flex flex-col items-center justify-center gap-3 rounded-2xl cursor-pointer transition"
+        style="aspect-ratio:4/3; border: 1.5px dashed var(--line); background: var(--surface-2);">
+        <img id="uploadPreview" class="hidden w-full h-full object-cover rounded-2xl" alt="Uploaded hand">
+        <div id="uploadPlaceholder" class="flex flex-col items-center gap-3 text-dim">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
+          <p class="font-mono text-xs">Click to choose a photograph</p>
+          <p class="font-mono text-[10px] text-dim">or drag it here</p>
+        </div>
+      </label>
+      <input id="fileInput" type="file" accept="image/*" class="hidden">
+      <div class="flex items-center justify-center gap-4 mt-6">
+        <button id="btnRetakeUpload" class="btn-ghost rounded-full px-6 py-2.5 text-xs uppercase hidden">Choose Another</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-center mt-8">
+    <button id="btnReveal" disabled class="btn-gold rounded-full px-10 py-3.5 text-xs uppercase">Reveal My Reading</button>
+    <p class="font-mono text-[10px] text-dim mt-4 max-w-sm mx-auto leading-relaxed">For reflection and entertainment only. No image is stored — it lives only in this session.</p>
+  </div>
+</section>
+
+<!-- LOADING -->
+<section id="loadingSection" class="hidden max-w-2xl mx-auto px-6 py-20 text-center">
+  <div class="loader-quill mx-auto mb-8"></div>
+  <p id="loadingText" class="font-heading text-xl italic text-dim">Tracing the life line…</p>
+</section>
+
+<!-- ERROR -->
+<section id="errorSection" class="hidden max-w-xl mx-auto px-6 py-16 text-center">
+  <div class="surface rounded-2xl p-8">
+    <p class="font-heading text-xl mb-3">The lines would not settle.</p>
+    <p id="errorText" class="text-dim mb-6">Something interrupted the reading. Try again in clearer light.</p>
+    <button id="btnErrorRetry" class="btn-gold rounded-full px-6 py-2.5 text-xs uppercase">Try Again</button>
+  </div>
+</section>
+
+<!-- RESULTS -->
+<section id="resultsSection" class="hidden max-w-5xl mx-auto px-6 py-16">
+  <div class="divider mb-16"></div>
+  <p class="font-mono text-xs text-dim uppercase text-center mb-3">Step 03</p>
+  <h2 class="font-heading text-3xl md:text-4xl text-center mb-14">What your hand had to say</h2>
+
+  <div class="grid md:grid-cols-2 gap-10 items-start mb-16">
+    <div id="resultHand" class="max-w-sm mx-auto w-full"></div>
+    <div>
+      <div id="handTypeBadge" class="font-mono text-xs uppercase text-gold mb-2"></div>
+      <h3 id="handTypeName" class="font-heading text-2xl mb-4"></h3>
+      <p id="handTypeDesc" class="text-dim leading-relaxed mb-8"></p>
+      <div class="surface-2 rounded-2xl p-6 border-l-2" style="border-left-color: var(--gold);">
+        <p id="affirmationText" class="font-heading italic text-lg"></p>
+      </div>
+    </div>
+  </div>
+
+  <div id="lineCards" class="grid sm:grid-cols-2 gap-6 mb-16"></div>
+
+  <div class="surface rounded-3xl p-8 md:p-10 text-center max-w-3xl mx-auto mb-12">
+    <p class="font-mono text-xs text-dim uppercase mb-4">The Reading</p>
+    <p id="overallText" class="font-heading text-xl md:text-2xl leading-relaxed italic"></p>
+  </div>
+
+  <div class="text-center">
+    <button id="btnReadAgain" class="btn-ghost rounded-full px-8 py-3 text-xs uppercase">Read Another Hand</button>
+  </div>
+</section>
+
+<footer class="max-w-6xl mx-auto px-6 py-10 text-center">
+  <p class="font-mono text-[10px] text-dim">CHIROSCOPE · a hand is a hypothesis, not a verdict · for entertainment purposes only</p>
+</footer>
+
+<script>
+/* ---------------- THEME ---------------- */
+const root = document.documentElement;
+const themeToggle = document.getElementById('themeToggle');
+const themeIcon = document.getElementById('themeIcon');
+const themeLabel = document.getElementById('themeLabel');
+let currentTheme = 'dark';
+function applyTheme(t){
+  currentTheme = t;
+  root.setAttribute('data-theme', t);
+  themeIcon.textContent = t === 'dark' ? '☾' : '☀';
+  themeLabel.textContent = t === 'dark' ? 'GRIMOIRE' : 'PARCHMENT';
+}
+themeToggle.addEventListener('click', () => applyTheme(currentTheme === 'dark' ? 'light' : 'dark'));
+applyTheme('dark');
+
+/* ---------------- HAND SVG ---------------- */
+function handSVG({labels=false, id=''} = {}){
+  return `
+  <svg viewBox="0 0 320 460" class="w-full h-auto" id="${id}">
+    <g class="hand-outline">
+      <rect x="76" y="58" width="30" height="140" rx="15"/>
+      <rect x="114" y="28" width="30" height="176" rx="15"/>
+      <rect x="152" y="42" width="30" height="162" rx="15"/>
+      <rect x="190" y="76" width="26" height="122" rx="13"/>
+      <rect x="38" y="176" width="28" height="106" rx="14" transform="rotate(-34 52 200)"/>
+      <path d="M68,196 C56,232 50,282 60,332 C68,372 84,412 112,432 L206,432 C236,412 252,372 258,332 C266,282 260,232 250,196 C230,206 190,206 160,206 C126,206 88,206 68,196 Z"/>
+    </g>
+    <g>
+      <path id="lineHeart${id}" class="hand-line" d="M74,208 C122,192 196,192 244,214"/>
+      <path id="lineHead${id}"  class="hand-line" d="M84,236 C124,248 176,248 232,224"/>
+      <path id="lineLife${id}"  class="hand-line" d="M100,200 C78,232 72,284 84,332 C90,362 100,392 116,416"/>
+      <path id="lineFate${id}"  class="hand-line" d="M160,424 C158,362 155,300 151,238"/>
+    </g>
+    ${labels ? `
+    <g class="font-mono">
+      <line class="hand-leader" x1="244" y1="214" x2="278" y2="200"/>
+      <text x="282" y="200" class="hand-label">HEART</text>
+      <line class="hand-leader" x1="232" y1="224" x2="278" y2="248"/>
+      <text x="282" y="252" class="hand-label">HEAD</text>
+      <line class="hand-leader" x1="84" y1="332" x2="40" y2="332"/>
+      <text x="4" y="336" class="hand-label">LIFE</text>
+      <line class="hand-leader" x1="151" y1="238" x2="151" y2="16"/>
+      <text x="128" y="12" class="hand-label">FATE</text>
+    </g>` : ''}
+  </svg>`;
+}
+document.getElementById('heroHand').innerHTML = handSVG({id:'Hero'});
+animateHand('Hero');
+
+function animateHand(id){
+  ['lineHeart','lineHead','lineLife','lineFate'].forEach((key, i) => {
+    const el = document.getElementById(key + id);
+    if(!el) return;
+    const len = el.getTotalLength();
+    el.style.strokeDasharray = len;
+    el.style.strokeDashoffset = len;
+    setTimeout(() => { el.style.strokeDashoffset = 0; }, 300 + i * 350);
+  });
+}
+
+/* ---------------- TABS ---------------- */
+const tabCamera = document.getElementById('tabCamera');
+const tabUpload = document.getElementById('tabUpload');
+const panelCamera = document.getElementById('panelCamera');
+const panelUpload = document.getElementById('panelUpload');
+
+function setActiveTab(which){
+  const activeStyle = () => { };
+  if(which === 'camera'){
+    panelCamera.classList.remove('hidden');
+    panelUpload.classList.add('hidden');
+    tabCamera.style.background = 'var(--surface-2)';
+    tabCamera.style.color = 'var(--gold)';
+    tabUpload.style.background = 'transparent';
+    tabUpload.style.color = 'var(--ink-dim)';
+  } else {
+    panelUpload.classList.remove('hidden');
+    panelCamera.classList.add('hidden');
+    tabUpload.style.background = 'var(--surface-2)';
+    tabUpload.style.color = 'var(--gold)';
+    tabCamera.style.background = 'transparent';
+    tabCamera.style.color = 'var(--ink-dim)';
+    stopCamera();
+  }
+}
+tabCamera.addEventListener('click', () => setActiveTab('camera'));
+tabUpload.addEventListener('click', () => setActiveTab('upload'));
+setActiveTab('camera');
+
+/* ---------------- CAMERA ---------------- */
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const camSnapshot = document.getElementById('camSnapshot');
+const camPlaceholder = document.getElementById('camPlaceholder');
+const btnStartCam = document.getElementById('btnStartCam');
+const btnSnap = document.getElementById('btnSnap');
+const btnRetakeCam = document.getElementById('btnRetakeCam');
+const camError = document.getElementById('camError');
+let mediaStream = null;
+
+btnStartCam.addEventListener('click', async () => {
+  camError.classList.add('hidden');
+  try{
+    mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    video.srcObject = mediaStream;
+    video.classList.remove('hidden');
+    camPlaceholder.classList.add('hidden');
+    btnStartCam.classList.add('hidden');
+    btnSnap.classList.remove('hidden');
+  }catch(err){
+    camError.textContent = 'Camera access was not granted. Try uploading a photo instead.';
+    camError.classList.remove('hidden');
+  }
+});
+
+btnSnap.addEventListener('click', () => {
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0);
+  const dataUrl = resizeAndCompress(canvas);
+  camSnapshot.src = dataUrl;
+  camSnapshot.classList.remove('hidden');
+  video.classList.add('hidden');
+  btnSnap.classList.add('hidden');
+  btnRetakeCam.classList.remove('hidden');
+  stopCamera();
+  setCapturedImage(dataUrl);
+});
+
+btnRetakeCam.addEventListener('click', () => {
+  camSnapshot.classList.add('hidden');
+  camPlaceholder.classList.remove('hidden');
+  btnRetakeCam.classList.add('hidden');
+  btnStartCam.classList.remove('hidden');
+  setCapturedImage(null);
+});
+
+function stopCamera(){
+  if(mediaStream){
+    mediaStream.getTracks().forEach(t => t.stop());
+    mediaStream = null;
+  }
+}
+
+/* ---------------- UPLOAD ---------------- */
+const fileInput = document.getElementById('fileInput');
+const dropZone = document.getElementById('dropZone');
+const uploadPreview = document.getElementById('uploadPreview');
+const uploadPlaceholder = document.getElementById('uploadPlaceholder');
+const btnRetakeUpload = document.getElementById('btnRetakeUpload');
+
+fileInput.addEventListener('change', (e) => {
+  if(e.target.files && e.target.files[0]) handleUploadFile(e.target.files[0]);
+});
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = 'var(--gold)'; });
+dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = 'var(--line)'; });
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.style.borderColor = 'var(--line)';
+  if(e.dataTransfer.files && e.dataTransfer.files[0]) handleUploadFile(e.dataTransfer.files[0]);
+});
+btnRetakeUpload.addEventListener('click', (e) => {
+  e.preventDefault();
+  uploadPreview.classList.add('hidden');
+  uploadPlaceholder.classList.remove('hidden');
+  btnRetakeUpload.classList.add('hidden');
+  setCapturedImage(null);
+  fileInput.value = '';
+});
+
+function handleUploadFile(file){
+  if(!file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = img.width; c.height = img.height;
+      c.getContext('2d').drawImage(img, 0, 0);
+      const dataUrl = resizeAndCompress(c);
+      uploadPreview.src = dataUrl;
+      uploadPreview.classList.remove('hidden');
+      uploadPlaceholder.classList.add('hidden');
+      btnRetakeUpload.classList.remove('hidden');
+      setCapturedImage(dataUrl);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function resizeAndCompress(sourceCanvas){
+  const maxDim = 1024;
+  let { width, height } = sourceCanvas;
+  const scale = Math.min(1, maxDim / Math.max(width, height));
+  const w = Math.round(width * scale), h = Math.round(height * scale);
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  out.getContext('2d').drawImage(sourceCanvas, 0, 0, w, h);
+  return out.toDataURL('image/jpeg', 0.85);
+}
+
+/* ---------------- REVEAL FLOW ---------------- */
+const btnReveal = document.getElementById('btnReveal');
+let capturedImage = null;
+
+function setCapturedImage(dataUrl){
+  capturedImage = dataUrl;
+  btnReveal.disabled = !dataUrl;
+}
+
+const loadingSection = document.getElementById('loadingSection');
+const loadingText = document.getElementById('loadingText');
+const errorSection = document.getElementById('errorSection');
+const errorText = document.getElementById('errorText');
+const resultsSection = document.getElementById('resultsSection');
+const captureSection = document.getElementById('capture');
+
+const loadingPhrases = [
+  'Tracing the life line…',
+  'Weighing the mounts of the palm…',
+  'Following the head line east…',
+  'Listening to the heart line…',
+  'Reading between the lines…'
+];
+let loadingInterval = null;
+
+btnReveal.addEventListener('click', runReading);
+document.getElementById('btnErrorRetry').addEventListener('click', () => {
+  errorSection.classList.add('hidden');
+  captureSection.classList.remove('hidden');
+});
+document.getElementById('btnReadAgain').addEventListener('click', () => {
+  resultsSection.classList.add('hidden');
+  captureSection.classList.remove('hidden');
+  setCapturedImage(null);
+  camSnapshot.classList.add('hidden');
+  camPlaceholder.classList.remove('hidden');
+  btnRetakeCam.classList.add('hidden');
+  btnStartCam.classList.remove('hidden');
+  uploadPreview.classList.add('hidden');
+  uploadPlaceholder.classList.remove('hidden');
+  btnRetakeUpload.classList.add('hidden');
+  fileInput.value = '';
+  window.scrollTo({ top: captureSection.offsetTop - 80, behavior: 'smooth' });
+});
+
+async function runReading(){
+  if(!capturedImage) return;
+  captureSection.classList.add('hidden');
+  errorSection.classList.add('hidden');
+  resultsSection.classList.add('hidden');
+  loadingSection.classList.remove('hidden');
+  let phraseIdx = 0;
+  loadingText.textContent = loadingPhrases[0];
+  loadingInterval = setInterval(() => {
+    phraseIdx = (phraseIdx + 1) % loadingPhrases.length;
+    loadingText.textContent = loadingPhrases[phraseIdx];
+  }, 1800);
+
+  try{
+    const base64 = capturedImage.split(',')[1];
+    const reading = await consultTheLines(base64);
+    clearInterval(loadingInterval);
+    loadingSection.classList.add('hidden');
+    renderResults(reading);
+  }catch(err){
+    clearInterval(loadingInterval);
+    loadingSection.classList.add('hidden');
+    errorText.textContent = err.message || 'Something interrupted the reading. Try again in clearer light.';
+    errorSection.classList.remove('hidden');
+  }
+}
+
+async function consultTheLines(base64Image){
+  const systemPrompt = `You are a warm, perceptive palmistry guide writing entertainment-only palm readings, in the spirit of a thoughtful astrologer: poetic but grounded, never clinical, never making medical, health, financial, or fate-is-fixed claims. You will be shown a photograph of a person's palm. Respond ONLY with valid JSON (no markdown fences, no preamble, no commentary outside the JSON object), matching exactly this shape:
+{
+  "handType": {"element": "Earth" | "Air" | "Fire" | "Water", "description": "1-2 sentences on what this hand shape suggests about temperament, written warmly"},
+  "lines": [
+    {"name": "Life Line", "reading": "2-3 sentences describing what you observe and what it traditionally suggests", "insight": "one short practical or reflective takeaway, under 12 words"},
+    {"name": "Heart Line", "reading": "...", "insight": "..."},
+    {"name": "Head Line", "reading": "...", "insight": "..."},
+    {"name": "Fate Line", "reading": "...", "insight": "..."}
+  ],
+  "overall": "2-3 sentence closing reading that ties the hand together, second person, warm and affirming",
+  "affirmation": "one short poetic line, under 14 words, as a takeaway"
+}
+If the image does not clearly show a palm, still respond in this exact JSON shape, but gently note in "overall" that the palm wasn't fully visible, and keep other fields brief and general. Never break character to mention you are an AI or that this is not real.`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1000,
+      system: systemPrompt,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64Image } },
+          { type: 'text', text: 'Read this palm and respond with the JSON object only.' }
+        ]
+      }]
+    })
+  });
+
+  if(!response.ok) throw new Error('The consultation could not be reached. Please try again.');
+  const data = await response.json();
+  const textBlock = (data.content || []).find(b => b.type === 'text');
+  if(!textBlock) throw new Error('No reading came through. Please try again.');
+  const cleaned = textBlock.text.replace(/```json|```/g, '').trim();
+  let parsed;
+  try{
+    parsed = JSON.parse(cleaned);
+  }catch(e){
+    throw new Error('The reading arrived unclear. Please try again.');
+  }
+  return parsed;
+}
+
+function renderResults(reading){
+  document.getElementById('resultHand').innerHTML = handSVG({labels:true, id:'Result'});
+
+  const el = document.getElementById('handTypeBadge');
+  el.textContent = (reading.handType?.element || 'Unknown') + ' HAND';
+  document.getElementById('handTypeName').textContent = 'The ' + (reading.handType?.element || '') + ' Hand';
+  document.getElementById('handTypeDesc').textContent = reading.handType?.description || '';
+  document.getElementById('affirmationText').textContent = '“' + (reading.affirmation || '') + '”';
+  document.getElementById('overallText').textContent = reading.overall || '';
+
+  const cardsHost = document.getElementById('lineCards');
+  cardsHost.innerHTML = '';
+  (reading.lines || []).forEach((line, i) => {
+    const card = document.createElement('div');
+    card.className = 'surface rounded-2xl p-6 reveal';
+    card.style.animationDelay = (i * 0.08) + 's';
+    card.innerHTML = `
+      <p class="font-mono text-[10px] uppercase text-gold mb-2">${escapeHtml(line.name || '')}</p>
+      <p class="text-ink leading-relaxed mb-4">${escapeHtml(line.reading || '')}</p>
+      <p class="font-heading italic text-dim text-sm">${escapeHtml(line.insight || '')}</p>
+    `;
+    cardsHost.appendChild(card);
+  });
+
+  resultsSection.classList.remove('hidden');
+  window.scrollTo({ top: resultsSection.offsetTop - 60, behavior: 'smooth' });
+}
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+</script>
+</body>
+</html>
