@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Proposal: Decision Table & Expression Set Versioning</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <style>
+    :root {
+      --bg-primary:    #0f1117;
+      --bg-secondary:  #1a1d27;
+      --bg-tertiary:   #22263a;
+      --bg-nav:        #13151f;
+      --accent-blue:   #4f8ef7;
+      --accent-purple: #7c5cbf;
+      --accent-cyan:   #3dd6f5;
+      --accent-green:  #2ecc71;
+      --accent-red:    #e74c3c;
+      --accent-yellow: #f39c12;
+      --text-primary:  #e8eaf0;
+      --text-secondary:#9aa0b8;
+      --text-heading:  #ffffff;
+      --text-code:     #a8d8a8;
+      --border-subtle: rgba(255,255,255,0.07);
+      --border-accent: rgba(79,142,247,0.35);
+    }
+    [data-theme="light"] {
+      --bg-primary:    #f5f7fa;
+      --bg-secondary:  #ffffff;
+      --bg-tertiary:   #eef1f7;
+      --bg-nav:        #ffffff;
+      --accent-blue:   #2563eb;
+      --accent-purple: #7c3aed;
+      --accent-cyan:   #0891b2;
+      --accent-green:  #16a34a;
+      --accent-red:    #dc2626;
+      --accent-yellow: #d97706;
+      --text-primary:  #1e293b;
+      --text-secondary:#64748b;
+      --text-heading:  #0f172a;
+      --text-code:     #166534;
+      --border-subtle: rgba(0,0,0,0.08);
+      --border-accent: rgba(37,99,235,0.3);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    /* NAV */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      height: 56px;
+      background: var(--bg-nav);
+      border-bottom: 1px solid var(--border-subtle);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2rem;
+    }
+    .nav-brand {
+      font-weight: 800;
+      font-size: 1rem;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .nav-right { display: flex; align-items: center; gap: 1rem; }
+    .nav-links { display: flex; gap: 1.5rem; list-style: none; }
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+    .nav-links a:hover { color: var(--accent-blue); }
+    #theme-toggle {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      border-radius: 8px;
+      padding: 0.35rem 0.75rem;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+    #theme-toggle:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+
+    /* HERO */
+    .hero {
+      text-align: center;
+      padding: 4rem 2rem 3rem;
+      background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(79,142,247,0.12) 0%, transparent 70%);
+    }
+    .hero-eyebrow {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent-blue);
+      background: rgba(79,142,247,0.12);
+      border: 1px solid var(--border-accent);
+      border-radius: 20px;
+      padding: 0.3rem 1rem;
+      margin-bottom: 1.25rem;
+    }
+    .hero h1 {
+      font-size: clamp(1.8rem, 4vw, 3rem);
+      font-weight: 800;
+      color: var(--text-heading);
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+    .hero h1 em {
+      font-style: italic;
+      background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      max-width: 680px;
+      margin: 0 auto 2rem;
+      color: var(--text-secondary);
+      font-size: 1.05rem;
+    }
+    .meta-row {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      flex-wrap: wrap;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+    .meta-row span strong { color: var(--text-primary); }
+
+    /* MAIN LAYOUT */
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 2rem 2rem 5rem;
+    }
+
+    /* SECTION HEADINGS */
+    .section-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin: 2.5rem 0 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .section-title .icon {
+      font-size: 1.2rem;
+    }
+
+    /* CARDS */
+    .card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 32px rgba(79,142,247,0.12);
+    }
+    .card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text-heading);
+      margin-bottom: 0.5rem;
+    }
+    .card p { color: var(--text-secondary); font-size: 0.925rem; }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    /* PROBLEM CALLOUT */
+    .problem-box {
+      background: rgba(231, 76, 60, 0.08);
+      border: 1px solid rgba(231,76,60,0.3);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .problem-box .label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent-red);
+      margin-bottom: 0.5rem;
+    }
+    .problem-box p { color: var(--text-secondary); font-size: 0.925rem; }
+
+    /* SOLUTION CALLOUT */
+    .solution-box {
+      background: rgba(46,204,113,0.07);
+      border: 1px solid rgba(46,204,113,0.25);
+      border-radius: 12px;
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+    .solution-box .label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent-green);
+      margin-bottom: 0.5rem;
+    }
+    .solution-box p { color: var(--text-secondary); font-size: 0.925rem; }
+
+    /* STEPS */
+    .steps { counter-reset: step; list-style: none; display: flex; flex-direction: column; gap: 1rem; margin-bottom: 1.25rem; }
+    .steps li {
+      counter-increment: step;
+      display: flex;
+      gap: 1rem;
+      align-items: flex-start;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.1rem 1.25rem;
+    }
+    .steps li::before {
+      content: counter(step);
+      flex-shrink: 0;
+      width: 2rem;
+      height: 2rem;
+      border-radius: 50%;
+      background: var(--accent-blue);
+      color: #fff;
+      font-weight: 700;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .step-body .step-title { font-weight: 600; color: var(--text-heading); margin-bottom: 0.25rem; }
+    .step-body p { color: var(--text-secondary); font-size: 0.9rem; }
+
+    /* TABLE */
+    .table-wrap { overflow-x: auto; margin-bottom: 1.5rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    thead th {
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 0.7rem 1rem;
+      text-align: left;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    tbody td {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      vertical-align: top;
+    }
+    tbody tr:hover { background: var(--bg-tertiary); }
+    tbody tr:last-child td { border-bottom: none; }
+
+    /* BADGES */
+    .badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      padding: 0.2rem 0.6rem;
+      border-radius: 20px;
+    }
+    .badge-blue   { background: rgba(79,142,247,0.15);  color: var(--accent-blue); }
+    .badge-green  { background: rgba(46,204,113,0.15);  color: var(--accent-green); }
+    .badge-yellow { background: rgba(243,156,18,0.15);  color: var(--accent-yellow); }
+    .badge-red    { background: rgba(231,76,60,0.15);   color: var(--accent-red); }
+    .badge-purple { background: rgba(124,92,191,0.15);  color: var(--accent-purple); }
+
+    /* KPI row */
+    .kpi-row { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+    .kpi-card {
+      flex: 1;
+      min-width: 140px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 1.25rem;
+      text-align: center;
+    }
+    .kpi-value { font-size: 1.7rem; font-weight: 800; color: var(--accent-green); }
+    .kpi-label { font-size: 0.78rem; color: var(--text-secondary); margin-top: 0.25rem; }
+
+    /* CODE */
+    code, pre {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+    }
+    pre {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 1.1rem 1.25rem;
+      overflow-x: auto;
+      color: var(--text-code);
+      margin-bottom: 1.25rem;
+    }
+    code { color: var(--text-code); }
+
+    /* FLOW DIAGRAM (pure CSS) */
+    .flow {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0;
+      margin: 1.5rem 0;
+      justify-content: center;
+    }
+    .flow-node {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-accent);
+      border-radius: 10px;
+      padding: 0.65rem 1.1rem;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-heading);
+      text-align: center;
+      min-width: 120px;
+    }
+    .flow-node.active { border-color: var(--accent-green); background: rgba(46,204,113,0.08); }
+    .flow-node.inactive { border-color: var(--accent-yellow); background: rgba(243,156,18,0.08); }
+    .flow-node.deploy { border-color: var(--accent-blue); background: rgba(79,142,247,0.08); }
+    .flow-arrow {
+      color: var(--text-secondary);
+      font-size: 1.4rem;
+      padding: 0 0.4rem;
+      line-height: 1;
+    }
+
+    /* DETAILS */
+    details {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      margin-bottom: 0.75rem;
+    }
+    summary {
+      padding: 0.9rem 1.25rem;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text-heading);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    summary::before { content: '▶'; font-size: 0.65rem; color: var(--accent-blue); transition: transform 0.2s; }
+    details[open] summary::before { transform: rotate(90deg); }
+    details .detail-body { padding: 0 1.25rem 1rem; color: var(--text-secondary); font-size: 0.9rem; }
+
+    /* FOOTER */
+    footer {
+      text-align: center;
+      padding: 2rem;
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    @media (max-width: 680px) {
+      .nav-links { display: none; }
+      .flow { flex-direction: column; }
+      .flow-arrow { transform: rotate(90deg); }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-brand">Revenue Cloud Advanced</span>
+  <div class="nav-right">
+    <ul class="nav-links">
+      <li><a href="#problem">Problem</a></li>
+      <li><a href="#solution">Solution</a></li>
+      <li><a href="#workflow">Workflow</a></li>
+      <li><a href="#api">API Design</a></li>
+      <li><a href="#rollout">Rollout</a></li>
+    </ul>
+    <button id="theme-toggle">Light</button>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-eyebrow">Engineering Proposal</div>
+  <h1>Versioning for <em>Decision Tables</em> &amp; <em>Expression Sets</em></h1>
+  <p class="hero-sub">
+    A zero-manual-intervention approach to validating and deploying DT/ES changes — eliminating the deployment friction caused by active-record locking during validation.
+  </p>
+  <div class="meta-row">
+    <span><strong>Status:</strong> Draft for Review</span>
+    <span><strong>Date:</strong> August 2026</span>
+    <span><strong>Audience:</strong> Revenue Cloud Engineering</span>
+    <span><strong>Priority:</strong> <span class="badge badge-red">High</span></span>
+  </div>
+</section>
+
+<main>
+
+  <!-- PROBLEM -->
+  <h2 class="section-title" id="problem"><span class="icon">⚠️</span> Problem Statement</h2>
+
+  <div class="problem-box">
+    <div class="label">Known Issue</div>
+    <p>
+      When a <strong>Decision Table (DT)</strong> or <strong>Expression Set (ES)</strong> is in <em>Active</em> state, any attempt to validate or re-deploy it requires the record to be deactivated first. This creates a risky manual gap: the entity is briefly inactive in production during the validation window, and any error requires a manual re-activation. Quick-deploy flows are blocked entirely until manual remediation is complete.
+    </p>
+  </div>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title">Active-Lock Validation Block</div>
+      <p>Validators reject changes against an active DT/ES, forcing teams to deactivate production records before testing — creating a live outage window.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Manual Re-activation Risk</div>
+      <p>If validation fails mid-flight, the record stays inactive. Operators must manually re-activate the old version, with no automated rollback.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Deployment Bottleneck</div>
+      <p>Quick-deploy and CI/CD pipelines stall on DT/ES changes because they cannot proceed without manual deactivation gates being cleared.</p>
+    </div>
+  </div>
+
+  <!-- PROPOSED SOLUTION -->
+  <h2 class="section-title" id="solution"><span class="icon">💡</span> Proposed Solution</h2>
+
+  <div class="solution-box">
+    <div class="label">Core Idea</div>
+    <p>
+      Introduce a <strong>version model</strong> for Decision Tables and Expression Sets. Each change creates a new version record in <em>Inactive</em> state. Validation runs against the new version — the active version remains untouched and live. On successful validation, deployment atomically activates the new version and deactivates the old one with no manual steps.
+    </p>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-value">0</div>
+      <div class="kpi-label">Manual deactivations required</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value">0s</div>
+      <div class="kpi-label">Active-version downtime during validation</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value">Auto</div>
+      <div class="kpi-label">Rollback on deploy failure</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-value">Full</div>
+      <div class="kpi-label">CI/CD pipeline compatibility</div>
+    </div>
+  </div>
+
+  <!-- VERSION MODEL -->
+  <h2 class="section-title"><span class="icon">🗂️</span> Version Data Model</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>VersionNumber</code></td>
+          <td>Integer (auto-increment)</td>
+          <td>Monotonically increasing per parent DT/ES record.</td>
+        </tr>
+        <tr>
+          <td><code>Status</code></td>
+          <td>Picklist</td>
+          <td><span class="badge badge-green">Active</span> · <span class="badge badge-yellow">Inactive</span> · <span class="badge badge-blue">Validated</span> · <span class="badge badge-red">Failed</span> · <span class="badge badge-purple">Deprecated</span></td>
+        </tr>
+        <tr>
+          <td><code>ParentId</code></td>
+          <td>Lookup (DT or ES)</td>
+          <td>Reference to the master DT or ES definition record.</td>
+        </tr>
+        <tr>
+          <td><code>DefinitionPayload</code></td>
+          <td>Long Text / JSON</td>
+          <td>Snapshot of the full rule/expression definition at this version.</td>
+        </tr>
+        <tr>
+          <td><code>ValidatedAt</code></td>
+          <td>DateTime</td>
+          <td>Timestamp when validation completed successfully.</td>
+        </tr>
+        <tr>
+          <td><code>ActivatedAt</code></td>
+          <td>DateTime</td>
+          <td>Timestamp when this version was promoted to Active.</td>
+        </tr>
+        <tr>
+          <td><code>DeployedBy</code></td>
+          <td>Lookup (User)</td>
+          <td>User or automated process that triggered deployment.</td>
+        </tr>
+        <tr>
+          <td><code>PreviousVersionId</code></td>
+          <td>Lookup (Version)</td>
+          <td>Pointer to the version this one replaced, enabling rollback chain.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- WORKFLOW -->
+  <h2 class="section-title" id="workflow"><span class="icon">🔄</span> Lifecycle Workflow</h2>
+
+  <div class="flow">
+    <div class="flow-node">Edit DT / ES</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node inactive">New Version<br><small>Inactive</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node inactive">Validation Run<br><small>Against new version</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node active">Deploy &amp; Activate<br><small>New version → Active</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node inactive">Old version → Deprecated</div>
+  </div>
+
+  <ol class="steps">
+    <li>
+      <div class="step-body">
+        <div class="step-title">Create New Version (Inactive)</div>
+        <p>Any edit to a DT or ES creates a new version record in <em>Inactive</em> state. The current active version continues serving production traffic with no interruption.</p>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        <div class="step-title">Run Validation Against New Version</div>
+        <p>The validation engine targets the new <em>Inactive</em> version exclusively. Rule conflicts, expression errors, and schema mismatches are surfaced without touching the live record.</p>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        <div class="step-title">Automated Deployment on Success</div>
+        <p>On passing validation, the deployment pipeline atomically flips the new version to <em>Active</em> and the previous active version to <em>Deprecated</em>. No manual steps required — compatible with Quick Deploy.</p>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        <div class="step-title">Automatic Rollback on Failure</div>
+        <p>If deployment or post-deploy health checks fail, the engine re-activates the previous version via <code>PreviousVersionId</code> without any operator action.</p>
+      </div>
+    </li>
+    <li>
+      <div class="step-body">
+        <div class="step-title">Version History &amp; Audit Trail</div>
+        <p>Every version record is retained (with <em>Deprecated</em> status) providing a full audit log of who changed what, when it was validated, and when it went live.</p>
+      </div>
+    </li>
+  </ol>
+
+  <!-- API DESIGN -->
+  <h2 class="section-title" id="api"><span class="icon">⚙️</span> API &amp; Platform Design</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title">Version Creation</div>
+      <p>Triggered automatically by the existing DT/ES save flow. No new UI required. Returns the new <code>VersionId</code> for downstream pipeline reference.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Validation Endpoint</div>
+      <p>Existing validation APIs accept an optional <code>versionId</code> parameter. When supplied, validation runs against that version record instead of the active one.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Deploy &amp; Activate API</div>
+      <p>A new <code>activateVersion(versionId)</code> Apex/REST method performs the atomic swap: new → Active, previous → Deprecated, with full transaction rollback on error.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Runtime Resolution</div>
+      <p>The runtime rule engine always resolves to the record with <code>Status = Active</code> for a given parent, making version selection transparent to callers.</p>
+    </div>
+  </div>
+
+  <pre>// Pseudocode — deploy flow
+VersionRecord newVer = DTVersionService.createVersion(dtId, payload);
+ValidationResult result = DTValidationService.validate(newVer.Id);
+
+if (result.isSuccess()) {
+    DTVersionService.activateVersion(newVer.Id);  // atomic swap
+} else {
+    // newVer stays Inactive; active version untouched
+    throw new DeployException(result.errors);
+}</pre>
+
+  <!-- ROLLOUT -->
+  <h2 class="section-title" id="rollout"><span class="icon">🚀</span> Rollout Plan</h2>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Phase</th>
+          <th>Scope</th>
+          <th>Deliverable</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Phase 1</strong></td>
+          <td>Data model &amp; version creation</td>
+          <td>New version object, auto-create trigger on DT/ES save</td>
+          <td><span class="badge badge-yellow">Planned</span></td>
+        </tr>
+        <tr>
+          <td><strong>Phase 2</strong></td>
+          <td>Validation API update</td>
+          <td>Validation engine accepts <code>versionId</code>, runs against Inactive version</td>
+          <td><span class="badge badge-yellow">Planned</span></td>
+        </tr>
+        <tr>
+          <td><strong>Phase 3</strong></td>
+          <td>Deploy &amp; activate API</td>
+          <td><code>activateVersion()</code> with atomic swap + rollback</td>
+          <td><span class="badge badge-yellow">Planned</span></td>
+        </tr>
+        <tr>
+          <td><strong>Phase 4</strong></td>
+          <td>CI/CD &amp; Quick Deploy integration</td>
+          <td>Pipeline hooks, post-deploy health checks, auto-rollback</td>
+          <td><span class="badge badge-yellow">Planned</span></td>
+        </tr>
+        <tr>
+          <td><strong>Phase 5</strong></td>
+          <td>Version history UI</td>
+          <td>Version list, diff view, manual rollback action in Setup</td>
+          <td><span class="badge badge-yellow">Planned</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- RISKS & MITIGATIONS -->
+  <h2 class="section-title"><span class="icon">🛡️</span> Risks &amp; Mitigations</h2>
+
+  <details open>
+    <summary>Concurrent Edit Conflicts</summary>
+    <div class="detail-body">
+      If two engineers create versions from the same parent simultaneously, only the one that completes deployment first becomes Active. The second version is rejected with a conflict error, prompting the author to rebase against the latest Active version. An optimistic locking field (<code>LastActivatedVersionId</code> on the parent) enforces this.
+    </div>
+  </details>
+  <details>
+    <summary>Version Accumulation &amp; Storage</summary>
+    <div class="detail-body">
+      Deprecated versions accumulate over time. A configurable retention policy (default: keep last 10 versions per record) will archive older versions to a cold-storage object. Platform storage impact is bounded.
+    </div>
+  </details>
+  <details>
+    <summary>Runtime Performance</summary>
+    <div class="detail-body">
+      Runtime lookup adds a single indexed filter (<code>Status = Active</code>) to the existing DT/ES query. No additional joins are required. Benchmark target: &lt; 2ms overhead per resolution.
+    </div>
+  </details>
+  <details>
+    <summary>Migration of Existing Records</summary>
+    <div class="detail-body">
+      A one-time migration script will create a Version 1 record (Active) for every existing DT and ES. This is non-destructive — it only inserts new child records and does not modify the parent objects.
+    </div>
+  </details>
+
+  <!-- SUCCESS CRITERIA -->
+  <h2 class="section-title"><span class="icon">✅</span> Success Criteria</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title">Zero-downtime validation</div>
+      <p>Active DT/ES version remains untouched during validation of any new version — verified by monitoring active record state throughout the CI pipeline.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">No manual deactivation steps</div>
+      <p>All existing deployment runbooks that contain a "deactivate DT/ES" step are retired. Deployment pipelines pass without operator gates.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Automated rollback coverage</div>
+      <p>100% of failed deployments trigger automatic rollback to previous Active version, confirmed by post-deploy integration tests.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Full audit trail</div>
+      <p>Every version creation, validation, activation, and deprecation event is captured in the version history with user, timestamp, and outcome.</p>
+    </div>
+  </div>
+
+  <!-- REFERENCES -->
+  <h2 class="section-title"><span class="icon">📚</span> References</h2>
+
+  <div class="card">
+    <div class="card-title">DT Deployment — Known Issue &amp; Background</div>
+    <p>
+      Documents the current deployment friction with active Decision Tables and Expression Sets, including the manual deactivation requirement that motivates this proposal.<br/>
+      <a href="https://mchinnappan100.github.io/pages2/clouds/revenue/DT-Deployment.html"
+         target="_blank" rel="noopener"
+         style="color: var(--accent-blue); text-decoration: none; font-size: 0.875rem;">
+        https://mchinnappan100.github.io/pages2/clouds/revenue/DT-Deployment.html ↗
+      </a>
+    </p>
+  </div>
+
+</main>
+
+<footer>
+  Revenue Cloud Engineering &mdash; Decision Table &amp; Expression Set Versioning Proposal &mdash; August 2026
+</footer>
+
+<script>
+  const btn = document.getElementById('theme-toggle');
+  const root = document.documentElement;
+  const stored = localStorage.getItem('theme');
+  if (stored === 'light') { root.setAttribute('data-theme', 'light'); btn.textContent = 'Dark'; }
+  btn.addEventListener('click', () => {
+    const isLight = root.getAttribute('data-theme') === 'light';
+    if (isLight) {
+      root.removeAttribute('data-theme');
+      btn.textContent = 'Light';
+      localStorage.setItem('theme', 'dark');
+    } else {
+      root.setAttribute('data-theme', 'light');
+      btn.textContent = 'Dark';
+      localStorage.setItem('theme', 'light');
+    }
+  });
+</script>
+</body>
+</html>
