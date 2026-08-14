@@ -16,6 +16,7 @@ const publisherAvatar = document.getElementById("publisherAvatar");
 const kpiToggle = document.getElementById("kpiToggle");
 const kpiPanel = document.getElementById("kpiPanel");
 const kpiChevron = document.getElementById("kpiChevron");
+let monthlyChart = null;
 
 let packages = [];
 let state = { query: "", sortBy: null, sortDir: 1, page: 1, pageSize: 10 };
@@ -80,6 +81,72 @@ function renderKpi() {
   document.getElementById("kpi-oldest-name").textContent = oldest?.name ?? "—";
   document.getElementById("kpi-oldest-date").textContent = oldest ? new Date(oldest.date).toLocaleDateString() : "—";
   countUp(document.getElementById("kpi-this-year"), thisYearCount);
+  renderChart();
+}
+
+function renderChart() {
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  // Build a map of YYYY-MM -> count across all years
+  const counts = {};
+  packages.forEach(p => {
+    const d = new Date(p.date);
+    const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2,"0")}`;
+    counts[key] = (counts[key] || 0) + 1;
+  });
+
+  // Sort keys chronologically and build labels/data
+  const keys = Object.keys(counts).sort();
+  const labels = keys.map(k => {
+    const [yr, mo] = k.split("-");
+    return `${MONTHS[parseInt(mo)]} ${yr}`;
+  });
+  const data = keys.map(k => counts[k]);
+
+  const isDark = document.documentElement.classList.contains("dark");
+  const gridColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+  const tickColor = isDark ? "#9ca3af" : "#6b7280";
+  const barColor = isDark ? "rgba(96,165,250,0.8)" : "rgba(59,130,246,0.75)";
+  const barHover = isDark ? "rgba(147,197,253,0.9)" : "rgba(37,99,235,0.9)";
+
+  if (monthlyChart) monthlyChart.destroy();
+
+  monthlyChart = new Chart(document.getElementById("monthlyChart"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Packages published",
+        data,
+        backgroundColor: barColor,
+        hoverBackgroundColor: barHover,
+        borderRadius: 4,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => items[0].label,
+            label: item => ` ${item.raw} package${item.raw !== 1 ? "s" : ""}`,
+          }
+        }
+      },
+      scales: {
+        x: {
+          ticks: { color: tickColor, maxRotation: 45, font: { size: 11 } },
+          grid: { color: gridColor },
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: tickColor, precision: 0, font: { size: 11 } },
+          grid: { color: gridColor },
+        }
+      }
+    }
+  });
 }
 
 function highlight(text, query) {
@@ -231,6 +298,7 @@ document.addEventListener("keydown", (e) => {
 
 darkToggle.addEventListener("change", (e) => {
   document.documentElement.classList.toggle("dark", e.target.checked);
+  if (packages.length) renderChart();
 });
 
 kpiToggle.addEventListener("click", () => {
