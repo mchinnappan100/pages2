@@ -12,6 +12,10 @@ const currentPageEl = document.getElementById("currentPage");
 const pageCountEl = document.getElementById("pageCount");
 const exportCsvBtn = document.getElementById("exportCsvBtn");
 const darkToggle = document.getElementById("darkToggle");
+const publisherAvatar = document.getElementById("publisherAvatar");
+const kpiToggle = document.getElementById("kpiToggle");
+const kpiPanel = document.getElementById("kpiPanel");
+const kpiChevron = document.getElementById("kpiChevron");
 
 let packages = [];
 let state = { query: "", sortBy: null, sortDir: 1, page: 1, pageSize: 10 };
@@ -24,12 +28,32 @@ if (!publisher) {
 
 titleEl.textContent = `📦 NPM Packages — ${publisher}`;
 
+// npm profile avatars are served by the npm CDN at this path (redirects to Gravatar internally)
+function loadAvatar(email) {
+  const url = `https://www.npmjs.com/npm-avatar/${encodeURIComponent(publisher)}`;
+  publisherAvatar.src = url;
+  publisherAvatar.classList.remove("hidden");
+  publisherAvatar.onerror = () => publisherAvatar.classList.add("hidden");
+}
+
+function countUp(el, target, duration = 800) {
+  const start = performance.now();
+  const update = (now) => {
+    const progress = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - progress, 3);
+    el.textContent = Math.round(ease * target);
+    if (progress < 1) requestAnimationFrame(update);
+  };
+  requestAnimationFrame(update);
+}
+
 async function fetchData() {
   const url = `https://registry.npmjs.org/-/v1/search?text=maintainer:${encodeURIComponent(
     publisher
   )}&size=250`;
   const res = await fetch(url);
   const data = await res.json();
+  const publisherEmail = data.objects[0]?.package?.publisher?.email ?? "";
   packages = data.objects.map((obj) => ({
     name: obj.package.name,
     version: obj.package.version,
@@ -38,7 +62,30 @@ async function fetchData() {
     date: obj.package.date,
   }));
   totalCount.textContent = packages.length;
+  renderKpi();
   render();
+  loadAvatar(publisherEmail);
+}
+
+function renderKpi() {
+  const thisYear = new Date().getFullYear();
+  const sorted = [...packages].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const latest = sorted[0];
+  const oldest = sorted[sorted.length - 1];
+  const thisYearCount = packages.filter(p => new Date(p.date).getFullYear() === thisYear).length;
+
+  countUp(document.getElementById("kpi-total"), packages.length);
+  document.getElementById("kpi-latest-name").textContent = latest?.name ?? "—";
+  document.getElementById("kpi-latest-date").textContent = latest ? new Date(latest.date).toLocaleDateString() : "—";
+  document.getElementById("kpi-oldest-name").textContent = oldest?.name ?? "—";
+  document.getElementById("kpi-oldest-date").textContent = oldest ? new Date(oldest.date).toLocaleDateString() : "—";
+  countUp(document.getElementById("kpi-this-year"), thisYearCount);
+}
+
+function highlight(text, query) {
+  if (!query) return text;
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return text.replace(new RegExp(`(${escaped})`, "gi"), "<mark class=\"bg-yellow-200 dark:bg-yellow-700 text-inherit rounded-sm px-0.5\">$1</mark>");
 }
 
 function filterAndSort() {
@@ -77,24 +124,34 @@ function render() {
   const end = start + state.pageSize;
   const pageItems = filtered.slice(start, end);
   shownCount.textContent = pageItems.length;
+  prevPageBtn.disabled = state.page <= 1;
+  nextPageBtn.disabled = state.page >= pageCount;
   tableBody.innerHTML =
     pageItems
       .map(
-        (p) => `
-          <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+        (p, i) => `
+          <tr class="${i % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-900'} hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors">
+            <td class="px-4 py-3 font-medium"><a href="${
+              p.link
+            }" target="_blank" class="text-blue-600 dark:text-blue-400 hover:underline">${highlight(p.name, state.query)}</a></td>
+            <td class="px-4 py-3 text-gray-500 dark:text-gray-400 font-mono text-sm">${p.version}</td>
+            <td class="px-4 py-3">${highlight(p.description, state.query)}</td>
+            <td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-sm">${new Date(p.date).toLocaleDateString()}</td>
             <td class="px-4 py-3"><a href="${
               p.link
-            }" target="_blank" class="underline">${p.name}</a></td>
-            <td class="px-4 py-3">${p.version}</td>
-            <td class="px-4 py-3">${p.description}</td>
-            <td class="px-4 py-3">${new Date(p.date).toLocaleDateString()}</td>
-            <td class="px-4 py-3"><a href="${
-              p.link
-            }" target="_blank" class="text-sm">View</a></td>
+            }" target="_blank" class="inline-flex items-center gap-1 px-3 py-1 rounded-md border border-blue-400 dark:border-blue-500 text-blue-600 dark:text-blue-300 text-xs font-semibold hover:bg-blue-600 hover:text-white dark:hover:bg-blue-600 dark:hover:text-white transition-colors">View <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/><path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/></svg></a></td>
           </tr>`
       )
       .join("") ||
-    `<tr><td colspan="5" class="px-4 py-8 text-center text-gray-500">No results</td></tr>`;
+    `<tr><td colspan="5" class="px-4 py-16 text-center">
+        <div class="flex flex-col items-center gap-3">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-gray-300 dark:text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+          </svg>
+          <p class="text-gray-500 dark:text-gray-400 font-medium">No packages match <span class="font-semibold text-gray-700 dark:text-gray-200">"${state.query}"</span></p>
+          <button onclick="document.getElementById('searchInput').value='';document.getElementById('searchInput').dispatchEvent(new Event('input'))" class="mt-1 px-4 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">Clear search</button>
+        </div>
+      </td></tr>`;
 }
 
 searchInput.addEventListener("input", (e) => {
@@ -161,8 +218,25 @@ exportCsvBtn.addEventListener("click", () => {
   a.click();
 });
 
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && document.activeElement !== searchInput) {
+    e.preventDefault();
+    searchInput.focus();
+    searchInput.select();
+  }
+  if (e.key === "Escape" && document.activeElement === searchInput) {
+    searchInput.blur();
+  }
+});
+
 darkToggle.addEventListener("change", (e) => {
   document.documentElement.classList.toggle("dark", e.target.checked);
+});
+
+kpiToggle.addEventListener("click", () => {
+  const collapsed = kpiPanel.style.display === "none";
+  kpiPanel.style.display = collapsed ? "" : "none";
+  kpiChevron.style.transform = collapsed ? "" : "rotate(-90deg)";
 });
 
 fetchData();
