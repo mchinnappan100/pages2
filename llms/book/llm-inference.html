@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LLM Inference — Study Notes &amp; Inference Lead Playbook</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <style>* { transition: background-color 0.2s, color 0.2s, border-color 0.2s; }</style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 min-h-screen flex flex-col">
+
+  <!-- TOP NAV -->
+  <header class="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <div class="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🧠</span>
+        <div>
+          <h1 class="text-base font-bold text-blue-700 dark:text-blue-400 leading-tight">LLM Inference — Study Notes &amp; Lead Playbook</h1>
+          <p class="text-xs text-gray-500 dark:text-gray-400">Training · Attention · FlashAttn · Quantization · Operations · 2026</p>
+        </div>
+      </div>
+      <button onclick="toggleTheme()"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
+               bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700
+               text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600">
+        <span id="themeIcon">☀️</span><span id="themeLabel">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="max-w-screen-xl mx-auto w-full flex flex-1">
+
+    <!-- SIDEBAR -->
+    <aside class="hidden md:flex flex-col w-64 shrink-0 sticky top-14 self-start h-[calc(100vh-3.5rem)] overflow-y-auto
+                  border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-6 px-4">
+      <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">Contents</p>
+      <nav class="flex flex-col gap-0.5 text-sm">
+        <a href="#s1"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">1. Training vs Inference</a>
+        <a href="#s2"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">2. Dense vs Sparse</a>
+        <a href="#s3"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">3. Why the Transformer</a>
+        <a href="#s4"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">4. Self-Attention &amp; Position</a>
+        <a href="#s5"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">5. Positional Encoding</a>
+        <a href="#s6"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">6. RoPE</a>
+        <a href="#s7"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">7. Residual Connections</a>
+        <a href="#s8"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">8. FlashAttention Problem</a>
+        <a href="#s9"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">9. Memory-Bound Attention</a>
+        <a href="#s10" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">10. FlashAttention</a>
+        <a href="#s11" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">11. FA1 → FA2 → Future</a>
+        <a href="#s12" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">12. After FA2</a>
+        <a href="#s13" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">13. NVIDIA Profiling</a>
+        <a href="#s14" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">14. SRAM Utilization</a>
+        <a href="#s15" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">15. Inference Dashboard</a>
+        <a href="#s16" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">16. Measure First</a>
+        <a href="#s17" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">17. Quantization</a>
+        <a href="#s18" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">18. Local LLMs</a>
+        <a href="#s19" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">19. Apple Silicon</a>
+        <a href="#s20" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">20. Consumer vs Enterprise</a>
+        <a href="#s21" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">21. Cars Analogy</a>
+        <a href="#s22" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">22. Lead Responsibilities</a>
+        <a href="#s23" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">23. Tech Stack</a>
+        <a href="#s24" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">24. Bottleneck Questions</a>
+        <a href="#s25" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">25. Tech Radar</a>
+        <a href="#s26" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">26. Monthly Review</a>
+        <a href="#s27" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">27. Mental Model Loop</a>
+        <a href="#s28" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">28. Final Takeaways</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 px-6 py-10 max-w-4xl space-y-14">
+
+      <!-- 1 -->
+      <section id="s1" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 1</span>
+        <h2 class="text-2xl font-bold mb-4">The Big Picture: Training vs. Inference</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div class="rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-5">
+            <div class="text-3xl mb-2">🔥</div>
+            <h3 class="font-bold text-amber-800 dark:text-amber-300 mb-1">Training</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Building the model's knowledge and capabilities. Like <strong>baking the bread</strong> — hours of work, enormous compute, happens once (or rarely).</p>
+          </div>
+          <div class="rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-5">
+            <div class="text-3xl mb-2">🚐</div>
+            <h3 class="font-bold text-emerald-800 dark:text-emerald-300 mb-1">Inference</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Delivering that capability to users efficiently. Like <strong>serving fresh bread to customers</strong> — thousands of times per day, at speed, at cost.</p>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-4">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Bakery Analogy</h3>
+          <svg viewBox="0 0 700 180" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+            <rect x="10"  y="10" width="300" height="155" rx="12" fill="#fefce8" stroke="#fbbf24" stroke-width="1.5"/>
+            <text x="160" y="38" text-anchor="middle" font-weight="700" font-size="14" fill="#92400e">Training = Baking 🥖</text>
+            <text x="25" y="65"  fill="#78350f">• GPU cluster = industrial oven</text>
+            <text x="25" y="85"  fill="#78350f">• Training data = ingredients</text>
+            <text x="25" y="105" fill="#78350f">• Model weights = the baked loaves</text>
+            <text x="25" y="125" fill="#78350f">• Runs for days / weeks</text>
+            <text x="25" y="145" fill="#b45309">Very expensive · happens once</text>
+
+            <text x="360" y="88" text-anchor="middle" font-size="28" fill="#9ca3af">→</text>
+
+            <rect x="390" y="10" width="300" height="155" rx="12" fill="#f0fdf4" stroke="#6ee7b7" stroke-width="1.5"/>
+            <text x="540" y="38" text-anchor="middle" font-weight="700" font-size="14" fill="#065f46">Inference = Serving 🚐</text>
+            <text x="405" y="65"  fill="#047857">• Inference server = delivery van</text>
+            <text x="405" y="85"  fill="#047857">• Model weights = pre-baked loaves</text>
+            <text x="405" y="105" fill="#047857">• User requests = customers</text>
+            <text x="405" y="125" fill="#047857">• Runs thousands of times / day</text>
+            <text x="405" y="145" fill="#059669">Where intelligence reaches users</text>
+          </svg>
+        </div>
+
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Inference determines:</p>
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs text-center">
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 font-medium">⏱ Response speed</div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 font-medium">👥 Users served</div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 font-medium">💰 Request cost</div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 font-medium">⚡ Energy used</div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3 font-medium">🟢 Reliability</div>
+        </div>
+      </section>
+
+      <!-- 2 -->
+      <section id="s2" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 2</span>
+        <h2 class="text-2xl font-bold mb-4">Dense vs. Sparse Models</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div class="rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-5">
+            <p class="font-bold text-blue-800 dark:text-blue-300 mb-2">📦 Dense Model</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Same parameters participate for every token. Everything comes along for every request.</p>
+            <div class="rounded-lg bg-blue-100 dark:bg-blue-900 p-3 text-sm italic text-blue-800 dark:text-blue-300">
+              "Carry every textbook Mon–Fri, even though you only need 2–3 books on any given day."
+            </div>
+          </div>
+          <div class="rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-5">
+            <p class="font-bold text-emerald-800 dark:text-emerald-300 mb-2">⚡ Sparse / MoE</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Only a subset of parameters activates per token. A router selects the relevant experts.</p>
+            <div class="rounded-lg bg-emerald-100 dark:bg-emerald-900 p-3 text-sm italic text-emerald-800 dark:text-emerald-300">
+              "On Monday I only need math and physics, so I carry only those two."
+            </div>
+          </div>
+        </div>
+        <div class="rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 text-sm">
+          <strong>Key distinction:</strong> Total parameters ≠ active parameters. An MoE model can have hundreds of billions of total parameters while activating only a small fraction per token.
+        </div>
+      </section>
+
+      <!-- 3 -->
+      <section id="s3" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 3</span>
+        <h2 class="text-2xl font-bold mb-4">Why the Transformer Was Revolutionary</h2>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">RNN (sequential) vs Transformer (parallel)</h3>
+          <svg viewBox="0 0 680 180" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+            <defs>
+              <marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/></marker>
+            </defs>
+            <!-- RNN -->
+            <rect x="10" y="10" width="290" height="160" rx="10" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5"/>
+            <text x="155" y="35" text-anchor="middle" font-weight="700" fill="#dc2626">RNN — Sequential ❌</text>
+            <rect x="25"  y="55" width="50" height="30" rx="6" fill="#fca5a5" stroke="#ef4444" stroke-width="1"/>
+            <text x="50"  y="75" text-anchor="middle" font-size="11" fill="#7f1d1d">T1</text>
+            <line x1="75" y1="70" x2="95" y2="70" stroke="#ef4444" stroke-width="1.5" marker-end="url(#arr)"/>
+            <rect x="95"  y="55" width="50" height="30" rx="6" fill="#fca5a5" stroke="#ef4444" stroke-width="1"/>
+            <text x="120" y="75" text-anchor="middle" font-size="11" fill="#7f1d1d">T2</text>
+            <line x1="145" y1="70" x2="165" y2="70" stroke="#ef4444" stroke-width="1.5" marker-end="url(#arr)"/>
+            <rect x="165" y="55" width="50" height="30" rx="6" fill="#fca5a5" stroke="#ef4444" stroke-width="1"/>
+            <text x="190" y="75" text-anchor="middle" font-size="11" fill="#7f1d1d">T3</text>
+            <line x1="215" y1="70" x2="235" y2="70" stroke="#ef4444" stroke-width="1.5" marker-end="url(#arr)"/>
+            <rect x="235" y="55" width="50" height="30" rx="6" fill="#fca5a5" stroke="#ef4444" stroke-width="1"/>
+            <text x="260" y="75" text-anchor="middle" font-size="11" fill="#7f1d1d">T4</text>
+            <text x="155" y="115" text-anchor="middle" font-size="11" fill="#dc2626">Each step waits for the previous one</text>
+            <text x="155" y="133" text-anchor="middle" font-size="11" fill="#6b7280">Hard to parallelize on GPU</text>
+            <text x="155" y="153" text-anchor="middle" font-size="11" fill="#6b7280">Training slows as sequence grows</text>
+
+            <!-- Transformer -->
+            <rect x="390" y="10" width="280" height="160" rx="10" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="530" y="35" text-anchor="middle" font-weight="700" fill="#065f46">Transformer — Parallel ✅</text>
+            <rect x="405" y="52" width="50" height="26" rx="5" fill="#6ee7b7" stroke="#10b981" stroke-width="1"/>
+            <text x="430" y="70" text-anchor="middle" font-size="11" fill="#065f46">T1</text>
+            <rect x="465" y="52" width="50" height="26" rx="5" fill="#6ee7b7" stroke="#10b981" stroke-width="1"/>
+            <text x="490" y="70" text-anchor="middle" font-size="11" fill="#065f46">T2</text>
+            <rect x="525" y="52" width="50" height="26" rx="5" fill="#6ee7b7" stroke="#10b981" stroke-width="1"/>
+            <text x="550" y="70" text-anchor="middle" font-size="11" fill="#065f46">T3</text>
+            <rect x="585" y="52" width="50" height="26" rx="5" fill="#6ee7b7" stroke="#10b981" stroke-width="1"/>
+            <text x="610" y="70" text-anchor="middle" font-size="11" fill="#065f46">T4</text>
+            <!-- All point to attention -->
+            <line x1="430" y1="78" x2="510" y2="105" stroke="#10b981" stroke-width="1.2" marker-end="url(#arr)"/>
+            <line x1="490" y1="78" x2="510" y2="105" stroke="#10b981" stroke-width="1.2" marker-end="url(#arr)"/>
+            <line x1="550" y1="78" x2="530" y2="105" stroke="#10b981" stroke-width="1.2" marker-end="url(#arr)"/>
+            <line x1="610" y1="78" x2="530" y2="105" stroke="#10b981" stroke-width="1.2" marker-end="url(#arr)"/>
+            <rect x="485" y="105" width="80" height="28" rx="7" fill="#10b981" stroke="#065f46" stroke-width="1.5"/>
+            <text x="525" y="124" text-anchor="middle" font-weight="700" font-size="11" fill="white">Attention</text>
+            <text x="530" y="155" text-anchor="middle" font-size="11" fill="#065f46">All tokens simultaneously</text>
+          </svg>
+        </div>
+
+        <p class="text-sm text-gray-600 dark:text-gray-400">The revolution was not inventing each component from scratch — it was <strong>assembling them into a scalable architecture that could exploit massive parallel computation</strong>. The "Frankenstein" of embeddings, positional info, attention, residuals, norms, and FFNs worked extraordinarily well together.</p>
+      </section>
+
+      <!-- 4 -->
+      <section id="s4" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 4</span>
+        <h2 class="text-2xl font-bold mb-4">Self-Attention: Why Position Matters</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">Attention allows tokens to interact with other tokens. But attention by itself has no inherent sense of order.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-4 text-sm">
+            <p class="font-semibold text-red-700 dark:text-red-400 mb-2">Same words, opposite meanings</p>
+            <p class="font-mono text-gray-700 dark:text-gray-300 mb-1">"The dog bites the man."</p>
+            <p class="font-mono text-gray-700 dark:text-gray-300">"The man bites the dog."</p>
+            <p class="text-gray-500 dark:text-gray-400 mt-2">Without position, the model can't distinguish these.</p>
+          </div>
+          <div class="rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-4 text-sm">
+            <p class="font-semibold text-blue-700 dark:text-blue-400 mb-2">Solution: encode position</p>
+            <p class="text-gray-600 dark:text-gray-400">Tell the model where each token is in the sequence — position 1, position 2, etc. — so attention scores are position-aware.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 5 -->
+      <section id="s5" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 5</span>
+        <h2 class="text-2xl font-bold mb-4">Positional Encoding (Original Transformer)</h2>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <svg viewBox="0 0 500 180" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-lg mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+            <defs><marker id="pa" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/></marker></defs>
+            <rect x="170" y="10" width="160" height="30" rx="7" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="250" y="30" text-anchor="middle" font-weight="600" fill="#1d4ed8">Token embedding</text>
+            <rect x="170" y="52" width="160" height="30" rx="7" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.5"/>
+            <text x="250" y="72" text-anchor="middle" font-weight="600" fill="#5b21b6">Positional encoding</text>
+            <!-- Plus -->
+            <text x="250" y="50" text-anchor="middle" font-size="18" fill="#9ca3af">+</text>
+            <line x1="250" y1="82" x2="250" y2="102" stroke="#6b7280" stroke-width="1.5" marker-end="url(#pa)"/>
+            <rect x="170" y="102" width="160" height="30" rx="7" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="250" y="122" text-anchor="middle" font-weight="600" fill="#065f46">Input representation</text>
+            <line x1="250" y1="132" x2="250" y2="152" stroke="#6b7280" stroke-width="1.5" marker-end="url(#pa)"/>
+            <rect x="170" y="152" width="160" height="22" rx="7" fill="#fef9c3" stroke="#d97706" stroke-width="1.5"/>
+            <text x="250" y="167" text-anchor="middle" font-weight="600" fill="#92400e">Self-attention</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- 6 -->
+      <section id="s6" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 6</span>
+        <h2 class="text-2xl font-bold mb-4">RoPE — Rotary Positional Embeddings</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">Modern LLMs (LLaMA, Mistral, Gemma…) use RoPE rather than additive sinusoidal encodings. Position isn't added to the input — instead, position-dependent <strong>rotations</strong> are applied to Q and K <em>before</em> computing attention scores.</p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+          <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-wide text-red-500 mb-3">❌ Common misconception</p>
+            <div class="font-mono text-sm text-center space-y-1 text-gray-700 dark:text-gray-300">
+              <div class="bg-red-50 dark:bg-red-950 rounded px-3 py-1">Input + Attention + Position</div>
+            </div>
+          </div>
+          <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm">
+            <p class="text-xs font-semibold uppercase tracking-wide text-emerald-500 mb-3">✅ Correct: RoPE</p>
+            <svg viewBox="0 0 220 160" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-xs mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11">
+              <defs><marker id="rp" markerWidth="5" markerHeight="5" refX="2.5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="#6b7280"/></marker></defs>
+              <rect x="60" y="5"  width="100" height="24" rx="5" fill="#dbeafe" stroke="#3b82f6" stroke-width="1"/><text x="110" y="21" text-anchor="middle" fill="#1d4ed8" font-weight="600">Input</text>
+              <line x1="110" y1="29" x2="110" y2="44" stroke="#6b7280" stroke-width="1.2" marker-end="url(#rp)"/>
+              <rect x="60" y="44" width="100" height="24" rx="5" fill="#d1fae5" stroke="#10b981" stroke-width="1"/><text x="110" y="60" text-anchor="middle" fill="#065f46" font-weight="600">Q, K, V</text>
+              <line x1="110" y1="68" x2="110" y2="83" stroke="#6b7280" stroke-width="1.2" marker-end="url(#rp)"/>
+              <rect x="35" y="83" width="150" height="24" rx="5" fill="#fef9c3" stroke="#d97706" stroke-width="1"/><text x="110" y="99" text-anchor="middle" fill="#92400e" font-weight="600">RoPE applied to Q &amp; K</text>
+              <line x1="110" y1="107" x2="110" y2="122" stroke="#6b7280" stroke-width="1.2" marker-end="url(#rp)"/>
+              <rect x="60" y="122" width="100" height="24" rx="5" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1"/><text x="110" y="138" text-anchor="middle" fill="#5b21b6" font-weight="600">Attention scores</text>
+            </svg>
+          </div>
+        </div>
+      </section>
+
+      <!-- 7 -->
+      <section id="s7" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 7</span>
+        <h2 class="text-2xl font-bold mb-4">Residual Connections</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">The output of each sublayer (attention, FFN) is <em>added back</em> to the input that entered it. This preserves information and makes deep networks easier to optimise.</p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <svg viewBox="0 0 500 200" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-lg mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+            <defs><marker id="ra" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/></marker></defs>
+            <!-- Input -->
+            <rect x="180" y="10" width="100" height="28" rx="7" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="230" y="28" text-anchor="middle" font-weight="600" fill="#1d4ed8">Input x</text>
+            <!-- Residual bypass -->
+            <line x1="180" y1="24" x2="60"  y2="24"  stroke="#10b981" stroke-width="1.5"/>
+            <line x1="60"  y1="24" x2="60"  y2="132" stroke="#10b981" stroke-width="1.5"/>
+            <line x1="60"  y1="132" x2="165" y2="132" stroke="#10b981" stroke-width="1.5" marker-end="url(#ra)"/>
+            <text x="30" y="82" text-anchor="middle" font-size="11" fill="#10b981" transform="rotate(-90 30 82)">residual bypass</text>
+            <!-- Main path -->
+            <line x1="230" y1="38" x2="230" y2="58" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ra)"/>
+            <rect x="165" y="58" width="130" height="34" rx="7" fill="#fef9c3" stroke="#d97706" stroke-width="1.5"/>
+            <text x="230" y="79" text-anchor="middle" font-weight="600" fill="#92400e">Attention / FFN</text>
+            <line x1="230" y1="92" x2="230" y2="115" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ra)"/>
+            <!-- Add circle -->
+            <circle cx="230" cy="132" r="16" fill="#f0fdf4" stroke="#10b981" stroke-width="2"/>
+            <text x="230" y="137" text-anchor="middle" font-size="16" font-weight="700" fill="#10b981">+</text>
+            <line x1="230" y1="148" x2="230" y2="168" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ra)"/>
+            <rect x="165" y="168" width="130" height="26" rx="7" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="230" y="185" text-anchor="middle" font-weight="600" fill="#065f46">Next stage</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- 8 -->
+      <section id="s8" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 8</span>
+        <h2 class="text-2xl font-bold mb-4">The Real Problem FlashAttention Addresses</h2>
+        <div class="rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-5 mb-6 text-center">
+          <p class="text-xl font-bold text-blue-800 dark:text-blue-300">"The bottleneck isn't always computation.</p>
+          <p class="text-xl font-bold text-blue-800 dark:text-blue-300">Sometimes it is <em>moving data</em>."</p>
+        </div>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-4">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">GPU Memory Hierarchy</h3>
+          <svg viewBox="0 0 620 200" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+            <rect x="180" y="8"  width="260" height="36" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+            <text x="310" y="22" text-anchor="middle" font-weight="700" fill="#065f46">Registers</text>
+            <text x="310" y="38" text-anchor="middle" font-size="10" fill="#059669">Tiny · Closest to ALU · Fastest</text>
+
+            <line x1="310" y1="44" x2="310" y2="60" stroke="#9ca3af" stroke-width="1.5"/>
+
+            <rect x="140" y="60" width="340" height="36" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="310" y="75" text-anchor="middle" font-weight="700" fill="#065f46">SRAM / On-chip cache</text>
+            <text x="310" y="89" text-anchor="middle" font-size="10" fill="#059669">~192 KB/SM · ~19 TB/s · Fast</text>
+
+            <line x1="310" y1="96" x2="310" y2="112" stroke="#9ca3af" stroke-width="1.5"/>
+
+            <rect x="80"  y="112" width="460" height="36" rx="8" fill="#fef9c3" stroke="#d97706" stroke-width="2"/>
+            <text x="310" y="127" text-anchor="middle" font-weight="700" fill="#92400e">HBM (GPU DRAM)</text>
+            <text x="310" y="141" text-anchor="middle" font-size="10" fill="#b45309">40–80 GB · ~3.35 TB/s · Slower · ⚠️ Bottleneck for attention</text>
+
+            <line x1="310" y1="148" x2="310" y2="164" stroke="#9ca3af" stroke-width="1.5"/>
+
+            <rect x="20"  y="164" width="580" height="30" rx="8" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1.5"/>
+            <text x="310" y="182" text-anchor="middle" font-weight="600" fill="#4b5563">Host / System Memory (CPU RAM) — Very slow for GPU</text>
+
+            <text x="560" y="28"  font-size="10" fill="#10b981" font-weight="600">Fastest ↑</text>
+            <text x="560" y="182" font-size="10" fill="#9ca3af" font-weight="600">Slowest ↓</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- 9 -->
+      <section id="s9" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 9</span>
+        <h2 class="text-2xl font-bold mb-4">Why Attention Can Become Memory-Bound</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">The problem is not: <em>"The GPU cannot calculate this."</em></p>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">It is: <em>"The GPU spends too much time <strong>moving data</strong> between memory levels."</em> Tensor Cores sit idle waiting for HBM reads/writes to complete.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <div class="rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-4">
+            <p class="font-semibold text-red-700 dark:text-red-400 mb-2">Memory-bound signals</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 font-mono list-none">
+              <li>HBM bandwidth    → very high</li>
+              <li>Tensor-core use  → relatively low</li>
+              <li>Cache behavior   → heavy traffic</li>
+            </ul>
+          </div>
+          <div class="rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-4">
+            <p class="font-semibold text-emerald-700 dark:text-emerald-400 mb-2">Compute-bound signals</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 font-mono list-none">
+              <li>Tensor-core use  → very high</li>
+              <li>HBM bandwidth    → not saturated</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 10 -->
+      <section id="s10" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 10</span>
+        <h2 class="text-2xl font-bold mb-4">FlashAttention — Tiling</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">FlashAttention makes attention <strong>much more memory-efficient</strong> while computing the <em>exact same result</em>. Key technique: <strong>tiling</strong> — work on small tiles entirely within fast SRAM instead of materialising the N×N matrix in HBM.</p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-4">
+          <svg viewBox="0 0 600 220" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+            <defs><marker id="ta" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/></marker>
+            <marker id="tag" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#10b981"/></marker></defs>
+
+            <!-- HBM -->
+            <rect x="10"  y="170" width="580" height="40" rx="8" fill="#fef9c3" stroke="#d97706" stroke-width="1.5"/>
+            <text x="300" y="192" text-anchor="middle" font-weight="700" fill="#92400e">HBM — stores Q, K, V · Output O written once · N×N never materialised</text>
+
+            <!-- SRAM box -->
+            <rect x="150" y="20" width="300" height="130" rx="10" fill="#f0fdf4" stroke="#22c55e" stroke-width="2" stroke-dasharray="6 3"/>
+            <text x="300" y="44" text-anchor="middle" font-weight="700" fill="#065f46">SRAM (on-chip · fast)</text>
+
+            <!-- Tiles -->
+            <rect x="165" y="54" width="70" height="30" rx="6" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="200" y="73" text-anchor="middle" font-weight="600" fill="#065f46">Q tile</text>
+            <rect x="250" y="54" width="70" height="30" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="285" y="73" text-anchor="middle" font-weight="600" fill="#1d4ed8">K tile</text>
+            <rect x="335" y="54" width="70" height="30" rx="6" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.5"/>
+            <text x="370" y="73" text-anchor="middle" font-weight="600" fill="#5b21b6">V tile</text>
+
+            <rect x="185" y="104" width="230" height="30" rx="6" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+            <text x="300" y="123" text-anchor="middle" font-weight="600" fill="#92400e">Compute + online softmax</text>
+
+            <!-- Load tile arrow -->
+            <line x1="180" y1="170" x2="240" y2="150" stroke="#10b981" stroke-width="1.5" marker-end="url(#tag)"/>
+            <text x="178" y="162" font-size="9" fill="#059669">load tile</text>
+
+            <!-- Write O -->
+            <line x1="380" y1="150" x2="430" y2="170" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ta)"/>
+            <text x="388" y="162" font-size="9" fill="#6b7280">write O</text>
+
+            <!-- No N×N label -->
+            <rect x="455" y="60" width="130" height="34" rx="7" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5"/>
+            <text x="520" y="75" text-anchor="middle" font-weight="700" font-size="11" fill="#dc2626">N×N matrix</text>
+            <text x="520" y="89" text-anchor="middle" font-size="11" fill="#ef4444">NEVER in HBM ✓</text>
+          </svg>
+        </div>
+        <div class="rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 text-sm">
+          <strong>Key idea:</strong> FlashAttention does <em>not</em> make SRAM larger. It makes much better use of the memory that already exists.
+        </div>
+      </section>
+
+      <!-- 11 -->
+      <section id="s11" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 11</span>
+        <h2 class="text-2xl font-bold mb-4">FlashAttention 1 → 2 → Future Generations</h2>
+        <p class="text-gray-600 dark:text-gray-300 mb-6">Each generation optimises: memory movement, tiling, parallelisation, work partitioning, GPU utilisation, hardware-specific execution.</p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-4">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Highway Traffic Analogy</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+            <div class="rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-4">
+              <p class="font-semibold text-red-700 dark:text-red-400 mb-1">Standard Attention</p>
+              <p class="text-gray-600 dark:text-gray-400">Highway with constant stopping, merging, and back-and-forth. Traffic jams everywhere.</p>
+            </div>
+            <div class="rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-4">
+              <p class="font-semibold text-blue-700 dark:text-blue-400 mb-1">FlashAttention 1</p>
+              <p class="text-gray-600 dark:text-gray-400">Redesigned flow: cars move efficiently, fewer trips, better coordination. Same destination, much smarter route.</p>
+            </div>
+            <div class="rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-4">
+              <p class="font-semibold text-emerald-700 dark:text-emerald-400 mb-1">FlashAttention 2</p>
+              <p class="text-gray-600 dark:text-gray-400">Better traffic organisation, better lane utilisation, better use of all available infrastructure.</p>
+            </div>
+          </div>
+        </div>
+        <p class="text-sm text-gray-500 dark:text-gray-400">Exact gains depend heavily on hardware, sequence length, workload, and baseline — headline numbers are benchmark-specific, not universal.</p>
+      </section>
+
+      <!-- 12 -->
+      <section id="s12" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 12</span>
+        <h2 class="text-2xl font-bold mb-4">What Might Come After FlashAttention 2?</h2>
+        <div class="rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-5 mb-6">
+          <p class="font-semibold text-blue-800 dark:text-blue-300 text-lg">"Don't wait for the next FlashAttention 3. Find today's bottleneck and remove it."</p>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm mb-4">
+          {["Better GPU-specific scheduling","Better on-chip memory utilisation","Reduced HBM traffic","Efficient long-context attention","Better low-precision support","Improved kernel fusion","Compute/memory overlap","Better inference workload support","Improved multi-user scheduling","KV-cache management integration","Support for emerging GPU architectures"].map(t => `<div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-2 text-center text-gray-700 dark:text-gray-300">${t}</div>`).join('')}
+        </div>
+        <p class="text-sm text-gray-500 dark:text-gray-400">Future improvements come from increasingly sophisticated hardware/software co-design — not necessarily a new attention equation.</p>
+      </section>
+
+      <!-- 13 -->
+      <section id="s13" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 13</span>
+        <h2 class="text-2xl font-bold mb-4">NVIDIA Profiling Tools</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-5">
+            <p class="font-bold text-blue-800 dark:text-blue-300 mb-2 text-lg">Nsight Systems</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-3 italic">"Where is the time going?"</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Answers</p>
+            <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+              <li>What is the CPU / GPU doing?</li>
+              <li>When is the GPU idle?</li>
+              <li>Are CPU and GPU operations overlapping?</li>
+              <li>Are memory transfers creating stalls?</li>
+              <li>Where are the large timeline gaps?</li>
+            </ul>
+            <div class="mt-3 rounded-lg bg-blue-100 dark:bg-blue-900 p-2 text-xs text-blue-800 dark:text-blue-300 font-medium">Big-picture system-level story</div>
+          </div>
+          <div class="rounded-xl bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 p-5">
+            <p class="font-bold text-purple-800 dark:text-purple-300 mb-2 text-lg">Nsight Compute</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400 mb-3 italic">"Why is this kernel taking that long?"</p>
+            <p class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Investigates</p>
+            <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+              <li>GPU kernel performance</li>
+              <li>HBM &amp; cache behavior</li>
+              <li>Tensor-core utilisation</li>
+              <li>Arithmetic intensity &amp; occupancy</li>
+              <li>Warp behavior &amp; hardware counters</li>
+            </ul>
+            <div class="mt-3 rounded-lg bg-purple-100 dark:bg-purple-900 p-2 text-xs text-purple-800 dark:text-purple-300 font-medium">Deep kernel-level analysis</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 14 -->
+      <section id="s14" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 14</span>
+        <h2 class="text-2xl font-bold mb-4">Can We Directly Measure SRAM Utilisation?</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">There is no single dashboard number saying "SRAM utilisation = 73%." You <em>infer</em> what's happening from correlated hardware counters.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <div class="rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-4">
+            <p class="font-semibold text-red-700 dark:text-red-400 mb-2">Memory-bound diagnosis</p>
+            <div class="font-mono space-y-1 text-gray-700 dark:text-gray-300">
+              <div>HBM bandwidth        → very high</div>
+              <div>Tensor-core activity → low</div>
+              <div>Cache behavior       → heavy traffic</div>
+            </div>
+          </div>
+          <div class="rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-4">
+            <p class="font-semibold text-emerald-700 dark:text-emerald-400 mb-2">Compute-bound diagnosis</p>
+            <div class="font-mono space-y-1 text-gray-700 dark:text-gray-300">
+              <div>Tensor-core activity → very high</div>
+              <div>HBM bandwidth        → not saturated</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 15 -->
+      <section id="s15" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 15</span>
+        <h2 class="text-2xl font-bold mb-4">The Inference Performance Dashboard</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm mb-4">
+          <div class="rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-4">
+            <p class="font-semibold text-blue-800 dark:text-blue-300 mb-2">👤 User-facing</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside">
+              <li>TTFT</li><li>Inter-token latency</li><li>Tokens/second</li><li>E2E latency</li><li>Error rate</li>
+            </ul>
+          </div>
+          <div class="rounded-xl bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 p-4">
+            <p class="font-semibold text-purple-800 dark:text-purple-300 mb-2">⚡ GPU / Hardware</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside">
+              <li>GPU utilisation</li><li>Tensor-core util</li><li>HBM bandwidth</li><li>KV cache hit%</li><li>Power &amp; temp</li>
+            </ul>
+          </div>
+          <div class="rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-4">
+            <p class="font-semibold text-emerald-800 dark:text-emerald-300 mb-2">💰 Business</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside">
+              <li>Cost / 1M tokens</li><li>Tokens / GPU-hour</li><li>Energy / token</li><li>Capacity util</li><li>Cost / request</li>
+            </ul>
+          </div>
+        </div>
+        <div class="rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 text-sm">
+          <strong>Critical point: correlation.</strong> TTFT increased 20%? Ask: Did prefill slow? Did HBM saturate? Did batch size change? Did the model change? That turns performance engineering into a measurable science.
+        </div>
+      </section>
+
+      <!-- 16 -->
+      <section id="s16" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 16</span>
+        <h2 class="text-2xl font-bold mb-4">"You Can't Improve What You Don't Measure"</h2>
+        <div class="rounded-xl bg-gray-900 dark:bg-gray-800 border border-gray-700 p-5 text-emerald-400 font-mono text-sm mb-4">
+          <p class="mb-1">Measure → Diagnose → Change → Benchmark → Measure again.</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <div class="rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-4">
+            <p class="font-semibold text-red-700 dark:text-red-400 mb-1">❌ Don't say</p>
+            <p class="text-gray-600 dark:text-gray-400 italic">"This optimisation feels faster."</p>
+          </div>
+          <div class="rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-4">
+            <p class="font-semibold text-emerald-700 dark:text-emerald-400 mb-1">✅ Say instead</p>
+            <p class="text-gray-600 dark:text-gray-400 italic">"Under workload X, on hardware Y, with batch size Z, this change reduced TTFT by 12% and increased throughput by 18%."</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 17 -->
+      <section id="s17" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 17</span>
+        <h2 class="text-2xl font-bold mb-4">Quantization</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">Reduces numerical precision of weights and/or activations. Lower precision → smaller footprint, lower bandwidth, lower compute — but with accuracy trade-offs that must always be benchmarked.</p>
+        <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-sm mb-4">
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3"><p class="font-bold text-blue-600">FP16</p><p class="text-xs text-gray-400">2 bytes</p></div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3"><p class="font-bold text-blue-600">BF16</p><p class="text-xs text-gray-400">2 bytes</p></div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3"><p class="font-bold text-emerald-600">FP8</p><p class="text-xs text-gray-400">1 byte</p></div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3"><p class="font-bold text-emerald-600">INT8</p><p class="text-xs text-gray-400">1 byte</p></div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-3"><p class="font-bold text-purple-600">4-bit</p><p class="text-xs text-gray-400">0.5 bytes</p></div>
+        </div>
+      </section>
+
+      <!-- 18 -->
+      <section id="s18" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 18</span>
+        <h2 class="text-2xl font-bold mb-4">Why Quantization Enables Local LLMs</h2>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <svg viewBox="0 0 500 80" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-lg mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11">
+            <defs><marker id="qa" markerWidth="5" markerHeight="5" refX="2.5" refY="2.5" orient="auto"><path d="M0,0 L5,2.5 L0,5 Z" fill="#6b7280"/></marker></defs>
+            <rect x="5"   y="20" width="80" height="36" rx="7" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5"/>
+            <text x="45"  y="36" text-anchor="middle" font-weight="600" fill="#dc2626">Large</text>
+            <text x="45"  y="50" text-anchor="middle" fill="#ef4444">BF16</text>
+            <line x1="85" y1="38" x2="105" y2="38" stroke="#6b7280" stroke-width="1.2" marker-end="url(#qa)"/>
+            <rect x="105" y="20" width="90" height="36" rx="7" fill="#fef9c3" stroke="#d97706" stroke-width="1.5"/>
+            <text x="150" y="36" text-anchor="middle" font-weight="600" fill="#92400e">Quantize</text>
+            <text x="150" y="50" text-anchor="middle" fill="#b45309">4-bit / INT8</text>
+            <line x1="195" y1="38" x2="215" y2="38" stroke="#6b7280" stroke-width="1.2" marker-end="url(#qa)"/>
+            <rect x="215" y="20" width="90" height="36" rx="7" fill="#fef9c3" stroke="#d97706" stroke-width="1.5"/>
+            <text x="260" y="36" text-anchor="middle" font-weight="600" fill="#92400e">Smaller</text>
+            <text x="260" y="50" text-anchor="middle" fill="#b45309">representation</text>
+            <line x1="305" y1="38" x2="325" y2="38" stroke="#6b7280" stroke-width="1.2" marker-end="url(#qa)"/>
+            <rect x="325" y="20" width="80" height="36" rx="7" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="365" y="36" text-anchor="middle" font-weight="600" fill="#065f46">Fits local</text>
+            <text x="365" y="50" text-anchor="middle" fill="#059669">memory</text>
+            <line x1="405" y1="38" x2="425" y2="38" stroke="#6b7280" stroke-width="1.2" marker-end="url(#qa)"/>
+            <rect x="425" y="20" width="70" height="36" rx="7" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="460" y="36" text-anchor="middle" font-weight="600" fill="#065f46">Local</text>
+            <text x="460" y="50" text-anchor="middle" fill="#059669">inference</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- 19 -->
+      <section id="s19" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 19</span>
+        <h2 class="text-2xl font-bold mb-4">Apple Silicon and Local Inference</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">Apple Silicon's <strong>unified memory architecture</strong> means CPU and GPU share the same memory pool — no discrete GPU memory bottleneck for small models.</p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm mb-4">
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-center"><div class="text-2xl mb-1">🦙</div><p class="font-semibold">Ollama</p></div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-center"><div class="text-2xl mb-1">🍎</div><p class="font-semibold">MLX</p></div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-center"><div class="text-2xl mb-1">⚙️</div><p class="font-semibold">llama.cpp</p></div>
+        </div>
+        <div class="rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 text-sm">
+          <strong>Important limitation:</strong> For local LLM workloads the limiting factor is often <em>memory capacity and memory bandwidth</em>, not the number of CPU cores.
+        </div>
+      </section>
+
+      <!-- 20 -->
+      <section id="s20" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 20</span>
+        <h2 class="text-2xl font-bold mb-4">Consumer vs. Enterprise Inference</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 text-sm">
+          <div class="rounded-xl bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 p-5">
+            <p class="font-bold text-purple-800 dark:text-purple-300 mb-2">📱 Consumer / Edge</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside">
+              <li>Low power</li><li>Privacy &amp; local execution</li><li>Low latency</li><li>Offline capability</li><li>Reasonable hardware cost</li>
+            </ul>
+          </div>
+          <div class="rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-5">
+            <p class="font-bold text-blue-800 dark:text-blue-300 mb-2">🏭 Enterprise / Data Center</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside">
+              <li>Maximum throughput</li><li>Multi-user serving</li><li>High availability</li><li>Cost per token</li><li>Large-scale capacity</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Future: Hybrid Architecture</h3>
+          <svg viewBox="0 0 500 180" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-lg mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+            <defs><marker id="ha" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/></marker></defs>
+            <rect x="190" y="10" width="120" height="32" rx="10" fill="#1d4ed8"/>
+            <text x="250" y="31" text-anchor="middle" font-weight="700" fill="white">👤 User</text>
+            <line x1="220" y1="42" x2="130" y2="72" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ha)"/>
+            <line x1="280" y1="42" x2="370" y2="72" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ha)"/>
+            <rect x="50"  y="72" width="160" height="40" rx="8" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.5"/>
+            <text x="130" y="90" text-anchor="middle" font-weight="700" fill="#5b21b6">Local Model</text>
+            <text x="130" y="106" text-anchor="middle" font-size="10" fill="#7c3aed">Fast / Private / Simple</text>
+            <rect x="290" y="72" width="160" height="40" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="370" y="90" text-anchor="middle" font-weight="700" fill="#1d4ed8">Cloud Model</text>
+            <text x="370" y="106" text-anchor="middle" font-size="10" fill="#3b82f6">Large / Heavy / Complex</text>
+            <line x1="130" y1="112" x2="220" y2="148" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ha)"/>
+            <line x1="370" y1="112" x2="280" y2="148" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ha)"/>
+            <rect x="170" y="148" width="160" height="28" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="250" y="167" text-anchor="middle" font-weight="700" fill="#065f46">Final answer</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- 21 -->
+      <section id="s21" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 21</span>
+        <h2 class="text-2xl font-bold mb-4">The "Different Cars" Analogy for Quantization</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-center">
+            <div class="text-3xl mb-1">🚛</div>
+            <p class="font-semibold">Heavy-duty truck</p>
+            <p class="text-xs text-gray-400 mt-1">Full-precision BF16 — max quality, data center</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-center">
+            <div class="text-3xl mb-1">🚙</div>
+            <p class="font-semibold">SUV</p>
+            <p class="text-xs text-gray-400 mt-1">8-bit — reduced memory &amp; compute</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-center">
+            <div class="text-3xl mb-1">🚗</div>
+            <p class="font-semibold">Small car</p>
+            <p class="text-xs text-gray-400 mt-1">4-bit — much smaller deployment</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-center">
+            <div class="text-3xl mb-1">🛵</div>
+            <p class="font-semibold">Scooter</p>
+            <p class="text-xs text-gray-400 mt-1">Distilled model — lightweight edge</p>
+          </div>
+        </div>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-4">The goal is <em>"Choose the right model representation for the environment and workload"</em> — not "one model runs everywhere."</p>
+      </section>
+
+      <!-- 22 -->
+      <section id="s22" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 22</span>
+        <h2 class="text-2xl font-bold mb-4">Inference Team Lead — Core Responsibilities</h2>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+          <div class="rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-4 text-center">
+            <div class="text-3xl mb-2">🟢</div>
+            <p class="font-bold text-blue-800 dark:text-blue-300">Operator</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Keep production systems reliable</p>
+          </div>
+          <div class="rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-4 text-center">
+            <div class="text-3xl mb-2">⚡</div>
+            <p class="font-bold text-emerald-800 dark:text-emerald-300">Perf Engineer</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Continuously eliminate bottlenecks</p>
+          </div>
+          <div class="rounded-xl bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 p-4 text-center">
+            <div class="text-3xl mb-2">🔭</div>
+            <p class="font-bold text-purple-800 dark:text-purple-300">Tech Scout</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Track emerging techniques, evaluate usefulness</p>
+          </div>
+          <div class="rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 text-center">
+            <div class="text-3xl mb-2">📣</div>
+            <p class="font-bold text-amber-800 dark:text-amber-300">Educator</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Spread discoveries throughout the org</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 23 -->
+      <section id="s23" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 23</span>
+        <h2 class="text-2xl font-bold mb-4">The Inference Team Technical Stack</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold mb-2">🖥 Hardware</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside">
+              <li>NVIDIA data-center GPUs</li><li>HBM GPU memory</li><li>NVLink / NVSwitch</li><li>High-speed networking</li>
+            </ul>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold mb-2">💾 Software</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside">
+              <li>Linux · CUDA · PyTorch</li><li>vLLM · TensorRT-LLM</li><li>NVIDIA Container Toolkit</li><li>Docker / Kubernetes</li>
+            </ul>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold mb-2">📊 Profiling / Monitoring</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside">
+              <li>Nsight Systems</li><li>Nsight Compute</li><li>NVIDIA DCGM</li><li>Prometheus / Grafana</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 24 -->
+      <section id="s24" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 24</span>
+        <h2 class="text-2xl font-bold mb-4">The Questions an Inference Lead Should Ask</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div class="rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-4">
+            <p class="font-semibold text-red-700 dark:text-red-400 mb-2">Compute-bound?</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside"><li>Tensor cores saturated?</li><li>Arithmetic near hw limit?</li></ul>
+          </div>
+          <div class="rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4">
+            <p class="font-semibold text-amber-700 dark:text-amber-400 mb-2">Memory-bound?</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside"><li>HBM bandwidth saturated?</li><li>Cache behaviors poor?</li><li>Cores waiting for data?</li></ul>
+          </div>
+          <div class="rounded-xl bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 p-4">
+            <p class="font-semibold text-purple-700 dark:text-purple-400 mb-2">Scheduling-bound?</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside"><li>GPUs sitting idle?</li><li>Batching effective?</li><li>Requests arriving inefficiently?</li></ul>
+          </div>
+          <div class="rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-4">
+            <p class="font-semibold text-blue-700 dark:text-blue-400 mb-2">Communication / Algorithm-bound?</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside"><li>GPUs waiting on others?</li><li>Attention optimisable?</li><li>Speculative decode / quant viable?</li></ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 25 -->
+      <section id="s25" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 25</span>
+        <h2 class="text-2xl font-bold mb-4">Inference Tech Radar</h2>
+        <div class="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm mb-4">
+          <table class="w-full text-sm">
+            <thead><tr class="bg-gray-100 dark:bg-gray-800"><th class="text-left px-4 py-3 font-semibold">Category</th><th class="text-left px-4 py-3 font-semibold">Examples</th></tr></thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+              <tr class="bg-white dark:bg-gray-900"><td class="px-4 py-3 font-medium text-blue-600 dark:text-blue-400">Attention</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">FlashAttention and successors</td></tr>
+              <tr class="bg-gray-50 dark:bg-gray-850"><td class="px-4 py-3 font-medium text-purple-600 dark:text-purple-400">Quantization</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">FP8, INT8, 4-bit (AWQ, GPTQ)</td></tr>
+              <tr class="bg-white dark:bg-gray-900"><td class="px-4 py-3 font-medium text-emerald-600 dark:text-emerald-400">Decoding</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Speculative decoding</td></tr>
+              <tr class="bg-gray-50 dark:bg-gray-850"><td class="px-4 py-3 font-medium text-blue-600 dark:text-blue-400">Serving</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">vLLM, TensorRT-LLM, SGLang</td></tr>
+              <tr class="bg-white dark:bg-gray-900"><td class="px-4 py-3 font-medium text-amber-600 dark:text-amber-400">Batching</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Continuous / dynamic batching</td></tr>
+              <tr class="bg-gray-50 dark:bg-gray-850"><td class="px-4 py-3 font-medium text-red-600 dark:text-red-400">Memory</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">KV-cache optimisation, PagedAttention</td></tr>
+              <tr class="bg-white dark:bg-gray-900"><td class="px-4 py-3 font-medium text-purple-600 dark:text-purple-400">Architecture</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">MoE / sparse models</td></tr>
+              <tr class="bg-gray-50 dark:bg-gray-850"><td class="px-4 py-3 font-medium text-blue-600 dark:text-blue-400">Hardware</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">New GPU architectures (H200, B200)</td></tr>
+              <tr class="bg-white dark:bg-gray-900"><td class="px-4 py-3 font-medium text-emerald-600 dark:text-emerald-400">Compilation</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Kernel fusion / optimised kernels</td></tr>
+              <tr class="bg-gray-50 dark:bg-gray-850"><td class="px-4 py-3 font-medium text-amber-600 dark:text-amber-400">Distributed</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Tensor / pipeline / expert parallelism</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-sm text-gray-500 dark:text-gray-400">For every new technology ask: What problem does it solve? What hardware? What workload? What's the quality impact? What's the engineering cost? What's the measured gain? Does it reduce cost?</p>
+      </section>
+
+      <!-- 26 -->
+      <section id="s26" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 26</span>
+        <h2 class="text-2xl font-bold mb-4">Monthly Inference Engineering Review</h2>
+        <p class="text-gray-600 dark:text-gray-300 mb-4">One engineer presents a paper, technique, tool, or hardware development. Don't stop at headlines — go deeper:</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div class="rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-4">
+            <p class="font-semibold text-red-700 dark:text-red-400 mb-1">❌ Insufficient</p>
+            <p class="text-gray-600 dark:text-gray-400 italic">"This paper reports a 2× speedup."</p>
+          </div>
+          <div class="rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-4">
+            <p class="font-semibold text-emerald-700 dark:text-emerald-400 mb-1">✅ Engineering value</p>
+            <p class="text-gray-600 dark:text-gray-400 italic">"Can we reproduce it? On our hardware? Our model? Our workload? What does it do to cost per token?"</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 27 -->
+      <section id="s27" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 27</span>
+        <h2 class="text-2xl font-bold mb-4">The Most Important Mental Model</h2>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <svg viewBox="0 0 500 340" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-sm mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+            <defs><marker id="ml" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/></marker></defs>
+            <rect x="160" y="10"  width="180" height="34" rx="10" fill="#dbeafe" stroke="#3b82f6" stroke-width="2"/><text x="250" y="32" text-anchor="middle" font-weight="700" fill="#1d4ed8">Observe</text>
+            <line x1="250" y1="44" x2="250" y2="64" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ml)"/>
+            <rect x="160" y="64"  width="180" height="34" rx="10" fill="#d1fae5" stroke="#10b981" stroke-width="2"/><text x="250" y="86" text-anchor="middle" font-weight="700" fill="#065f46">Measure</text>
+            <line x1="250" y1="98" x2="250" y2="118" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ml)"/>
+            <rect x="160" y="118" width="180" height="34" rx="10" fill="#fef9c3" stroke="#d97706" stroke-width="2"/><text x="250" y="140" text-anchor="middle" font-weight="700" fill="#92400e">Profile</text>
+            <line x1="250" y1="152" x2="250" y2="172" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ml)"/>
+            <rect x="140" y="172" width="220" height="34" rx="10" fill="#fce7f3" stroke="#ec4899" stroke-width="2"/><text x="250" y="194" text-anchor="middle" font-weight="700" fill="#9d174d">Identify bottleneck</text>
+            <line x1="250" y1="206" x2="250" y2="226" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ml)"/>
+            <rect x="160" y="226" width="180" height="34" rx="10" fill="#ede9fe" stroke="#8b5cf6" stroke-width="2"/><text x="250" y="248" text-anchor="middle" font-weight="700" fill="#5b21b6">Optimise</text>
+            <line x1="250" y1="260" x2="250" y2="280" stroke="#6b7280" stroke-width="1.5" marker-end="url(#ml)"/>
+            <rect x="160" y="280" width="180" height="34" rx="10" fill="#fef3c7" stroke="#f59e0b" stroke-width="2"/><text x="250" y="302" text-anchor="middle" font-weight="700" fill="#92400e">Benchmark</text>
+            <!-- Loop back arrow -->
+            <line x1="160" y1="297" x2="60" y2="297" stroke="#9ca3af" stroke-width="1.5"/>
+            <line x1="60"  y1="297" x2="60"  y2="27"  stroke="#9ca3af" stroke-width="1.5"/>
+            <line x1="60"  y1="27"  x2="160" y2="27"  stroke="#9ca3af" stroke-width="1.5" marker-end="url(#ml)"/>
+            <text x="35" y="165" text-anchor="middle" font-size="10" fill="#9ca3af" transform="rotate(-90 35 165)">loop</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- 28 -->
+      <section id="s28" class="scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 28</span>
+        <h2 class="text-2xl font-bold mb-4">Final Takeaways</h2>
+        <div class="space-y-3 text-sm">
+          <div class="flex gap-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4"><span class="text-blue-500 font-bold text-lg shrink-0">1</span><p class="text-gray-700 dark:text-gray-300"><strong>Inference is the delivery system for intelligence.</strong> Training creates the model; inference brings it to users.</p></div>
+          <div class="flex gap-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4"><span class="text-blue-500 font-bold text-lg shrink-0">2</span><p class="text-gray-700 dark:text-gray-300"><strong>Dense means "carry every book."</strong> Sparse / MoE means "bring only the books you need today."</p></div>
+          <div class="flex gap-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4"><span class="text-blue-500 font-bold text-lg shrink-0">3</span><p class="text-gray-700 dark:text-gray-300"><strong>The Transformer revolution was about scalable parallel computation.</strong> Attention replaced RNN sequential dependency and mapped well to GPUs.</p></div>
+          <div class="flex gap-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4"><span class="text-blue-500 font-bold text-lg shrink-0">4</span><p class="text-gray-700 dark:text-gray-300"><strong>Position matters.</strong> Original Transformers add positional encodings to input; modern ones use RoPE on Q and K.</p></div>
+          <div class="flex gap-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4"><span class="text-blue-500 font-bold text-lg shrink-0">5</span><p class="text-gray-700 dark:text-gray-300"><strong>Memory movement can be as important as computation.</strong> A powerful GPU can still be underutilised if it is waiting for data.</p></div>
+          <div class="flex gap-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4"><span class="text-blue-500 font-bold text-lg shrink-0">6</span><p class="text-gray-700 dark:text-gray-300"><strong>FlashAttention is fundamentally a memory-efficiency story.</strong> Tiling + on-chip compute reduces HBM traffic while preserving exact results.</p></div>
+          <div class="flex gap-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4"><span class="text-blue-500 font-bold text-lg shrink-0">7</span><p class="text-gray-700 dark:text-gray-300"><strong>Profile before optimising.</strong> Nsight Systems = big picture. Nsight Compute = kernel-level analysis.</p></div>
+          <div class="flex gap-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4"><span class="text-blue-500 font-bold text-lg shrink-0">8</span><p class="text-gray-700 dark:text-gray-300"><strong>Quantization is an inference performance and deployment strategy,</strong> not merely model compression. Choose the right vehicle for the terrain.</p></div>
+          <div class="flex gap-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4"><span class="text-blue-500 font-bold text-lg shrink-0">9</span><p class="text-gray-700 dark:text-gray-300"><strong>Local inference is becoming increasingly important.</strong> Apple Silicon + Ollama + quantized models make capable LLMs accessible outside data centers.</p></div>
+          <div class="flex gap-3 rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-300 dark:border-blue-700 p-4"><span class="text-blue-600 font-bold text-lg shrink-0">10</span><p class="text-blue-900 dark:text-blue-200"><strong>Build a culture of measurement.</strong> If you can't measure it, you can't systematically improve it. Don't optimise what you <em>assume</em> is the bottleneck — measure what is <em>actually</em> limiting the system.</p></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-5 px-6 text-center text-xs text-gray-400 dark:text-gray-500">
+    LLM Inference — Study Notes &amp; Lead Playbook · 2026 · Built with Tailwind CSS
+  </footer>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.classList.contains('dark');
+      html.classList.toggle('dark', !isDark);
+      localStorage.setItem('theme', isDark ? 'light' : 'dark');
+      document.getElementById('themeIcon').textContent  = isDark ? '🌙' : '☀️';
+      document.getElementById('themeLabel').textContent = isDark ? 'Dark' : 'Light';
+    }
+    (function () {
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const useDark = saved ? saved === 'dark' : prefersDark;
+      document.documentElement.classList.toggle('dark', useDark);
+      document.getElementById('themeIcon').textContent  = useDark ? '☀️' : '🌙';
+      document.getElementById('themeLabel').textContent = useDark ? 'Light' : 'Dark';
+    })();
+    const sections = document.querySelectorAll('section[id]');
+    const navLinks  = document.querySelectorAll('.nav-link');
+    const observer  = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          navLinks.forEach(l => l.classList.remove('text-blue-600','dark:text-blue-400','bg-blue-50','dark:bg-gray-800','font-semibold'));
+          const a = document.querySelector(`.nav-link[href="#${e.target.id}"]`);
+          if (a) a.classList.add('text-blue-600','dark:text-blue-400','bg-blue-50','dark:bg-gray-800','font-semibold');
+        }
+      });
+    }, { rootMargin: '-30% 0px -60% 0px' });
+    sections.forEach(s => observer.observe(s));
+  </script>
+</body>
+</html>

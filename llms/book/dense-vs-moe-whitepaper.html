@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dense LLMs vs MoE &amp; Sparse Models</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#eff6ff',
+              100: '#dbeafe',
+              600: '#2563eb',
+              700: '#1d4ed8',
+              900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Smooth transitions for theme switch */
+    * { transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
+    /* Sidebar active */
+    .nav-link.active { @apply font-semibold; }
+    /* Diagram containers */
+    .diagram-box {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.78rem;
+      line-height: 1.6;
+      white-space: pre;
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 min-h-screen flex flex-col">
+
+  <!-- ── TOP NAV ─────────────────────────────────────────────── -->
+  <header class="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <div class="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🧠</span>
+        <div>
+          <h1 class="text-base font-bold text-blue-700 dark:text-blue-400 leading-tight">Dense LLMs vs MoE &amp; Sparse Models</h1>
+          <p class="text-xs text-gray-500 dark:text-gray-400">A Technical Whitepaper · 2026</p>
+        </div>
+      </div>
+      <button id="themeToggle"
+        onclick="toggleTheme()"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
+               bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700
+               text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600">
+        <span id="themeIcon">☀️</span>
+        <span id="themeLabel">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="max-w-screen-xl mx-auto w-full flex flex-1">
+
+    <!-- ── SIDEBAR ──────────────────────────────────────────── -->
+    <aside class="hidden md:flex flex-col w-56 shrink-0 sticky top-14 self-start h-[calc(100vh-3.5rem)] overflow-y-auto
+                  border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-6 px-4">
+      <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">Contents</p>
+      <nav class="flex flex-col gap-0.5 text-sm">
+        <a href="#overview"       class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Overview</a>
+        <a href="#analogy"        class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">📚 The Backpack Analogy</a>
+        <a href="#dense"          class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Dense Models</a>
+        <a href="#moe"            class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">MoE Models</a>
+        <a href="#sparse"         class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Sparse Models</a>
+        <a href="#comparison"     class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Comparison</a>
+        <a href="#architecture"   class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Architecture Diagrams</a>
+        <a href="#tradeoffs"      class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Trade-offs</a>
+        <a href="#usecases"       class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Use Cases</a>
+        <a href="#future"         class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Future Outlook</a>
+        <a href="#references"     class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">References</a>
+      </nav>
+    </aside>
+
+    <!-- ── MAIN CONTENT ─────────────────────────────────────── -->
+    <main class="flex-1 px-6 py-10 max-w-4xl">
+
+      <!-- OVERVIEW -->
+      <section id="overview" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Whitepaper</span>
+        <h2 class="text-3xl font-bold mb-4 text-gray-900 dark:text-white">Overview</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          Large Language Models (LLMs) have transformed natural language processing over the past decade.
+          As these models scale from billions to trillions of parameters, the question of <em>how</em> to
+          activate and utilise those parameters efficiently becomes critical — both for cost and sustainability.
+        </p>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          Two fundamentally different philosophies have emerged:
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+          <div class="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 p-5">
+            <div class="text-2xl mb-2">📦</div>
+            <h3 class="font-bold text-blue-800 dark:text-blue-300 mb-1">Dense Models</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Every parameter is activated for every token. Maximum knowledge, maximum compute.</p>
+          </div>
+          <div class="rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 p-5">
+            <div class="text-2xl mb-2">⚡</div>
+            <h3 class="font-bold text-emerald-800 dark:text-emerald-300 mb-1">MoE / Sparse Models</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Only the relevant subset of parameters ("experts") activates per token. Efficient and scalable.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- ANALOGY -->
+      <section id="analogy" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-4 text-gray-900 dark:text-white">📚 The Backpack Analogy</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          The best way to understand the difference is through a simple school-day analogy:
+        </p>
+
+        <!-- Analogy Diagram SVG -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <svg viewBox="0 0 820 340" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-3xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="13">
+
+            <!-- Dense side -->
+            <rect x="20" y="20" width="360" height="300" rx="16" fill="#eff6ff" stroke="#93c5fd" stroke-width="1.5"/>
+            <text x="200" y="52" text-anchor="middle" font-weight="700" font-size="15" fill="#1d4ed8">Dense Model — Every Day</text>
+
+            <!-- Backpack -->
+            <rect x="155" y="70" width="90" height="110" rx="10" fill="#3b82f6" stroke="#1d4ed8" stroke-width="2"/>
+            <text x="200" y="132" text-anchor="middle" font-size="20" fill="white">🎒</text>
+            <text x="200" y="155" text-anchor="middle" font-size="11" fill="white" font-weight="600">Backpack</text>
+
+            <!-- Books inside -->
+            <rect x="80" y="200" width="50" height="26" rx="4" fill="#fbbf24" stroke="#d97706" stroke-width="1"/>
+            <text x="105" y="218" text-anchor="middle" font-size="11" fill="#78350f">Math</text>
+            <rect x="140" y="200" width="50" height="26" rx="4" fill="#34d399" stroke="#059669" stroke-width="1"/>
+            <text x="165" y="218" text-anchor="middle" font-size="11" fill="#064e3b">Science</text>
+            <rect x="200" y="200" width="50" height="26" rx="4" fill="#f87171" stroke="#dc2626" stroke-width="1"/>
+            <text x="225" y="218" text-anchor="middle" font-size="11" fill="#7f1d1d">History</text>
+            <rect x="260" y="200" width="50" height="26" rx="4" fill="#a78bfa" stroke="#7c3aed" stroke-width="1"/>
+            <text x="285" y="218" text-anchor="middle" font-size="11" fill="#2e1065">Art</text>
+
+            <!-- ALL label -->
+            <text x="200" y="255" text-anchor="middle" font-size="12" font-weight="600" fill="#1e40af">ALL books, every day</text>
+            <text x="200" y="274" text-anchor="middle" font-size="11" fill="#3b82f6">Heavy backpack 😓</text>
+            <text x="200" y="293" text-anchor="middle" font-size="11" fill="#6b7280">Whether needed or not</text>
+
+            <!-- MoE side -->
+            <rect x="440" y="20" width="360" height="300" rx="16" fill="#f0fdf4" stroke="#6ee7b7" stroke-width="1.5"/>
+            <text x="620" y="52" text-anchor="middle" font-weight="700" font-size="15" fill="#065f46">MoE / Sparse — Smart Packing</text>
+
+            <!-- Timetable -->
+            <rect x="545" y="68" width="150" height="88" rx="8" fill="#d1fae5" stroke="#34d399" stroke-width="1.5"/>
+            <text x="620" y="88" text-anchor="middle" font-size="11" font-weight="700" fill="#065f46">📅 Today's Schedule</text>
+            <text x="575" y="108" font-size="11" fill="#047857">• Math (09:00)</text>
+            <text x="575" y="124" font-size="11" fill="#047857">• Science (11:00)</text>
+            <text x="575" y="140" font-size="11" fill="#6b7280" text-decoration="line-through">History ✗</text>
+            <text x="575" y="148" font-size="11" fill="#6b7280" text-decoration="line-through">Art ✗</text>
+
+            <!-- Light backpack -->
+            <rect x="575" y="175" width="90" height="70" rx="10" fill="#10b981" stroke="#065f46" stroke-width="2"/>
+            <text x="620" y="215" text-anchor="middle" font-size="20" fill="white">🎒</text>
+            <text x="620" y="234" text-anchor="middle" font-size="11" fill="white" font-weight="600">Light Pack</text>
+
+            <!-- Only 2 books shown -->
+            <rect x="510" y="258" width="50" height="26" rx="4" fill="#fbbf24" stroke="#d97706" stroke-width="1"/>
+            <text x="535" y="276" text-anchor="middle" font-size="11" fill="#78350f">Math</text>
+            <rect x="570" y="258" width="50" height="26" rx="4" fill="#34d399" stroke="#059669" stroke-width="1"/>
+            <text x="595" y="276" text-anchor="middle" font-size="11" fill="#064e3b">Science</text>
+
+            <text x="620" y="316" text-anchor="middle" font-size="12" font-weight="600" fill="#065f46">Only needed books ✅</text>
+
+            <!-- Arrow between -->
+            <text x="415" y="175" text-anchor="middle" font-size="28" fill="#9ca3af">→</text>
+          </svg>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-100 dark:border-blue-900 p-4">
+            <p class="font-semibold text-blue-800 dark:text-blue-300 mb-1">Dense Model</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Like a student who carries <strong>every single book</strong> in their backpack every day — Math, Science, History, Art, PE — regardless of what classes are scheduled. The backpack is heavy, access is slow, but everything is always available.
+            </p>
+          </div>
+          <div class="rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-100 dark:border-emerald-900 p-4">
+            <p class="font-semibold text-emerald-800 dark:text-emerald-300 mb-1">MoE / Sparse Model</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">
+              Like a student who checks the <strong>day's timetable</strong> each morning and only packs the books they need — Math and Science on Monday, History and Art on Tuesday. The backpack is light, fast, and efficient.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- DENSE MODELS -->
+      <section id="dense" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Dense Models — Deep Dive</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          In a dense Transformer, every forward pass activates <em>all</em> parameters. A 70B dense model like
+          LLaMA-3 processes every token through all 70 billion weights. This gives highly coherent, predictable
+          behaviour but at significant compute cost.
+        </p>
+
+        <!-- Dense Architecture Diagram -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Dense Transformer — Forward Pass</h3>
+          <svg viewBox="0 0 700 200" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+
+            <!-- Input -->
+            <rect x="10" y="75" width="90" height="50" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="55" y="97" text-anchor="middle" font-weight="600" fill="#1d4ed8">Input</text>
+            <text x="55" y="113" text-anchor="middle" fill="#3b82f6">Token</text>
+
+            <polyline points="100,100 130,100" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+
+            <!-- Layer 1 — all filled -->
+            <rect x="130" y="60" width="80" height="80" rx="8" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1.5"/>
+            <text x="170" y="97" text-anchor="middle" font-size="11" font-weight="700" fill="white">Layer 1</text>
+            <text x="170" y="113" text-anchor="middle" font-size="10" fill="#bfdbfe">ALL params</text>
+
+            <polyline points="210,100 240,100" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+
+            <!-- Layer 2 -->
+            <rect x="240" y="60" width="80" height="80" rx="8" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1.5"/>
+            <text x="280" y="97" text-anchor="middle" font-size="11" font-weight="700" fill="white">Layer 2</text>
+            <text x="280" y="113" text-anchor="middle" font-size="10" fill="#bfdbfe">ALL params</text>
+
+            <polyline points="320,100 350,100" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+
+            <!-- … -->
+            <text x="365" y="105" text-anchor="middle" font-size="18" fill="#9ca3af">…</text>
+
+            <polyline points="378,100 408,100" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+
+            <!-- Layer N -->
+            <rect x="408" y="60" width="80" height="80" rx="8" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1.5"/>
+            <text x="448" y="97" text-anchor="middle" font-size="11" font-weight="700" fill="white">Layer N</text>
+            <text x="448" y="113" text-anchor="middle" font-size="10" fill="#bfdbfe">ALL params</text>
+
+            <polyline points="488,100 518,100" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+
+            <!-- Output -->
+            <rect x="518" y="75" width="90" height="50" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="563" y="97" text-anchor="middle" font-weight="600" fill="#1d4ed8">Output</text>
+            <text x="563" y="113" text-anchor="middle" fill="#3b82f6">Logits</text>
+
+            <!-- Note -->
+            <text x="350" y="175" text-anchor="middle" font-size="11" fill="#6b7280">Every layer activates 100% of parameters for every token</text>
+
+            <defs>
+              <marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                <path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/>
+              </marker>
+            </defs>
+          </svg>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold text-gray-800 dark:text-gray-200 mb-1">Examples</p>
+            <ul class="text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+              <li>GPT-4 (estimated)</li>
+              <li>LLaMA 3 70B/405B</li>
+              <li>Mistral 7B</li>
+              <li>Falcon 180B</li>
+            </ul>
+          </div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold text-emerald-700 dark:text-emerald-400 mb-1">Strengths</p>
+            <ul class="text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+              <li>Simple architecture</li>
+              <li>Stable training</li>
+              <li>Predictable latency</li>
+              <li>Easy to fine-tune</li>
+            </ul>
+          </div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold text-red-600 dark:text-red-400 mb-1">Weaknesses</p>
+            <ul class="text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+              <li>High compute per token</li>
+              <li>Expensive to scale</li>
+              <li>Memory bandwidth bound</li>
+              <li>Energy intensive</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- MOE MODELS -->
+      <section id="moe" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Mixture of Experts (MoE)</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          MoE replaces the monolithic Feed-Forward Network (FFN) inside each Transformer layer with a set of
+          <strong>N expert sub-networks</strong>. A lightweight <em>router</em> (gating network) reads each token
+          and dynamically selects only the top-K experts to process it — typically K=1 or K=2 out of 8–64 experts.
+        </p>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          The result: a model with <strong>many more total parameters</strong> than an equivalent dense model,
+          but the same (or fewer) <strong>active parameters per token</strong>.
+        </p>
+
+        <!-- MoE Architecture Diagram -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">MoE Layer — Expert Routing</h3>
+          <svg viewBox="0 0 720 320" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+
+            <!-- Token input -->
+            <rect x="10" y="130" width="80" height="44" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="50" y="150" text-anchor="middle" font-weight="600" fill="#065f46">Token</text>
+            <text x="50" y="166" text-anchor="middle" fill="#10b981">Embed.</text>
+            <line x1="90" y1="152" x2="140" y2="152" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+            <!-- Router -->
+            <rect x="140" y="120" width="80" height="64" rx="8" fill="#fef9c3" stroke="#ca8a04" stroke-width="1.5"/>
+            <text x="180" y="147" text-anchor="middle" font-weight="700" fill="#78350f">Router</text>
+            <text x="180" y="163" text-anchor="middle" font-size="11" fill="#92400e">(Gating)</text>
+
+            <!-- Router to experts (fan-out) -->
+            <!-- Expert 1 — selected -->
+            <line x1="220" y1="140" x2="310" y2="72"  stroke="#10b981" stroke-width="2" stroke-dasharray="0"/>
+            <!-- Expert 2 — selected -->
+            <line x1="220" y1="152" x2="310" y2="152" stroke="#10b981" stroke-width="2"/>
+            <!-- Expert 3 — not selected (grey dashed) -->
+            <line x1="220" y1="162" x2="310" y2="222" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <!-- Expert 4 — not selected -->
+            <line x1="220" y1="162" x2="310" y2="262" stroke="#d1d5db" stroke-width="1.5" stroke-dasharray="4 3"/>
+
+            <!-- Expert boxes -->
+            <rect x="310" y="50" width="100" height="44" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+            <text x="360" y="71" text-anchor="middle" font-weight="700" fill="#065f46">Expert 1 ✓</text>
+            <text x="360" y="87" text-anchor="middle" font-size="10" fill="#059669">SELECTED</text>
+
+            <rect x="310" y="130" width="100" height="44" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+            <text x="360" y="151" text-anchor="middle" font-weight="700" fill="#065f46">Expert 2 ✓</text>
+            <text x="360" y="167" text-anchor="middle" font-size="10" fill="#059669">SELECTED</text>
+
+            <rect x="310" y="205" width="100" height="44" rx="8" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1.5"/>
+            <text x="360" y="226" text-anchor="middle" font-weight="600" fill="#9ca3af">Expert 3</text>
+            <text x="360" y="242" text-anchor="middle" font-size="10" fill="#d1d5db">skipped</text>
+
+            <rect x="310" y="260" width="100" height="44" rx="8" fill="#f3f4f6" stroke="#d1d5db" stroke-width="1.5"/>
+            <text x="360" y="281" text-anchor="middle" font-weight="600" fill="#9ca3af">Expert 4</text>
+            <text x="360" y="297" text-anchor="middle" font-size="10" fill="#d1d5db">skipped</text>
+
+            <!-- Expert outputs combine -->
+            <line x1="410" y1="72"  x2="480" y2="152" stroke="#10b981" stroke-width="2" marker-end="url(#arr2g)"/>
+            <line x1="410" y1="152" x2="480" y2="152" stroke="#10b981" stroke-width="2"/>
+
+            <!-- Combine node -->
+            <rect x="480" y="130" width="80" height="44" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="520" y="150" text-anchor="middle" font-weight="700" fill="#065f46">Combine</text>
+            <text x="520" y="166" text-anchor="middle" font-size="10" fill="#059669">Weighted</text>
+
+            <line x1="560" y1="152" x2="610" y2="152" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr2)"/>
+
+            <!-- Output -->
+            <rect x="610" y="130" width="80" height="44" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="650" y="150" text-anchor="middle" font-weight="600" fill="#065f46">Output</text>
+            <text x="650" y="166" text-anchor="middle" fill="#10b981">Token</text>
+
+            <!-- Legend -->
+            <rect x="10" y="290" width="14" height="10" fill="#10b981" rx="2"/>
+            <text x="28" y="300" font-size="10" fill="#6b7280">Active expert path</text>
+            <rect x="150" y="290" width="14" height="10" fill="#d1d5db" rx="2"/>
+            <text x="168" y="300" font-size="10" fill="#6b7280">Inactive (skipped)</text>
+
+            <defs>
+              <marker id="arr2" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                <path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/>
+              </marker>
+              <marker id="arr2g" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                <path d="M0,0 L6,3 L0,6 Z" fill="#10b981"/>
+              </marker>
+            </defs>
+          </svg>
+        </div>
+
+        <div class="rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 text-sm text-amber-900 dark:text-amber-200 mb-4">
+          <strong>Key insight:</strong> Mixtral 8×7B has ~47B total parameters but only ~13B active per token — delivering near-70B quality at 13B inference cost.
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold text-gray-800 dark:text-gray-200 mb-1">Examples</p>
+            <ul class="text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+              <li>Mixtral 8×7B / 8×22B</li>
+              <li>Gemini 1.5 Pro (MoE)</li>
+              <li>DeepSeek-V2/V3</li>
+              <li>Switch Transformer</li>
+            </ul>
+          </div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold text-emerald-700 dark:text-emerald-400 mb-1">Strengths</p>
+            <ul class="text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+              <li>High capacity, low FLOPs</li>
+              <li>Specialised experts</li>
+              <li>Scales to trillions</li>
+              <li>Efficient inference</li>
+            </ul>
+          </div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold text-red-600 dark:text-red-400 mb-1">Challenges</p>
+            <ul class="text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+              <li>Load balancing experts</li>
+              <li>Complex training</li>
+              <li>High memory footprint</li>
+              <li>Expert collapse risk</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- SPARSE MODELS -->
+      <section id="sparse" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Sparse Models — Beyond MoE</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          Sparsity is a broader concept. While MoE applies sparsity at the <em>expert</em> level,
+          other forms of sparsity operate at the <em>attention</em>, <em>weight</em>, or <em>activation</em> level:
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold text-purple-700 dark:text-purple-400 mb-2">Sparse Attention</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Instead of every token attending to every other token (O(n²)), sparse attention restricts each token to a local window or learned pattern. Used in Longformer, BigBird, Flash-Attn variants.</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold text-pink-700 dark:text-pink-400 mb-2">Weight Pruning / Sparsity</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">After training, weights below a threshold are zeroed out. The resulting sparse weight matrices can be stored and multiplied more efficiently using hardware-aware sparse kernels (e.g., NVIDIA cuSPARSE).</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold text-orange-700 dark:text-orange-400 mb-2">Activation Sparsity</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">ReLU naturally produces zero activations; models can be trained to have high activation sparsity (70–95%), enabling conditional compute skipping. Relevant in models like Mamba and state-space alternatives.</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold text-cyan-700 dark:text-cyan-400 mb-2">Structured Sparsity</p>
+            <p class="text-sm text-gray-600 dark:text-gray-400">Removes entire blocks, heads, or layers rather than individual weights. More hardware-friendly than unstructured pruning. Used extensively in mobile and edge deployments.</p>
+          </div>
+        </div>
+
+        <!-- Sparsity types visual -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Taxonomy of Sparsity in LLMs</h3>
+          <svg viewBox="0 0 680 200" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+            <!-- Root -->
+            <rect x="270" y="10" width="140" height="36" rx="8" fill="#f3e8ff" stroke="#9333ea" stroke-width="1.5"/>
+            <text x="340" y="33" text-anchor="middle" font-weight="700" fill="#7e22ce">Sparsity in LLMs</text>
+
+            <!-- Lines to children -->
+            <line x1="310" y1="46" x2="80"  y2="94" stroke="#9333ea" stroke-width="1.2"/>
+            <line x1="330" y1="46" x2="240" y2="94" stroke="#9333ea" stroke-width="1.2"/>
+            <line x1="350" y1="46" x2="440" y2="94" stroke="#9333ea" stroke-width="1.2"/>
+            <line x1="370" y1="46" x2="600" y2="94" stroke="#9333ea" stroke-width="1.2"/>
+
+            <!-- Child nodes -->
+            <rect x="20"  y="94" width="120" height="40" rx="8" fill="#fce7f3" stroke="#ec4899" stroke-width="1.5"/>
+            <text x="80"  y="113" text-anchor="middle" font-weight="600" fill="#9d174d">MoE</text>
+            <text x="80"  y="127" text-anchor="middle" font-size="10" fill="#be185d">Expert-level</text>
+
+            <rect x="175" y="94" width="120" height="40" rx="8" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.5"/>
+            <text x="235" y="113" text-anchor="middle" font-weight="600" fill="#5b21b6">Attention</text>
+            <text x="235" y="127" text-anchor="middle" font-size="10" fill="#7c3aed">Sparse / local</text>
+
+            <rect x="375" y="94" width="120" height="40" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+            <text x="435" y="113" text-anchor="middle" font-weight="600" fill="#92400e">Activation</text>
+            <text x="435" y="127" text-anchor="middle" font-size="10" fill="#d97706">ReLU / gating</text>
+
+            <rect x="535" y="94" width="120" height="40" rx="8" fill="#dcfce7" stroke="#22c55e" stroke-width="1.5"/>
+            <text x="595" y="113" text-anchor="middle" font-weight="600" fill="#14532d">Weight Pruning</text>
+            <text x="595" y="127" text-anchor="middle" font-size="10" fill="#15803d">Post-training</text>
+
+            <!-- Inference arrow -->
+            <rect x="240" y="165" width="200" height="30" rx="8" fill="#f0f9ff" stroke="#38bdf8" stroke-width="1.5"/>
+            <text x="340" y="185" text-anchor="middle" font-size="11" font-weight="600" fill="#0369a1">Goal: Fewer FLOPs at inference</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- COMPARISON -->
+      <section id="comparison" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Side-by-Side Comparison</h2>
+
+        <!-- Comparison table -->
+        <div class="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                <th class="text-left px-4 py-3 font-semibold">Attribute</th>
+                <th class="text-center px-4 py-3 font-semibold text-blue-700 dark:text-blue-400">Dense</th>
+                <th class="text-center px-4 py-3 font-semibold text-emerald-700 dark:text-emerald-400">MoE</th>
+                <th class="text-center px-4 py-3 font-semibold text-purple-700 dark:text-purple-400">Sparse</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">Active params/token</td>
+                <td class="px-4 py-3 text-center text-red-600 dark:text-red-400">100%</td>
+                <td class="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400">~10–30%</td>
+                <td class="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400">Varies</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">Total parameters</td>
+                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400">7B – 405B</td>
+                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400">47B – 1T+</td>
+                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400">Any size</td>
+              </tr>
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">Training complexity</td>
+                <td class="px-4 py-3 text-center">🟢 Low</td>
+                <td class="px-4 py-3 text-center">🔴 High</td>
+                <td class="px-4 py-3 text-center">🟡 Medium</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">Inference cost</td>
+                <td class="px-4 py-3 text-center">🔴 High</td>
+                <td class="px-4 py-3 text-center">🟢 Low</td>
+                <td class="px-4 py-3 text-center">🟡 Medium</td>
+              </tr>
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">Memory at inference</td>
+                <td class="px-4 py-3 text-center">🟢 Low</td>
+                <td class="px-4 py-3 text-center">🔴 High (all experts loaded)</td>
+                <td class="px-4 py-3 text-center">🟡 Medium</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">Quality/param ratio</td>
+                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400">Baseline</td>
+                <td class="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400">Better</td>
+                <td class="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400">Better</td>
+              </tr>
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">Hardware efficiency</td>
+                <td class="px-4 py-3 text-center">🟢 Predictable</td>
+                <td class="px-4 py-3 text-center">🟡 Requires routing</td>
+                <td class="px-4 py-3 text-center">🟡 Depends on hw</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium text-gray-700 dark:text-gray-300">Fine-tuning ease</td>
+                <td class="px-4 py-3 text-center">🟢 Simple</td>
+                <td class="px-4 py-3 text-center">🟡 Moderate</td>
+                <td class="px-4 py-3 text-center">🟡 Moderate</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ARCHITECTURE DIAGRAMS -->
+      <section id="architecture" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Architecture Diagrams</h2>
+
+        <!-- Compute utilisation bar diagram -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-5">Parameter Activation Per Token</h3>
+
+          <!-- Dense -->
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-1 text-sm">
+              <span class="font-medium text-gray-700 dark:text-gray-300">Dense Model (70B active)</span>
+              <span class="text-blue-600 dark:text-blue-400 font-semibold">100%</span>
+            </div>
+            <div class="h-8 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800">
+              <div class="h-full bg-blue-500 dark:bg-blue-600 rounded-lg flex items-center justify-center text-white text-xs font-semibold" style="width:100%">All 70B parameters active</div>
+            </div>
+          </div>
+
+          <!-- MoE -->
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-1 text-sm">
+              <span class="font-medium text-gray-700 dark:text-gray-300">Mixtral 8×7B (13B active / 47B total)</span>
+              <span class="text-emerald-600 dark:text-emerald-400 font-semibold">~28%</span>
+            </div>
+            <div class="h-8 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 flex">
+              <div class="h-full bg-emerald-500 dark:bg-emerald-600 flex items-center justify-center text-white text-xs font-semibold" style="width:28%">Active</div>
+              <div class="h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-400 text-xs" style="width:72%">Dormant experts</div>
+            </div>
+          </div>
+
+          <!-- DeepSeek-V3 -->
+          <div class="mb-4">
+            <div class="flex items-center justify-between mb-1 text-sm">
+              <span class="font-medium text-gray-700 dark:text-gray-300">DeepSeek-V3 (37B active / 671B total)</span>
+              <span class="text-emerald-600 dark:text-emerald-400 font-semibold">~5.5%</span>
+            </div>
+            <div class="h-8 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 flex">
+              <div class="h-full bg-emerald-400 flex items-center justify-center text-white text-xs font-semibold" style="width:5.5%"></div>
+              <div class="h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-400 text-xs" style="width:94.5%">Dormant (634B)</div>
+            </div>
+          </div>
+
+          <!-- Sparse pruned -->
+          <div>
+            <div class="flex items-center justify-between mb-1 text-sm">
+              <span class="font-medium text-gray-700 dark:text-gray-300">Pruned Dense (50% sparsity)</span>
+              <span class="text-purple-600 dark:text-purple-400 font-semibold">50%</span>
+            </div>
+            <div class="h-8 rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 flex">
+              <div class="h-full bg-purple-500 flex items-center justify-center text-white text-xs font-semibold" style="width:50%">Active weights</div>
+              <div class="h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-400 text-xs" style="width:50%">Pruned (zero)</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Scaling diagram -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Scaling Behaviour: FLOPs vs Capacity</h3>
+          <svg viewBox="0 0 620 260" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+            <!-- Axes -->
+            <line x1="60" y1="30"  x2="60"  y2="220" stroke="#9ca3af" stroke-width="1.5"/>
+            <line x1="60" y1="220" x2="580" y2="220" stroke="#9ca3af" stroke-width="1.5"/>
+            <text x="35"  y="130" text-anchor="middle" font-size="11" fill="#6b7280" transform="rotate(-90 35 130)">Model Capacity</text>
+            <text x="320" y="250" text-anchor="middle" font-size="11" fill="#6b7280">Compute FLOPs / token</text>
+
+            <!-- Dense line — linear -->
+            <polyline points="60,210 150,175 250,140 380,100 520,55" fill="none" stroke="#3b82f6" stroke-width="2.5"/>
+            <text x="530" y="52" font-size="11" font-weight="600" fill="#2563eb">Dense</text>
+
+            <!-- MoE line — sublinear in FLOPs but high capacity -->
+            <polyline points="60,210 80,160 110,120 150,90 200,68 280,52 400,42 520,38" fill="none" stroke="#10b981" stroke-width="2.5" stroke-dasharray="5 3"/>
+            <text x="530" y="36" font-size="11" font-weight="600" fill="#059669">MoE</text>
+
+            <!-- Ideal zone label -->
+            <rect x="70" y="35" width="90" height="22" rx="5" fill="#f0fdf4" stroke="#86efac" stroke-width="1"/>
+            <text x="115" y="51" text-anchor="middle" font-size="10" fill="#16a34a">MoE sweet spot</text>
+
+            <!-- Tick labels -->
+            <text x="60"  y="233" text-anchor="middle" font-size="10" fill="#9ca3af">0</text>
+            <text x="200" y="233" text-anchor="middle" font-size="10" fill="#9ca3af">Low</text>
+            <text x="380" y="233" text-anchor="middle" font-size="10" fill="#9ca3af">Medium</text>
+            <text x="520" y="233" text-anchor="middle" font-size="10" fill="#9ca3af">High</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- TRADE-OFFS -->
+      <section id="tradeoffs" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Trade-offs in Practice</h2>
+
+        <!-- Decision flow -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Decision Flow — Which Architecture?</h3>
+          <svg viewBox="0 0 700 370" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+            <!-- Start -->
+            <rect x="270" y="10" width="160" height="38" rx="19" fill="#1d4ed8" />
+            <text x="350" y="34" text-anchor="middle" font-weight="700" font-size="13" fill="white">Design Decision</text>
+
+            <line x1="350" y1="48" x2="350" y2="80" stroke="#6b7280" stroke-width="1.5" marker-end="url(#da)"/>
+
+            <!-- Q1 -->
+            <polygon points="350,80 490,120 350,160 210,120" fill="#fef9c3" stroke="#d97706" stroke-width="1.5"/>
+            <text x="350" y="116" text-anchor="middle" font-weight="600" fill="#92400e">Cost sensitive?</text>
+            <text x="350" y="132" text-anchor="middle" font-size="11" fill="#b45309">Inference budget tight?</text>
+
+            <!-- Yes → right -->
+            <line x1="490" y1="120" x2="560" y2="120" stroke="#10b981" stroke-width="1.5" marker-end="url(#dag)"/>
+            <text x="525" y="112" text-anchor="middle" font-size="11" fill="#059669">Yes</text>
+            <rect x="560" y="100" width="110" height="40" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="615" y="118" text-anchor="middle" font-weight="600" fill="#065f46">MoE /</text>
+            <text x="615" y="134" text-anchor="middle" font-weight="600" fill="#065f46">Sparse</text>
+
+            <!-- No → down -->
+            <line x1="350" y1="160" x2="350" y2="200" stroke="#6b7280" stroke-width="1.5" marker-end="url(#da)"/>
+            <text x="365" y="185" font-size="11" fill="#6b7280">No</text>
+
+            <!-- Q2 -->
+            <polygon points="350,200 490,240 350,280 210,240" fill="#fef9c3" stroke="#d97706" stroke-width="1.5"/>
+            <text x="350" y="236" text-anchor="middle" font-weight="600" fill="#92400e">Need fine-tuning</text>
+            <text x="350" y="252" text-anchor="middle" font-size="11" fill="#b45309">or simple deployment?</text>
+
+            <!-- Yes → Dense -->
+            <line x1="490" y1="240" x2="560" y2="240" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#dab)"/>
+            <text x="525" y="232" text-anchor="middle" font-size="11" fill="#3b82f6">Yes</text>
+            <rect x="560" y="220" width="110" height="40" rx="8" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="615" y="244" text-anchor="middle" font-weight="600" fill="#1d4ed8">Dense Model</text>
+
+            <!-- No → MoE edge cases -->
+            <line x1="350" y1="280" x2="350" y2="320" stroke="#6b7280" stroke-width="1.5" marker-end="url(#da)"/>
+            <text x="365" y="305" font-size="11" fill="#6b7280">No</text>
+
+            <rect x="235" y="320" width="230" height="40" rx="8" fill="#f3e8ff" stroke="#9333ea" stroke-width="1.5"/>
+            <text x="350" y="340" text-anchor="middle" font-weight="600" fill="#6b21a8">Large-scale MoE +</text>
+            <text x="350" y="356" text-anchor="middle" font-weight="600" fill="#6b21a8">Expert parallelism</text>
+
+            <defs>
+              <marker id="da"  markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/></marker>
+              <marker id="dag" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#10b981"/></marker>
+              <marker id="dab" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3b82f6"/></marker>
+            </defs>
+          </svg>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-sm">
+            <p class="font-semibold text-gray-800 dark:text-gray-200 mb-2">Memory vs Compute Trade-off</p>
+            <p class="text-gray-600 dark:text-gray-400">MoE models require <em>all</em> experts to be loaded into memory (or distributed across GPUs) even though only K are active per token. A Mixtral 8×7B needs ~90GB of GPU memory, compared to ~35GB for a comparable dense 20B model.</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-sm">
+            <p class="font-semibold text-gray-800 dark:text-gray-200 mb-2">Load Balancing</p>
+            <p class="text-gray-600 dark:text-gray-400">Without regularisation, all tokens gravitate toward the same popular experts — known as <em>expert collapse</em>. Auxiliary load-balancing losses (e.g., Switch Transformer's auxiliary loss) force even distribution across experts during training.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- USE CASES -->
+      <section id="usecases" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-4 text-gray-900 dark:text-white">When to Use Each</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-5">
+            <div class="text-3xl mb-2">📦</div>
+            <h3 class="font-bold text-blue-800 dark:text-blue-300 mb-2">Dense Models</h3>
+            <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+              <li>Single-GPU deployments</li>
+              <li>Fine-tuning for custom domains</li>
+              <li>Low-latency, predictable serving</li>
+              <li>Research / experimentation</li>
+              <li>Edge &amp; mobile (small dense)</li>
+            </ul>
+          </div>
+          <div class="rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-5">
+            <div class="text-3xl mb-2">⚡</div>
+            <h3 class="font-bold text-emerald-800 dark:text-emerald-300 mb-2">MoE Models</h3>
+            <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+              <li>Multi-GPU / cluster serving</li>
+              <li>High-throughput inference</li>
+              <li>General-purpose frontier models</li>
+              <li>When quality &gt; memory cost</li>
+              <li>Long-context applications</li>
+            </ul>
+          </div>
+          <div class="rounded-xl bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 p-5">
+            <div class="text-3xl mb-2">✂️</div>
+            <h3 class="font-bold text-purple-800 dark:text-purple-300 mb-2">Sparse/Pruned</h3>
+            <ul class="text-sm text-gray-600 dark:text-gray-400 space-y-1 list-disc list-inside">
+              <li>Post-training compression</li>
+              <li>Model distillation pipelines</li>
+              <li>Hardware-constrained devices</li>
+              <li>Quantisation + sparsity combos</li>
+              <li>Inference optimisation</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- FUTURE -->
+      <section id="future" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Future Outlook</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          The field is rapidly converging on <strong>hybrid architectures</strong> — models that combine dense
+          self-attention layers with MoE feed-forward layers, or that use structured sparsity at the hardware level.
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-sm">
+            <p class="font-semibold mb-1 text-gray-800 dark:text-gray-200">Trend: Fine-grained MoE</p>
+            <p class="text-gray-600 dark:text-gray-400">DeepSeek-V3 uses 256 fine-grained experts per layer, selecting top-8. This dramatically increases routing granularity and specialisation without proportionally increasing compute.</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-sm">
+            <p class="font-semibold mb-1 text-gray-800 dark:text-gray-200">Trend: Hardware-native Sparsity</p>
+            <p class="text-gray-600 dark:text-gray-400">NVIDIA H100 / H200 supports 2:4 structured sparsity natively in Tensor Cores — 2 non-zero values in every 4. This doubles throughput with zero software overhead.</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-sm">
+            <p class="font-semibold mb-1 text-gray-800 dark:text-gray-200">Trend: Sparse + Quantised</p>
+            <p class="text-gray-600 dark:text-gray-400">Combining 4-bit quantisation with 50–70% weight sparsity is becoming standard practice for edge deployment, yielding 8–16× model size reduction with minimal quality loss.</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-sm">
+            <p class="font-semibold mb-1 text-gray-800 dark:text-gray-200">Trend: Conditional Compute</p>
+            <p class="text-gray-600 dark:text-gray-400">Next-generation architectures (e.g., state-space models, Mamba, Griffin) offer sub-quadratic attention alternatives that are inherently sparse in their recurrent computation.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- REFERENCES -->
+      <section id="references" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-4 text-gray-900 dark:text-white">References</h2>
+        <ol class="list-decimal list-inside space-y-2 text-sm text-gray-600 dark:text-gray-400">
+          <li>Shazeer et al., <em>Outrageously Large Neural Networks: The Sparsely-Gated Mixture-of-Experts Layer</em>, 2017.</li>
+          <li>Fedus et al., <em>Switch Transformers: Scaling to Trillion Parameter Models with Simple and Efficient Sparsity</em>, 2021.</li>
+          <li>Jiang et al., <em>Mixtral of Experts</em>, Mistral AI, 2024.</li>
+          <li>DeepSeek-AI, <em>DeepSeek-V3 Technical Report</em>, 2024.</li>
+          <li>Jaszczur et al., <em>Sparse is Enough in Scaling Transformers</em>, NeurIPS 2021.</li>
+          <li>Mishra et al., <em>Accelerating Sparse Deep Neural Networks</em>, NVIDIA, 2021.</li>
+          <li>Touvron et al., <em>LLaMA 3: Open Foundation and Fine-Tuned Chat Models</em>, Meta AI, 2024.</li>
+          <li>Team Gemini, <em>Gemini 1.5: Unlocking multimodal understanding across millions of tokens</em>, Google DeepMind, 2024.</li>
+        </ol>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- ── FOOTER ──────────────────────────────────────────────── -->
+  <footer class="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-5 px-6 text-center text-xs text-gray-400 dark:text-gray-500">
+    Dense LLMs vs MoE &amp; Sparse Models · Technical Whitepaper · 2026 · Built with Tailwind CSS
+  </footer>
+
+  <!-- ── THEME SCRIPT ─────────────────────────────────────────── -->
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.classList.contains('dark');
+      html.classList.toggle('dark', !isDark);
+      localStorage.setItem('theme', isDark ? 'light' : 'dark');
+      document.getElementById('themeIcon').textContent  = isDark ? '🌙' : '☀️';
+      document.getElementById('themeLabel').textContent = isDark ? 'Dark'  : 'Light';
+    }
+
+    // Initialise from localStorage
+    (function () {
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const useDark = saved ? saved === 'dark' : prefersDark;
+      document.documentElement.classList.toggle('dark', useDark);
+      document.getElementById('themeIcon').textContent  = useDark ? '☀️' : '🌙';
+      document.getElementById('themeLabel').textContent = useDark ? 'Light' : 'Dark';
+    })();
+
+    // Highlight active nav link on scroll
+    const sections = document.querySelectorAll('section[id]');
+    const navLinks  = document.querySelectorAll('.nav-link');
+    const observer  = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          navLinks.forEach(l => l.classList.remove('active', 'text-blue-600', 'dark:text-blue-400', 'bg-blue-50', 'dark:bg-gray-800'));
+          const active = document.querySelector(`.nav-link[href="#${e.target.id}"]`);
+          if (active) active.classList.add('active', 'text-blue-600', 'dark:text-blue-400', 'bg-blue-50', 'dark:bg-gray-800');
+        }
+      });
+    }, { rootMargin: '-30% 0px -60% 0px' });
+    sections.forEach(s => observer.observe(s));
+  </script>
+</body>
+</html>

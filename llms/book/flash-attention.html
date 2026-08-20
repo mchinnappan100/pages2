@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlashAttention — 1, 2 &amp; 3</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <style>* { transition: background-color 0.2s, color 0.2s, border-color 0.2s; }</style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 min-h-screen flex flex-col">
+
+  <!-- TOP NAV -->
+  <header class="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <div class="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">⚡</span>
+        <div>
+          <h1 class="text-base font-bold text-blue-700 dark:text-blue-400 leading-tight">FlashAttention — 1, 2 &amp; 3</h1>
+          <p class="text-xs text-gray-500 dark:text-gray-400">IO-Aware Exact Attention · LLM Inference Guide · 2026</p>
+        </div>
+      </div>
+      <button onclick="toggleTheme()"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
+               bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700
+               text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600">
+        <span id="themeIcon">☀️</span><span id="themeLabel">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="max-w-screen-xl mx-auto w-full flex flex-1">
+
+    <!-- SIDEBAR -->
+    <aside class="hidden md:flex flex-col w-60 shrink-0 sticky top-14 self-start h-[calc(100vh-3.5rem)] overflow-y-auto
+                  border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-6 px-4">
+      <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">Contents</p>
+      <nav class="flex flex-col gap-0.5 text-sm">
+        <a href="#problem"   class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">The Attention Problem</a>
+        <a href="#standard"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Standard Attention</a>
+        <a href="#fa1"       class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">⚡ FlashAttention 1</a>
+        <a href="#fa2"       class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">🚀 FlashAttention 2</a>
+        <a href="#comparison" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">FA1 vs FA2</a>
+        <a href="#fa3"       class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">🔬 FlashAttention 3</a>
+        <a href="#perf"      class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Performance Numbers</a>
+        <a href="#memory"    class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Memory Savings</a>
+        <a href="#impact"    class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Impact on LLMs</a>
+        <a href="#refs"      class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">References</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 px-6 py-10 max-w-4xl">
+
+      <!-- THE ATTENTION PROBLEM -->
+      <section id="problem" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Background</span>
+        <h2 class="text-3xl font-bold mb-4">The Attention Bottleneck</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          Self-attention is the core operation of every Transformer. For a sequence of length <strong>N</strong>,
+          standard attention computes an <strong>N × N</strong> matrix — making it quadratic in both
+          time (<em>O(N²)</em>) and memory (<em>O(N²)</em>). At N = 4096, that's 16 million entries.
+          At N = 128k (long-context models), it's over 16 billion.
+        </p>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          But the deeper problem is <strong>memory bandwidth</strong>, not just compute. GPUs have fast Tensor
+          Cores for matrix math, but reading/writing that huge attention matrix through the relatively slow
+          HBM (GPU DRAM) creates a massive I/O bottleneck — the computation waits for data, not the other way around.
+        </p>
+
+        <!-- Memory hierarchy diagram -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">GPU Memory Hierarchy</h3>
+          <svg viewBox="0 0 680 220" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+
+            <!-- SRAM -->
+            <rect x="220" y="10" width="240" height="52" rx="10" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+            <text x="340" y="32" text-anchor="middle" font-weight="700" font-size="14" fill="#065f46">SRAM (On-chip)</text>
+            <text x="340" y="50" text-anchor="middle" font-size="11" fill="#059669">~192 KB per SM · ~19 TB/s bandwidth · Very fast</text>
+
+            <!-- Arrow SRAM ↔ HBM -->
+            <line x1="340" y1="62"  x2="340" y2="92"  stroke="#6b7280" stroke-width="2" marker-end="url(#mh)"/>
+            <line x1="340" y1="92"  x2="340" y2="62"  stroke="#6b7280" stroke-width="2" marker-end="url(#mh)"/>
+            <text x="360" y="82" font-size="10" fill="#ef4444">⚠️ bandwidth wall</text>
+
+            <!-- HBM -->
+            <rect x="140" y="92" width="400" height="52" rx="10" fill="#fef9c3" stroke="#d97706" stroke-width="2"/>
+            <text x="340" y="115" text-anchor="middle" font-weight="700" font-size="14" fill="#92400e">HBM (High-Bandwidth Memory)</text>
+            <text x="340" y="133" text-anchor="middle" font-size="11" fill="#b45309">40–80 GB · ~3.35 TB/s (H100) · Slow vs SRAM</text>
+
+            <!-- Arrow HBM ↔ CPU RAM -->
+            <line x1="340" y1="144" x2="340" y2="174" stroke="#6b7280" stroke-width="2" marker-end="url(#mh)"/>
+            <line x1="340" y1="174" x2="340" y2="144" stroke="#6b7280" stroke-width="2" marker-end="url(#mh)"/>
+            <text x="360" y="164" font-size="10" fill="#6b7280">PCIe / NVLink</text>
+
+            <!-- CPU RAM -->
+            <rect x="60" y="174" width="560" height="40" rx="10" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1.5"/>
+            <text x="340" y="198" text-anchor="middle" font-weight="600" fill="#4b5563">CPU DRAM — 256 GB–2 TB · ~50 GB/s · Very slow for GPU</text>
+
+            <!-- Size labels -->
+            <text x="30" y="40"  font-size="10" fill="#10b981" font-weight="600">Fastest</text>
+            <text x="30" y="208" font-size="10" fill="#9ca3af" font-weight="600">Slowest</text>
+            <line x1="55" y1="25" x2="55" y2="210" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="3 3"/>
+
+            <defs>
+              <marker id="mh" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                <path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/>
+              </marker>
+            </defs>
+          </svg>
+        </div>
+
+        <div class="rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-4 text-sm">
+          <strong>Root cause:</strong> Standard attention writes the full N×N attention matrix to HBM, then reads it back for softmax, then again for the output multiply. For long sequences this causes <strong>dozens of slow HBM round-trips</strong> — and the Tensor Cores sit idle waiting for data.
+        </div>
+      </section>
+
+      <!-- STANDARD ATTENTION -->
+      <section id="standard" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-4">Standard Attention — How It Works</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          Standard scaled dot-product attention computes:
+          <br/><code class="text-blue-600 dark:text-blue-400 text-sm bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded">Attention(Q, K, V) = softmax(QKᵀ / √d) · V</code>
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Standard Attention — HBM Round Trips</h3>
+          <svg viewBox="0 0 700 240" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11">
+            <defs>
+              <marker id="sa" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/></marker>
+              <marker id="sar" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#ef4444"/></marker>
+            </defs>
+
+            <!-- HBM bar -->
+            <rect x="10" y="190" width="680" height="40" rx="8" fill="#fef9c3" stroke="#d97706" stroke-width="1.5"/>
+            <text x="340" y="215" text-anchor="middle" font-weight="600" fill="#92400e">HBM (Slow Global Memory)</text>
+
+            <!-- Steps -->
+            <!-- Step 1: Load Q,K -->
+            <rect x="20"  y="120" width="90" height="50" rx="7" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="65"  y="142" text-anchor="middle" font-weight="600" fill="#1d4ed8">① Load</text>
+            <text x="65"  y="158" text-anchor="middle" fill="#3b82f6">Q, K</text>
+
+            <!-- Down arrow (read from HBM) -->
+            <line x1="65" y1="170" x2="65" y2="190" stroke="#ef4444" stroke-width="1.5" marker-end="url(#sar)"/>
+            <text x="72"  y="185" font-size="9" fill="#ef4444">read</text>
+
+            <!-- Step 2: Compute S = QKt -->
+            <rect x="125" y="90"  width="100" height="80" rx="7" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="175" y="125" text-anchor="middle" font-weight="600" fill="#065f46">② Compute</text>
+            <text x="175" y="141" text-anchor="middle" fill="#059669">S = QKᵀ/√d</text>
+            <text x="175" y="157" text-anchor="middle" font-size="10" fill="#6b7280">(N×N matrix)</text>
+
+            <!-- Write S to HBM -->
+            <line x1="175" y1="170" x2="175" y2="190" stroke="#ef4444" stroke-width="2" marker-end="url(#sar)"/>
+            <text x="182"  y="185" font-size="9" fill="#ef4444">WRITE S</text>
+
+            <!-- Step 3: Read S, compute softmax -->
+            <rect x="240" y="90"  width="110" height="80" rx="7" fill="#fce7f3" stroke="#ec4899" stroke-width="1.5"/>
+            <text x="295" y="125" text-anchor="middle" font-weight="600" fill="#9d174d">③ Read S</text>
+            <text x="295" y="141" text-anchor="middle" fill="#be185d">softmax(S)</text>
+            <text x="295" y="157" text-anchor="middle" font-size="10" fill="#6b7280">→ P (N×N)</text>
+
+            <line x1="295" y1="170" x2="295" y2="190" stroke="#ef4444" stroke-width="2" marker-end="url(#sar)"/>
+            <text x="302" y="185" font-size="9" fill="#ef4444">READ+WRITE P</text>
+
+            <!-- Step 4: Load V -->
+            <rect x="365" y="120" width="90" height="50" rx="7" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="410" y="142" text-anchor="middle" font-weight="600" fill="#1d4ed8">④ Load</text>
+            <text x="410" y="158" text-anchor="middle" fill="#3b82f6">V</text>
+            <line x1="410" y1="170" x2="410" y2="190" stroke="#ef4444" stroke-width="1.5" marker-end="url(#sar)"/>
+            <text x="417" y="185" font-size="9" fill="#ef4444">read</text>
+
+            <!-- Step 5: O = PV -->
+            <rect x="470" y="90"  width="110" height="80" rx="7" fill="#fef9c3" stroke="#d97706" stroke-width="1.5"/>
+            <text x="525" y="125" text-anchor="middle" font-weight="600" fill="#92400e">⑤ Compute</text>
+            <text x="525" y="141" text-anchor="middle" fill="#b45309">O = P × V</text>
+            <text x="525" y="157" text-anchor="middle" font-size="10" fill="#6b7280">read P, read V</text>
+
+            <line x1="525" y1="170" x2="525" y2="190" stroke="#ef4444" stroke-width="2" marker-end="url(#sar)"/>
+            <text x="532" y="185" font-size="9" fill="#ef4444">READ P + WRITE O</text>
+
+            <!-- Step 6: Write output -->
+            <rect x="595" y="120" width="90" height="50" rx="7" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="640" y="142" text-anchor="middle" font-weight="600" fill="#065f46">⑥ Write</text>
+            <text x="640" y="158" text-anchor="middle" fill="#059669">Output O</text>
+            <line x1="640" y1="170" x2="640" y2="190" stroke="#ef4444" stroke-width="1.5" marker-end="url(#sar)"/>
+            <text x="647" y="185" font-size="9" fill="#ef4444">write</text>
+
+            <!-- Flow arrows between steps -->
+            <line x1="110" y1="145" x2="125" y2="130" stroke="#9ca3af" stroke-width="1.2" marker-end="url(#sa)"/>
+            <line x1="225" y1="130" x2="240" y2="130" stroke="#9ca3af" stroke-width="1.2" marker-end="url(#sa)"/>
+            <line x1="350" y1="130" x2="365" y2="145" stroke="#9ca3af" stroke-width="1.2" marker-end="url(#sa)"/>
+            <line x1="455" y1="145" x2="470" y2="130" stroke="#9ca3af" stroke-width="1.2" marker-end="url(#sa)"/>
+            <line x1="580" y1="130" x2="595" y2="145" stroke="#9ca3af" stroke-width="1.2" marker-end="url(#sa)"/>
+
+            <!-- Title -->
+            <text x="340" y="30" text-anchor="middle" font-size="12" font-weight="600" fill="#ef4444">⚠️  5+ HBM round-trips per forward pass — N×N matrix materialised in slow memory</text>
+            <text x="340" y="52" text-anchor="middle" font-size="11" fill="#6b7280">Memory = O(N²) · each trip stalls Tensor Cores · total bandwidth wasted grows with sequence length</text>
+          </svg>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold mb-1 text-red-600 dark:text-red-400">Memory: O(N²)</p>
+            <p class="text-gray-600 dark:text-gray-400">N=4096 → 16M floats (64 MB in FP32). N=32k → 4 GB. The N×N matrix alone exhausts GPU memory for long contexts.</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold mb-1 text-red-600 dark:text-red-400">Compute: O(N²d) but IO-bound</p>
+            <p class="text-gray-600 dark:text-gray-400">The math is fast on Tensor Cores but the bottleneck is reading/writing that N×N matrix back and forth through HBM multiple times per layer.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- FLASH ATTENTION 1 -->
+      <section id="fa1" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-2">⚡ FlashAttention 1 <span class="text-sm font-normal text-gray-400 dark:text-gray-500 ml-2">Dao et al., 2022 · Stanford</span></h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          FlashAttention's key insight: <strong>never materialise the full N×N attention matrix in HBM</strong>.
+          Instead, tile the computation into blocks that fit in the fast on-chip SRAM, compute exact (not approximate)
+          attention entirely within SRAM, and only write the final output back to HBM once.
+        </p>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div class="rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-4 text-sm">
+            <p class="font-semibold text-emerald-800 dark:text-emerald-300 mb-1">Core Idea: Tiling</p>
+            <p class="text-gray-600 dark:text-gray-400">Split Q, K, V into blocks. Load one block of K and V into SRAM at a time. Compute the partial attention scores and accumulate into the output — all within SRAM.</p>
+          </div>
+          <div class="rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 p-4 text-sm">
+            <p class="font-semibold text-blue-800 dark:text-blue-300 mb-1">Core Idea: Recomputation</p>
+            <p class="text-gray-600 dark:text-gray-400">During the backward pass, instead of storing the N×N attention matrix from the forward pass, FlashAttention recomputes it on-the-fly from Q, K stored in HBM — trading compute for memory.</p>
+          </div>
+        </div>
+
+        <!-- FA1 tiling diagram -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">FlashAttention 1 — Tiled Computation</h3>
+          <svg viewBox="0 0 700 300" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11">
+            <defs>
+              <marker id="fa" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/></marker>
+              <marker id="fag" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#10b981"/></marker>
+            </defs>
+
+            <!-- HBM region -->
+            <rect x="10" y="240" width="680" height="50" rx="8" fill="#fef9c3" stroke="#d97706" stroke-width="1.5"/>
+            <text x="340" y="262" text-anchor="middle" font-weight="700" fill="#92400e">HBM — Stores Q, K, V, Output O</text>
+            <text x="340" y="280" text-anchor="middle" font-size="10" fill="#b45309">Only 2 passes total: 1× read (Q,K,V) · 1× write (O) — NO N×N matrix ever written</text>
+
+            <!-- SRAM region -->
+            <rect x="200" y="30" width="300" height="190" rx="10" fill="#f0fdf4" stroke="#22c55e" stroke-width="2" stroke-dasharray="6 3"/>
+            <text x="350" y="55" text-anchor="middle" font-weight="700" font-size="13" fill="#065f46">SRAM (On-chip — fast)</text>
+
+            <!-- Tiles inside SRAM -->
+            <rect x="215" y="65"  width="80" height="45" rx="6" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="255" y="86"  text-anchor="middle" font-weight="600" fill="#065f46">Q tile</text>
+            <text x="255" y="102" text-anchor="middle" font-size="10" fill="#059669">Br × d</text>
+
+            <rect x="310" y="65"  width="80" height="45" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="350" y="86"  text-anchor="middle" font-weight="600" fill="#1d4ed8">K tile</text>
+            <text x="350" y="102" text-anchor="middle" font-size="10" fill="#3b82f6">Bc × d</text>
+
+            <rect x="405" y="65"  width="80" height="45" rx="6" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.5"/>
+            <text x="445" y="86"  text-anchor="middle" font-weight="600" fill="#5b21b6">V tile</text>
+            <text x="445" y="102" text-anchor="middle" font-size="10" fill="#7c3aed">Bc × d</text>
+
+            <!-- Online softmax box -->
+            <rect x="215" y="130" width="270" height="60" rx="8" fill="#fef3c7" stroke="#f59e0b" stroke-width="1.5"/>
+            <text x="350" y="155" text-anchor="middle" font-weight="700" fill="#92400e">Online Softmax (Numerically stable)</text>
+            <text x="350" y="172" text-anchor="middle" font-size="10" fill="#b45309">Track running max m_i and norm l_i · rescale accumulator</text>
+
+            <!-- Arrow from HBM to SRAM -->
+            <line x1="160" y1="240" x2="270" y2="220" stroke="#10b981" stroke-width="1.5" marker-end="url(#fag)"/>
+            <text x="190" y="232" font-size="9" fill="#059669">load tile</text>
+
+            <!-- Arrow from SRAM to HBM (output only) -->
+            <line x1="430" y1="220" x2="500" y2="240" stroke="#3b82f6" stroke-width="1.5" marker-end="url(#fa)"/>
+            <text x="460" y="232" font-size="9" fill="#3b82f6">write O</text>
+
+            <!-- Loop annotation -->
+            <text x="105" y="135" text-anchor="middle" font-size="11" font-weight="600" fill="#6b7280" transform="rotate(-90 105 135)">Loop over K,V tiles</text>
+            <rect x="80" y="60" width="20" height="150" rx="5" fill="none" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4 2"/>
+
+            <!-- N×N NOT stored label -->
+            <rect x="540" y="100" width="140" height="40" rx="8" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5"/>
+            <text x="610" y="118" text-anchor="middle" font-size="11" font-weight="700" fill="#dc2626">N×N matrix</text>
+            <text x="610" y="133" text-anchor="middle" font-size="11" fill="#ef4444">NEVER written ✓</text>
+          </svg>
+        </div>
+
+        <!-- Online softmax explanation -->
+        <div class="rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 text-sm mb-4">
+          <strong>Online Softmax trick:</strong> Softmax normally requires two passes — one to find the max for numerical stability, one to compute the exponentials. FlashAttention uses the <em>log-sum-exp</em> trick to compute softmax incrementally as new K/V blocks arrive, needing only one pass through the data.
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold mb-1 text-emerald-700 dark:text-emerald-400">Memory: O(N)</p>
+            <p class="text-gray-600 dark:text-gray-400">Linear in sequence length — no N×N matrix. Enables 8–32× longer contexts in the same GPU memory.</p>
+          </div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold mb-1 text-emerald-700 dark:text-emerald-400">2–4× Faster</p>
+            <p class="text-gray-600 dark:text-gray-400">Wall-clock speedup on A100 over standard PyTorch attention. Arithmetic intensity jumps from memory-bound to near compute-bound.</p>
+          </div>
+          <div class="rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold mb-1 text-emerald-700 dark:text-emerald-400">Exact, Not Approximate</p>
+            <p class="text-gray-600 dark:text-gray/400">Produces bit-for-bit identical results to standard attention — unlike linear/sparse approximations. No quality trade-off.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- FLASH ATTENTION 2 -->
+      <section id="fa2" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-2">🚀 FlashAttention 2 <span class="text-sm font-normal text-gray-400 dark:text-gray-500 ml-2">Dao, 2023</span></h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          FlashAttention 2 keeps the same IO-aware tiling approach but rewrites the algorithm with three targeted
+          improvements to close the remaining gap to peak GPU throughput.
+        </p>
+
+        <!-- FA2 improvements diagram -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-5">FA2 — Three Key Improvements over FA1</h3>
+          <svg viewBox="0 0 700 230" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+
+            <!-- Card 1: Fewer non-matmul ops -->
+            <rect x="15" y="20" width="200" height="160" rx="10" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="115" y="48" text-anchor="middle" font-size="13" font-weight="700" fill="#1d4ed8">① Fewer Non-Matmul</text>
+            <text x="115" y="64" text-anchor="middle" font-size="11" font-weight="600" fill="#3b82f6">Operations</text>
+            <text x="30"  y="90" font-size="11" fill="#4b5563">• Reduce rescaling ops</text>
+            <text x="30"  y="108" font-size="11" fill="#4b5563">• Tensor Cores only do</text>
+            <text x="30"  y="124" font-size="11" fill="#4b5563">  matmul — non-matmul</text>
+            <text x="30"  y="140" font-size="11" fill="#4b5563">  runs on slower CUDA</text>
+            <text x="30"  y="156" font-size="11" fill="#4b5563">  cores</text>
+            <rect x="30" y="165" width="155" height="10" rx="4" fill="#93c5fd"/>
+            <text x="110" y="215" text-anchor="middle" font-size="11" font-weight="600" fill="#1d4ed8">~2× fewer FLOPs</text>
+            <text x="110" y="228" text-anchor="middle" font-size="10" fill="#6b7280">on non-matmul ops</text>
+
+            <!-- Card 2: Parallelism across seq len -->
+            <rect x="250" y="20" width="200" height="160" rx="10" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="350" y="48" text-anchor="middle" font-size="13" font-weight="700" fill="#065f46">② Better Parallelism</text>
+            <text x="350" y="64" text-anchor="middle" font-size="11" font-weight="600" fill="#10b981">Across Sequence Length</text>
+            <text x="265" y="90" font-size="11" fill="#4b5563">• FA1: parallelise over</text>
+            <text x="265" y="108" font-size="11" fill="#4b5563">  batch &amp; heads only</text>
+            <text x="265" y="126" font-size="11" fill="#4b5563">• FA2: also parallelise</text>
+            <text x="265" y="144" font-size="11" fill="#4b5563">  over seq-len blocks</text>
+            <text x="265" y="162" font-size="11" fill="#4b5563">  → more SM utilisation</text>
+            <text x="350" y="215" text-anchor="middle" font-size="11" font-weight="600" fill="#065f46">Better for long seqs</text>
+            <text x="350" y="228" text-anchor="middle" font-size="10" fill="#6b7280">where batch=1, 1 head</text>
+
+            <!-- Card 3: Work partitioning -->
+            <rect x="485" y="20" width="200" height="160" rx="10" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.5"/>
+            <text x="585" y="48" text-anchor="middle" font-size="13" font-weight="700" fill="#5b21b6">③ Better Work Split</text>
+            <text x="585" y="64" text-anchor="middle" font-size="11" font-weight="600" fill="#8b5cf6">Within Each Thread Block</text>
+            <text x="500" y="90" font-size="11" fill="#4b5563">• Split Q across warps</text>
+            <text x="500" y="108" font-size="11" fill="#4b5563">  (not K/V)</text>
+            <text x="500" y="126" font-size="11" fill="#4b5563">• Reduces shared mem</text>
+            <text x="500" y="144" font-size="11" fill="#4b5563">  reads/writes between</text>
+            <text x="500" y="162" font-size="11" fill="#4b5563">  warps ("split-K")</text>
+            <text x="585" y="215" text-anchor="middle" font-size="11" font-weight="600" fill="#5b21b6">Less warp idle time</text>
+            <text x="585" y="228" text-anchor="middle" font-size="10" fill="#6b7280">Fewer sync barriers</text>
+          </svg>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-4">
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold mb-2 text-gray-800 dark:text-gray-200">New Features in FA2</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside">
+              <li>Multi-Query Attention (MQA) support</li>
+              <li>Grouped-Query Attention (GQA) support</li>
+              <li>Causal masking without padding overhead</li>
+              <li>Sliding window / local attention masks</li>
+              <li>Varlen — different seq lengths in one batch</li>
+            </ul>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold mb-2 text-gray-800 dark:text-gray-200">Impact</p>
+            <ul class="space-y-1 text-gray-600 dark:text-gray-400 list-disc list-inside">
+              <li>2× faster than FA1 on A100 (FP16)</li>
+              <li>~72% of A100 theoretical peak FLOPs</li>
+              <li>Adopted by: LLaMA 3, Mistral, Falcon, Gemma, GPT-NeoX…</li>
+              <li>Default in PyTorch 2.0 SDPA</li>
+              <li>Enables 100k+ context length in practice</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- COMPARISON TABLE -->
+      <section id="comparison" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-6">FA1 vs FA2 — Side by Side</h2>
+        <div class="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                <th class="text-left px-4 py-3 font-semibold">Aspect</th>
+                <th class="text-center px-4 py-3 font-semibold text-blue-700 dark:text-blue-400">FlashAttention 1 (2022)</th>
+                <th class="text-center px-4 py-3 font-semibold text-emerald-700 dark:text-emerald-400">FlashAttention 2 (2023)</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium">Memory complexity</td>
+                <td class="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400">O(N)</td>
+                <td class="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400">O(N)</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium">Parallelism</td>
+                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400">Batch × heads</td>
+                <td class="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400">Batch × heads × seq-len</td>
+              </tr>
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium">Non-matmul ops</td>
+                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400">More (rescale each block)</td>
+                <td class="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400">~2× fewer</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium">Work split across warps</td>
+                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400">K/V split (more sync)</td>
+                <td class="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400">Q split (less sync)</td>
+              </tr>
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium">GQA / MQA support</td>
+                <td class="px-4 py-3 text-center">❌</td>
+                <td class="px-4 py-3 text-center">✅</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium">Varlen (ragged batch)</td>
+                <td class="px-4 py-3 text-center">❌</td>
+                <td class="px-4 py-3 text-center">✅</td>
+              </tr>
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium">Peak FLOPs on A100</td>
+                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400">~35–50% of peak</td>
+                <td class="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400">~72% of peak</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium">Speed vs standard attn</td>
+                <td class="px-4 py-3 text-center text-gray-600 dark:text-gray-400">2–4×</td>
+                <td class="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400">4–8×</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- FLASH ATTENTION 3 -->
+      <section id="fa3" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-2">🔬 FlashAttention 3 <span class="text-sm font-normal text-gray-400 dark:text-gray-500 ml-2">Shah et al., 2024 — Targeting Hopper (H100/H200)</span></h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          FA3 is a ground-up rewrite for NVIDIA's <strong>Hopper architecture</strong> (H100/H200), exploiting
+          hardware features that didn't exist on Ampere (A100) and that FA2 couldn't use. The goal:
+          push attention to <strong>~75% of H100's theoretical peak FLOPs</strong> for FP16/BF16
+          and unlock <strong>FP8</strong> at ~1.2 PFLOPS.
+        </p>
+
+        <!-- FA3 features diagram -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-5">FlashAttention 3 — New Techniques on Hopper</h3>
+          <svg viewBox="0 0 700 310" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11">
+
+            <!-- H100 chip outline -->
+            <rect x="10" y="10" width="680" height="290" rx="14" fill="#1c1917" stroke="#57534e" stroke-width="2"/>
+            <text x="350" y="32" text-anchor="middle" font-weight="700" font-size="14" fill="#d6d3d1">NVIDIA Hopper GPU (H100 / H200)</text>
+
+            <!-- WGMMA -->
+            <rect x="25"  y="44" width="190" height="100" rx="8" fill="#1e3a5f" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="120" y="68" text-anchor="middle" font-weight="700" fill="#93c5fd">WGMMA</text>
+            <text x="120" y="84" text-anchor="middle" font-size="10" fill="#60a5fa">Warpgroup Matrix</text>
+            <text x="120" y="98" text-anchor="middle" font-size="10" fill="#60a5fa">Multiply-Accumulate</text>
+            <text x="35"  y="116" font-size="10" fill="#6b7280">• 4 warps act as one unit</text>
+            <text x="35"  y="130" font-size="10" fill="#6b7280">• Larger tiles → better MFU</text>
+
+            <!-- TMA -->
+            <rect x="255" y="44" width="190" height="100" rx="8" fill="#14532d" stroke="#22c55e" stroke-width="1.5"/>
+            <text x="350" y="68" text-anchor="middle" font-weight="700" fill="#86efac">TMA</text>
+            <text x="350" y="84" text-anchor="middle" font-size="10" fill="#4ade80">Tensor Memory Accelerator</text>
+            <text x="265" y="102" font-size="10" fill="#6b7280">• Async copies HBM→SRAM</text>
+            <text x="265" y="116" font-size="10" fill="#6b7280">• Frees SMs to do matmul</text>
+            <text x="265" y="130" font-size="10" fill="#6b7280">• Hardware DMA engine</text>
+
+            <!-- FP8 -->
+            <rect x="485" y="44" width="190" height="100" rx="8" fill="#312e81" stroke="#818cf8" stroke-width="1.5"/>
+            <text x="580" y="68" text-anchor="middle" font-weight="700" fill="#c7d2fe">FP8 Tensor Cores</text>
+            <text x="495" y="88" font-size="10" fill="#6b7280">• 2× throughput vs BF16</text>
+            <text x="495" y="102" font-size="10" fill="#6b7280">• ~1.2 PFLOPS on H100</text>
+            <text x="495" y="116" font-size="10" fill="#6b7280">• Needs careful quant:</text>
+            <text x="495" y="130" font-size="10" fill="#6b7280">  incoherent processing</text>
+
+            <!-- Pipeline overlap box -->
+            <rect x="25" y="165" width="430" height="70" rx="8" fill="#422006" stroke="#fb923c" stroke-width="1.5"/>
+            <text x="240" y="190" text-anchor="middle" font-weight="700" fill="#fdba74">④ Pipelined GEMM ↔ Softmax Overlap</text>
+            <text x="240" y="208" text-anchor="middle" font-size="10" fill="#fb923c">While one warpgroup computes QKᵀ GEMM for tile[i+1],</text>
+            <text x="240" y="222" text-anchor="middle" font-size="10" fill="#fb923c">another runs softmax + PV GEMM for tile[i] → hides softmax latency</text>
+
+            <!-- Incoherent + stochastic rounding -->
+            <rect x="485" y="165" width="190" height="70" rx="8" fill="#1a1a2e" stroke="#6366f1" stroke-width="1.5"/>
+            <text x="580" y="190" text-anchor="middle" font-weight="700" fill="#a5b4fc">⑤ FP8 Safety</text>
+            <text x="495" y="208" font-size="10" fill="#6b7280">Incoherent processing:</text>
+            <text x="495" y="222" font-size="10" fill="#6b7280">random rotations + stochastic</text>
+
+            <!-- Result bar -->
+            <rect x="25"  y="253" width="650" height="38" rx="8" fill="#0f172a" stroke="#22c55e" stroke-width="1.5"/>
+            <text x="350" y="272" text-anchor="middle" font-size="12" font-weight="700" fill="#4ade80">Result: ~1.5–2× faster than FA2 on H100 · ~75% peak FLOPs FP16 · ~1.2 PFLOPS FP8</text>
+            <text x="350" y="287" text-anchor="middle" font-size="10" fill="#6b7280">vs FA2's ~35% of H100 peak (FA2 wasn't written for Hopper hardware features)</text>
+          </svg>
+        </div>
+
+        <!-- FA3 detail cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-6">
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold text-blue-700 dark:text-blue-400 mb-2">WGMMA — Warpgroup Matrix Multiply</p>
+            <p class="text-gray-600 dark:text-gray-400">
+              Hopper introduces a new instruction where 4 warps (128 threads) cooperate as a single unit to execute a
+              large matrix multiply. FA3 rewrites all GEMMs to use WGMMA, achieving much larger tile sizes and higher
+              register reuse than the per-warp mma.sync instructions FA2 used.
+            </p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold text-emerald-700 dark:text-emerald-400 mb-2">TMA — Tensor Memory Accelerator</p>
+            <p class="text-gray-600 dark:text-gray-400">
+              TMA is a dedicated hardware DMA engine that copies tensor tiles from HBM to SRAM asynchronously,
+              completely freeing the SMs from load/store instructions. FA3 uses TMA to <em>overlap</em> data movement
+              with compute — tiles arrive in SRAM just in time for the GEMM that needs them.
+            </p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold text-purple-700 dark:text-purple-400 mb-2">FP8 + Incoherent Processing</p>
+            <p class="text-gray-600 dark:text-gray-400">
+              FP8 doubles throughput on H100 but attention scores are very sensitive to quantisation errors.
+              FA3 applies <em>random Hadamard transforms</em> to Q and K before quantising — spreading quantisation
+              error incoherently so it averages out rather than accumulating. Combined with stochastic rounding on the
+              accumulator, this preserves output quality at FP8 precision.
+            </p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold text-orange-700 dark:text-orange-400 mb-2">2-Stage Ping-Pong Pipelining</p>
+            <p class="text-gray-600 dark:text-gray-400">
+              FA3 splits the thread block into two warpgroups that take turns: while group A runs the QK GEMM for
+              the current tile, group B runs softmax + output GEMM for the previous tile. The non-matmul softmax
+              cost is almost entirely hidden behind the next tile's matmul, reaching near-peak Tensor Core utilisation.
+            </p>
+          </div>
+        </div>
+
+        <div class="rounded-xl bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 p-4 text-sm">
+          <strong>Why FA2 couldn't just use these features:</strong> WGMMA, TMA, and the asynchronous pipeline they enable are
+          <em>Hopper-only</em> hardware features. FA2 was designed for Ampere (A100). Using them requires a fundamentally different
+          thread/warpgroup organisation — FA3 is a new kernel, not a patch on FA2.
+        </div>
+      </section>
+
+      <!-- PERFORMANCE NUMBERS -->
+      <section id="perf" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-4">Performance Numbers</h2>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-5">% of GPU Theoretical Peak FLOPs</h3>
+
+          <div class="space-y-4">
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="font-medium text-gray-700 dark:text-gray-300">Standard Attention (PyTorch) — A100</span>
+                <span class="text-red-600 dark:text-red-400 font-semibold">~10–15%</span>
+              </div>
+              <div class="h-7 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                <div class="h-full bg-red-400 dark:bg-red-700 rounded-lg flex items-center pl-2 text-white text-xs font-semibold" style="width:15%">IO-bound</div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="font-medium text-gray-700 dark:text-gray-300">FlashAttention 1 — A100 FP16</span>
+                <span class="text-amber-600 dark:text-amber-400 font-semibold">~35–50%</span>
+              </div>
+              <div class="h-7 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                <div class="h-full bg-amber-400 dark:bg-amber-600 rounded-lg flex items-center pl-2 text-white text-xs font-semibold" style="width:45%">~45% of peak</div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="font-medium text-gray-700 dark:text-gray-300">FlashAttention 2 — A100 FP16</span>
+                <span class="text-emerald-600 dark:text-emerald-400 font-semibold">~72%</span>
+              </div>
+              <div class="h-7 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                <div class="h-full bg-emerald-500 dark:bg-emerald-600 rounded-lg flex items-center pl-2 text-white text-xs font-semibold" style="width:72%">72% of A100 peak</div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="font-medium text-gray-700 dark:text-gray-300">FlashAttention 2 — H100 FP16 (not tuned for Hopper)</span>
+                <span class="text-amber-600 dark:text-amber-400 font-semibold">~35%</span>
+              </div>
+              <div class="h-7 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                <div class="h-full bg-amber-400 dark:bg-amber-600 rounded-lg flex items-center pl-2 text-white text-xs font-semibold" style="width:35%">35% of H100 peak</div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="font-medium text-gray-700 dark:text-gray-300">FlashAttention 3 — H100 FP16/BF16</span>
+                <span class="text-emerald-600 dark:text-emerald-400 font-semibold">~75%</span>
+              </div>
+              <div class="h-7 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                <div class="h-full bg-emerald-500 dark:bg-emerald-600 rounded-lg flex items-center pl-2 text-white text-xs font-semibold" style="width:75%">75% of H100 peak (~740 TFLOPS)</div>
+              </div>
+            </div>
+            <div>
+              <div class="flex justify-between text-sm mb-1">
+                <span class="font-medium text-gray-700 dark:text-gray-300">FlashAttention 3 — H100 FP8</span>
+                <span class="text-blue-600 dark:text-blue-400 font-semibold">~1.2 PFLOPS</span>
+              </div>
+              <div class="h-7 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                <div class="h-full bg-blue-500 dark:bg-blue-600 rounded-lg flex items-center pl-2 text-white text-xs font-semibold" style="width:90%">~1.2 PFLOPS (FP8 Tensor Cores)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-gray-100 dark:bg-gray-800">
+                <th class="text-left px-4 py-3 font-semibold">Version</th>
+                <th class="text-center px-4 py-3 font-semibold">GPU</th>
+                <th class="text-center px-4 py-3 font-semibold">Memory</th>
+                <th class="text-center px-4 py-3 font-semibold">Speed vs Standard</th>
+                <th class="text-center px-4 py-3 font-semibold">% Peak FLOPs</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium">Standard Attention</td>
+                <td class="px-4 py-3 text-center">A100</td>
+                <td class="px-4 py-3 text-center text-red-500">O(N²)</td>
+                <td class="px-4 py-3 text-center">1× (baseline)</td>
+                <td class="px-4 py-3 text-center text-red-500">~10–15%</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium text-blue-700 dark:text-blue-400">FlashAttention 1</td>
+                <td class="px-4 py-3 text-center">A100</td>
+                <td class="px-4 py-3 text-center text-emerald-600">O(N)</td>
+                <td class="px-4 py-3 text-center">2–4×</td>
+                <td class="px-4 py-3 text-center text-amber-600">~45%</td>
+              </tr>
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium text-emerald-700 dark:text-emerald-400">FlashAttention 2</td>
+                <td class="px-4 py-3 text-center">A100</td>
+                <td class="px-4 py-3 text-center text-emerald-600">O(N)</td>
+                <td class="px-4 py-3 text-center">4–8×</td>
+                <td class="px-4 py-3 text-center text-emerald-600">~72%</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium text-purple-700 dark:text-purple-400">FlashAttention 3</td>
+                <td class="px-4 py-3 text-center">H100 BF16</td>
+                <td class="px-4 py-3 text-center text-emerald-600">O(N)</td>
+                <td class="px-4 py-3 text-center">6–10× vs std</td>
+                <td class="px-4 py-3 text-center text-emerald-600">~75%</td>
+              </tr>
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium text-purple-700 dark:text-purple-400">FlashAttention 3 FP8</td>
+                <td class="px-4 py-3 text-center">H100 FP8</td>
+                <td class="px-4 py-3 text-center text-emerald-600">O(N)</td>
+                <td class="px-4 py-3 text-center">~1.5× vs FA3 BF16</td>
+                <td class="px-4 py-3 text-center text-blue-600">~1.2 PFLOPS</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- MEMORY SAVINGS -->
+      <section id="memory" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-4">Memory Savings — The Whole 9 Yards</h2>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-5">Attention Matrix Size vs Sequence Length</h3>
+          <svg viewBox="0 0 680 220" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11">
+            <!-- Axes -->
+            <line x1="60" y1="180" x2="640" y2="180" stroke="#9ca3af" stroke-width="1.5"/>
+            <line x1="60" y1="20"  x2="60"  y2="180" stroke="#9ca3af" stroke-width="1.5"/>
+            <text x="350" y="200" text-anchor="middle" font-size="11" fill="#6b7280">Sequence length N</text>
+            <text x="20" y="100" text-anchor="middle" font-size="11" fill="#6b7280" transform="rotate(-90 20 100)">HBM memory (N×N)</text>
+
+            <!-- Standard O(N²) curve — steep -->
+            <polyline points="60,175 130,165 220,145 350,105 500,55 610,22" fill="none" stroke="#ef4444" stroke-width="2.5"/>
+            <text x="618" y="20" font-size="10" font-weight="700" fill="#ef4444">Standard O(N²)</text>
+
+            <!-- FlashAttn O(N) line — flat -->
+            <polyline points="60,175 130,173 220,171 350,168 500,165 610,162" fill="none" stroke="#10b981" stroke-width="2.5" stroke-dasharray="5 3"/>
+            <text x="618" y="160" font-size="10" font-weight="700" fill="#10b981">FlashAttn O(N)</text>
+
+            <!-- Annotations -->
+            <line x1="220" y1="60" x2="220" y2="180" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3 2"/>
+            <text x="220" y="193" text-anchor="middle" fill="#9ca3af">2k</text>
+
+            <line x1="350" y1="60" x2="350" y2="180" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3 2"/>
+            <text x="350" y="193" text-anchor="middle" fill="#9ca3af">8k</text>
+
+            <line x1="500" y1="60" x2="500" y2="180" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3 2"/>
+            <text x="500" y="193" text-anchor="middle" fill="#9ca3af">32k</text>
+
+            <line x1="610" y1="60" x2="610" y2="180" stroke="#9ca3af" stroke-width="1" stroke-dasharray="3 2"/>
+            <text x="610" y="193" text-anchor="middle" fill="#9ca3af">128k</text>
+
+            <!-- callout at 128k -->
+            <line x1="610" y1="22" x2="568" y2="40" stroke="#ef4444" stroke-width="1"/>
+            <rect x="460" y="38" width="110" height="30" rx="5" fill="#fee2e2" stroke="#ef4444" stroke-width="1"/>
+            <text x="515" y="53" text-anchor="middle" font-size="10" fill="#dc2626">128k → 64 GB!</text>
+            <text x="515" y="64" text-anchor="middle" font-size="10" fill="#6b7280">(standard, FP16)</text>
+          </svg>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-center">
+            <p class="font-mono text-lg font-bold text-blue-600 dark:text-blue-400 mb-1">N=2k</p>
+            <p class="text-gray-500 dark:text-gray-400 text-xs">Standard: 16 MB<br/>Flash: ~0.1 MB</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-center">
+            <p class="font-mono text-lg font-bold text-blue-600 dark:text-blue-400 mb-1">N=8k</p>
+            <p class="text-gray-500 dark:text-gray-400 text-xs">Standard: 256 MB<br/>Flash: ~0.4 MB</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-center">
+            <p class="font-mono text-lg font-bold text-amber-600 dark:text-amber-400 mb-1">N=32k</p>
+            <p class="text-gray-500 dark:text-gray-400 text-xs">Standard: 4 GB<br/>Flash: ~1.5 MB</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4 text-center">
+            <p class="font-mono text-lg font-bold text-red-600 dark:text-red-400 mb-1">N=128k</p>
+            <p class="text-gray-500 dark:text-gray-400 text-xs">Standard: 64 GB 💥<br/>Flash: ~6 MB ✅</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- IMPACT ON LLMS -->
+      <section id="impact" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-4">Impact on Modern LLMs</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-4">
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold mb-2">Long Context</p>
+            <p class="text-gray-600 dark:text-gray-400">FlashAttention is the primary reason 100k–1M token contexts are feasible. Without it, the N×N matrix would require hundreds of GB of HBM for long documents.</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold mb-2">Training Speed</p>
+            <p class="text-gray-600 dark:text-gray-400">FA2/FA3 reduce attention's wall-clock contribution by 4–8×. For a 70B model trained on a 32k context, attention was previously a major bottleneck. Now it is largely amortised.</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold mb-2">Inference Cost</p>
+            <p class="text-gray-600 dark:text-gray-400">Faster prefill (lower TTFT) and lower memory use per request means more requests can run in a batch simultaneously — directly reducing cost per token served.</p>
+          </div>
+          <div class="rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-4">
+            <p class="font-semibold mb-2">Adoption</p>
+            <p class="text-gray-600 dark:text-gray-400">FA2 is the default in PyTorch 2.0 SDPA, vLLM, HuggingFace Transformers, xformers, LLaMA 3, Mistral, Gemma, DeepSeek, and almost every production LLM stack.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- REFERENCES -->
+      <section id="refs" class="mb-14 scroll-mt-20">
+        <h2 class="text-2xl font-bold mb-4">References</h2>
+        <ol class="list-decimal list-inside space-y-2 text-sm text-gray-600 dark:text-gray-400">
+          <li>Dao et al., <em>FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness</em>, NeurIPS 2022.</li>
+          <li>Dao, <em>FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning</em>, ICLR 2024.</li>
+          <li>Shah et al., <em>FlashAttention-3: Fast and Accurate Attention with Asynchrony and Low-precision</em>, 2024.</li>
+          <li>Milakov &amp; Gimelshein, <em>Online Normalizer Calculation for Softmax</em>, arXiv 2018.</li>
+          <li>NVIDIA, <em>Hopper Architecture In-Depth</em>, Technical Blog, 2022.</li>
+          <li>PyTorch, <em>torch.nn.functional.scaled_dot_product_attention</em>, PyTorch 2.0 Release Notes.</li>
+          <li>Kwon et al., <em>Efficient Memory Management for Large Language Model Serving with PagedAttention</em>, SOSP 2023.</li>
+        </ol>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-5 px-6 text-center text-xs text-gray-400 dark:text-gray-500">
+    FlashAttention 1, 2 &amp; 3 · LLM Inference Guide · 2026 · Built with Tailwind CSS
+  </footer>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.classList.contains('dark');
+      html.classList.toggle('dark', !isDark);
+      localStorage.setItem('theme', isDark ? 'light' : 'dark');
+      document.getElementById('themeIcon').textContent  = isDark ? '🌙' : '☀️';
+      document.getElementById('themeLabel').textContent = isDark ? 'Dark' : 'Light';
+    }
+    (function () {
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const useDark = saved ? saved === 'dark' : prefersDark;
+      document.documentElement.classList.toggle('dark', useDark);
+      document.getElementById('themeIcon').textContent  = useDark ? '☀️' : '🌙';
+      document.getElementById('themeLabel').textContent = useDark ? 'Light' : 'Dark';
+    })();
+    const sections = document.querySelectorAll('section[id]');
+    const navLinks  = document.querySelectorAll('.nav-link');
+    const observer  = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          navLinks.forEach(l => l.classList.remove('text-blue-600','dark:text-blue-400','bg-blue-50','dark:bg-gray-800','font-semibold'));
+          const a = document.querySelector(`.nav-link[href="#${e.target.id}"]`);
+          if (a) a.classList.add('text-blue-600','dark:text-blue-400','bg-blue-50','dark:bg-gray-800','font-semibold');
+        }
+      });
+    }, { rootMargin: '-30% 0px -60% 0px' });
+    sections.forEach(s => observer.observe(s));
+  </script>
+</body>
+</html>
