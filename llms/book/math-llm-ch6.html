@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chapter 6 — Sequence Modeling &amp; Recurrence</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <style>* { transition: background-color 0.2s, color 0.2s, border-color 0.2s; }</style>
+
+  <!-- KaTeX -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]})"></script>
+
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>document.addEventListener('DOMContentLoaded', () => hljs.highlightAll());</script>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 min-h-screen flex flex-col">
+
+  <!-- TOP NAV -->
+  <header class="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <div class="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🔄</span>
+        <div>
+          <h1 class="text-base font-bold text-blue-700 dark:text-blue-400 leading-tight">Sequence Modeling &amp; Recurrence</h1>
+          <p class="text-xs text-gray-500 dark:text-gray-400">RNNs · LSTMs · GRUs · State Space Models · Mamba · 2026</p>
+        </div>
+      </div>
+      <button onclick="toggleTheme()"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
+               bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700
+               text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600">
+        <span id="themeIcon">☀️</span><span id="themeLabel">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="max-w-screen-xl mx-auto w-full flex flex-1">
+
+    <!-- SIDEBAR -->
+    <aside class="hidden md:flex flex-col w-60 shrink-0 sticky top-14 self-start h-[calc(100vh-3.5rem)] overflow-y-auto
+                  border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-6 px-4">
+      <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">Chapter 6</p>
+      <nav class="flex flex-col gap-0.5 text-sm">
+        <a href="#s1"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">§1 Why Sequences Need Special Math</a>
+        <a href="#s2"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">§2 Vanilla RNN</a>
+        <a href="#s3"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">§3 LSTM</a>
+        <a href="#s4"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">§4 GRU</a>
+        <a href="#s5"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">§5 Vanishing Gradients</a>
+        <a href="#s6"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">§6 Linear Recurrence &amp; S4</a>
+        <a href="#s7"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">§7 Mamba: Selective SSM</a>
+        <a href="#s8"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">§8 Attention vs Recurrence</a>
+        <a href="#s9"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">§9 Encoder-Decoder</a>
+        <a href="#s10" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">§10 CTC Loss</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 px-6 py-10 max-w-4xl">
+
+      <!-- S1 -->
+      <section id="s1" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 1</span>
+        <h2 class="text-3xl font-bold mb-4">Why Sequences Need Special Math</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          Language, audio, and time-series data carry <strong>temporal dependencies</strong>: the meaning of token $x_t$ depends on the tokens that came before it.
+          Two dominant paradigms handle this: <strong>recurrence</strong> compresses history into a fixed hidden state $\mathbf{h}_t$ — sequential but $O(T)$ memory —
+          while <strong>attention</strong> looks directly at every past token via a full $T \times T$ matrix, enabling parallel training at the cost of $O(T^2)$ memory.
+          Modern architectures (Mamba, RWKV) try to capture the best of both worlds.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Token Timeline: Recurrence vs Attention</h3>
+          <svg viewBox="0 0 560 120" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+            <defs>
+              <marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                <path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/>
+              </marker>
+              <marker id="arrb" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
+                <path d="M0,0 L6,3 L0,6 Z" fill="#3b82f6"/>
+              </marker>
+            </defs>
+
+            <!-- Token boxes -->
+            <rect x="10"  y="10" width="52" height="34" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="36"  y="32" text-anchor="middle" font-weight="700" fill="#1d4ed8" font-size="13">x₁</text>
+
+            <rect x="82"  y="10" width="52" height="34" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="108" y="32" text-anchor="middle" font-weight="700" fill="#1d4ed8" font-size="13">x₂</text>
+
+            <rect x="154" y="10" width="52" height="34" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="180" y="32" text-anchor="middle" font-weight="700" fill="#1d4ed8" font-size="13">x₃</text>
+
+            <text x="230" y="32" text-anchor="middle" fill="#9ca3af" font-size="18">…</text>
+
+            <rect x="258" y="10" width="52" height="34" rx="6" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="284" y="32" text-anchor="middle" font-weight="700" fill="#1d4ed8" font-size="13">xT</text>
+
+            <!-- RNN arrows (sequential) -->
+            <line x1="62"  y1="27" x2="80"  y2="27" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+            <line x1="134" y1="27" x2="152" y2="27" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+            <line x1="206" y1="27" x2="228" y2="27" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+            <line x1="240" y1="27" x2="256" y2="27" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+
+            <!-- Hidden state box -->
+            <rect x="330" y="10" width="90" height="34" rx="6" fill="#fef3c7" stroke="#d97706" stroke-width="1.5"/>
+            <text x="375" y="28" text-anchor="middle" font-weight="600" fill="#92400e" font-size="11">hidden state</text>
+            <text x="375" y="40" text-anchor="middle" fill="#b45309" font-size="10">hT  (RNN)</text>
+            <line x1="310" y1="27" x2="328" y2="27" stroke="#d97706" stroke-width="1.5" marker-end="url(#arr)"/>
+
+            <!-- Context window box -->
+            <rect x="10" y="72" width="300" height="34" rx="6" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="6 3"/>
+            <text x="160" y="90" text-anchor="middle" font-weight="600" fill="#15803d" font-size="11">context window — all tokens attended</text>
+            <text x="160" y="102" text-anchor="middle" fill="#16a34a" font-size="10">(Transformer: O(T²) memory)</text>
+
+            <!-- RNN label -->
+            <text x="375" y="72" text-anchor="middle" fill="#d97706" font-weight="600" font-size="11">RNN: O(T) memory</text>
+            <text x="375" y="86" text-anchor="middle" fill="#9ca3af" font-size="10">sequential steps</text>
+          </svg>
+        </div>
+      </section>
+
+      <!-- S2 -->
+      <section id="s2" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 2</span>
+        <h2 class="text-3xl font-bold mb-4">Vanilla RNN</h2>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Recurrence Equations</p>
+          $$\mathbf{h}_t = \tanh(\mathbf{W}_h\mathbf{h}_{t-1} + \mathbf{W}_x\mathbf{x}_t + \mathbf{b}), \qquad \mathbf{y}_t = \mathbf{W}_o\mathbf{h}_t$$
+          <p class="text-gray-600 dark:text-gray-300 text-sm mt-3">
+            BPTT unrolls the graph through time; the gradient of the loss w.r.t. an early hidden state involves a product of Jacobians:
+          </p>
+          $$\frac{\partial\mathcal{L}}{\partial\mathbf{h}_t} = \prod_{k=t}^{T}\mathbf{W}_h^{\top}\,\text{diag}(\tanh'(\cdot))$$
+          <p class="text-gray-600 dark:text-gray-300 text-sm mt-2">
+            A long product of matrices with spectral radius $\neq 1$ either <strong>vanishes</strong> (signal dies) or <strong>explodes</strong> (training diverges).
+          </p>
+        </div>
+
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          The vanilla RNN is the simplest recurrent model: a single matrix multiplication plus a nonlinearity updates the hidden state at each step.
+          Despite its simplicity it cannot reliably propagate gradients over more than ~10–20 steps, motivating gated variants.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">PyTorch — nn.RNN and manual cell</p>
+<pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn as nn
+
+# --- using nn.RNN ---
+rnn = nn.RNN(input_size=32, hidden_size=64, batch_first=True)
+x   = torch.randn(8, 20, 32)          # (batch, seq_len, input)
+out, h_n = rnn(x)                      # out: (8,20,64), h_n: (1,8,64)
+
+# --- manual RNN cell ---
+class RNNCell(nn.Module):
+    def __init__(self, d_in, d_h):
+        super().__init__()
+        self.Wh = nn.Linear(d_h, d_h, bias=False)
+        self.Wx = nn.Linear(d_in, d_h)
+    def forward(self, x, h):           # x:(B,d_in), h:(B,d_h)
+        return torch.tanh(self.Wh(h) + self.Wx(x))
+
+cell = RNNCell(32, 64)
+h = torch.zeros(8, 64)
+for t in range(20):
+    h = cell(x[:, t, :], h)
+</code></pre>
+        </div>
+      </section>
+
+      <!-- S3 -->
+      <section id="s3" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 3</span>
+        <h2 class="text-3xl font-bold mb-4">LSTM</h2>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Four-Gate Equations</p>
+          $$\mathbf{f}_t=\sigma(\mathbf{W}_f[\mathbf{h}_{t-1},\mathbf{x}_t]+\mathbf{b}_f)$$
+          $$\mathbf{i}_t=\sigma(\mathbf{W}_i[\mathbf{h}_{t-1},\mathbf{x}_t]+\mathbf{b}_i)$$
+          $$\tilde{\mathbf{c}}_t=\tanh(\mathbf{W}_c[\mathbf{h}_{t-1},\mathbf{x}_t]+\mathbf{b}_c)$$
+          $$\mathbf{c}_t=\mathbf{f}_t\odot\mathbf{c}_{t-1}+\mathbf{i}_t\odot\tilde{\mathbf{c}}_t, \qquad \mathbf{h}_t=\mathbf{o}_t\odot\tanh(\mathbf{c}_t)$$
+          <p class="text-gray-600 dark:text-gray-300 text-sm mt-3">
+            The <strong>cell state</strong> $\mathbf{c}_t$ is updated additively: gradients flow back through the forget gate $\mathbf{f}_t$ rather than through a weight matrix product,
+            creating a gradient highway that keeps long-range signals alive.
+          </p>
+        </div>
+
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          LSTMs (Hochreiter &amp; Schmidhuber, 1997) dominated sequence modeling for over a decade — powering speech recognition, machine translation, and language modeling before Transformers.
+          The key insight is separating <em>what to remember</em> (input gate) from <em>what to forget</em> (forget gate) from <em>what to output</em> (output gate).
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">PyTorch — nn.LSTM</p>
+<pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn as nn
+
+lstm = nn.LSTM(input_size=32, hidden_size=64,
+               num_layers=2, batch_first=True, dropout=0.1)
+
+x   = torch.randn(8, 50, 32)          # (batch, seq, feat)
+h0  = torch.zeros(2, 8, 64)           # (num_layers, batch, hidden)
+c0  = torch.zeros(2, 8, 64)
+
+out, (h_n, c_n) = lstm(x, (h0, c0))
+# out: (8, 50, 64) — all hidden states
+# h_n: (2, 8, 64) — final hidden per layer
+# c_n: (2, 8, 64) — final cell  per layer
+print(out.shape, h_n.shape, c_n.shape)
+</code></pre>
+        </div>
+      </section>
+
+      <!-- S4 -->
+      <section id="s4" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 4</span>
+        <h2 class="text-3xl font-bold mb-4">GRU</h2>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Simplified Gating</p>
+          $$\mathbf{r}_t=\sigma(\mathbf{W}_r[\mathbf{h}_{t-1},\mathbf{x}_t]), \quad \mathbf{z}_t=\sigma(\mathbf{W}_z[\mathbf{h}_{t-1},\mathbf{x}_t])$$
+          $$\tilde{\mathbf{h}}_t=\tanh(\mathbf{W}[\mathbf{r}_t\odot\mathbf{h}_{t-1},\mathbf{x}_t]), \quad \mathbf{h}_t=(1-\mathbf{z}_t)\odot\mathbf{h}_{t-1}+\mathbf{z}_t\odot\tilde{\mathbf{h}}_t$$
+          <p class="text-gray-600 dark:text-gray-300 text-sm mt-3">
+            GRU merges the cell state and hidden state into one vector and uses only two gates (reset $\mathbf{r}$ and update $\mathbf{z}$), reducing parameters by ~25% vs LSTM with comparable performance.
+          </p>
+        </div>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">LSTM (4 gates) vs GRU (2 gates)</h3>
+          <svg viewBox="0 0 500 150" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11">
+            <!-- LSTM block -->
+            <rect x="20" y="20" width="190" height="110" rx="10" fill="#eff6ff" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="115" y="40" text-anchor="middle" font-weight="700" fill="#1d4ed8" font-size="13">LSTM Cell</text>
+            <rect x="35"  y="50" width="38" height="22" rx="4" fill="#bfdbfe" stroke="#3b82f6" stroke-width="1"/>
+            <text x="54"  y="65" text-anchor="middle" fill="#1e40af" font-weight="600">f</text>
+            <rect x="83"  y="50" width="38" height="22" rx="4" fill="#bfdbfe" stroke="#3b82f6" stroke-width="1"/>
+            <text x="102" y="65" text-anchor="middle" fill="#1e40af" font-weight="600">i</text>
+            <rect x="131" y="50" width="38" height="22" rx="4" fill="#bfdbfe" stroke="#3b82f6" stroke-width="1"/>
+            <text x="150" y="65" text-anchor="middle" fill="#1e40af" font-weight="600">c̃</text>
+            <rect x="162" y="50" width="38" height="22" rx="4" fill="#bfdbfe" stroke="#3b82f6" stroke-width="1"/>
+            <text x="181" y="65" text-anchor="middle" fill="#1e40af" font-weight="600">o</text>
+            <text x="115" y="96"  text-anchor="middle" fill="#3b82f6" font-size="10">cell state  cₜ</text>
+            <text x="115" y="110" text-anchor="middle" fill="#3b82f6" font-size="10">hidden state  hₜ</text>
+            <text x="115" y="124" text-anchor="middle" fill="#6b7280" font-size="9">4 weight matrices</text>
+
+            <!-- GRU block -->
+            <rect x="290" y="20" width="190" height="110" rx="10" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.5"/>
+            <text x="385" y="40" text-anchor="middle" font-weight="700" fill="#15803d" font-size="13">GRU Cell</text>
+            <rect x="320" y="50" width="60" height="22" rx="4" fill="#bbf7d0" stroke="#16a34a" stroke-width="1"/>
+            <text x="350" y="65" text-anchor="middle" fill="#166534" font-weight="600">reset r</text>
+            <rect x="395" y="50" width="68" height="22" rx="4" fill="#bbf7d0" stroke="#16a34a" stroke-width="1"/>
+            <text x="429" y="65" text-anchor="middle" fill="#166534" font-weight="600">update z</text>
+            <text x="385" y="96"  text-anchor="middle" fill="#16a34a" font-size="10">single state  hₜ</text>
+            <text x="385" y="110" text-anchor="middle" fill="#16a34a" font-size="10">(no separate cell)</text>
+            <text x="385" y="124" text-anchor="middle" fill="#6b7280" font-size="9">3 weight matrices</text>
+
+            <!-- vs label -->
+            <text x="250" y="82" text-anchor="middle" font-weight="700" fill="#9ca3af" font-size="14">vs</text>
+          </svg>
+        </div>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">PyTorch — nn.GRU + parameter count</p>
+<pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn as nn
+
+gru  = nn.GRU(input_size=32, hidden_size=64, batch_first=True)
+lstm = nn.LSTM(input_size=32, hidden_size=64, batch_first=True)
+x    = torch.randn(8, 20, 32)
+
+out_g, _ = gru(x)
+out_l, _ = lstm(x)
+
+gru_params  = sum(p.numel() for p in gru.parameters())
+lstm_params = sum(p.numel() for p in lstm.parameters())
+print(f"GRU  params: {gru_params:,}")   # 18,432
+print(f"LSTM params: {lstm_params:,}")  # 24,832
+</code></pre>
+        </div>
+
+        <div class="rounded-xl overflow-x-auto">
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="bg-gray-100 dark:bg-gray-800">
+                <th class="px-4 py-2 text-left border border-gray-200 dark:border-gray-700">Model</th>
+                <th class="px-4 py-2 text-left border border-gray-200 dark:border-gray-700">Gates</th>
+                <th class="px-4 py-2 text-left border border-gray-200 dark:border-gray-700">States</th>
+                <th class="px-4 py-2 text-left border border-gray-200 dark:border-gray-700">Params (d=64)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td class="px-4 py-2 border border-gray-200 dark:border-gray-700">LSTM</td><td class="px-4 py-2 border border-gray-200 dark:border-gray-700">4 (f, i, g, o)</td><td class="px-4 py-2 border border-gray-200 dark:border-gray-700">h, c</td><td class="px-4 py-2 border border-gray-200 dark:border-gray-700">24,832</td></tr>
+              <tr class="bg-gray-50 dark:bg-gray-800/50"><td class="px-4 py-2 border border-gray-200 dark:border-gray-700">GRU</td><td class="px-4 py-2 border border-gray-200 dark:border-gray-700">2 (r, z)</td><td class="px-4 py-2 border border-gray-200 dark:border-gray-700">h only</td><td class="px-4 py-2 border border-gray-200 dark:border-gray-700">18,432</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- S5 -->
+      <section id="s5" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 5</span>
+        <h2 class="text-3xl font-bold mb-4">Vanishing Gradients: The Math</h2>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Gradient Norm Bound</p>
+          $$\left\|\frac{\partial\mathbf{h}_T}{\partial\mathbf{h}_1}\right\| \leq \bigl(\rho(\mathbf{W}_h)\cdot\max|\sigma'|\bigr)^{T-1}$$
+          <p class="text-gray-600 dark:text-gray-300 text-sm mt-3">
+            If the spectral radius $\rho(\mathbf{W}_h) &lt; 1$, the bound decays exponentially to zero (vanishing).
+            If $\rho(\mathbf{W}_h) &gt; 1$, it grows exponentially (exploding — mitigated by gradient clipping).
+            LSTM/GRU solve vanishing by replacing the matrix product with an <strong>additive cell update</strong>:
+            $\mathbf{c}_t = \mathbf{f}_t \odot \mathbf{c}_{t-1} + \ldots$, so $\partial\mathbf{c}_T/\partial\mathbf{c}_1 \approx \prod \mathbf{f}_k$ — a product of scalars near 1 rather than a matrix product.
+          </p>
+        </div>
+
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          Vanishing gradients were identified as the core obstacle to training deep recurrent networks (Hochreiter 1991, Bengio et al. 1994).
+          Gradient clipping addresses exploding gradients; gated architectures address vanishing ones.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">PyTorch — gradient norm comparison over 100 steps</p>
+<pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn as nn
+
+def grad_norm(model, x_seq):
+    h = torch.zeros(1, model.hidden_size)
+    loss = torch.tensor(0.0)
+    for x in x_seq:
+        h = model(x.unsqueeze(0), h)
+        loss = loss + h.sum()
+    loss.backward()
+    return h.grad.norm().item() if h.grad else float('nan')
+
+T   = 100
+seq = [torch.randn(1, 16).requires_grad_(False) for _ in range(T)]
+
+rnn_cell  = nn.RNNCell(16, 32)
+lstm_cell = nn.LSTMCell(16, 32)
+
+# RNN gradient norm (often near 0 at step 1 due to vanishing)
+x_seq = torch.randn(T, 1, 16)
+rnn   = nn.RNN(16, 32, batch_first=False)
+out_r, _ = rnn(x_seq); out_r[0].sum().backward()
+rnn_gnorm = sum(p.grad.norm() for p in rnn.parameters() if p.grad is not None)
+print(f"RNN  grad norm: {rnn_gnorm:.4f}")
+</code></pre>
+        </div>
+      </section>
+
+      <!-- S6 -->
+      <section id="s6" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 6</span>
+        <h2 class="text-3xl font-bold mb-4">Linear Recurrence &amp; S4</h2>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Continuous-Time SSM &amp; Discretization</p>
+          <p class="text-gray-600 dark:text-gray-300 text-sm mb-2">Continuous system:</p>
+          $$\dot{\mathbf{h}}(t)=\mathbf{A}\mathbf{h}(t)+\mathbf{B}x(t), \qquad y(t)=\mathbf{C}\mathbf{h}(t)$$
+          <p class="text-gray-600 dark:text-gray-300 text-sm mb-2 mt-3">Zero-order hold discretization (step size $\Delta$):</p>
+          $$\bar{\mathbf{A}}=e^{\Delta\mathbf{A}}, \qquad \bar{\mathbf{B}}=(\Delta\mathbf{A})^{-1}(e^{\Delta\mathbf{A}}-\mathbf{I})\Delta\mathbf{B}$$
+          <p class="text-gray-600 dark:text-gray-300 text-sm mb-2 mt-3">Convolution mode for efficient training:</p>
+          $$y = \bar{\mathbf{K}} * x, \qquad \bar{\mathbf{K}} = \bigl(\mathbf{C}\bar{\mathbf{B}},\;\mathbf{C}\bar{\mathbf{A}}\bar{\mathbf{B}},\;\mathbf{C}\bar{\mathbf{A}}^2\bar{\mathbf{B}},\;\ldots\bigr)$$
+          <p class="text-gray-600 dark:text-gray-300 text-sm mt-3">
+            S4 parameterizes $\mathbf{A}$ as a structured (diagonal + low-rank) matrix to enable efficient computation of the convolution kernel via the HiPPO framework.
+          </p>
+        </div>
+
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          State space models unify differential equations and sequence modeling. During <strong>training</strong> the model runs as a global convolution (parallel, $O(T \log T)$);
+          during <strong>inference</strong> it runs as a recurrence ($O(1)$ per step), giving the best of both worlds.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">PyTorch — S4-style linear recurrence</p>
+<pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn as nn, torch.nn.functional as F
+
+class S4Layer(nn.Module):
+    def __init__(self, d_model, d_state=16):
+        super().__init__()
+        self.A = nn.Parameter(torch.randn(d_state))          # diagonal A
+        self.B = nn.Parameter(torch.randn(d_state, 1))
+        self.C = nn.Parameter(torch.randn(1, d_state))
+        self.D = nn.Parameter(torch.ones(1))
+        self.dt = nn.Parameter(torch.ones(1) * 0.01)
+
+    def kernel(self, L):
+        Ab = torch.exp(self.dt * self.A)                     # discretised A
+        Bb = self.dt * self.B                                # discretised B
+        powers = Ab.unsqueeze(0) ** torch.arange(L, device=Ab.device).unsqueeze(1)
+        return (self.C @ (powers * Bb).T).squeeze(0)         # (L,)
+
+    def forward(self, u):                                    # u: (B, L, 1)
+        L = u.shape[1]
+        K = self.kernel(L)                                   # (L,)
+        y = F.conv1d(u.transpose(1,2), K.flip(0).view(1,1,-1),
+                     padding=L-1)[..., :L].transpose(1,2)
+        return y + self.D * u
+</code></pre>
+        </div>
+      </section>
+
+      <!-- S7 -->
+      <section id="s7" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 7</span>
+        <h2 class="text-3xl font-bold mb-4">Mamba: Selective SSM</h2>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Input-Dependent Selection</p>
+          $$\Delta_t,\;\mathbf{B}_t,\;\mathbf{C}_t = \text{Linear}(\mathbf{x}_t)$$
+          $$\bar{\mathbf{A}}_t = \exp(\Delta_t \mathbf{A}), \qquad \bar{\mathbf{B}}_t = (\Delta_t\mathbf{A})^{-1}(e^{\Delta_t\mathbf{A}}-\mathbf{I})\Delta_t\mathbf{B}_t$$
+          <p class="text-gray-600 dark:text-gray-300 text-sm mt-3">
+            Unlike S4 where $\mathbf{B},\mathbf{C},\Delta$ are fixed, Mamba makes them <strong>input-dependent per token</strong>.
+            This selective mechanism allows the model to focus on or ignore tokens dynamically, mimicking attention's content-based selection at $O(T)$ cost.
+            A hardware-aware parallel scan algorithm enables efficient GPU training despite the sequential recurrence.
+          </p>
+        </div>
+
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          Mamba (Gu &amp; Dao, 2023) achieves Transformer-quality language modeling while scaling linearly with sequence length.
+          The hardware-aware implementation fuses the scan into a single CUDA kernel, avoiding the memory bottleneck of materializing intermediate states.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">PyTorch — selective SSM cell (simplified)</p>
+<pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn as nn
+
+class SelectiveSSM(nn.Module):
+    def __init__(self, d_model, d_state=16, d_conv=4):
+        super().__init__()
+        self.d_state = d_state
+        self.in_proj  = nn.Linear(d_model, d_model * 2)
+        self.conv1d   = nn.Conv1d(d_model, d_model, d_conv,
+                                  padding=d_conv-1, groups=d_model)
+        self.x_proj   = nn.Linear(d_model, d_state * 2 + 1)  # B,C,dt
+        self.A_log    = nn.Parameter(torch.log(torch.arange(1, d_state+1).float()))
+        self.D        = nn.Parameter(torch.ones(d_model))
+        self.out_proj = nn.Linear(d_model, d_model)
+
+    def forward(self, x):              # x: (B, L, d_model)
+        B, L, _ = x.shape
+        xz = self.in_proj(x)
+        x_, z = xz.chunk(2, dim=-1)
+        x_ = self.conv1d(x_.transpose(1,2))[..., :L].transpose(1,2)
+        x_ = torch.silu(x_)
+        # selective parameters
+        bcd = self.x_proj(x_)          # (B, L, 2*d_state+1)
+        dt, B_sel, C_sel = bcd.split([1, self.d_state, self.d_state], dim=-1)
+        dt = torch.softplus(dt)
+        A  = -torch.exp(self.A_log)    # (d_state,) — fixed diagonal
+        # simplified recurrence (not parallel scan)
+        h = torch.zeros(B, self.d_state, device=x.device)
+        ys = []
+        for t in range(L):
+            Ab = torch.exp(dt[:, t] * A)             # (B, d_state)
+            h  = Ab * h + dt[:, t] * B_sel[:, t] * x_[:, t, :1]
+            ys.append((C_sel[:, t] * h).sum(-1, keepdim=True))
+        y = torch.stack(ys, dim=1) + self.D * x_[:, :, :1]
+        return self.out_proj(torch.silu(z) * y)
+</code></pre>
+        </div>
+      </section>
+
+      <!-- S8 -->
+      <section id="s8" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 8</span>
+        <h2 class="text-3xl font-bold mb-4">Attention vs Recurrence Trade-offs</h2>
+
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          No architecture dominates all axes. Transformers parallelize perfectly but pay quadratic memory; RNNs are compact but sequential; Mamba/SSMs thread the needle with linear-cost parallel training via scan.
+          The right choice depends on sequence length, hardware, and whether you need random access to context.
+        </p>
+
+        <div class="rounded-xl overflow-x-auto mb-6">
+          <table class="w-full text-sm border-collapse">
+            <thead>
+              <tr class="bg-gray-100 dark:bg-gray-800">
+                <th class="px-4 py-2 text-left border border-gray-200 dark:border-gray-700">Architecture</th>
+                <th class="px-4 py-2 text-left border border-gray-200 dark:border-gray-700">Memory (seq T)</th>
+                <th class="px-4 py-2 text-left border border-gray-200 dark:border-gray-700">Depth / steps</th>
+                <th class="px-4 py-2 text-left border border-gray-200 dark:border-gray-700">Training parallelism</th>
+                <th class="px-4 py-2 text-left border border-gray-200 dark:border-gray-700">Inference per step</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700 font-semibold text-blue-700 dark:text-blue-400">Transformer</td>
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700">$O(T^2)$</td>
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700">$O(1)$ layers</td>
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700">Full parallel</td>
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700">$O(T \cdot d^2)$ with KV-cache</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-800/50">
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700 font-semibold text-amber-700 dark:text-amber-400">LSTM / GRU</td>
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700">$O(T)$</td>
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700">$O(T)$ sequential</td>
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700">Sequential only</td>
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700">$O(d^2)$ constant</td>
+              </tr>
+              <tr>
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700 font-semibold text-green-700 dark:text-green-400">Mamba / SSM</td>
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700">$O(T)$</td>
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700">$O(\log T)$ w/ scan</td>
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700">Parallel scan</td>
+                <td class="px-4 py-2 border border-gray-200 dark:border-gray-700">$O(d \cdot N)$ constant</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">PyTorch — inference speed timing harness</p>
+<pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, time
+
+def time_model(fn, x, reps=50):
+    # warm-up
+    for _ in range(5): fn(x)
+    torch.cuda.synchronize() if x.is_cuda else None
+    t0 = time.perf_counter()
+    for _ in range(reps): fn(x)
+    torch.cuda.synchronize() if x.is_cuda else None
+    return (time.perf_counter() - t0) / reps * 1000   # ms
+
+import torch.nn as nn
+T, B, D = 512, 4, 256
+x = torch.randn(B, T, D)
+
+transformer_layer = nn.TransformerEncoderLayer(D, nhead=8, batch_first=True)
+rnn_layer         = nn.GRU(D, D, batch_first=True)
+
+t_tf  = time_model(transformer_layer, x)
+t_rnn = time_model(lambda z: rnn_layer(z)[0], x)
+print(f"Transformer: {t_tf:.2f} ms | GRU: {t_rnn:.2f} ms  (T={T})")
+</code></pre>
+        </div>
+      </section>
+
+      <!-- S9 -->
+      <section id="s9" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 9</span>
+        <h2 class="text-3xl font-bold mb-4">Encoder-Decoder Architecture</h2>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Cross-Attention Formulation</p>
+          $$\mathbf{H}_{enc} = \text{Encoder}(\mathbf{x}_{src}), \qquad \mathbf{H}_{dec}^{(l)} = \text{SelfAttn}(\mathbf{H}_{dec}^{(l-1)})$$
+          $$\text{CrossAttn}(\mathbf{Q},\mathbf{K},\mathbf{V}) = \text{softmax}\!\left(\frac{\mathbf{Q}\mathbf{K}^\top}{\sqrt{d_k}}\right)\mathbf{V}, \quad \mathbf{Q}=\mathbf{H}_{dec}\mathbf{W}^Q,\;\mathbf{K}=\mathbf{V}=\mathbf{H}_{enc}\mathbf{W}^{K,V}$$
+          <p class="text-gray-600 dark:text-gray-300 text-sm mt-3">
+            The encoder compresses the full source sequence; each decoder layer attends to encoder outputs via cross-attention, enabling the model to align source and target tokens.
+            Use encoder-decoder for <strong>seq2seq</strong> tasks: machine translation, summarization, speech recognition.
+          </p>
+        </div>
+
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          The original Transformer (Vaswani et al., 2017) uses this encoder-decoder design. Decoder-only models (GPT) drop the encoder and cross-attention, reading context from the same sequence.
+          Encoder-only models (BERT) drop the decoder, producing representations for classification.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">PyTorch — cross-attention module</p>
+<pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn as nn, torch.nn.functional as F, math
+
+class CrossAttention(nn.Module):
+    def __init__(self, d_model, n_heads):
+        super().__init__()
+        self.h, self.dk = n_heads, d_model // n_heads
+        self.Wq = nn.Linear(d_model, d_model, bias=False)
+        self.Wk = nn.Linear(d_model, d_model, bias=False)
+        self.Wv = nn.Linear(d_model, d_model, bias=False)
+        self.out = nn.Linear(d_model, d_model, bias=False)
+
+    def forward(self, q, kv):          # q: (B,Tq,D), kv: (B,Ts,D)
+        B = q.size(0)
+        def split(x, W):
+            return W(x).view(B, -1, self.h, self.dk).transpose(1, 2)
+        Q, K, V = split(q, self.Wq), split(kv, self.Wk), split(kv, self.Wv)
+        scores = (Q @ K.transpose(-2,-1)) / math.sqrt(self.dk)
+        attn   = F.softmax(scores, dim=-1)
+        out    = (attn @ V).transpose(1,2).contiguous().view(B, -1, self.h*self.dk)
+        return self.out(out)
+
+ca  = CrossAttention(256, 8)
+dec = torch.randn(2, 10, 256)          # decoder queries
+enc = torch.randn(2, 20, 256)          # encoder keys/values
+print(ca(dec, enc).shape)              # (2, 10, 256)
+</code></pre>
+        </div>
+      </section>
+
+      <!-- S10 -->
+      <section id="s10" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 10</span>
+        <h2 class="text-3xl font-bold mb-4">Connectionist Temporal Classification (CTC)</h2>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">CTC Loss</p>
+          $$\mathcal{L}_{CTC} = -\log\sum_{\pi\,:\,\mathcal{B}(\pi)=\mathbf{y}} P(\pi\mid\mathbf{x})$$
+          <p class="text-gray-600 dark:text-gray-300 text-sm mt-3">
+            $\mathcal{B}$ collapses repeated characters and removes blank tokens; the sum marginalizes over all <strong>valid alignments</strong> of the output label sequence $\mathbf{y}$ to the input frames.
+            The forward-backward (Baum-Welch) algorithm computes this sum in $O(T \cdot |\mathbf{y}|)$ via dynamic programming.
+            At inference time, <strong>beam search</strong> decoding with a language model prior dramatically outperforms greedy decoding.
+          </p>
+        </div>
+
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          CTC (Graves et al., 2006) removes the need to pre-align audio frames to phoneme labels, enabling end-to-end speech recognition.
+          It is still used in fast streaming ASR systems (wav2vec 2.0, Whisper encoder stages) where alignment-free training is essential.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+          <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">PyTorch — nn.CTCLoss example</p>
+<pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn as nn
+
+ctc = nn.CTCLoss(blank=0, reduction='mean', zero_infinity=True)
+
+T, B, C = 50, 4, 28                   # frames, batch, num_classes (incl. blank)
+log_probs    = torch.randn(T, B, C).log_softmax(2)  # (T, B, C) required
+targets      = torch.randint(1, C, (B * 10,))       # flattened target labels
+input_lengths  = torch.full((B,), T, dtype=torch.long)
+target_lengths = torch.full((B,), 10, dtype=torch.long)
+
+loss = ctc(log_probs, targets, input_lengths, target_lengths)
+print(f"CTC loss: {loss.item():.4f}")
+# beam search: use torchaudio.functional.ctc_decode or flashlight-text
+</code></pre>
+        </div>
+      </section>
+
+      <!-- FOOTER NAV -->
+      <footer class="mt-10 pt-8 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-4 text-sm">
+        <a href="math-llm.html"     class="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">← Mathematics Behind LLMs</a>
+        <a href="math-llm-ch5.html" class="px-4 py-2 rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-blue-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300">← Chapter 5</a>
+        <a href="math-llm-ch7.html" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-medium">Chapter 7 →</a>
+      </footer>
+
+    </main>
+  </div>
+
+  <script>
+    // Theme toggle
+    function toggleTheme() {
+      const html  = document.documentElement;
+      const icon  = document.getElementById('themeIcon');
+      const label = document.getElementById('themeLabel');
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark');
+        icon.textContent  = '🌙';
+        label.textContent = 'Dark';
+        localStorage.setItem('theme', 'light');
+      } else {
+        html.classList.add('dark');
+        icon.textContent  = '☀️';
+        label.textContent = 'Light';
+        localStorage.setItem('theme', 'dark');
+      }
+    }
+
+    // Apply saved theme on load
+    (function () {
+      const saved = localStorage.getItem('theme');
+      const html  = document.documentElement;
+      const icon  = document.getElementById('themeIcon');
+      const label = document.getElementById('themeLabel');
+      if (saved === 'light') {
+        html.classList.remove('dark');
+        if (icon)  icon.textContent  = '🌙';
+        if (label) label.textContent = 'Dark';
+      } else {
+        html.classList.add('dark');
+        if (icon)  icon.textContent  = '☀️';
+        if (label) label.textContent = 'Light';
+      }
+    })();
+  </script>
+</body>
+</html>

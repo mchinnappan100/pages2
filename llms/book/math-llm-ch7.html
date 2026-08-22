@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chapter 7 — Numerical Methods &amp; Floating Point Stability</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <style>* { transition: background-color 0.2s, color 0.2s, border-color 0.2s; }</style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]})"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>document.addEventListener('DOMContentLoaded', () => hljs.highlightAll());</script>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 min-h-screen flex flex-col">
+
+  <!-- TOP NAV -->
+  <header class="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <div class="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🔢</span>
+        <div>
+          <h1 class="text-base font-bold text-blue-700 dark:text-blue-400 leading-tight">Numerical Methods &amp; Stability</h1>
+          <p class="text-xs text-gray-500 dark:text-gray-400">Floating Point · Condition Numbers · Stable Algorithms · Precision · 2026</p>
+        </div>
+      </div>
+      <button onclick="toggleTheme()"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
+               bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700
+               text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600">
+        <span id="themeIcon">☀️</span><span id="themeLabel">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="max-w-screen-xl mx-auto w-full flex flex-1">
+
+    <!-- SIDEBAR -->
+    <aside class="hidden md:flex flex-col w-60 shrink-0 sticky top-14 self-start h-[calc(100vh-3.5rem)] overflow-y-auto
+                  border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-6 px-4">
+      <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">Contents</p>
+      <nav class="flex flex-col gap-0.5 text-sm">
+        <a href="#s1"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">IEEE 754 Representation</a>
+        <a href="#s2"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Catastrophic Cancellation</a>
+        <a href="#s3"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Condition Numbers</a>
+        <a href="#s4"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Stable Softmax</a>
+        <a href="#s5"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Stable LayerNorm</a>
+        <a href="#s6"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Flash Attention Stability</a>
+        <a href="#s7"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Quantization Mathematics</a>
+        <a href="#s8"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Kahan Summation</a>
+        <a href="#s9"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Iterative Solvers &amp; CG</a>
+        <a href="#s10" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Precision in Practice</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 px-6 py-10 max-w-4xl">
+
+      <!-- S1: IEEE 754 -->
+      <section id="s1" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 1</span>
+        <h2 class="text-3xl font-bold mb-4">IEEE 754 Floating Point Representation</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          Every floating-point number is encoded as a sign bit, a biased exponent, and a fractional mantissa.
+          The three formats used in deep learning — FP32, FP16, and BF16 — trade range against precision in very
+          different ways. BF16 keeps the same 8-bit exponent as FP32 (same dynamic range) but drops mantissa bits,
+          while FP16 halves the exponent field instead.
+        </p>
+
+        <!-- Bit-layout SVG -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Bit Layout: FP32 / FP16 / BF16</h3>
+          <svg viewBox="0 0 560 130" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11">
+
+            <!-- FP32 row -->
+            <text x="2" y="20" font-weight="700" fill="#6b7280">FP32</text>
+            <!-- sign -->
+            <rect x="50" y="8" width="18" height="18" rx="3" fill="#fca5a5" stroke="#ef4444" stroke-width="1.2"/>
+            <text x="59" y="21" text-anchor="middle" font-size="9" fill="#7f1d1d">S</text>
+            <!-- exponent 8 bits -->
+            <rect x="69" y="8" width="144" height="18" rx="3" fill="#93c5fd" stroke="#3b82f6" stroke-width="1.2"/>
+            <text x="141" y="21" text-anchor="middle" font-size="9" fill="#1e3a8a">exponent (8 bits)</text>
+            <!-- mantissa 23 bits -->
+            <rect x="214" y="8" width="322" height="18" rx="3" fill="#86efac" stroke="#22c55e" stroke-width="1.2"/>
+            <text x="375" y="21" text-anchor="middle" font-size="9" fill="#14532d">mantissa (23 bits)</text>
+            <text x="2" y="38" font-size="9" fill="#9ca3af">max≈3.4×10³⁸  ε≈1.2×10⁻⁷</text>
+
+            <!-- FP16 row -->
+            <text x="2" y="66" font-weight="700" fill="#6b7280">FP16</text>
+            <!-- sign -->
+            <rect x="50" y="54" width="18" height="18" rx="3" fill="#fca5a5" stroke="#ef4444" stroke-width="1.2"/>
+            <text x="59" y="67" text-anchor="middle" font-size="9" fill="#7f1d1d">S</text>
+            <!-- exponent 5 bits -->
+            <rect x="69" y="54" width="80" height="18" rx="3" fill="#93c5fd" stroke="#3b82f6" stroke-width="1.2"/>
+            <text x="109" y="67" text-anchor="middle" font-size="9" fill="#1e3a8a">exp (5)</text>
+            <!-- mantissa 10 bits -->
+            <rect x="150" y="54" width="148" height="18" rx="3" fill="#86efac" stroke="#22c55e" stroke-width="1.2"/>
+            <text x="224" y="67" text-anchor="middle" font-size="9" fill="#14532d">mantissa (10 bits)</text>
+            <text x="2" y="84" font-size="9" fill="#9ca3af">max≈6.5×10⁴  ε≈9.8×10⁻⁴</text>
+
+            <!-- BF16 row -->
+            <text x="2" y="112" font-weight="700" fill="#6b7280">BF16</text>
+            <!-- sign -->
+            <rect x="50" y="100" width="18" height="18" rx="3" fill="#fca5a5" stroke="#ef4444" stroke-width="1.2"/>
+            <text x="59" y="113" text-anchor="middle" font-size="9" fill="#7f1d1d">S</text>
+            <!-- exponent 8 bits -->
+            <rect x="69" y="100" width="144" height="18" rx="3" fill="#93c5fd" stroke="#3b82f6" stroke-width="1.2"/>
+            <text x="141" y="113" text-anchor="middle" font-size="9" fill="#1e3a8a">exponent (8 bits — same as FP32)</text>
+            <!-- mantissa 7 bits -->
+            <rect x="214" y="100" width="92" height="18" rx="3" fill="#86efac" stroke="#22c55e" stroke-width="1.2"/>
+            <text x="260" y="113" text-anchor="middle" font-size="9" fill="#14532d">mantissa (7)</text>
+            <text x="2" y="130" font-size="9" fill="#9ca3af">max≈3.4×10³⁸  ε≈7.8×10⁻³</text>
+          </svg>
+        </div>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="mb-3 text-gray-600 dark:text-gray-300">
+            The decoded value of a normal FP32 number and its machine epsilon:
+          </p>
+          <div class="overflow-x-auto">
+            $$\text{value} = (-1)^s \cdot 2^{e-\text{bias}} \cdot \left(1 + \frac{m}{2^{23}}\right)$$
+          </div>
+          <div class="overflow-x-auto mt-3">
+            $$\epsilon_{\text{mach}} = 2^{-23} \approx 1.2 \times 10^{-7} \quad \text{(FP32)}$$
+          </div>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch
+
+for dtype in [torch.float32, torch.float16, torch.bfloat16]:
+    info = torch.finfo(dtype)
+    print(f"{str(dtype):<20}  eps={info.eps:.2e}  max={info.max:.2e}  min={info.tiny:.2e}")
+
+# float32              eps=1.19e-07  max=3.40e+38  min=1.18e-38
+# float16              eps=9.77e-04  max=6.55e+04  min=6.10e-05
+# bfloat16             eps=7.81e-03  max=3.39e+38  min=1.18e-38
+</code></pre>
+      </section>
+
+      <!-- S2: Catastrophic Cancellation -->
+      <section id="s2" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 2</span>
+        <h2 class="text-3xl font-bold mb-4">Catastrophic Cancellation</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          When two nearly-equal numbers are subtracted, most significant digits cancel and the result
+          is dominated by rounding noise. A classic example is naive variance: computing
+          $\mathbb{E}[X^2] - (\mathbb{E}[X])^2$ in a single pass over large numbers can yield
+          negative variance or gross errors. Welford's online algorithm avoids this by accumulating
+          a stable mean and sum-of-squared-deviations simultaneously.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-gray-600 dark:text-gray-300 mb-3">
+            Relative error of a subtraction $\text{fl}(a - b)$ when $a \approx b$:
+          </p>
+          <div class="overflow-x-auto">
+            $$\frac{|(a - b) - \text{fl}(a-b)|}{|a - b|} \leq \frac{2\,\epsilon_{\text{mach}} \cdot |a|}{|a - b|}$$
+          </div>
+          <p class="text-gray-500 dark:text-gray-400 text-sm mt-3">
+            If $|a - b| \ll |a|$, the relative error blows up by a factor of $|a|/|a-b|$.
+          </p>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch
+
+# Naive variance — catastrophic cancellation with large offset
+x = torch.tensor([1e8 + 1.0, 1e8 + 2.0, 1e8 + 3.0], dtype=torch.float32)
+naive_var = x.pow(2).mean() - x.mean().pow(2)
+print(f"Naive variance:   {naive_var.item():.4f}")   # may be 0.0 or negative!
+print(f"Correct variance: {x.var(unbiased=False).item():.4f}")  # 0.6667
+
+# Welford's online algorithm (stable)
+def welford_var(data):
+    n, mean, M2 = 0, 0.0, 0.0
+    for x in data:
+        n += 1; delta = x - mean
+        mean += delta / n; M2 += delta * (x - mean)
+    return M2 / n
+
+vals = [1e8 + 1.0, 1e8 + 2.0, 1e8 + 3.0]
+print(f"Welford variance: {welford_var(vals):.4f}")  # 0.6667
+</code></pre>
+      </section>
+
+      <!-- S3: Condition Numbers -->
+      <section id="s3" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 3</span>
+        <h2 class="text-3xl font-bold mb-4">Condition Numbers</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          The condition number of a matrix $\mathbf{A}$ measures how much a small perturbation in $\mathbf{b}$
+          amplifies the error in the solution $\mathbf{x}$ of $\mathbf{A}\mathbf{x}=\mathbf{b}$.
+          In training, weight matrices with high condition numbers cause gradient directions to differ wildly
+          across dimensions, leading to slow convergence and vanishing or exploding gradients.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <div class="overflow-x-auto">
+            $$\kappa(\mathbf{A}) = \|\mathbf{A}\| \cdot \|\mathbf{A}^{-1}\| = \frac{\sigma_{\max}}{\sigma_{\min}}$$
+          </div>
+          <div class="overflow-x-auto mt-3">
+            $$\frac{\|\delta\mathbf{x}\|}{\|\mathbf{x}\|} \leq \kappa(\mathbf{A})\,\frac{\|\delta\mathbf{b}\|}{\|\mathbf{b}\|}$$
+          </div>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch
+
+# Well-conditioned matrix
+A_good = torch.eye(4) + 0.1 * torch.randn(4, 4)
+print(f"Condition (good): {torch.linalg.cond(A_good).item():.2f}")
+
+# Ill-conditioned matrix — near-singular
+A_bad = torch.tensor([[1e4, 1e4 - 1], [1e4 + 1, 1e4]], dtype=torch.float32)
+print(f"Condition (bad):  {torch.linalg.cond(A_bad).item():.2e}")
+
+b = torch.ones(2)
+x = torch.linalg.solve(A_bad, b)
+# Small change in b
+b_perturbed = b + 1e-3 * torch.randn(2)
+x_p = torch.linalg.solve(A_bad, b_perturbed)
+print(f"Relative change in b: {((b_perturbed-b).norm()/b.norm()).item():.2e}")
+print(f"Relative change in x: {((x_p-x).norm()/x.norm()).item():.2e}")
+</code></pre>
+      </section>
+
+      <!-- S4: Stable Softmax -->
+      <section id="s4" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 4</span>
+        <h2 class="text-3xl font-bold mb-4">Numerically Stable Softmax</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          Naive softmax computes $e^{z_i}/\sum_j e^{z_j}$, which overflows to <code>inf</code> for logits
+          above ~88 in FP32. Subtracting the row maximum before exponentiation costs nothing mathematically
+          (the constant cancels) but keeps all exponentials in $[0, 1]$. The log-softmax variant is further
+          stabilised by avoiding a separate log of a potentially tiny sum.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <div class="overflow-x-auto">
+            $$\text{softmax}(\mathbf{z})_i = \frac{e^{z_i - m}}{\sum_j e^{z_j - m}}, \quad m = \max_j z_j$$
+          </div>
+          <div class="overflow-x-auto mt-3">
+            $$\log\text{softmax}(\mathbf{z})_i = z_i - m - \log\!\sum_j e^{z_j - m}$$
+          </div>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch
+
+z = torch.tensor([1000.0, 1001.0, 999.0])
+
+# Naive softmax — overflows
+exp_z = torch.exp(z)
+print("Naive exp:", exp_z)            # [inf, inf, inf]
+naive_sm = exp_z / exp_z.sum()
+print("Naive softmax:", naive_sm)     # [nan, nan, nan]
+
+# Stable softmax
+m = z.max()
+exp_z_stable = torch.exp(z - m)
+stable_sm = exp_z_stable / exp_z_stable.sum()
+print("Stable softmax:", stable_sm)   # [0.2689, 0.7311, 0.0900]
+
+# PyTorch built-in (uses stable version internally)
+print("torch.softmax:", torch.softmax(z, dim=0))
+</code></pre>
+      </section>
+
+      <!-- S5: Stable LayerNorm -->
+      <section id="s5" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 5</span>
+        <h2 class="text-3xl font-bold mb-4">Numerically Stable LayerNorm</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          LayerNorm divides by the standard deviation, so a near-zero variance causes division by zero.
+          The $\epsilon$ term in the denominator prevents this. For variance computation a single-pass
+          naive method suffers cancellation for large inputs; Welford's two-pass or online algorithm
+          computes the mean first, then accumulates squared deviations, achieving full numerical stability.
+        </p>
+
+        <!-- Single-pass vs two-pass SVG -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Single-pass vs Two-pass Variance Computation</h3>
+          <svg viewBox="0 0 480 140" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-lg mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11">
+            <defs>
+              <marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                <path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/>
+              </marker>
+            </defs>
+
+            <!-- Single-pass (left, red) -->
+            <rect x="10" y="10" width="200" height="110" rx="8" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5"/>
+            <text x="110" y="30" text-anchor="middle" font-weight="700" fill="#b91c1c">Single-pass (Unstable)</text>
+            <text x="20" y="52" fill="#6b7280">accumulate Σx and Σx²</text>
+            <text x="20" y="70" fill="#6b7280">simultaneously</text>
+            <text x="20" y="90" fill="#ef4444">⚠ cancellation when</text>
+            <text x="20" y="106" fill="#ef4444">   x ≫ σ (large offset)</text>
+
+            <!-- Arrow -->
+            <line x1="215" y1="65" x2="260" y2="65" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+            <text x="237" y="58" text-anchor="middle" font-size="9" fill="#9ca3af">prefer</text>
+
+            <!-- Two-pass (right, green) -->
+            <rect x="265" y="10" width="200" height="110" rx="8" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="365" y="30" text-anchor="middle" font-weight="700" fill="#065f46">Two-pass (Stable)</text>
+            <text x="275" y="52" fill="#6b7280">Pass 1: compute mean μ</text>
+            <text x="275" y="70" fill="#6b7280">Pass 2: Σ(x - μ)²</text>
+            <text x="275" y="90" fill="#10b981">✓ deviations are small</text>
+            <text x="275" y="106" fill="#10b981">   no cancellation</text>
+          </svg>
+
+          <div class="overflow-x-auto mt-4">
+            $$\hat{x}_i = \frac{x_i - \mu}{\sqrt{\sigma^2 + \epsilon}}, \quad \mu = \frac{1}{d}\sum_i x_i, \quad \sigma^2 = \frac{1}{d}\sum_i (x_i - \mu)^2$$
+          </div>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn as nn
+
+def stable_layernorm(x, eps=1e-5):
+    mu = x.mean(dim=-1, keepdim=True)
+    var = ((x - mu) ** 2).mean(dim=-1, keepdim=True)  # two-pass
+    return (x - mu) / (var + eps).sqrt()
+
+x = torch.randn(4, 128) * 1e4  # large values to stress test
+out_custom = stable_layernorm(x)
+out_torch  = nn.functional.layer_norm(x, [128])
+print("Max diff:", (out_custom - out_torch).abs().max().item())  # ~0.0
+</code></pre>
+      </section>
+
+      <!-- S6: Flash Attention Stability -->
+      <section id="s6" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 6</span>
+        <h2 class="text-3xl font-bold mb-4">Flash Attention Numerical Stability</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          FlashAttention processes the N×N attention matrix in tiles that never leave SRAM.
+          To apply softmax correctly without seeing all scores at once, it maintains a running maximum
+          $m_i$ and normalisation constant $\ell_i$ per query row and updates them incrementally as
+          each key-value block arrives — yielding bit-exact results without materialising the full matrix.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-gray-600 dark:text-gray-300 mb-2">Online softmax update when merging a new block:</p>
+          <div class="overflow-x-auto">
+            $$m_{\text{new}} = \max(m,\, m_{\text{block}}), \quad \ell_{\text{new}} = e^{m - m_{\text{new}}}\,\ell + e^{m_{\text{block}} - m_{\text{new}}}\,\ell_{\text{block}}$$
+          </div>
+          <p class="text-gray-500 dark:text-gray-400 text-sm mt-3">
+            The output accumulator is rescaled by $e^{m - m_{\text{new}}}$ before adding the new block's
+            contribution — this is exact regardless of how many blocks are processed.
+          </p>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, math
+
+def online_softmax_2block(scores_b1, scores_b2):
+    """Merge two blocks with online softmax (no full materialisation)."""
+    m1 = scores_b1.max();  exp1 = torch.exp(scores_b1 - m1);  l1 = exp1.sum()
+    m2 = scores_b2.max();  exp2 = torch.exp(scores_b2 - m2);  l2 = exp2.sum()
+
+    m_new = torch.maximum(m1, m2)
+    l_new = torch.exp(m1 - m_new) * l1 + torch.exp(m2 - m_new) * l2
+    scores = torch.cat([scores_b1, scores_b2])
+    return torch.exp(scores - m_new) / l_new   # final softmax
+
+s1 = torch.tensor([1.0, 2.0, 0.5])
+s2 = torch.tensor([3.0, 1.5, 2.5])
+print("Online:", online_softmax_2block(s1, s2).round(decimals=4))
+print("Ref:   ", torch.softmax(torch.cat([s1, s2]), 0).round(decimals=4))
+</code></pre>
+      </section>
+
+      <!-- S7: Quantization -->
+      <section id="s7" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 7</span>
+        <h2 class="text-3xl font-bold mb-4">Quantization Mathematics</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          Uniform quantization maps a floating-point tensor to a $b$-bit integer grid using a scale $s$
+          and zero-point $z$. The maximum quantization error per element is $s/2$, so minimising $s$
+          (tightening the range) reduces error but risks clipping large values. INT8 is standard for
+          inference; INT4 requires more careful calibration and block-wise scaling.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <div class="overflow-x-auto">
+            $$s = \frac{x_{\max} - x_{\min}}{2^b - 1}, \quad z = -\operatorname{round}\!\left(\frac{x_{\min}}{s}\right), \quad x_q = \operatorname{round}\!\left(\frac{x}{s}\right) + z$$
+          </div>
+          <div class="overflow-x-auto mt-3">
+            $$\text{Quantization error} \leq \frac{s}{2} = \frac{x_{\max} - x_{\min}}{2(2^b - 1)}$$
+          </div>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch
+
+def fake_quantize(w, bits=8):
+    qmin, qmax = 0, 2**bits - 1
+    s = (w.max() - w.min()) / (qmax - qmin)
+    z = (-w.min() / s).round().clamp(qmin, qmax)
+    w_q = ((w / s) + z).round().clamp(qmin, qmax)
+    return (w_q - z) * s   # dequantize back to float
+
+w = torch.randn(256, 256)
+w_int8 = fake_quantize(w, bits=8)
+w_int4 = fake_quantize(w, bits=4)
+
+def sqnr(orig, quant):
+    signal = orig.pow(2).mean()
+    noise  = (orig - quant).pow(2).mean()
+    return 10 * torch.log10(signal / noise)
+
+print(f"SQNR INT8: {sqnr(w, w_int8):.1f} dB")
+print(f"SQNR INT4: {sqnr(w, w_int4):.1f} dB")
+</code></pre>
+      </section>
+
+      <!-- S8: Kahan Summation -->
+      <section id="s8" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 8</span>
+        <h2 class="text-3xl font-bold mb-4">Kahan Summation</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          When accumulating many floating-point values, standard summation accrues $O(n\epsilon)$ error.
+          Kahan's compensated summation keeps a separate "compensation" variable that captures the rounding
+          error of each addition and feeds it into the next step, reducing total error to $O(\epsilon)$
+          regardless of $n$. This is directly relevant to gradient accumulation across hundreds of micro-batches.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <div class="overflow-x-auto">
+            $$y = x_i - c, \quad t = \text{sum} + y, \quad c = (t - \text{sum}) - y, \quad \text{sum} = t$$
+          </div>
+          <p class="text-gray-500 dark:text-gray-400 text-sm mt-3">
+            Standard summation error: $O(n\epsilon_{\text{mach}})$. Kahan error: $O(\epsilon_{\text{mach}})$.
+          </p>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch
+
+x = torch.ones(1_000_000, dtype=torch.float32) * 0.1
+
+naive = x.sum().item()
+
+def kahan_sum(t):
+    s, c = 0.0, 0.0
+    for v in t:
+        y = v.item() - c;  tmp = s + y
+        c = (tmp - s) - y; s = tmp
+    return s
+
+kahan = kahan_sum(x)
+exact = 100_000.0   # 1e6 * 0.1
+print(f"Naive  error: {abs(naive  - exact):.4f}")
+print(f"Kahan  error: {abs(kahan  - exact):.2e}")
+</code></pre>
+      </section>
+
+      <!-- S9: CG -->
+      <section id="s9" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 9</span>
+        <h2 class="text-3xl font-bold mb-4">Iterative Solvers &amp; Conjugate Gradient</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          The Conjugate Gradient (CG) method solves $\mathbf{A}\mathbf{x}=\mathbf{b}$ for symmetric
+          positive-definite $\mathbf{A}$ without forming $\mathbf{A}^{-1}$.
+          Each iteration requires only a matrix-vector product, making it practical for very large systems.
+          CG appears in second-order optimisers such as K-FAC, where the Fisher matrix is too large to invert directly.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-gray-600 dark:text-gray-300 mb-2">CG minimises the quadratic objective:</p>
+          <div class="overflow-x-auto">
+            $$\min_{\mathbf{x}}\; \frac{1}{2}\mathbf{x}^T\!\mathbf{A}\mathbf{x} - \mathbf{b}^T\mathbf{x}$$
+          </div>
+          <p class="text-gray-500 dark:text-gray-400 text-sm mt-3">
+            Converges in at most $n$ steps (exact); practical convergence is $O(\sqrt{\kappa(\mathbf{A})})$ iterations.
+          </p>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch
+
+def conjugate_gradient(A, b, max_iter=100, tol=1e-6):
+    x = torch.zeros_like(b)
+    r = b - A @ x;  p = r.clone()
+    r_dot = r @ r
+    for _ in range(max_iter):
+        Ap = A @ p
+        alpha = r_dot / (p @ Ap)
+        x = x + alpha * p
+        r = r - alpha * Ap
+        r_dot_new = r @ r
+        if r_dot_new.sqrt() < tol: break
+        p = r + (r_dot_new / r_dot) * p
+        r_dot = r_dot_new
+    return x
+
+n = 64
+A = torch.eye(n) + 0.1 * torch.rand(n, n)
+A = A @ A.T   # make SPD
+b = torch.randn(n)
+x = conjugate_gradient(A, b)
+print(f"Residual: {(A @ x - b).norm().item():.2e}")
+</code></pre>
+      </section>
+
+      <!-- S10: Precision in Practice -->
+      <section id="s10" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 10</span>
+        <h2 class="text-3xl font-bold mb-4">Numerical Precision in Practice</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          Mixed-precision training stores a FP32 "master copy" of weights and optimizer states, while
+          forward and backward passes run in BF16 for speed. Crucially, loss must be accumulated in FP32
+          to avoid underflow of small gradient signals. The table below summarises recommended dtypes for
+          common operations in a production LLM training stack.
+        </p>
+
+        <div class="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                <th class="text-left px-4 py-3 font-semibold">Operation</th>
+                <th class="text-center px-4 py-3 font-semibold">Recommended dtype</th>
+                <th class="text-left px-4 py-3 font-semibold">Reason</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium">Loss accumulation</td>
+                <td class="px-4 py-3 text-center text-blue-600 dark:text-blue-400">FP32</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Prevent underflow of small losses</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium">Attention (QKV, softmax)</td>
+                <td class="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400">BF16</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Wide range prevents overflow; speed</td>
+              </tr>
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium">Embedding lookup</td>
+                <td class="px-4 py-3 text-center text-blue-600 dark:text-blue-400">FP32</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Precision needed for rare tokens</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium">Optimizer states (Adam m, v)</td>
+                <td class="px-4 py-3 text-center text-blue-600 dark:text-blue-400">FP32</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">v must resolve small gradients²</td>
+              </tr>
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium">MatMul (linear layers)</td>
+                <td class="px-4 py-3 text-center text-emerald-600 dark:text-emerald-400">BF16</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Tensor Core throughput; range ok</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium">LayerNorm / RMSNorm</td>
+                <td class="px-4 py-3 text-center text-blue-600 dark:text-blue-400">FP32</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Variance computation sensitive to ε</td>
+              </tr>
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium">Inference (weights)</td>
+                <td class="px-4 py-3 text-center text-amber-600 dark:text-amber-400">INT8 / INT4</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Memory bandwidth savings at serve</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 text-sm mb-6">
+          <strong>Key rule:</strong> Always accumulate loss and optimizer second moments in FP32.
+          BF16 has epsilon ~7.8e-3; a gradient of magnitude 1e-4 is below its precision floor and
+          will round to zero, silently killing learning for those parameters.
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn as nn
+
+# Master-weight pattern for mixed-precision training
+model = nn.Linear(512, 512)
+master_weights = {n: p.float().clone() for n, p in model.named_parameters()}
+optimizer = torch.optim.AdamW(list(master_weights.values()), lr=1e-4)
+
+def train_step(x, target):
+    # Cast master weights -> BF16 for forward pass
+    for n, p in model.named_parameters():
+        p.data.copy_(master_weights[n].bfloat16())
+    with torch.autocast(device_type='cpu', dtype=torch.bfloat16):
+        loss = nn.functional.mse_loss(model(x), target)
+    loss.backward()            # grads in BF16
+    # Copy grads to FP32 master, then optimise
+    for n, p in model.named_parameters():
+        if p.grad is not None:
+            master_weights[n].grad = p.grad.float()
+    optimizer.step();  optimizer.zero_grad()
+</code></pre>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-5 px-6 text-center text-xs text-gray-400 dark:text-gray-500">
+    <div class="flex flex-wrap justify-center gap-4">
+      <a href="math-llm.html"     class="hover:text-blue-500">← Back to Mathematics Behind LLMs</a>
+      <a href="math-llm-ch6.html" class="hover:text-blue-500">← Chapter 6</a>
+      <a href="math-llm-ch8.html" class="hover:text-blue-500">Chapter 8 →</a>
+    </div>
+    <p class="mt-2">Chapter 7 — Numerical Methods &amp; Floating Point Stability · 2026 · Built with Tailwind CSS + KaTeX</p>
+  </footer>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.classList.contains('dark');
+      html.classList.toggle('dark', !isDark);
+      localStorage.setItem('theme', isDark ? 'light' : 'dark');
+      document.getElementById('themeIcon').textContent  = isDark ? '🌙' : '☀️';
+      document.getElementById('themeLabel').textContent = isDark ? 'Dark' : 'Light';
+    }
+    (function () {
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const useDark = saved ? saved === 'dark' : prefersDark;
+      document.documentElement.classList.toggle('dark', useDark);
+      document.getElementById('themeIcon').textContent  = useDark ? '☀️' : '🌙';
+      document.getElementById('themeLabel').textContent = useDark ? 'Light' : 'Dark';
+    })();
+    const sections = document.querySelectorAll('section[id]');
+    const navLinks  = document.querySelectorAll('.nav-link');
+    const observer  = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          navLinks.forEach(l => l.classList.remove('text-blue-600','dark:text-blue-400','bg-blue-50','dark:bg-gray-800','font-semibold'));
+          const a = document.querySelector(`.nav-link[href="#${e.target.id}"]`);
+          if (a) a.classList.add('text-blue-600','dark:text-blue-400','bg-blue-50','dark:bg-gray-800','font-semibold');
+        }
+      });
+    }, { rootMargin: '-30% 0px -60% 0px' });
+    sections.forEach(s => observer.observe(s));
+  </script>
+</body>
+</html>

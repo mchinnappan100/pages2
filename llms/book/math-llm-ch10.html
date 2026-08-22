@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chapter 10 — Advanced Architectures &amp; Efficiency</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <style>* { transition: background-color 0.2s, color 0.2s, border-color 0.2s; }</style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]})"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>document.addEventListener('DOMContentLoaded', () => hljs.highlightAll());</script>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 min-h-screen flex flex-col">
+
+  <!-- TOP NAV -->
+  <header class="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <div class="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">⚡</span>
+        <div>
+          <h1 class="text-base font-bold text-blue-700 dark:text-blue-400 leading-tight">Advanced Architectures &amp; Efficiency</h1>
+          <p class="text-xs text-gray-500 dark:text-gray-400">MoE · Quantization · Speculative Decoding · Distillation · KV Cache · 2026</p>
+        </div>
+      </div>
+      <button onclick="toggleTheme()"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
+               bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700
+               text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600">
+        <span id="themeIcon">☀️</span><span id="themeLabel">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="max-w-screen-xl mx-auto w-full flex flex-1">
+
+    <!-- SIDEBAR -->
+    <aside class="hidden md:flex flex-col w-60 shrink-0 sticky top-14 self-start h-[calc(100vh-3.5rem)] overflow-y-auto
+                  border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-6 px-4">
+      <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">Chapter 10</p>
+      <nav class="flex flex-col gap-0.5 text-sm">
+        <a href="#s1"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">1. Mixture of Experts</a>
+        <a href="#s2"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">2. GQA &amp; MQA</a>
+        <a href="#s3"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">3. Post-Training Quantization</a>
+        <a href="#s4"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">4. Speculative Decoding</a>
+        <a href="#s5"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">5. PagedAttention &amp; KV Cache</a>
+        <a href="#s6"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">6. Knowledge Distillation</a>
+        <a href="#s7"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">7. Flash Attention Math</a>
+        <a href="#s8"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">8. Continuous Batching</a>
+        <a href="#s9"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">9. Pruning &amp; Sparse Models</a>
+        <a href="#s10" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">10. Efficient LLM Stack</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 px-6 py-10 max-w-4xl">
+
+      <!-- S1: Mixture of Experts -->
+      <section id="s1" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 1</span>
+        <h2 class="text-3xl font-bold mb-4">Mixture of Experts (MoE)</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          MoE replaces the dense FFN in each Transformer layer with $N$ expert sub-networks and a learned router. Only $k=2$ experts process each token, so the <em>active</em> parameter count stays small while the <em>total</em> parameter count scales to hundreds of billions — giving GPT-4 / Mixtral class capacity at a fraction of the compute cost per token.
+        </p>
+
+        <!-- MoE diagram -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">MoE Layer — Top-2 Routing</h3>
+          <svg viewBox="0 0 560 160" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11">
+            <defs>
+              <marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/></marker>
+              <marker id="arb" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#3b82f6"/></marker>
+            </defs>
+            <!-- Input -->
+            <rect x="10" y="65" width="60" height="30" rx="7" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="40" y="84" text-anchor="middle" font-weight="600" fill="#1d4ed8">Input x</text>
+            <line x1="70" y1="80" x2="100" y2="80" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+            <!-- Router -->
+            <rect x="100" y="58" width="70" height="44" rx="8" fill="#fef9c3" stroke="#d97706" stroke-width="1.5"/>
+            <text x="135" y="78" text-anchor="middle" font-weight="700" fill="#92400e">Router</text>
+            <text x="135" y="93" text-anchor="middle" font-size="10" fill="#b45309">Top-2 gates</text>
+            <!-- Lines to experts -->
+            <line x1="170" y1="72" x2="210" y2="40"  stroke="#10b981" stroke-width="2" marker-end="url(#arb)"/>
+            <line x1="170" y1="80" x2="210" y2="80"  stroke="#10b981" stroke-width="2" marker-end="url(#arb)"/>
+            <line x1="170" y1="88" x2="210" y2="120" stroke="#9ca3af" stroke-width="1.2" stroke-dasharray="4 2" marker-end="url(#arr)"/>
+            <!-- Expert boxes -->
+            <!-- Expert 1 (active) -->
+            <rect x="210" y="20" width="80" height="40" rx="7" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+            <text x="250" y="38" text-anchor="middle" font-weight="700" fill="#065f46">Expert 1</text>
+            <text x="250" y="52" text-anchor="middle" font-size="10" fill="#059669">FFN (active)</text>
+            <!-- Expert 2 (active) -->
+            <rect x="210" y="60" width="80" height="40" rx="7" fill="#d1fae5" stroke="#10b981" stroke-width="2"/>
+            <text x="250" y="78" text-anchor="middle" font-weight="700" fill="#065f46">Expert 2</text>
+            <text x="250" y="92" text-anchor="middle" font-size="10" fill="#059669">FFN (active)</text>
+            <!-- Expert N (inactive) -->
+            <rect x="210" y="100" width="80" height="40" rx="7" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1.2"/>
+            <text x="250" y="118" text-anchor="middle" fill="#9ca3af">Expert N</text>
+            <text x="250" y="132" text-anchor="middle" font-size="10" fill="#9ca3af">inactive</text>
+            <!-- Output arrows -->
+            <line x1="290" y1="40"  x2="340" y2="72" stroke="#10b981" stroke-width="2" marker-end="url(#arb)"/>
+            <line x1="290" y1="80"  x2="340" y2="80" stroke="#10b981" stroke-width="2" marker-end="url(#arb)"/>
+            <!-- Weighted sum -->
+            <rect x="340" y="58" width="80" height="44" rx="8" fill="#ede9fe" stroke="#8b5cf6" stroke-width="1.5"/>
+            <text x="380" y="78" text-anchor="middle" font-weight="700" fill="#5b21b6">Weighted</text>
+            <text x="380" y="93" text-anchor="middle" fill="#7c3aed">Sum</text>
+            <!-- Output -->
+            <line x1="420" y1="80" x2="450" y2="80" stroke="#6b7280" stroke-width="1.5" marker-end="url(#arr)"/>
+            <rect x="450" y="65" width="60" height="30" rx="7" fill="#dbeafe" stroke="#3b82f6" stroke-width="1.5"/>
+            <text x="480" y="84" text-anchor="middle" font-weight="600" fill="#1d4ed8">Output</text>
+            <!-- Label -->
+            <text x="280" y="152" text-anchor="middle" font-size="10" fill="#6b7280">Only 2 of N experts active per token</text>
+          </svg>
+        </div>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">Router gate and MoE output:</p>
+          $$\mathbf{g}(\mathbf{x})=\text{TopK}(\text{softmax}(\mathbf{x}\mathbf{W}_g),\, k), \qquad \text{output}=\sum_{i\in\text{TopK}}\mathbf{g}_i(\mathbf{x})\cdot E_i(\mathbf{x})$$
+          <p class="text-sm text-gray-600 dark:text-gray-300 mt-4 mb-2">Load-balancing auxiliary loss to prevent router collapse:</p>
+          $$\mathcal{L}_{aux}=\alpha\cdot N\sum_{i=1}^{N} f_i\cdot P_i$$
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">$f_i$ = fraction of tokens routed to expert $i$; $P_i$ = mean gate probability for expert $i$.</p>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm mb-2"><code class="language-python">import torch, torch.nn as nn, torch.nn.functional as F
+
+class MoELayer(nn.Module):
+    def __init__(self, d, n_experts=8, k=2, d_ff=256):
+        super().__init__()
+        self.k = k; self.n = n_experts
+        self.gate = nn.Linear(d, n_experts, bias=False)
+        self.experts = nn.ModuleList([
+            nn.Sequential(nn.Linear(d, d_ff), nn.ReLU(), nn.Linear(d_ff, d))
+            for _ in range(n_experts)])
+
+    def forward(self, x):                        # x: (B, T, d)
+        B, T, d = x.shape; flat = x.view(-1, d)  # (BT, d)
+        logits = self.gate(flat)                  # (BT, N)
+        topk_w, topk_idx = torch.topk(F.softmax(logits, -1), self.k, dim=-1)
+        out = torch.zeros_like(flat)
+        for i, expert in enumerate(self.experts):
+            mask = (topk_idx == i).any(-1)        # tokens routed here
+            if mask.any():
+                w = topk_w[mask][topk_idx[mask] == i].unsqueeze(-1)
+                out[mask] += w * expert(flat[mask])
+        return out.view(B, T, d)
+</code></pre>
+      </section>
+
+      <!-- S2: GQA & MQA -->
+      <section id="s2" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 2</span>
+        <h2 class="text-3xl font-bold mb-4">Grouped Query Attention (GQA) &amp; Multi-Query Attention</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          Standard MHA has $H$ heads each with independent K, V projections — the KV cache grows as $O(H)$ per token, dominating memory at long context. MQA shares a single K, V pair; GQA uses $G$ groups ($1 \le G \le H$), each sharing one K, V. LLaMA-3 70B uses $H=64$ query heads with $G=8$ KV heads, yielding an $8\times$ KV cache reduction with negligible quality loss.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">KV cache memory per token per layer:</p>
+          $$\text{MHA} \propto H, \quad \text{GQA} \propto G, \quad \text{MQA} \propto 1$$
+          <p class="text-sm text-gray-600 dark:text-gray-300 mt-4">LLaMA-3 70B: $H=64,\; G=8 \;\Rightarrow\; 8\times$ reduction. Each query head $h$ in group $g$ uses $K_g, V_g$ where $g = \lfloor h \cdot G / H \rfloor$.</p>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm mb-2"><code class="language-python">import torch, torch.nn as nn, math
+
+class GQAttention(nn.Module):
+    def __init__(self, d=512, H=8, G=2):
+        super().__init__()
+        self.H, self.G, self.dh = H, G, d // H
+        self.q = nn.Linear(d, d)
+        self.k = nn.Linear(d, G * self.dh)
+        self.v = nn.Linear(d, G * self.dh)
+        self.out = nn.Linear(d, d)
+
+    def forward(self, x):
+        B, T, _ = x.shape
+        Q = self.q(x).view(B, T, self.H, self.dh).transpose(1,2)
+        K = self.k(x).view(B, T, self.G, self.dh).transpose(1,2)
+        V = self.v(x).view(B, T, self.G, self.dh).transpose(1,2)
+        rep = self.H // self.G
+        K = torch.repeat_interleave(K, rep, dim=1)  # (B,H,T,dh)
+        V = torch.repeat_interleave(V, rep, dim=1)
+        attn = (Q @ K.transpose(-2,-1)) / math.sqrt(self.dh)
+        return self.out((attn.softmax(-1) @ V).transpose(1,2).reshape(B,T,-1))
+</code></pre>
+      </section>
+
+      <!-- S3: PTQ -->
+      <section id="s3" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 3</span>
+        <h2 class="text-3xl font-bold mb-4">Post-Training Quantization (PTQ)</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          PTQ compresses weights after training, reducing memory by 2–4× without retraining. Per-channel symmetric INT8 quantization assigns one scale $s$ per output channel so large outliers don't corrupt small weights. GPTQ extends this with a second-order update that minimizes layer-wise reconstruction error, enabling accurate 3–4 bit quantization of 70B+ models.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">Per-channel symmetric INT8:</p>
+          $$s = \frac{\max(|\mathbf{W}|)}{127}, \quad \mathbf{W}_q = \text{round}\!\left(\frac{\mathbf{W}}{s}\right), \quad \hat{\mathbf{W}} = s\cdot\mathbf{W}_q$$
+          <p class="text-sm text-gray-600 dark:text-gray-300 mt-3 mb-2">Frobenius error bound: $\|\mathbf{W}-\hat{\mathbf{W}}\|_F \leq \tfrac{s}{2}\sqrt{mn}$. GPTQ layer-wise objective:</p>
+          $$\min_{\hat{\mathbf{W}}}\;\|\mathbf{W}\mathbf{X}-\hat{\mathbf{W}}\mathbf{X}\|^2 \quad\text{using Hessian diagonal }\mathbf{H}=\mathbf{X}\mathbf{X}^\top$$
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm mb-2"><code class="language-python">import torch, torch.nn as nn
+
+def fake_int8_linear(linear: nn.Linear, x: torch.Tensor):
+    W = linear.weight.data.float()           # (out, in)
+    # per-channel scale (one scale per output neuron)
+    s = W.abs().max(dim=1, keepdim=True).values / 127.0
+    W_q = W.div(s).round().clamp(-128, 127)  # INT8 range
+    W_hat = W_q * s                          # dequantized
+    err = (W - W_hat).norm() / W.norm()
+    print(f"Relative Frobenius error: {err:.4f}")
+    # Run inference with fake-quantized weights
+    with torch.no_grad():
+        linear.weight.data = W_hat.to(linear.weight.dtype)
+    return linear(x), err
+</code></pre>
+      </section>
+
+      <!-- S4: Speculative Decoding -->
+      <section id="s4" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 4</span>
+        <h2 class="text-3xl font-bold mb-4">Speculative Decoding</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          Autoregressive decode is memory-bound: the large target model $M_p$ processes one token at a time, underutilizing compute. Speculative decoding uses a tiny draft model $M_q$ to propose $\gamma$ tokens in a single forward pass, then scores all of them with $M_p$ in parallel. Accepted tokens are kept via rejection sampling — losslessly preserving the exact distribution of $M_p$ while amortizing its cost over multiple tokens.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">Acceptance probability for draft token $x_t$:</p>
+          $$\Pr[\text{accept}\; x_t] = \min\!\left(1,\;\frac{p(x_t)}{q(x_t)}\right)$$
+          <p class="text-sm text-gray-600 dark:text-gray-300 mt-3 mb-2">Expected accepted tokens per speculative step (acceptance rate $\alpha$):</p>
+          $$\mathbb{E}[\text{tokens}] = \frac{1 - \alpha^{\gamma+1}}{1-\alpha}$$
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm mb-2"><code class="language-python">import torch, torch.nn.functional as F
+
+def speculative_decode(prompt, draft_model, target_model, gamma=4, max_new=50):
+    tokens = prompt.clone()
+    while tokens.shape[-1] < prompt.shape[-1] + max_new:
+        # Draft: generate gamma tokens autoregressively
+        draft_ids, draft_probs = [], []
+        draft_input = tokens
+        for _ in range(gamma):
+            logits = draft_model(draft_input).logits[:, -1]
+            probs = F.softmax(logits, dim=-1)
+            t = torch.multinomial(probs, 1)
+            draft_ids.append(t); draft_probs.append(probs.gather(1, t))
+            draft_input = torch.cat([draft_input, t], dim=-1)
+        draft_seq = torch.cat([tokens] + draft_ids, dim=-1)
+        # Target: score all drafted tokens in one pass
+        target_logits = target_model(draft_seq).logits[:, tokens.shape[-1]-1:-1]
+        target_probs = F.softmax(target_logits, dim=-1)
+        # Rejection sampling
+        accepted = 0
+        for i in range(gamma):
+            tp = target_probs[:, i].gather(1, draft_ids[i])
+            if torch.rand(1) < (tp / draft_probs[i]).clamp(max=1.0):
+                tokens = torch.cat([tokens, draft_ids[i]], dim=-1); accepted += 1
+            else:
+                break
+        if accepted < gamma:  # sample correction token from target
+            adj = (target_probs[:, accepted] - F.softmax(
+                   draft_model(tokens).logits[:, -1], dim=-1)).clamp(min=0)
+            tokens = torch.cat([tokens, torch.multinomial(adj/adj.sum(-1,keepdim=True),1)],dim=-1)
+    return tokens
+</code></pre>
+      </section>
+
+      <!-- S5: PagedAttention & KV Cache -->
+      <section id="s5" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 5</span>
+        <h2 class="text-3xl font-bold mb-4">PagedAttention &amp; KV Cache</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          Each decode step appends one K, V vector per layer to the KV cache. For $L$ layers, $H$ heads, head dimension $d_k$, and sequence length $T$, total cache bytes = $2 \cdot L \cdot H \cdot d_k \cdot T \times \text{sizeof(dtype)}$. Traditional contiguous allocation reserves space up front, wasting memory when sequences are shorter than the reserved maximum. PagedAttention (vLLM) stores KV in fixed-size pages (e.g., 16 tokens) allocated on demand — eliminating fragmentation.
+        </p>
+
+        <!-- KV Cache memory diagram -->
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">KV Cache: Contiguous vs Paged</h3>
+          <svg viewBox="0 0 520 150" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11">
+            <defs>
+              <marker id="arr2" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/></marker>
+            </defs>
+            <!-- Left: Contiguous -->
+            <text x="115" y="18" text-anchor="middle" font-weight="700" fill="#ef4444">Contiguous (reserved)</text>
+            <rect x="20" y="28" width="180" height="30" rx="5" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="110" y="47" text-anchor="middle" font-size="10" fill="#065f46">Used KV tokens</text>
+            <rect x="20" y="58" width="180" height="50" rx="5" fill="#fee2e2" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="5 3"/>
+            <text x="110" y="80" text-anchor="middle" font-size="10" fill="#dc2626">Wasted memory</text>
+            <text x="110" y="96" text-anchor="middle" font-size="10" fill="#ef4444">(reserved but unused)</text>
+            <rect x="20" y="108" width="180" height="28" rx="5" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1"/>
+            <text x="110" y="126" text-anchor="middle" font-size="10" fill="#9ca3af">Reserved max-len</text>
+
+            <!-- Divider -->
+            <line x1="260" y1="20" x2="260" y2="140" stroke="#e5e7eb" stroke-width="1" stroke-dasharray="4 3"/>
+
+            <!-- Right: Paged -->
+            <text x="385" y="18" text-anchor="middle" font-weight="700" fill="#10b981">Paged (on-demand)</text>
+            <!-- Page blocks -->
+            <rect x="270" y="28" width="50" height="30" rx="5" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="295" y="47" text-anchor="middle" font-size="10" fill="#065f46">Page 1</text>
+            <rect x="328" y="28" width="50" height="30" rx="5" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="353" y="47" text-anchor="middle" font-size="10" fill="#065f46">Page 2</text>
+            <rect x="386" y="28" width="50" height="30" rx="5" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="411" y="47" text-anchor="middle" font-size="10" fill="#065f46">Page 3</text>
+            <rect x="444" y="28" width="50" height="30" rx="5" fill="#f3f4f6" stroke="#9ca3af" stroke-width="1" stroke-dasharray="4 2"/>
+            <text x="469" y="47" text-anchor="middle" font-size="10" fill="#9ca3af">free</text>
+            <!-- No waste label -->
+            <rect x="270" y="72" width="224" height="30" rx="7" fill="#d1fae5" stroke="#10b981" stroke-width="1.5"/>
+            <text x="382" y="92" text-anchor="middle" font-size="11" font-weight="600" fill="#065f46">No wasted memory — pages allocated per need</text>
+            <!-- Page pointer table -->
+            <text x="382" y="125" text-anchor="middle" font-size="10" fill="#6b7280">Block table maps logical → physical pages</text>
+          </svg>
+        </div>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          $$\text{KV cache bytes} = 2 \cdot L \cdot H \cdot d_k \cdot T \cdot \text{sizeof(dtype)}$$
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-2">Example: LLaMA-3 8B, FP16 — $L=32$, $H=32$, $d_k=128$, $T=4096$: $2\times32\times32\times128\times4096\times2 = 2\text{ GB}$.</p>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm mb-2"><code class="language-python">import torch
+
+class PagedKVCache:
+    def __init__(self, n_layers, n_heads, d_k, page_size=16, max_pages=512, dtype=torch.float16):
+        self.ps = page_size; self.L = n_layers; self.H = n_heads; self.dk = d_k
+        # Physical page pool: (max_pages, page_size, 2, n_heads, d_k)
+        self.pool = torch.zeros(max_pages, page_size, 2, n_heads, d_k, dtype=dtype)
+        self.free = list(range(max_pages))
+        self.tables: dict = {}  # seq_id -> list of page indices
+
+    def append(self, seq_id, layer, k, v):   # k,v: (H, d_k)
+        if seq_id not in self.tables: self.tables[seq_id] = []
+        tbl = self.tables[seq_id]
+        total = sum(self.ps for _ in tbl)    # tokens already stored
+        if total % self.ps == 0:             # need a new page
+            pg = self.free.pop(0); tbl.append(pg)
+        pg, slot = tbl[-1], total % self.ps
+        self.pool[pg, slot, 0, :, :] = k
+        self.pool[pg, slot, 1, :, :] = v
+</code></pre>
+      </section>
+
+      <!-- S6: Knowledge Distillation -->
+      <section id="s6" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 6</span>
+        <h2 class="text-3xl font-bold mb-4">Knowledge Distillation</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          Distillation trains a small student model to mimic a large teacher's output distribution, not just its hard labels. The temperature $T$ softens the teacher's logits, revealing relative similarities between classes that carry more information than the argmax. Sequence-level distillation additionally aligns intermediate hidden states, enabling student models (e.g. DistilBERT at 40% the size) to recover 97%+ of teacher performance.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          $$\mathcal{L}_{KD}=(1-\alpha)\,\mathcal{L}_{CE}(\mathbf{y},\mathbf{p}_s)+\alpha T^2\,\mathcal{L}_{CE}\!\left(\text{softmax}\!\left(\tfrac{\mathbf{z}_t}{T}\right),\text{softmax}\!\left(\tfrac{\mathbf{z}_s}{T}\right)\right)$$
+          <p class="text-sm text-gray-600 dark:text-gray-300 mt-3">The $T^2$ factor compensates for gradient scaling introduced by temperature. Hidden-state alignment: $\mathcal{L}_{hs}=\|\mathbf{h}_t^{\text{teacher}}-\mathbf{W}\mathbf{h}_s^{\text{student}}\|^2$.</p>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm mb-2"><code class="language-python">import torch, torch.nn as nn, torch.nn.functional as F
+
+def distillation_loss(student_logits, teacher_logits, labels, T=4.0, alpha=0.5):
+    # Hard-label cross-entropy
+    ce_hard = F.cross_entropy(student_logits, labels)
+    # Soft targets: teacher distribution at temperature T
+    s_soft = F.log_softmax(student_logits / T, dim=-1)
+    t_soft = F.softmax(teacher_logits / T, dim=-1)
+    ce_soft = -(t_soft * s_soft).sum(dim=-1).mean()
+    return (1 - alpha) * ce_hard + alpha * (T ** 2) * ce_soft
+
+def train_step(student, teacher, batch, optimizer, T=4.0, alpha=0.5):
+    x, y = batch
+    with torch.no_grad(): t_logits = teacher(x)
+    s_logits = student(x)
+    loss = distillation_loss(s_logits, t_logits, y, T, alpha)
+    optimizer.zero_grad(); loss.backward(); optimizer.step()
+    return loss.item()
+</code></pre>
+      </section>
+
+      <!-- S7: Flash Attention Math Revisited -->
+      <section id="s7" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 7</span>
+        <h2 class="text-3xl font-bold mb-4">Flash Attention Math Revisited</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          FlashAttention tiles Q, K, V into blocks sized $B_r \times d$ and $B_c \times d$ that fit in SRAM of size $M$. The SRAM requirement per block is $4B_r d + B_r B_c$ floats; setting $B_c = \lfloor M/(4d) \rfloor$ saturates bandwidth while keeping the tile in SRAM. The online softmax recurrence accumulates output exactly in a single pass — no N×N matrix is ever written to HBM.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm text-gray-600 dark:text-gray-300 mb-2">Optimal tile sizes and IO complexity:</p>
+          $$B_c=\left\lfloor\frac{M}{4d}\right\rfloor,\quad B_r=\min\!\left(\left\lfloor\frac{M}{4d}\right\rfloor,\,d\right)$$
+          $$\text{IO complexity: } O\!\left(\frac{T^2 d}{M}\right) \text{ vs standard } O(T^2)$$
+          <p class="text-sm text-gray-600 dark:text-gray-300 mt-4 mb-2">Online softmax row-block update (running max $m$, sum $\ell$, output $O$):</p>
+          $$m_{\text{new}}=\max(m,\,m_{\text{block}}),\quad O_{\text{new}}=\frac{\ell\cdot O\cdot e^{m-m_{\text{new}}}+\tilde{O}_{\text{block}}\cdot e^{m_{\text{block}}-m_{\text{new}}}}{\ell_{\text{new}}}$$
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm mb-2"><code class="language-python">import torch, torch.nn.functional as F
+
+def flash_attention_sdpa(q, k, v, is_causal=True):
+    """Uses PyTorch's built-in FlashAttention kernel via SDPA."""
+    # q, k, v: (B, H, T, d_k)  — float16 or bfloat16 recommended
+    with torch.backends.cuda.sdp_kernel(
+        enable_flash=True, enable_math=False, enable_mem_efficient=True
+    ):
+        out = F.scaled_dot_product_attention(q, k, v, is_causal=is_causal)
+    return out   # (B, H, T, d_k) — exact, O(N) memory
+</code></pre>
+      </section>
+
+      <!-- S8: Continuous Batching & Throughput -->
+      <section id="s8" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 8</span>
+        <h2 class="text-3xl font-bold mb-4">Continuous Batching &amp; Throughput</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          Static batching idles the GPU when different sequences finish at different times. Continuous batching inserts new requests as slots free up, keeping GPU utilization near 100%. Prefill is compute-bound ($\sim 2\times12Ld^2 T_{\text{prompt}}$ FLOPs for all tokens at once), while decode is memory-bound ($\sim2\times12Ld^2$ FLOPs per single new token — far below roofline arithmetic intensity).
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          $$\text{Throughput}=\frac{B\cdot T_{\text{gen}}}{\text{wall time}}, \quad \text{Prefill FLOPs}\approx 2\cdot 12Ld^2\cdot T_{\text{prompt}}$$
+          $$\text{Arithmetic intensity}=\frac{\text{FLOPs}}{\text{memory bytes accessed}}\;\;\begin{cases}>I_{\text{ridge}} & \text{compute-bound}\\ <I_{\text{ridge}} & \text{memory-bound}\end{cases}$$
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm mb-2"><code class="language-python">import torch, time
+
+def throughput_benchmark(model, batch_size=8, seq_len=128, n_steps=20, device="cuda"):
+    model.eval().to(device)
+    ids = torch.randint(0, model.config.vocab_size, (batch_size, seq_len), device=device)
+    past = None
+    # Warm-up
+    with torch.no_grad():
+        for _ in range(3):
+            out = model(ids[:, -1:], past_key_values=past, use_cache=True)
+            past = out.past_key_values
+    torch.cuda.synchronize()
+    t0 = time.perf_counter()
+    with torch.no_grad():
+        for _ in range(n_steps):
+            out = model(ids[:, -1:], past_key_values=past, use_cache=True)
+            past = out.past_key_values
+    torch.cuda.synchronize()
+    elapsed = time.perf_counter() - t0
+    tok_per_sec = batch_size * n_steps / elapsed
+    print(f"Throughput: {tok_per_sec:.1f} tokens/s  ({elapsed*1000/n_steps:.1f} ms/step)")
+</code></pre>
+      </section>
+
+      <!-- S9: Pruning & Sparse Models -->
+      <section id="s9" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 9</span>
+        <h2 class="text-3xl font-bold mb-4">Pruning &amp; Sparse Models</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          Magnitude pruning zeroes weights with $|w_{ij}| &lt; \tau$, achieving sparsity $s = \text{zeros}/N$ with no retraining. Structured pruning removes entire attention heads or MLP neurons for hardware-friendly speedups. SparseGPT achieves 50–60% sparsity on LLMs with one-shot second-order updates, minimizing $\|\mathbf{W}\mathbf{X}-\hat{\mathbf{W}}\mathbf{X}\|^2$ without gradient steps.
+        </p>
+
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          $$\text{Magnitude pruning: }\hat{w}_{ij}=w_{ij}\cdot\mathbf{1}[|w_{ij}|\geq\tau], \quad s=\frac{\#\{w_{ij}=0\}}{N}$$
+          <p class="text-sm text-gray-600 dark:text-gray-300 mt-3">Lottery Ticket: the sparse subnetwork trained from the <em>original init</em> $\theta_0 \odot m$ matches dense accuracy. SparseGPT second-order update removes one weight at a time using the Hessian inverse without full retraining.</p>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm mb-2"><code class="language-python">import torch, torch.nn as nn
+import torch.nn.utils.prune as prune
+
+def magnitude_prune(model, sparsity=0.5):
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Linear):
+            prune.l1_unstructured(module, name='weight', amount=sparsity)
+    return model
+
+def check_sparsity(model):
+    total, zeros = 0, 0
+    for name, module in model.named_modules():
+        if isinstance(module, nn.Linear):
+            w = module.weight
+            zeros += (w == 0).sum().item()
+            total += w.numel()
+    print(f"Global sparsity: {zeros/total:.2%}  ({zeros}/{total} zero weights)")
+</code></pre>
+      </section>
+
+      <!-- S10: Putting It All Together -->
+      <section id="s10" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 10</span>
+        <h2 class="text-3xl font-bold mb-4">Putting It All Together: Efficient LLM Stack</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-6">
+          Modern production LLM inference stacks layer each technique to attack a different bottleneck. The table below summarizes the most impactful components, what each saves, and where it applies.
+        </p>
+
+        <div class="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm mb-8">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                <th class="text-left px-4 py-3 font-semibold">Technique</th>
+                <th class="text-left px-4 py-3 font-semibold">What it saves</th>
+                <th class="text-left px-4 py-3 font-semibold">Math key</th>
+                <th class="text-left px-4 py-3 font-semibold">Where applied</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium text-blue-700 dark:text-blue-400">FlashAttention</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Memory bandwidth</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">IO: $O(T^2 d/M)$</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Attention (train + infer)</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium text-emerald-700 dark:text-emerald-400">GQA / MQA</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">KV cache memory</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">KV $\propto G \ll H$</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Attention heads (infer)</td>
+              </tr>
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium text-amber-700 dark:text-amber-400">Quantization (INT4/8)</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Weight memory 2–4×</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">$\hat{W}=s\cdot\text{round}(W/s)$</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">All linear weights</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium text-purple-700 dark:text-purple-400">Speculative Decoding</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Latency 2–3×</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">$\mathbb{E}[\text{toks}]=\tfrac{1-\alpha^{\gamma+1}}{1-\alpha}$</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Decode loop</td>
+              </tr>
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium text-rose-700 dark:text-rose-400">Continuous Batching</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">GPU utilization</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Throughput = $BT/\text{wall}$</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Serving scheduler</td>
+              </tr>
+              <tr class="bg-gray-50 dark:bg-gray-850">
+                <td class="px-4 py-3 font-medium text-cyan-700 dark:text-cyan-400">LoRA</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Training params 100×</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">$\Delta W = BA$, rank $r$</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Fine-tuning</td>
+              </tr>
+              <tr class="bg-white dark:bg-gray-900">
+                <td class="px-4 py-3 font-medium text-indigo-700 dark:text-indigo-400">ZeRO (DeepSpeed)</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Training memory 8×</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Partition params/grad/opt</td>
+                <td class="px-4 py-3 text-gray-600 dark:text-gray-400">Distributed training</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <pre class="rounded-xl overflow-x-auto text-sm mb-6"><code class="language-python">import torch, torch.nn.functional as F
+
+def efficient_inference_step(model, input_ids, kv_cache, device="cuda"):
+    """Minimal efficient inference: BF16 + FlashAttention SDPA + KV cache."""
+    model = model.to(device=device, dtype=torch.bfloat16)
+    model.eval()
+    with torch.inference_mode():
+        out = model(
+            input_ids.to(device),
+            past_key_values=kv_cache,
+            use_cache=True,
+            # PyTorch 2.x SDPA dispatches to FlashAttention kernel automatically
+            attn_implementation="sdpa",
+        )
+    next_token = out.logits[:, -1].argmax(-1, keepdim=True)
+    return next_token, out.past_key_values
+
+def generate(model, prompt_ids, max_new=128, device="cuda"):
+    ids, cache = prompt_ids.to(device), None
+    for _ in range(max_new):
+        ids_in = ids if cache is None else ids[:, -1:]
+        next_tok, cache = efficient_inference_step(model, ids_in, cache, device)
+        ids = torch.cat([ids, next_tok], dim=-1)
+        if next_tok.item() == model.config.eos_token_id: break
+    return ids
+</code></pre>
+
+        <!-- Callout -->
+        <div class="rounded-2xl border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950 p-6 shadow-sm">
+          <p class="text-base font-semibold text-blue-800 dark:text-blue-300 mb-2">Final Insight</p>
+          <p class="text-gray-700 dark:text-gray-300 leading-relaxed italic">
+            "The modern LLM is not just a mathematical model — it is a carefully engineered system where every component reflects a mathematical insight."
+          </p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- FOOTER -->
+  <footer class="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-5 px-6 text-center text-xs text-gray-400 dark:text-gray-500">
+    <div class="flex items-center justify-center gap-6 flex-wrap">
+      <a href="math-llm.html" class="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">← Back to Mathematics Behind LLMs</a>
+      <span class="text-gray-300 dark:text-gray-700">|</span>
+      <a href="math-llm-ch9.html" class="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">← Chapter 9</a>
+      <span class="text-gray-300 dark:text-gray-700">|</span>
+      <span class="text-gray-400 dark:text-gray-600">Chapter 10 — Final Chapter</span>
+    </div>
+    <p class="mt-2">Advanced Architectures &amp; Efficiency · Mathematics Behind LLMs · 2026</p>
+  </footer>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const isDark = html.classList.contains('dark');
+      html.classList.toggle('dark', !isDark);
+      localStorage.setItem('theme', isDark ? 'light' : 'dark');
+      document.getElementById('themeIcon').textContent  = isDark ? '🌙' : '☀️';
+      document.getElementById('themeLabel').textContent = isDark ? 'Dark' : 'Light';
+    }
+    (function () {
+      const saved = localStorage.getItem('theme');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const useDark = saved ? saved === 'dark' : prefersDark;
+      document.documentElement.classList.toggle('dark', useDark);
+      document.getElementById('themeIcon').textContent  = useDark ? '☀️' : '🌙';
+      document.getElementById('themeLabel').textContent = useDark ? 'Light' : 'Dark';
+    })();
+    const sections = document.querySelectorAll('section[id]');
+    const navLinks  = document.querySelectorAll('.nav-link');
+    const observer  = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          navLinks.forEach(l => l.classList.remove('text-blue-600','dark:text-blue-400','bg-blue-50','dark:bg-gray-800','font-semibold'));
+          const a = document.querySelector(`.nav-link[href="#${e.target.id}"]`);
+          if (a) a.classList.add('text-blue-600','dark:text-blue-400','bg-blue-50','dark:bg-gray-800','font-semibold');
+        }
+      });
+    }, { rootMargin: '-30% 0px -60% 0px' });
+    sections.forEach(s => observer.observe(s));
+  </script>
+</body>
+</html>

@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Chapter 8 — Embeddings &amp; Similarity Search</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+  <style>* { transition: background-color 0.2s, color 0.2s, border-color 0.2s; }</style>
+  <!-- KaTeX -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}]})"></script>
+  <!-- Highlight.js -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>document.addEventListener('DOMContentLoaded', () => hljs.highlightAll());</script>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 min-h-screen flex flex-col">
+
+  <!-- HEADER -->
+  <header class="sticky top-0 z-50 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <div class="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-2xl">🔎</span>
+        <div>
+          <h1 class="text-base font-bold text-blue-700 dark:text-blue-400 leading-tight">Embeddings &amp; Similarity Search</h1>
+          <p class="text-xs text-gray-500 dark:text-gray-400">Dense Retrieval · ANN · HNSW · Product Quantization · RAG Math · 2026</p>
+        </div>
+      </div>
+      <button onclick="toggleTheme()"
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium
+               bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700
+               text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600">
+        <span id="themeIcon">☀️</span><span id="themeLabel">Light</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="max-w-screen-xl mx-auto w-full flex flex-1">
+
+    <!-- SIDEBAR -->
+    <aside class="hidden md:flex flex-col w-60 shrink-0 sticky top-14 self-start h-[calc(100vh-3.5rem)] overflow-y-auto
+                  border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-6 px-4">
+      <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">Chapter 8</p>
+      <nav class="flex flex-col gap-0.5 text-sm">
+        <a href="#s1"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">s1 · Embedding Geometry</a>
+        <a href="#s2"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">s2 · Contrastive &amp; InfoNCE</a>
+        <a href="#s3"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">s3 · k-NN Search</a>
+        <a href="#s4"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">s4 · LSH</a>
+        <a href="#s5"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">s5 · Product Quantization</a>
+        <a href="#s6"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">s6 · HNSW Graph Index</a>
+        <a href="#s7"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">s7 · Bi- vs Cross-Encoder</a>
+        <a href="#s8"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">s8 · Dense Passage Retrieval</a>
+        <a href="#s9"  class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">s9 · RAG Math</a>
+        <a href="#s10" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">s10 · Matryoshka Embeddings</a>
+      </nav>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="flex-1 px-6 py-10 max-w-4xl">
+
+      <!-- s1 -->
+      <section id="s1" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 1</span>
+        <h2 class="text-3xl font-bold mb-4">Embedding Geometry</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          An embedding maps discrete tokens or documents into a continuous vector space $\mathbb{R}^d$.
+          Proximity in this space encodes semantic relatedness. Three standard distance/similarity metrics
+          are used depending on whether vectors are unit-normalized.
+        </p>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="mb-2">L2 distance and cosine similarity:</p>
+          $$d(\mathbf{u},\mathbf{v})=\|\mathbf{u}-\mathbf{v}\|_2, \qquad \cos\theta=\frac{\mathbf{u}\cdot\mathbf{v}}{\|\mathbf{u}\|\|\mathbf{v}\|}$$
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-3">For unit-normalized vectors $\|\mathbf{u}\|=\|\mathbf{v}\|=1$, the inner product $\mathbf{u}\cdot\mathbf{v}$ equals $\cos\theta$, so dot-product retrieval is equivalent to cosine search.</p>
+        </div>
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn.functional as F
+
+u = torch.randn(8, 128)   # 8 query embeddings, dim=128
+v = torch.randn(32, 128)  # 32 document embeddings
+
+# Pairwise L2 distances  (8 x 32)
+dists = torch.cdist(u, v, p=2)
+
+# Cosine similarity for first query vs all docs
+cos = F.cosine_similarity(u[0].unsqueeze(0), v)  # (32,)
+
+# Unit-normalize for dot-product retrieval
+u_n = F.normalize(u, p=2, dim=-1)
+v_n = F.normalize(v, p=2, dim=-1)
+scores = u_n @ v_n.T   # (8 x 32) — equals cosine similarity
+print(scores.shape)    # torch.Size([8, 32])</code></pre>
+      </section>
+
+      <!-- s2 -->
+      <section id="s2" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 2</span>
+        <h2 class="text-3xl font-bold mb-4">Contrastive Learning &amp; InfoNCE</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          InfoNCE (noise-contrastive estimation) trains an encoder by maximising the similarity of a
+          query $\mathbf{q}$ with its positive key $\mathbf{k}^+$ relative to $N$ negatives $\mathbf{k}_i^-$.
+          Temperature $\tau$ controls the sharpness of the distribution; smaller $\tau$ creates harder
+          gradients that pull positives very tightly together.
+        </p>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          $$\mathcal{L}=-\log\frac{\exp(\mathbf{q}\cdot\mathbf{k}^+/\tau)}{\exp(\mathbf{q}\cdot\mathbf{k}^+/\tau)+\displaystyle\sum_{i=1}^N\exp(\mathbf{q}\cdot\mathbf{k}_i^-/\tau)}$$
+        </div>
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn.functional as F
+
+def infonce_loss(q, k_pos, k_neg, tau=0.07):
+    """q: (B,d), k_pos: (B,d), k_neg: (B,N,d)"""
+    q  = F.normalize(q,     p=2, dim=-1)
+    kp = F.normalize(k_pos, p=2, dim=-1)
+    kn = F.normalize(k_neg, p=2, dim=-1)
+
+    pos = (q * kp).sum(-1, keepdim=True) / tau        # (B,1)
+    neg = torch.einsum('bd,bnd->bn', q, kn) / tau     # (B,N)
+
+    logits = torch.cat([pos, neg], dim=-1)             # (B,1+N)
+    labels = torch.zeros(logits.size(0),
+                         dtype=torch.long,
+                         device=q.device)              # index 0 = positive
+    return F.cross_entropy(logits, labels)
+
+loss = infonce_loss(torch.randn(16,128),
+                    torch.randn(16,128),
+                    torch.randn(16,31,128))
+print(loss.item())</code></pre>
+      </section>
+
+      <!-- s3 -->
+      <section id="s3" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 3</span>
+        <h2 class="text-3xl font-bold mb-4">k-Nearest Neighbour Search</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          Exact k-NN retrieves the $k$ closest vectors in $\mathbb{R}^d$ by exhaustive comparison.
+          At $N=100\text{M}$ vectors with $d=768$, each query requires ~77B multiply-adds — far too
+          slow for real-time systems. Approximate methods trade a small recall loss for orders-of-magnitude speedup.
+        </p>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          $$\text{exact k-NN}(\mathbf{q})=\underset{i\in[N]}{\operatorname{argmin}}\;\|\mathbf{q}-\mathbf{x}_i\|_2 \qquad O(Nd)\text{ per query}$$
+          <!-- SVG: 2D scatter with query, exact radius, ANN region -->
+          <svg viewBox="0 0 500 170" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-xl mx-auto mt-4" font-family="ui-sans-serif,system-ui,sans-serif" font-size="11">
+            <rect x="0" y="0" width="500" height="170" rx="12" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+            <!-- ANN region (larger, dashed) -->
+            <circle cx="250" cy="85" r="68" fill="none" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="6 3"/>
+            <!-- Exact radius circle -->
+            <circle cx="250" cy="85" r="44" fill="none" stroke="#22d3ee" stroke-width="1.8"/>
+            <!-- Background points -->
+            <circle cx="90"  cy="40"  r="4" fill="#475569"/>
+            <circle cx="140" cy="130" r="4" fill="#475569"/>
+            <circle cx="180" cy="55"  r="4" fill="#475569"/>
+            <circle cx="320" cy="140" r="4" fill="#475569"/>
+            <circle cx="400" cy="60"  r="4" fill="#475569"/>
+            <circle cx="420" cy="130" r="4" fill="#475569"/>
+            <circle cx="70"  cy="100" r="4" fill="#475569"/>
+            <circle cx="460" cy="90"  r="4" fill="#475569"/>
+            <!-- Points inside exact radius (true NN) -->
+            <circle cx="218" cy="68"  r="5" fill="#22d3ee"/>
+            <circle cx="285" cy="58"  r="5" fill="#22d3ee"/>
+            <circle cx="270" cy="115" r="5" fill="#22d3ee"/>
+            <!-- Point in ANN but outside exact (false negative risk) -->
+            <circle cx="300" cy="138" r="5" fill="#f59e0b"/>
+            <circle cx="192" cy="138" r="5" fill="#f59e0b"/>
+            <!-- Query star -->
+            <polygon points="250,70 253,80 263,80 255,86 258,96 250,90 242,96 245,86 237,80 247,80"
+                     fill="#f43f5e" stroke="#fda4af" stroke-width="1"/>
+            <!-- Labels -->
+            <text x="298" y="44"  fill="#22d3ee" font-size="10">exact radius</text>
+            <text x="335" y="160" fill="#f59e0b" font-size="10">ANN region</text>
+            <text x="305" cy="130" fill="#f59e0b" font-size="9"></text>
+            <text x="186" y="155" fill="#fb923c" font-size="9">false negative</text>
+            <text x="240" y="108" fill="#f43f5e" font-size="10" font-weight="700">q</text>
+          </svg>
+        </div>
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch
+
+def brute_force_knn(query, corpus, k=5):
+    """query: (Q,d), corpus: (N,d) -> indices (Q,k)"""
+    # cdist computes pairwise L2 distances: (Q,N)
+    dists = torch.cdist(query, corpus, p=2)
+    topk_vals, topk_idx = torch.topk(dists, k=k,
+                                      dim=-1, largest=False)
+    return topk_idx, topk_vals
+
+Q = torch.randn(10, 128)   # 10 queries
+X = torch.randn(1000, 128) # 1000 candidates
+idx, d = brute_force_knn(Q, X, k=5)
+print(idx.shape)  # (10, 5)</code></pre>
+      </section>
+
+      <!-- s4 -->
+      <section id="s4" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 4</span>
+        <h2 class="text-3xl font-bold mb-4">Locality-Sensitive Hashing (LSH)</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          LSH hashes vectors so that nearby vectors collide with high probability and far-apart vectors
+          collide with low probability. Random projection LSH draws $b$ random hyperplanes and assigns
+          each vector a $b$-bit bucket code. Only vectors sharing a bucket are compared exactly.
+        </p>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          $$h(\mathbf{x})=\operatorname{sign}(\mathbf{r}\cdot\mathbf{x}),\quad \mathbf{r}\sim\mathcal{N}(0,\mathbf{I})$$
+          $$P[h(\mathbf{u})=h(\mathbf{v})]=1-\frac{\theta(\mathbf{u},\mathbf{v})}{\pi}$$
+        </div>
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch
+
+class RandomProjectionLSH:
+    def __init__(self, d, b):
+        """d: vector dim, b: number of hash bits"""
+        self.R = torch.randn(b, d)   # b random hyperplanes
+
+    def hash(self, X):
+        """X: (N,d) -> (N,b) binary codes"""
+        proj = X @ self.R.T          # (N,b)
+        return (proj > 0).int()      # binary
+
+    def bucket_id(self, X):
+        bits = self.hash(X)          # (N,b)
+        powers = 2 ** torch.arange(bits.size(1))
+        return (bits * powers).sum(-1)  # scalar bucket id
+
+lsh = RandomProjectionLSH(d=128, b=16)
+X = torch.randn(5000, 128)
+buckets = lsh.bucket_id(X)
+print(buckets.shape)  # (5000,)</code></pre>
+      </section>
+
+      <!-- s5 -->
+      <section id="s5" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 5</span>
+        <h2 class="text-3xl font-bold mb-4">Product Quantization (PQ)</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          PQ compresses a $d$-dimensional vector into $m$ short integers by splitting it into $m$
+          sub-vectors of dimension $d/m$ and quantizing each sub-vector against a small codebook of
+          $k$ centroids learned by k-means. Distances are approximated using precomputed lookup tables,
+          enabling billion-scale search with a few bytes per vector.
+        </p>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          $$d(\mathbf{q},\mathbf{x})\approx\sum_{j=1}^{m}d\!\left(\mathbf{q}_j,\,\mathbf{c}_{j,\,\text{code}_j}\right)$$
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-3">Storage: $m\cdot\lceil\log_2 k\rceil$ bits vs $d\cdot 32$ bits (e.g. $m=8,k=256$: 8 bytes vs 3072 bytes for $d=768$).</p>
+        </div>
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch
+
+def fit_pq(X, m, k, iters=20):
+    """X: (N,d). Returns codebooks list of length m."""
+    N, d = X.shape
+    sub = d // m
+    codebooks = []
+    for j in range(m):
+        Xj = X[:, j*sub:(j+1)*sub]         # (N, sub)
+        # random init centroids
+        idx = torch.randperm(N)[:k]
+        C = Xj[idx].clone()                 # (k, sub)
+        for _ in range(iters):
+            dists = torch.cdist(Xj, C)      # (N, k)
+            assign = dists.argmin(-1)       # (N,)
+            for c in range(k):
+                mask = assign == c
+                if mask.any():
+                    C[c] = Xj[mask].mean(0)
+        codebooks.append(C)
+    return codebooks
+
+X = torch.randn(2000, 64)
+cb = fit_pq(X, m=8, k=256)
+print(len(cb), cb[0].shape)  # 8, (256,8)</code></pre>
+      </section>
+
+      <!-- s6 -->
+      <section id="s6" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 6</span>
+        <h2 class="text-3xl font-bold mb-4">HNSW Graph Index</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          Hierarchical Navigable Small World (HNSW) builds a multi-layer proximity graph. Upper layers
+          are sparse long-range skip graphs; the bottom layer contains all nodes. A query descends
+          greedily from the top, entering the next layer at the current best candidate, achieving
+          $O(\log N)$ search complexity with very high recall.
+        </p>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          <p class="text-sm text-gray-600 dark:text-gray-300 mb-3">Layer $l$ contains $\approx N\cdot e^{-l\,m_L}$ nodes. Query complexity: $O(\log N)$.</p>
+          <!-- SVG: 3-layer HNSW graph -->
+          <svg viewBox="0 0 520 160" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="10">
+            <rect x="0" y="0" width="520" height="160" rx="12" fill="#0f172a" stroke="#334155" stroke-width="1"/>
+            <!-- Layer labels -->
+            <text x="8" y="28"  fill="#94a3b8" font-size="9">L2</text>
+            <text x="8" y="78"  fill="#94a3b8" font-size="9">L1</text>
+            <text x="8" y="138" fill="#94a3b8" font-size="9">L0</text>
+            <!-- Layer 2 (top, sparse) 3 nodes -->
+            <line x1="140" y1="22" x2="260" y2="22" stroke="#475569" stroke-width="1"/>
+            <line x1="260" y1="22" x2="390" y2="22" stroke="#475569" stroke-width="1"/>
+            <circle cx="140" cy="22" r="8" fill="#1e40af" stroke="#60a5fa" stroke-width="1.5"/>
+            <circle cx="260" cy="22" r="8" fill="#3b82f6" stroke="#93c5fd" stroke-width="2"/>
+            <circle cx="390" cy="22" r="8" fill="#1e40af" stroke="#60a5fa" stroke-width="1.5"/>
+            <!-- Layer 1 (middle) 7 nodes -->
+            <line x1="100" y1="72" x2="160" y2="72" stroke="#475569" stroke-width="1"/>
+            <line x1="160" y1="72" x2="220" y2="72" stroke="#475569" stroke-width="1"/>
+            <line x1="220" y1="72" x2="280" y2="72" stroke="#475569" stroke-width="1"/>
+            <line x1="280" y1="72" x2="340" y2="72" stroke="#475569" stroke-width="1"/>
+            <line x1="340" y1="72" x2="400" y2="72" stroke="#475569" stroke-width="1"/>
+            <line x1="400" y1="72" x2="440" y2="72" stroke="#475569" stroke-width="1"/>
+            <circle cx="100" cy="72" r="6" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <circle cx="160" cy="72" r="6" fill="#3b82f6" stroke="#93c5fd" stroke-width="2"/>
+            <circle cx="220" cy="72" r="6" fill="#3b82f6" stroke="#93c5fd" stroke-width="2"/>
+            <circle cx="280" cy="72" r="6" fill="#3b82f6" stroke="#93c5fd" stroke-width="2"/>
+            <circle cx="340" cy="72" r="6" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <circle cx="400" cy="72" r="6" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <circle cx="440" cy="72" r="6" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <!-- Layer 0 (bottom, dense) 14 nodes -->
+            <circle cx="60"  cy="138" r="5" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <circle cx="100" cy="138" r="5" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <circle cx="140" cy="138" r="5" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <circle cx="180" cy="138" r="5" fill="#22c55e" stroke="#86efac" stroke-width="2"/>
+            <circle cx="220" cy="138" r="5" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <circle cx="260" cy="138" r="5" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <circle cx="300" cy="138" r="5" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <circle cx="340" cy="138" r="5" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <circle cx="380" cy="138" r="5" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <circle cx="420" cy="138" r="5" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <circle cx="460" cy="138" r="5" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <circle cx="500" cy="138" r="5" fill="#1e3a5f" stroke="#475569" stroke-width="1"/>
+            <!-- Descent arrows -->
+            <line x1="260" y1="30" x2="220" y2="64" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="3 2" marker-end="url(#arr)"/>
+            <line x1="220" y1="78" x2="200" y2="130" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="3 2" marker-end="url(#arr)"/>
+            <!-- Result label -->
+            <text x="162" y="155" fill="#22c55e" font-size="9" font-weight="700">result</text>
+            <!-- Legend -->
+            <circle cx="32" cy="148" r="4" fill="#3b82f6" stroke="#93c5fd" stroke-width="1.5"/>
+            <text x="40" cy="151" fill="#93c5fd" font-size="8" y="151">visited</text>
+            <circle cx="95" cy="148" r="4" fill="#22c55e" stroke="#86efac" stroke-width="1.5"/>
+            <text x="103" y="151" fill="#86efac" font-size="8">final</text>
+            <defs>
+              <marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
+                <path d="M0,0 L6,3 L0,6 Z" fill="#f59e0b"/>
+              </marker>
+            </defs>
+          </svg>
+        </div>
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import faiss, numpy as np
+
+d, M = 128, 32          # dimension, HNSW connectivity
+index = faiss.IndexHNSWFlat(d, M)
+index.hnsw.efConstruction = 200
+
+# Add vectors
+X = np.random.randn(100_000, d).astype(np.float32)
+index.add(X)
+
+# Search
+q = np.random.randn(10, d).astype(np.float32)
+index.hnsw.efSearch = 64
+D, I = index.search(q, k=5)
+print(I.shape)  # (10, 5)</code></pre>
+      </section>
+
+      <!-- s7 -->
+      <section id="s7" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 7</span>
+        <h2 class="text-3xl font-bold mb-4">Bi-Encoder vs Cross-Encoder</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          Bi-encoders encode query and document independently, allowing document embeddings to be
+          pre-indexed. Cross-encoders process the concatenated pair, enabling full attention interaction
+          for higher quality — but at $O(N)$ inference cost. Production systems typically use a
+          bi-encoder for recall and a cross-encoder for re-ranking.
+        </p>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          $$\text{bi-enc}:\quad s(\mathbf{q},\mathbf{d})=\text{enc}(\mathbf{q})\cdot\text{enc}(\mathbf{d}) \qquad O(1)\text{ retrieval}$$
+          $$\text{cross-enc}:\quad s(\mathbf{q},\mathbf{d})=\text{enc}([\mathbf{q};\mathbf{d}]) \qquad O(N)\text{ cost}$$
+          <div class="mt-4 overflow-x-auto">
+            <table class="w-full text-sm border-collapse">
+              <thead><tr class="bg-gray-100 dark:bg-gray-800">
+                <th class="px-3 py-2 text-left border border-gray-200 dark:border-gray-700">Model</th>
+                <th class="px-3 py-2 text-left border border-gray-200 dark:border-gray-700">Retrieval Speed</th>
+                <th class="px-3 py-2 text-left border border-gray-200 dark:border-gray-700">Quality</th>
+                <th class="px-3 py-2 text-left border border-gray-200 dark:border-gray-700">Use Case</th>
+              </tr></thead>
+              <tbody>
+                <tr><td class="px-3 py-1.5 border border-gray-200 dark:border-gray-700">Bi-encoder</td><td class="px-3 py-1.5 border border-gray-200 dark:border-gray-700">O(1) w/ index</td><td class="px-3 py-1.5 border border-gray-200 dark:border-gray-700">Good</td><td class="px-3 py-1.5 border border-gray-200 dark:border-gray-700">First-stage recall</td></tr>
+                <tr class="bg-gray-50 dark:bg-gray-800/50"><td class="px-3 py-1.5 border border-gray-200 dark:border-gray-700">Cross-encoder</td><td class="px-3 py-1.5 border border-gray-200 dark:border-gray-700">O(N) per query</td><td class="px-3 py-1.5 border border-gray-200 dark:border-gray-700">Best</td><td class="px-3 py-1.5 border border-gray-200 dark:border-gray-700">Re-ranking top-K</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn.functional as F
+from transformers import AutoModel, AutoTokenizer
+
+tok = AutoTokenizer.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+enc = AutoModel.from_pretrained("sentence-transformers/all-MiniLM-L6-v2")
+
+def mean_pool(out, mask):
+    t = out.last_hidden_state * mask.unsqueeze(-1)
+    return t.sum(1) / mask.sum(1, keepdim=True)
+
+def embed(texts):
+    batch = tok(texts, return_tensors="pt",
+                padding=True, truncation=True)
+    with torch.no_grad():
+        out = enc(**batch)
+    return F.normalize(mean_pool(out, batch["attention_mask"]), dim=-1)
+
+q_emb = embed(["What is RAG?"])
+d_emb = embed(["Retrieval-Augmented Generation combines LLMs with search."])
+print((q_emb @ d_emb.T).item())  # cosine score</code></pre>
+      </section>
+
+      <!-- s8 -->
+      <section id="s8" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 8</span>
+        <h2 class="text-3xl font-bold mb-4">Dense Passage Retrieval (DPR)</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          DPR trains separate query and passage BERT encoders with a contrastive loss. Hard negatives
+          mined from BM25 top results (that are not the positive passage) dramatically improve
+          retrieval quality over random negatives. In-batch negatives recycle the $B-1$ other
+          batch positives as cheap negatives with no extra forward passes.
+        </p>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          $$\mathcal{L}_{DPR}=-\log\frac{e^{\mathbf{q}^\top\mathbf{p}^+}}{e^{\mathbf{q}^\top\mathbf{p}^+}+\displaystyle\sum_{j}e^{\mathbf{q}^\top\mathbf{p}_j^-}}$$
+        </div>
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn.functional as F
+
+def dpr_in_batch_loss(q_enc, p_enc, tau=1.0):
+    """
+    q_enc: (B, d) query embeddings (normalized)
+    p_enc: (B, d) positive passage embeddings (normalized)
+    In-batch: passage i is negative for all queries j != i
+    """
+    q = F.normalize(q_enc, dim=-1)
+    p = F.normalize(p_enc, dim=-1)
+
+    scores = q @ p.T / tau    # (B, B)
+    # diagonal = positive pairs
+    labels = torch.arange(scores.size(0), device=scores.device)
+    loss = F.cross_entropy(scores, labels)
+    # Accuracy: fraction of queries retrieving correct passage
+    acc = (scores.argmax(-1) == labels).float().mean()
+    return loss, acc
+
+B, d = 32, 768
+loss, acc = dpr_in_batch_loss(torch.randn(B, d), torch.randn(B, d))
+print(f"loss={loss:.3f}  acc={acc:.3f}")</code></pre>
+      </section>
+
+      <!-- s9 -->
+      <section id="s9" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 9</span>
+        <h2 class="text-3xl font-bold mb-4">RAG: Retrieval-Augmented Generation Math</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          RAG marginalizes over the top-$k$ retrieved documents $z$ when generating output $y$ given
+          input $x$. The retriever $p_\eta(z|x)$ scores documents; the generator $p_\theta(y|x,z)$
+          conditions on the retrieved context. RAG-Sequence retrieves once per query; RAG-Token
+          retrieves at each generation step, yielding richer grounding at higher compute cost.
+        </p>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          $$P_{\text{RAG}}(y|x)=\sum_{z\in\text{top-}k(p_\eta(z|x))}p_\eta(z|x)\cdot p_\theta(y|x,z)$$
+        </div>
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn.functional as F
+
+def rag_score(query_emb, doc_embs, doc_log_probs,
+              lm_log_probs_per_doc):
+    """
+    query_emb      : (d,)
+    doc_embs       : (k, d)     retrieved doc embeddings
+    doc_log_probs  : (k,)       log p_eta(z|x) from retriever
+    lm_log_probs   : (k,)       log p_theta(y|x,z) from LM
+    Returns marginalised log-probability.
+    """
+    # Normalize retriever scores over top-k
+    ret_log = F.log_softmax(doc_log_probs, dim=0)   # (k,)
+    # RAG-Sequence: sum p(z|x)*p(y|x,z)
+    joint = ret_log + lm_log_probs_per_doc           # (k,)
+    marginal = torch.logsumexp(joint, dim=0)         # scalar
+    return marginal
+
+k, d = 5, 128
+score = rag_score(torch.randn(d),
+                  torch.randn(k, d),
+                  torch.randn(k),
+                  torch.randn(k))
+print(f"log P_RAG(y|x) = {score:.3f}")</code></pre>
+      </section>
+
+      <!-- s10 -->
+      <section id="s10" class="mb-14 scroll-mt-20">
+        <span class="inline-block text-xs font-semibold uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-2">Section 10</span>
+        <h2 class="text-3xl font-bold mb-4">Embedding Dimensionality &amp; Matryoshka</h2>
+        <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-4">
+          Matryoshka Representation Learning (MRL) trains a single model so any prefix
+          $\mathbf{e}_{1:d'}$ of the full embedding is itself a strong embedding at dimension $d'$.
+          This enables flexible storage–recall trade-offs at inference: use $d'=64$ for fast
+          first-stage retrieval and $d'=768$ for re-ranking, all from one model.
+        </p>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+          $$\mathcal{L}_{\text{MRL}}=\sum_{d'\in M}\frac{1}{|M|}\mathcal{L}\!\left(f_{d'}(\mathbf{x})\right), \quad M=\{8,16,32,\ldots,d\}$$
+          <p class="text-sm text-gray-500 dark:text-gray-400 mt-3">PCA can further reduce storage: project $\mathbf{e}\in\mathbb{R}^d$ to top-$d'$ principal components, trading recall for compression.</p>
+        </div>
+        <pre class="rounded-xl overflow-x-auto text-sm"><code class="language-python">import torch, torch.nn.functional as F
+
+def mrl_loss(full_emb, labels, dims=(8,16,32,64,128)):
+    """
+    full_emb : (B, D) full-dimension embeddings
+    labels   : (B,)   class labels for classification loss
+    dims     : tuple  Matryoshka nesting dimensions
+    """
+    total = 0.0
+    for d in dims:
+        sub = full_emb[:, :d]                         # prefix slice
+        sub = F.normalize(sub, dim=-1)
+        # Simple linear head (in practice share across dims)
+        logits = sub @ sub.T                          # (B,B) sim matrix
+        total += F.cross_entropy(logits, labels)
+    return total / len(dims)
+
+B, D = 32, 128
+emb = torch.randn(B, D, requires_grad=True)
+lbl = torch.randint(0, B, (B,))
+loss = mrl_loss(emb, lbl)
+print(f"MRL loss = {loss.item():.3f}")</code></pre>
+      </section>
+
+      <!-- FOOTER -->
+      <footer class="mt-16 pt-8 border-t border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400 flex flex-wrap gap-4">
+        <a href="math-llm.html"     class="hover:text-blue-600 dark:hover:text-blue-400">← Back to Mathematics Behind LLMs</a>
+        <a href="math-llm-ch7.html" class="hover:text-blue-600 dark:hover:text-blue-400">← Chapter 7</a>
+        <a href="math-llm-ch9.html" class="hover:text-blue-600 dark:hover:text-blue-400">Chapter 9 →</a>
+      </footer>
+
+    </main>
+  </div>
+
+  <script>
+    function toggleTheme() {
+      const html = document.documentElement;
+      const icon  = document.getElementById('themeIcon');
+      const label = document.getElementById('themeLabel');
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark');
+        icon.textContent  = '🌙';
+        label.textContent = 'Dark';
+        localStorage.setItem('theme', 'light');
+      } else {
+        html.classList.add('dark');
+        icon.textContent  = '☀️';
+        label.textContent = 'Light';
+        localStorage.setItem('theme', 'dark');
+      }
+    }
+
+    // Restore saved theme on load
+    (function () {
+      const saved = localStorage.getItem('theme');
+      const html  = document.documentElement;
+      const icon  = document.getElementById('themeIcon');
+      const label = document.getElementById('themeLabel');
+      if (saved === 'light') {
+        html.classList.remove('dark');
+        if (icon)  icon.textContent  = '🌙';
+        if (label) label.textContent = 'Dark';
+      } else {
+        html.classList.add('dark');
+        if (icon)  icon.textContent  = '☀️';
+        if (label) label.textContent = 'Light';
+      }
+    })();
+  </script>
+</body>
+</html>
