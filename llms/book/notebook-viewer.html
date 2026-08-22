@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Notebook Viewer</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
+
+  <!-- marked.js for markdown rendering -->
+  <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+
+  <!-- KaTeX -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+  <!-- Highlight.js -->
+  <link rel="stylesheet" id="hljs-theme" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+
+  <style>
+    * { transition: background-color 0.2s, color 0.2s, border-color 0.2s; }
+
+    /* Prose styles for markdown cells */
+    .prose h1 { font-size: 1.6rem; font-weight: 800; margin-bottom: 0.75rem; margin-top: 1.5rem; }
+    .prose h2 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; margin-top: 1.25rem; border-bottom: 1px solid #374151; padding-bottom: 0.3rem; }
+    .prose h3 { font-size: 1.05rem; font-weight: 600; margin-top: 1rem; margin-bottom: 0.4rem; }
+    .prose p { margin-bottom: 0.75rem; line-height: 1.7; }
+    .prose ul, .prose ol { margin-left: 1.5rem; margin-bottom: 0.75rem; }
+    .prose li { margin-bottom: 0.25rem; }
+    .prose table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.875rem; }
+    .prose th { background: #1e3a5f; color: #93c5fd; padding: 0.5rem 1rem; text-align: left; }
+    .prose td { padding: 0.4rem 1rem; border-bottom: 1px solid #374151; }
+    .prose code:not(pre code) { background: #1e293b; color: #7dd3fc; padding: 0.1em 0.35em; border-radius: 4px; font-size: 0.875em; }
+    .prose blockquote { border-left: 3px solid #3b82f6; padding-left: 1rem; color: #94a3b8; font-style: italic; }
+    .prose strong { font-weight: 700; }
+    .prose a { color: #60a5fa; text-decoration: underline; }
+
+    /* Light mode overrides for prose */
+    html:not(.dark) .prose th { background: #dbeafe; color: #1e40af; }
+    html:not(.dark) .prose td { border-bottom: 1px solid #e5e7eb; }
+    html:not(.dark) .prose code:not(pre code) { background: #f1f5f9; color: #0369a1; }
+    html:not(.dark) .prose h2 { border-bottom: 1px solid #e5e7eb; }
+    html:not(.dark) .prose blockquote { color: #64748b; }
+
+    /* KaTeX */
+    .katex-display { overflow-x: auto; padding: 0.5rem 0; }
+
+    /* ToC active link */
+    #toc a.active { color: #60a5fa; font-weight: 600; }
+
+    /* Sidebar scrollbar */
+    #sidebar::-webkit-scrollbar { width: 4px; }
+    #sidebar::-webkit-scrollbar-thumb { background: #374151; border-radius: 2px; }
+
+    /* Spinner animation */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { animation: spin 0.8s linear infinite; }
+
+    /* Code block overrides */
+    pre code.hljs { border-radius: 0 !important; margin: 0 !important; }
+    .nb-cell-code pre { margin: 0 !important; border-radius: 0 !important; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100 min-h-screen flex flex-col">
+
+  <!-- STICKY HEADER -->
+  <header class="sticky top-0 z-50 bg-white/95 dark:bg-gray-900/95 backdrop-blur border-b border-gray-200 dark:border-gray-700 shadow-sm">
+    <div class="max-w-screen-xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
+
+      <!-- Left: logo + title -->
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="text-xl shrink-0">📓</span>
+        <div class="min-w-0">
+          <span class="font-bold text-blue-700 dark:text-blue-400 text-sm whitespace-nowrap">Notebook Viewer</span>
+          <span id="nb-title" class="text-gray-500 dark:text-gray-400 text-xs ml-2 truncate hidden sm:inline"></span>
+        </div>
+      </div>
+
+      <!-- Center: breadcrumb (hidden on mobile) -->
+      <div class="hidden md:flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap shrink-0">
+        <span class="text-gray-400 dark:text-gray-500">Mathematics Behind LLMs</span>
+        <span class="mx-1 text-gray-300 dark:text-gray-600">›</span>
+        <span id="breadcrumb-chapter" class="text-blue-600 dark:text-blue-400 font-medium">Loading...</span>
+      </div>
+
+      <!-- Right: action buttons -->
+      <div class="flex items-center gap-1.5 shrink-0">
+        <a id="download-link" href="#" download
+           class="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium
+                  bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700
+                  text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600">
+          ⬇ Download
+        </a>
+        <a id="colab-link" href="#" target="_blank" rel="noopener"
+           class="hidden sm:flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium
+                  bg-orange-50 hover:bg-orange-100 dark:bg-orange-950 dark:hover:bg-orange-900
+                  text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800">
+          ▶ Colab
+        </a>
+        <button onclick="toggleTheme()"
+          class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium
+                 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700
+                 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600">
+          <span id="themeIcon">☀️</span><span id="themeLabel" class="hidden sm:inline">Light</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- BODY LAYOUT -->
+  <div class="max-w-screen-xl mx-auto w-full flex flex-1">
+
+    <!-- LEFT SIDEBAR -->
+    <aside id="sidebar"
+           class="hidden md:flex flex-col w-64 shrink-0 sticky top-14 self-start
+                  h-[calc(100vh-3.5rem)] overflow-y-auto
+                  border-r border-gray-200 dark:border-gray-800
+                  bg-white dark:bg-gray-900 py-5 px-4">
+
+      <!-- ToC -->
+      <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">Contents</p>
+      <nav id="toc" class="flex flex-col gap-0.5 text-sm mb-5">
+        <span class="text-xs text-gray-400 dark:text-gray-600 italic">Loading...</span>
+      </nav>
+
+      <hr class="border-gray-200 dark:border-gray-800 mb-4" />
+
+      <!-- Chapter nav -->
+      <p class="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3">Navigation</p>
+      <div class="flex flex-col gap-1 text-sm">
+        <a href="math-llm-notebooks.html"
+           class="px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800
+                  text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+          <span class="text-gray-400">←</span> All Notebooks
+        </a>
+        <a id="prev-link" href="#"
+           class="hidden px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800
+                  text-gray-600 dark:text-gray-400 flex items-center gap-1.5 text-xs">
+          <span>‹</span> <span id="prev-label">Previous</span>
+        </a>
+        <a id="next-link" href="#"
+           class="hidden px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800
+                  text-gray-600 dark:text-gray-400 flex items-center gap-1.5 text-xs">
+          <span id="next-label">Next</span> <span>›</span>
+        </a>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 min-w-0 px-5 py-8 max-w-4xl">
+
+      <!-- Loading state -->
+      <div id="loading" class="hidden flex flex-col items-center justify-center py-24 gap-4">
+        <svg class="spinner w-10 h-10 text-blue-500" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+        </svg>
+        <p class="text-gray-500 dark:text-gray-400 text-sm">Loading notebook...</p>
+      </div>
+
+      <!-- Error state -->
+      <div id="error-box" class="hidden mx-auto max-w-lg mt-16 p-6 rounded-xl
+                                  bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800
+                                  text-red-700 dark:text-red-300">
+        <h2 class="font-bold text-lg mb-2">Failed to load notebook</h2>
+        <p id="error-msg" class="text-sm font-mono"></p>
+        <p class="mt-3 text-xs text-red-500 dark:text-red-400">
+          Make sure the <code>.ipynb</code> file is in the same directory and the URL parameter
+          <code>?nb=filename.ipynb</code> is correct.
+        </p>
+      </div>
+
+      <!-- Cells container -->
+      <div id="cells-container"></div>
+
+    </main>
+  </div>
+
+  <script>
+    // ─── Chapter registry ──────────────────────────────────────────────────────
+    const CHAPTERS = [
+      { nb: 'math-llm-ch1.ipynb',  title: 'Ch 1: Linear Algebra' },
+      { nb: 'math-llm-ch2.ipynb',  title: 'Ch 2: Calculus & Optimization' },
+      { nb: 'math-llm-ch3.ipynb',  title: 'Ch 3: Probability & Info Theory' },
+      { nb: 'math-llm-ch4.ipynb',  title: 'Ch 4: Transformer & Attention' },
+      { nb: 'math-llm-ch5.ipynb',  title: 'Ch 5: Training Mathematics' },
+      { nb: 'math-llm-ch6.ipynb',  title: 'Ch 6: Sequence Modeling' },
+      { nb: 'math-llm-ch7.ipynb',  title: 'Ch 7: Numerical Methods' },
+      { nb: 'math-llm-ch8.ipynb',  title: 'Ch 8: Embeddings & Search' },
+      { nb: 'math-llm-ch9.ipynb',  title: 'Ch 9: RL for LLMs' },
+      { nb: 'math-llm-ch10.ipynb', title: 'Ch 10: Advanced Architectures' },
+    ];
+
+    // ─── Theme ─────────────────────────────────────────────────────────────────
+    function applyTheme(dark) {
+      const html = document.documentElement;
+      const hljsTheme = document.getElementById('hljs-theme');
+      if (dark) {
+        html.classList.add('dark');
+        hljsTheme.href = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
+        document.getElementById('themeIcon').textContent = '☀️';
+        document.getElementById('themeLabel').textContent = 'Light';
+      } else {
+        html.classList.remove('dark');
+        hljsTheme.href = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
+        document.getElementById('themeIcon').textContent = '🌙';
+        document.getElementById('themeLabel').textContent = 'Dark';
+      }
+    }
+
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.contains('dark');
+      localStorage.setItem('theme', isDark ? 'light' : 'dark');
+      applyTheme(!isDark);
+    }
+
+    // Apply saved theme on load
+    const savedTheme = localStorage.getItem('theme');
+    applyTheme(savedTheme !== 'light');
+
+    // ─── Helpers ───────────────────────────────────────────────────────────────
+    function escapeHtml(s) {
+      return s.replace(/&/g, '&amp;')
+              .replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;')
+              .replace(/"/g, '&quot;');
+    }
+
+    function sourceText(src) {
+      return Array.isArray(src) ? src.join('') : (src || '');
+    }
+
+    function slugify(text) {
+      return text.toLowerCase().replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+    }
+
+    // ─── Notebook source parser (handles custom XML-like format) ──────────────
+    function parseNotebookSource(rawText) {
+      // Try standard JSON first
+      try {
+        const json = JSON.parse(rawText);
+        if (json.cells) return json;
+      } catch (_) { /* fall through */ }
+
+      // Parse custom XML-like format used in this repo
+      const cells = [];
+      // Match <cell id="...">...</cell> blocks (non-greedy with dotall)
+      const cellRegex = /<cell id="([^"]+)">([\s\S]*?)<\/cell id="\1">/g;
+      let match;
+      while ((match = cellRegex.exec(rawText)) !== null) {
+        const id = match[1];
+        const body = match[2];
+
+        // Detect markdown: starts with <cell_type>markdown</cell_type>
+        const mdTypeMatch = body.match(/^<cell_type>markdown<\/cell_type>([\s\S]*)$/);
+        if (mdTypeMatch) {
+          cells.push({
+            cell_type: 'markdown',
+            source: mdTypeMatch[1].trim(),
+            metadata: {},
+            id
+          });
+        } else {
+          // Code cell — body is the raw code (no cell_type tag)
+          cells.push({
+            cell_type: 'code',
+            source: body.trim(),
+            outputs: [],
+            execution_count: null,
+            metadata: {},
+            id
+          });
+        }
+      }
+
+      if (cells.length > 0) {
+        return {
+          nbformat: 4,
+          nbformat_minor: 5,
+          metadata: { kernelspec: { language: 'python' } },
+          cells
+        };
+      }
+
+      throw new Error('Unrecognized notebook format');
+    }
+
+    // ─── Cell renderers ────────────────────────────────────────────────────────
+    function renderMarkdownCell(cell, idx) {
+      const source = sourceText(cell.source);
+      const div = document.createElement('div');
+      div.className = 'nb-cell-md mb-6 prose dark:prose-invert max-w-none text-gray-800 dark:text-gray-200 leading-relaxed';
+      div.setAttribute('data-cell-idx', idx);
+      div.innerHTML = marked.parse(source);
+      return div;
+    }
+
+    function renderCodeCell(cell, idx) {
+      const source = sourceText(cell.source);
+      const execCount = cell.execution_count || ' ';
+
+      const wrapper = document.createElement('div');
+      wrapper.className = 'nb-cell-code mb-4 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700';
+      wrapper.setAttribute('data-cell-idx', idx);
+
+      // Header bar
+      const header = document.createElement('div');
+      header.className = 'flex items-center justify-between px-4 py-2 bg-gray-100 dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700';
+      header.innerHTML = `
+        <span class="text-xs font-mono text-gray-400 dark:text-gray-500">In [${execCount}]</span>
+        <div class="flex gap-2 items-center">
+          <span class="text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300">Python</span>
+          <button class="copy-btn text-xs px-2 py-0.5 rounded bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300">Copy</button>
+        </div>`;
+      wrapper.appendChild(header);
+
+      // Code block
+      const pre = document.createElement('pre');
+      pre.className = '!rounded-none !m-0 overflow-x-auto';
+      const code = document.createElement('code');
+      code.className = 'language-python';
+      code.textContent = source;
+      pre.appendChild(code);
+      wrapper.appendChild(pre);
+
+      // Outputs
+      if (cell.outputs && cell.outputs.length > 0) {
+        const outDiv = renderOutputs(cell.outputs);
+        wrapper.appendChild(outDiv);
+      }
+
+      // Copy button handler
+      header.querySelector('.copy-btn').addEventListener('click', function () {
+        navigator.clipboard.writeText(code.textContent).then(() => {
+          this.textContent = 'Copied!';
+          setTimeout(() => { this.textContent = 'Copy'; }, 1500);
+        }).catch(() => {
+          this.textContent = 'Error';
+          setTimeout(() => { this.textContent = 'Copy'; }, 1500);
+        });
+      });
+
+      return wrapper;
+    }
+
+    function renderOutputs(outputs) {
+      const div = document.createElement('div');
+      div.className = 'nb-cell-output mt-0 px-4 py-3 bg-gray-50 dark:bg-gray-900 ' +
+                      'border-l-4 border-blue-400 dark:border-blue-600 ' +
+                      'font-mono text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap overflow-x-auto';
+
+      const parts = [];
+      for (const out of outputs) {
+        if (out.output_type === 'stream') {
+          const text = sourceText(out.text);
+          parts.push(escapeHtml(text));
+        } else if (out.output_type === 'execute_result' || out.output_type === 'display_data') {
+          const data = out.data || {};
+          if (data['text/plain']) {
+            const text = sourceText(data['text/plain']);
+            parts.push(escapeHtml(text));
+          } else if (data['text/html']) {
+            const html = sourceText(data['text/html']);
+            const htmlDiv = document.createElement('div');
+            htmlDiv.innerHTML = html;
+            div.appendChild(htmlDiv);
+          }
+        } else if (out.output_type === 'error') {
+          div.className = div.className.replace('border-blue-400 dark:border-blue-600',
+                                                'border-red-400 dark:border-red-600');
+          const name = out.ename || 'Error';
+          const val  = out.evalue || '';
+          parts.push(`<span class="text-red-600 dark:text-red-400 font-bold">${escapeHtml(name)}: ${escapeHtml(val)}</span>`);
+        }
+      }
+
+      if (parts.length > 0) {
+        div.innerHTML += parts.join('\n');
+      }
+      return div;
+    }
+
+    // ─── ToC builder ──────────────────────────────────────────────────────────
+    function buildToC(container) {
+      const tocNav = document.getElementById('toc');
+      tocNav.innerHTML = '';
+
+      const headings = container.querySelectorAll('.nb-cell-md h1, .nb-cell-md h2, .nb-cell-md h3');
+      if (headings.length === 0) {
+        tocNav.innerHTML = '<span class="text-xs text-gray-400 dark:text-gray-600 italic">No headings found</span>';
+        return;
+      }
+
+      headings.forEach((h, i) => {
+        // Give heading an id for anchor linking
+        const slug = slugify(h.textContent) + '-' + i;
+        h.id = slug;
+
+        const a = document.createElement('a');
+        a.href = '#' + slug;
+        a.textContent = h.textContent;
+        a.className = 'toc-link px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-gray-800 ' +
+                      'text-gray-600 dark:text-gray-400 block truncate';
+
+        const tagName = h.tagName.toLowerCase();
+        if (tagName === 'h1') {
+          a.classList.add('font-semibold', 'text-sm', 'text-gray-700', 'dark:text-gray-300');
+        } else if (tagName === 'h2') {
+          a.classList.add('text-sm', 'pl-3');
+        } else {
+          a.classList.add('text-xs', 'pl-5', 'text-gray-500', 'dark:text-gray-500');
+        }
+
+        tocNav.appendChild(a);
+      });
+
+      // IntersectionObserver for active ToC link
+      const tocLinks = tocNav.querySelectorAll('.toc-link');
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            tocLinks.forEach(l => l.classList.remove('active'));
+            const active = tocNav.querySelector(`[href="#${entry.target.id}"]`);
+            if (active) active.classList.add('active');
+          }
+        });
+      }, { rootMargin: '-80px 0px -70% 0px', threshold: 0 });
+
+      headings.forEach(h => observer.observe(h));
+    }
+
+    // ─── Prev / Next chapter links ─────────────────────────────────────────────
+    function setChapterNav(filename) {
+      const idx = CHAPTERS.findIndex(c => c.nb === filename);
+      const prevLink = document.getElementById('prev-link');
+      const nextLink = document.getElementById('next-link');
+
+      if (idx > 0) {
+        const prev = CHAPTERS[idx - 1];
+        prevLink.href = `notebook-viewer.html?nb=${prev.nb}`;
+        document.getElementById('prev-label').textContent = prev.title;
+        prevLink.classList.remove('hidden');
+      }
+      if (idx >= 0 && idx < CHAPTERS.length - 1) {
+        const next = CHAPTERS[idx + 1];
+        nextLink.href = `notebook-viewer.html?nb=${next.nb}`;
+        document.getElementById('next-label').textContent = next.title;
+        nextLink.classList.remove('hidden');
+      }
+    }
+
+    // ─── Colab URL builder ─────────────────────────────────────────────────────
+    function buildColabUrl(filename) {
+      const hostname = window.location.hostname;
+      // GitHub Pages pattern: <user>.github.io
+      const ghMatch = hostname.match(/^([^.]+)\.github\.io$/);
+      if (ghMatch) {
+        const user = ghMatch[1];
+        const path = window.location.pathname.replace(/\/[^/]+$/, '') + '/' + filename;
+        return `https://colab.research.google.com/github/${user}${path}`;
+      }
+      // Fallback: direct URL approach
+      const baseUrl = window.location.href.replace(/\/[^/]+$/, '') + '/' + filename;
+      return `https://colab.research.google.com/github/#fileId=${encodeURIComponent(baseUrl)}`;
+    }
+
+    // ─── Error display ─────────────────────────────────────────────────────────
+    function showError(msg, filename) {
+      document.getElementById('loading').classList.add('hidden');
+      const box = document.getElementById('error-box');
+      document.getElementById('error-msg').textContent = `${msg}  (file: ${filename})`;
+      box.classList.remove('hidden');
+      document.title = 'Error — Notebook Viewer';
+    }
+
+    // ─── Main render ───────────────────────────────────────────────────────────
+    function renderNotebook(notebook, filename) {
+      document.getElementById('loading').classList.add('hidden');
+
+      const cells = notebook.cells || [];
+      const container = document.getElementById('cells-container');
+      container.innerHTML = '';
+
+      // 1. Extract title from first markdown cell's first # heading
+      let nbTitle = filename.replace(/\.ipynb$/, '');
+      let chapterName = nbTitle;
+      for (const cell of cells) {
+        if (cell.cell_type === 'markdown') {
+          const src = sourceText(cell.source);
+          const m = src.match(/^#\s+(.+)/m);
+          if (m) {
+            nbTitle = m[1].trim();
+            chapterName = nbTitle;
+            break;
+          }
+        }
+      }
+
+      // 2. Update page title and header
+      document.title = nbTitle + ' — Notebook Viewer';
+      document.getElementById('nb-title').textContent = '— ' + nbTitle;
+      document.getElementById('nb-title').classList.remove('hidden');
+      document.getElementById('breadcrumb-chapter').textContent = chapterName;
+
+      // 3. Download link
+      document.getElementById('download-link').href = filename;
+      document.getElementById('download-link').setAttribute('download', filename);
+
+      // 4. Colab link
+      document.getElementById('colab-link').href = buildColabUrl(filename);
+
+      // 5. Prev / Next chapter nav
+      setChapterNav(filename);
+
+      // 6. Render all cells
+      cells.forEach((cell, idx) => {
+        let el;
+        if (cell.cell_type === 'markdown') {
+          el = renderMarkdownCell(cell, idx);
+        } else if (cell.cell_type === 'code') {
+          el = renderCodeCell(cell, idx);
+        } else {
+          // raw / other
+          el = document.createElement('div');
+          el.className = 'mb-4 text-xs text-gray-400 dark:text-gray-600 font-mono italic';
+          el.textContent = `[${cell.cell_type} cell]`;
+        }
+        container.appendChild(el);
+      });
+
+      // 7. Syntax-highlight all code cells
+      container.querySelectorAll('pre code.language-python').forEach(el => {
+        hljs.highlightElement(el);
+      });
+
+      // 8. Render math in all markdown cells
+      if (window.renderMathInElement) {
+        container.querySelectorAll('.nb-cell-md').forEach(el => {
+          renderMathInElement(el, {
+            delimiters: [
+              { left: '$$', right: '$$', display: true },
+              { left: '$', right: '$', display: false }
+            ],
+            throwOnError: false
+          });
+        });
+      } else {
+        // KaTeX scripts are deferred — wait for them
+        window.addEventListener('load', () => {
+          if (window.renderMathInElement) {
+            container.querySelectorAll('.nb-cell-md').forEach(el => {
+              renderMathInElement(el, {
+                delimiters: [
+                  { left: '$$', right: '$$', display: true },
+                  { left: '$', right: '$', display: false }
+                ],
+                throwOnError: false
+              });
+            });
+          }
+        });
+      }
+
+      // 9. Build ToC
+      buildToC(container);
+    }
+
+    // ─── Fetch & load ─────────────────────────────────────────────────────────
+    async function loadNotebook() {
+      const params = new URLSearchParams(window.location.search);
+      const nb = params.get('nb') || 'math-llm-ch1.ipynb';
+
+      document.getElementById('loading').classList.remove('hidden');
+      document.getElementById('error-box').classList.add('hidden');
+      document.getElementById('cells-container').innerHTML = '';
+
+      try {
+        const res = await fetch(nb);
+        if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
+        const rawText = await res.text();
+        const notebook = parseNotebookSource(rawText);
+        renderNotebook(notebook, nb);
+      } catch (e) {
+        showError(e.message, nb);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadNotebook);
+  </script>
+
+</body>
+</html>
