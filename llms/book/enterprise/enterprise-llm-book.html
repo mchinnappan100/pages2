@@ -74,6 +74,13 @@
       <a href="#c6s2" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">LoRA Mathematics</a>
       <a href="#c6s3" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">QLoRA: 4-bit + LoRA</a>
       <a href="#c6s4" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Practical Enterprise Workflow</a>
+      <p class="text-xs font-semibold text-indigo-600 dark:text-indigo-400 mt-3 mb-1 px-2">Ch 7 · Deterministic Pre-Processing</p>
+      <a href="#c7s1" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Why Determinism Before the LLM</a>
+      <a href="#c7s2" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Context Variables &amp; State</a>
+      <a href="#c7s3" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Identity Verification Gate</a>
+      <a href="#c7s4" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">More Deterministic Gate Examples</a>
+      <a href="#c7s5" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Gate Chaining &amp; Pipelines</a>
+      <a href="#c7s6" class="nav-link px-2 py-1.5 rounded hover:bg-blue-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300">Implementation Patterns</a>
     </nav>
   </aside>
 
@@ -855,12 +862,536 @@ LLM / Agent Access       (controlled tool invocation)</pre>
       </div>
     </section>
 
+
+    <!-- ═══════════════════════════════════════════════ CHAPTER 7 -->
+    <section id="c7s1" class="scroll-mt-20">
+      <span class="inline-block text-xs font-semibold uppercase tracking-widest text-indigo-600 dark:text-indigo-400 mb-2">Chapter 7</span>
+      <h2 class="text-2xl font-bold mb-4">Deterministic Pre-Processing Before the LLM</h2>
+      <h3 class="text-lg font-semibold mb-3 text-indigo-700 dark:text-indigo-300">Why Determinism Before the LLM</h3>
+
+      <div class="rounded-xl bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 p-4 text-sm mb-6">
+        <strong class="text-indigo-700 dark:text-indigo-300">Core Principle:</strong>
+        <p class="text-indigo-700 dark:text-indigo-300 mt-1">LLMs are probabilistic — they do not guarantee consistent behaviour on identical inputs. Enterprise workflows that involve identity, authorisation, compliance, or irreversible actions <strong>must not rely on the LLM to enforce correctness</strong>. Establish deterministic facts <em>before</em> the LLM is invoked, and make those facts available to it as trusted context variables.</p>
+      </div>
+
+      <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-5">A common mistake is to ask the LLM to verify a user's identity or check a condition by reasoning from conversational context. The LLM may comply — or it may be confused, manipulated, or simply mistaken. Instead, the orchestration layer performs the verification deterministically, stores the verified result in a context variable, and injects it into the LLM prompt as a trusted fact that the model reads but cannot override.</p>
+
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-6">
+        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Wrong vs Right Pattern</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
+          <div class="rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 p-4">
+            <p class="font-bold text-red-700 dark:text-red-300 mb-3">❌ Wrong — LLM decides identity</p>
+            <pre class="rounded-lg bg-gray-900 text-red-300 p-3 text-xs font-mono leading-relaxed">User: "I am john@acme.com.
+       Show me my account."
+
+LLM prompt:
+"The user says they are
+ john@acme.com. Fetch
+ account data for them."
+
+Problem: LLM trusts
+ unverified user claim.
+ Anyone can say anything.</pre>
+          </div>
+          <div class="rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-4">
+            <p class="font-bold text-emerald-700 dark:text-emerald-300 mb-3">✓ Right — Orchestrator verifies</p>
+            <pre class="rounded-lg bg-gray-900 text-green-300 p-3 text-xs font-mono leading-relaxed">Orchestrator collects email,
+verifies via enterprise IdP,
+sets context:
+
+ctx.identity_verified = true
+ctx.verified_email = "john@acme.com"
+ctx.user_id = "U-00423"
+
+LLM prompt:
+"[SYSTEM: identity_verified=true,
+  verified_email=john@acme.com,
+  user_id=U-00423]
+ Fetch account data."
+
+LLM reads fact — cannot change it.</pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">Two-Phase Architecture</h3>
+        <svg viewBox="0 0 660 210" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-2xl mx-auto" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12">
+          <defs><marker id="c7a" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#6b7280"/></marker></defs>
+          <!-- Phase 1 box -->
+          <rect x="10" y="10" width="300" height="185" rx="10" fill="none" stroke="#6366f1" stroke-width="1.5"/>
+          <text x="160" y="30" text-anchor="middle" font-weight="700" font-size="13" fill="#6366f1">Phase 1 — Deterministic</text>
+          <rect x="40"  y="42"  width="240" height="26" rx="6" fill="#e0e7ff" stroke="#6366f1" stroke-width="1"/><text x="160" y="59" text-anchor="middle" fill="#3730a3" font-weight="600">User Input (email / ID)</text>
+          <line x1="160" y1="68" x2="160" y2="82" stroke="#6b7280" stroke-width="1.2" marker-end="url(#c7a)"/>
+          <rect x="40"  y="82"  width="240" height="26" rx="6" fill="#c7d2fe" stroke="#6366f1" stroke-width="1"/><text x="160" y="99" text-anchor="middle" fill="#3730a3" font-weight="600">Enterprise IdP Verification</text>
+          <line x1="160" y1="108" x2="160" y2="122" stroke="#6b7280" stroke-width="1.2" marker-end="url(#c7a)"/>
+          <rect x="40"  y="122" width="240" height="26" rx="6" fill="#a5b4fc" stroke="#6366f1" stroke-width="1"/><text x="160" y="139" text-anchor="middle" fill="#1e1b4b" font-weight="600">Set Context Variables</text>
+          <line x1="160" y1="148" x2="160" y2="162" stroke="#6b7280" stroke-width="1.2" marker-end="url(#c7a)"/>
+          <rect x="40"  y="162" width="240" height="26" rx="6" fill="#818cf8" stroke="#4f46e5" stroke-width="1"/><text x="160" y="179" text-anchor="middle" fill="white" font-weight="600">ctx.verified = true ✓</text>
+          <!-- Arrow between phases -->
+          <line x1="310" y1="105" x2="350" y2="105" stroke="#10b981" stroke-width="2" marker-end="url(#c7a)"/>
+          <text x="330" y="99" text-anchor="middle" font-size="10" fill="#10b981">inject</text>
+          <!-- Phase 2 box -->
+          <rect x="350" y="10" width="300" height="185" rx="10" fill="none" stroke="#10b981" stroke-width="1.5"/>
+          <text x="500" y="30" text-anchor="middle" font-weight="700" font-size="13" fill="#10b981">Phase 2 — LLM</text>
+          <rect x="380" y="42"  width="240" height="26" rx="6" fill="#d1fae5" stroke="#10b981" stroke-width="1"/><text x="500" y="59" text-anchor="middle" fill="#065f46" font-weight="600">[SYSTEM ctx injected]</text>
+          <line x1="500" y1="68" x2="500" y2="82" stroke="#6b7280" stroke-width="1.2" marker-end="url(#c7a)"/>
+          <rect x="380" y="82"  width="240" height="26" rx="6" fill="#a7f3d0" stroke="#10b981" stroke-width="1"/><text x="500" y="99" text-anchor="middle" fill="#064e3b" font-weight="600">LLM reads ctx.verified</text>
+          <line x1="500" y1="108" x2="500" y2="122" stroke="#6b7280" stroke-width="1.2" marker-end="url(#c7a)"/>
+          <rect x="380" y="122" width="240" height="26" rx="6" fill="#6ee7b7" stroke="#10b981" stroke-width="1"/><text x="500" y="139" text-anchor="middle" fill="#064e3b" font-weight="600">if verified → proceed</text>
+          <line x1="500" y1="148" x2="500" y2="162" stroke="#6b7280" stroke-width="1.2" marker-end="url(#c7a)"/>
+          <rect x="380" y="162" width="240" height="26" rx="6" fill="#34d399" stroke="#059669" stroke-width="1"/><text x="500" y="179" text-anchor="middle" fill="white" font-weight="600">Invoke MCP Tool</text>
+        </svg>
+      </div>
+    </section>
+
+    <section id="c7s2" class="scroll-mt-20">
+      <h3 class="text-lg font-semibold mb-4 text-indigo-700 dark:text-indigo-300">Context Variables &amp; State</h3>
+      <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-5">A <strong>context object</strong> (also called a session context or conversation state) is a structured, server-side record that travels alongside the conversation. It is <em>written by deterministic code</em> and <em>read by the LLM</em> as injected system-prompt facts. The LLM has no ability to write to this object — it can only observe its values.</p>
+
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-5">
+        <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Example Context Object</p>
+        <pre class="rounded-xl bg-gray-900 dark:bg-gray-950 text-green-300 p-4 text-sm font-mono overflow-x-auto leading-relaxed">{
+  "session_id": "sess-8f3a9c",
+  "identity": {
+    "verified":        true,
+    "method":          "email_otp",
+    "verified_email":  "john.doe@acme.com",
+    "user_id":         "U-00423",
+    "display_name":    "John Doe",
+    "timestamp":       "2026-08-23T09:14:02Z"
+  },
+  "authorisation": {
+    "roles":           ["employee", "sales_rep"],
+    "can_read_deals":  true,
+    "can_write_deals": false,
+    "data_region":     "us-east-1"
+  },
+  "compliance": {
+    "gdpr_consent":    true,
+    "data_residency":  "US",
+    "audit_id":        "aud-29910"
+  },
+  "workflow": {
+    "current_step":    "account_lookup",
+    "approved_tools":  ["get_account", "get_deals"],
+    "step_completed":  false
+  }
+}</pre>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
+        <div class="rounded-xl bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 p-4">
+          <p class="font-bold text-indigo-700 dark:text-indigo-300 mb-2">Written by</p>
+          <ul class="text-xs text-indigo-600 dark:text-indigo-400 space-y-1">
+            <li>• Orchestration layer (server-side)</li>
+            <li>• Enterprise IdP callbacks</li>
+            <li>• Policy engine decisions</li>
+            <li>• Workflow state machines</li>
+            <li>• Compliance checks</li>
+          </ul>
+        </div>
+        <div class="rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-200 dark:border-emerald-800 p-4">
+          <p class="font-bold text-emerald-700 dark:text-emerald-300 mb-2">Injected as</p>
+          <ul class="text-xs text-emerald-600 dark:text-emerald-400 space-y-1">
+            <li>• System prompt prefix</li>
+            <li>• Structured XML/JSON block</li>
+            <li>• Tool call preconditions</li>
+            <li>• Per-turn instructions</li>
+          </ul>
+        </div>
+        <div class="rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4">
+          <p class="font-bold text-amber-700 dark:text-amber-300 mb-2">Read by LLM as</p>
+          <ul class="text-xs text-amber-600 dark:text-amber-400 space-y-1">
+            <li>• Trusted authoritative facts</li>
+            <li>• Gate conditions to check</li>
+            <li>• Permitted tool list</li>
+            <li>• User identity to cite</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="c7s3" class="scroll-mt-20">
+      <h3 class="text-lg font-semibold mb-4 text-indigo-700 dark:text-indigo-300">Identity Verification Gate</h3>
+      <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-5">The most fundamental gate is identity. Before any personalised or sensitive action, the orchestrator collects a claim (email address, employee ID, phone number) and verifies it through an enterprise identity provider. Only then does the conversation proceed to the LLM.</p>
+
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-5">
+        <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Full Identity Gate Flow</p>
+        <pre class="rounded-xl bg-gray-900 dark:bg-gray-950 text-green-300 p-4 text-sm font-mono overflow-x-auto leading-relaxed">1. Chatbot UI (deterministic):
+   "Please enter your work email address."
+
+2. User provides: "john.doe@acme.com"
+
+3. Orchestrator (deterministic):
+   → Sends OTP to john.doe@acme.com
+   → "Please enter the 6-digit code sent to your email."
+
+4. User provides: "847291"
+
+5. Orchestrator verifies OTP against IdP:
+   result = idp.verify_otp("john.doe@acme.com", "847291")
+   → result: { valid: true, user_id: "U-00423", roles: ["employee"] }
+
+6. Orchestrator writes context:
+   ctx.identity.verified       = true
+   ctx.identity.verified_email = "john.doe@acme.com"
+   ctx.identity.user_id        = "U-00423"
+   ctx.identity.roles          = ["employee"]
+
+7. LLM is now invoked with ctx injected:
+   [SYSTEM]
+   identity_verified: true
+   verified_email: john.doe@acme.com
+   user_id: U-00423
+   roles: employee
+   RULE: Only retrieve data for user_id=U-00423.
+         If identity_verified is not true, respond:
+         "I cannot process this request."
+
+8. LLM checks ctx.identity.verified == true → proceeds
+   LLM calls: get_account(user_id="U-00423")
+   MCP layer re-validates user_id against session → returns data</pre>
+      </div>
+
+      <div class="rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 text-sm">
+        <strong class="text-amber-700 dark:text-amber-300">Defence in depth:</strong>
+        <p class="text-amber-700 dark:text-amber-300 mt-1">Even though the LLM checks the context variable, the MCP tool layer <em>independently</em> re-validates the <code class="bg-amber-100 dark:bg-amber-900 px-1 rounded text-xs">user_id</code> against the session token. The LLM check is a soft gate; the MCP policy engine is the hard gate.</p>
+      </div>
+    </section>
+
+    <section id="c7s4" class="scroll-mt-20">
+      <h3 class="text-lg font-semibold mb-4 text-indigo-700 dark:text-indigo-300">More Deterministic Gate Examples</h3>
+      <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-5">The identity gate is just the first example. Any condition that must be true before the LLM proceeds can be established deterministically and stored as a context variable. Here are common enterprise gates:</p>
+
+      <!-- Gate 1: Data residency -->
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-5">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-7 h-7 rounded-full bg-purple-600 flex items-center justify-center text-white text-xs font-bold shrink-0">G1</span>
+          <p class="font-semibold text-gray-800 dark:text-gray-200">Data Residency &amp; Compliance Gate</p>
+        </div>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Before serving any data, the orchestrator determines the user's jurisdiction and whether the requested data is permitted to be processed there.</p>
+        <pre class="rounded-xl bg-gray-900 dark:bg-gray-950 text-green-300 p-4 text-xs font-mono overflow-x-auto leading-relaxed">Deterministic step:
+  region      = geo_lookup(user_ip)        → "EU"
+  data_class  = classify_request(query)   → "PII"
+  permitted   = gdpr_check(region, data_class) → false
+
+ctx.compliance.gdpr_permitted = false
+ctx.compliance.region         = "EU"
+ctx.compliance.data_class     = "PII"
+
+LLM system prompt:
+  [SYSTEM: gdpr_permitted=false, region=EU, data_class=PII]
+  RULE: If gdpr_permitted is false, do not retrieve or
+        display PII fields. Respond with data residency notice.
+
+LLM: ctx.compliance.gdpr_permitted == false
+     → "This request involves personal data that cannot be
+        processed in your region under our data policy."</pre>
+      </div>
+
+      <!-- Gate 2: Spending limit -->
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-5">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-7 h-7 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold shrink-0">G2</span>
+          <p class="font-semibold text-gray-800 dark:text-gray-200">Spending / Approval Limit Gate</p>
+        </div>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Before an AI agent approves a purchase order or expense, the orchestrator fetches the user's authorised spending limit from the ERP and sets a gate.</p>
+        <pre class="rounded-xl bg-gray-900 dark:bg-gray-950 text-green-300 p-4 text-xs font-mono overflow-x-auto leading-relaxed">Deterministic step:
+  spending_limit  = erp.get_approval_limit(user_id) → 5000
+  requested_amount = extract_amount(user_message)   → 8500
+
+ctx.approval.limit           = 5000
+ctx.approval.requested       = 8500
+ctx.approval.within_limit    = false   # 8500 > 5000
+ctx.approval.requires_manager = true
+
+LLM system prompt:
+  [SYSTEM: approval.within_limit=false,
+           approval.requires_manager=true,
+           approval.limit=5000, approval.requested=8500]
+  RULE: If within_limit is false, do not approve.
+        Initiate manager approval workflow instead.
+
+LLM: ctx.approval.within_limit == false
+     → Routes to: trigger_approval_workflow(
+           requestor=user_id,
+           amount=8500,
+           approver=manager_id)</pre>
+      </div>
+
+      <!-- Gate 3: Account ownership -->
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-5">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-7 h-7 rounded-full bg-amber-600 flex items-center justify-center text-white text-xs font-bold shrink-0">G3</span>
+          <p class="font-semibold text-gray-800 dark:text-gray-200">Account Ownership Gate</p>
+        </div>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">A sales rep asks the AI to pull deal information. Before the LLM calls any tool, the orchestrator confirms that the requested account is in the rep's assigned territory.</p>
+        <pre class="rounded-xl bg-gray-900 dark:bg-gray-950 text-green-300 p-4 text-xs font-mono overflow-x-auto leading-relaxed">User: "Pull the deal summary for Acme Corp."
+
+Deterministic step:
+  requested_account = "Acme Corp"
+  account_id        = crm.lookup_account("Acme Corp") → "ACC-882"
+  owner_id          = crm.get_owner("ACC-882")        → "U-00901"
+  is_owner          = (owner_id == ctx.identity.user_id) → false
+  has_territory     = crm.check_territory(
+                         ctx.identity.user_id, "ACC-882") → false
+
+ctx.account.id           = "ACC-882"
+ctx.account.is_owner     = false
+ctx.account.has_territory = false
+
+LLM system prompt:
+  [SYSTEM: account.is_owner=false, account.has_territory=false]
+  RULE: If is_owner and has_territory are both false,
+        do not retrieve account data. Inform user of access restriction.
+
+LLM: ctx.account.is_owner == false AND has_territory == false
+     → "You do not have access to Acme Corp's deal data.
+        Contact your manager if you need visibility."</pre>
+      </div>
+
+      <!-- Gate 4: Working hours -->
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-5">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-7 h-7 rounded-full bg-rose-600 flex items-center justify-center text-white text-xs font-bold shrink-0">G4</span>
+          <p class="font-semibold text-gray-800 dark:text-gray-200">Time-Window / Change-Freeze Gate</p>
+        </div>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Destructive or write operations (data updates, deployments, case closures) should be blocked outside approved time windows or during a change-freeze period.</p>
+        <pre class="rounded-xl bg-gray-900 dark:bg-gray-950 text-green-300 p-4 text-xs font-mono overflow-x-auto leading-relaxed">Deterministic step:
+  now             = utcnow()                   → "2026-08-23T03:15Z"
+  in_window       = change_calendar.check(now) → false  (3 AM UTC)
+  freeze_active   = release_mgr.freeze_status()→ true   (pre-release)
+
+ctx.ops.in_change_window = false
+ctx.ops.freeze_active    = true
+ctx.ops.write_permitted  = false
+
+LLM system prompt:
+  [SYSTEM: ops.write_permitted=false, ops.freeze_active=true]
+  RULE: If write_permitted is false, refuse all write/delete
+        operations. Offer to schedule for next change window.
+
+LLM: ctx.ops.write_permitted == false
+     → "Write operations are not permitted during the current
+        change freeze. The next change window opens Monday 06:00 UTC.
+        Would you like me to schedule this action?"</pre>
+      </div>
+
+      <!-- Gate 5: MFA step-up -->
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-5">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-7 h-7 rounded-full bg-cyan-600 flex items-center justify-center text-white text-xs font-bold shrink-0">G5</span>
+          <p class="font-semibold text-gray-800 dark:text-gray-200">MFA Step-Up Gate (Sensitive Operations)</p>
+        </div>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">Standard login grants base access. Before a sensitive operation (exporting a report, updating payment details, deleting a record), the orchestrator demands MFA step-up and stores the result.</p>
+        <pre class="rounded-xl bg-gray-900 dark:bg-gray-950 text-green-300 p-4 text-xs font-mono overflow-x-auto leading-relaxed">User asks: "Export the full customer list to CSV."
+
+Deterministic step:
+  action_sensitivity = classify_action("export_customer_list")
+                     → "HIGH"
+  mfa_step_up_done   = ctx.identity.mfa_stepup_verified → false
+
+  # Orchestrator pauses, triggers MFA challenge:
+  "This action requires additional verification.
+   Please approve the push notification sent to your
+   authenticator app."
+
+  mfa_result = idp.verify_stepup(user_id, challenge_id)
+             → { verified: true, method: "totp" }
+
+ctx.identity.mfa_stepup_verified = true
+ctx.identity.mfa_method          = "totp"
+ctx.identity.stepup_timestamp    = "2026-08-23T09:22:10Z"
+
+LLM system prompt:
+  [SYSTEM: mfa_stepup_verified=true, action=export_customer_list]
+  RULE: Proceed with export only if mfa_stepup_verified is true.
+
+LLM: ctx.identity.mfa_stepup_verified == true
+     → Calls: export_customer_list(format="csv", user_id=U-00423)
+     → MCP layer enforces row-level filter for user's territory</pre>
+      </div>
+
+      <!-- Gate 6: SLA / Entitlement -->
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm">
+        <div class="flex items-center gap-2 mb-3">
+          <span class="w-7 h-7 rounded-full bg-teal-600 flex items-center justify-center text-white text-xs font-bold shrink-0">G6</span>
+          <p class="font-semibold text-gray-800 dark:text-gray-200">Entitlement / Subscription Gate</p>
+        </div>
+        <p class="text-sm text-gray-600 dark:text-gray-400 mb-3">In a customer-facing AI assistant, the features available depend on the customer's current subscription tier. The orchestrator checks entitlements before the LLM is invoked.</p>
+        <pre class="rounded-xl bg-gray-900 dark:bg-gray-950 text-green-300 p-4 text-xs font-mono overflow-x-auto leading-relaxed">Deterministic step:
+  account_tier     = billing.get_tier(ctx.identity.user_id)
+                   → "starter"
+  feature_requested = detect_feature(user_message)
+                   → "advanced_analytics"
+  entitlement      = entitlement_svc.check(
+                       tier="starter",
+                       feature="advanced_analytics") → false
+
+ctx.entitlement.tier               = "starter"
+ctx.entitlement.feature_requested  = "advanced_analytics"
+ctx.entitlement.permitted          = false
+ctx.entitlement.required_tier      = "professional"
+
+LLM system prompt:
+  [SYSTEM: entitlement.permitted=false,
+           entitlement.tier=starter,
+           entitlement.required_tier=professional]
+  RULE: If entitlement.permitted is false, do not execute
+        the feature. Explain the upgrade path.
+
+LLM: ctx.entitlement.permitted == false
+     → "Advanced Analytics is available on the Professional
+        plan and above. You're currently on Starter.
+        Would you like to see the upgrade options?"</pre>
+      </div>
+    </section>
+
+    <section id="c7s5" class="scroll-mt-20">
+      <h3 class="text-lg font-semibold mb-4 text-indigo-700 dark:text-indigo-300">Gate Chaining &amp; Pipelines</h3>
+      <p class="text-gray-600 dark:text-gray-300 leading-relaxed mb-5">Real enterprise workflows require multiple gates to pass in sequence. Each gate adds a context variable; the LLM only proceeds when <em>all</em> required variables are satisfied. The orchestrator enforces the chain; the LLM reads it.</p>
+
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 shadow-sm mb-5">
+        <p class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Example: Sensitive Report Generation Pipeline</p>
+        <pre class="rounded-xl bg-gray-900 dark:bg-gray-950 text-green-300 p-4 text-sm font-mono overflow-x-auto leading-relaxed">Gate 1  identity_verified      = true   ← email OTP via IdP
+Gate 2  mfa_stepup_verified    = true   ← TOTP challenge
+Gate 3  report_entitled        = true   ← subscription check
+Gate 4  data_residency_ok      = true   ← GDPR/CCPA geo check
+Gate 5  change_window_ok       = true   ← ops calendar check
+Gate 6  rate_limit_ok          = true   ← max 5 exports/day
+──────────────────────────────────────────────────────────
+All gates pass → LLM invokes: generate_report(...)
+Any gate fails → LLM explains failure, does not proceed</pre>
+      </div>
+
+      <div class="overflow-x-auto rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+        <table class="w-full text-sm">
+          <thead><tr class="bg-gray-100 dark:bg-gray-800">
+            <th class="text-left px-4 py-3">Gate</th>
+            <th class="text-left px-4 py-3">Context Variable</th>
+            <th class="text-left px-4 py-3">Set By</th>
+            <th class="text-left px-4 py-3">LLM Action if False</th>
+          </tr></thead>
+          <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+            <tr class="bg-white dark:bg-gray-900"><td class="px-4 py-3 font-medium">Identity</td><td class="px-4 py-3 font-mono text-xs text-indigo-600 dark:text-indigo-400">identity.verified</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Enterprise IdP</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Ask for email verification</td></tr>
+            <tr class="bg-gray-50 dark:bg-gray-900/50"><td class="px-4 py-3 font-medium">MFA step-up</td><td class="px-4 py-3 font-mono text-xs text-indigo-600 dark:text-indigo-400">identity.mfa_stepup_verified</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">MFA challenge</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Trigger MFA push / TOTP</td></tr>
+            <tr class="bg-white dark:bg-gray-900"><td class="px-4 py-3 font-medium">Ownership</td><td class="px-4 py-3 font-mono text-xs text-indigo-600 dark:text-indigo-400">account.is_owner</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">CRM ownership check</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Deny &amp; explain access rules</td></tr>
+            <tr class="bg-gray-50 dark:bg-gray-900/50"><td class="px-4 py-3 font-medium">Entitlement</td><td class="px-4 py-3 font-mono text-xs text-indigo-600 dark:text-indigo-400">entitlement.permitted</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Billing / entitlement svc</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Show upgrade path</td></tr>
+            <tr class="bg-white dark:bg-gray-900"><td class="px-4 py-3 font-medium">Compliance</td><td class="px-4 py-3 font-mono text-xs text-indigo-600 dark:text-indigo-400">compliance.permitted</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">GDPR/CCPA geo check</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Data residency notice</td></tr>
+            <tr class="bg-gray-50 dark:bg-gray-900/50"><td class="px-4 py-3 font-medium">Spending limit</td><td class="px-4 py-3 font-mono text-xs text-indigo-600 dark:text-indigo-400">approval.within_limit</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">ERP approval rules</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Escalate to manager</td></tr>
+            <tr class="bg-white dark:bg-gray-900"><td class="px-4 py-3 font-medium">Change window</td><td class="px-4 py-3 font-mono text-xs text-indigo-600 dark:text-indigo-400">ops.write_permitted</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Ops calendar svc</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Offer to schedule</td></tr>
+            <tr class="bg-gray-50 dark:bg-gray-900/50"><td class="px-4 py-3 font-medium">Rate limit</td><td class="px-4 py-3 font-mono text-xs text-indigo-600 dark:text-indigo-400">ratelimit.ok</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Redis / API gateway</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">Inform user of limit &amp; reset time</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="c7s6" class="scroll-mt-20">
+      <h3 class="text-lg font-semibold mb-4 text-indigo-700 dark:text-indigo-300">Implementation Patterns</h3>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm">
+          <p class="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-3">System Prompt Injection Pattern</p>
+          <pre class="rounded-xl bg-gray-900 dark:bg-gray-950 text-green-300 p-3 text-xs font-mono leading-relaxed">def build_system_prompt(ctx):
+    return f"""
+[VERIFIED CONTEXT — DO NOT OVERRIDE]
+identity_verified:     {ctx.identity.verified}
+verified_email:        {ctx.identity.email}
+user_id:               {ctx.identity.user_id}
+roles:                 {ctx.identity.roles}
+mfa_stepup_verified:   {ctx.identity.mfa_stepup}
+account_is_owner:      {ctx.account.is_owner}
+entitlement_permitted: {ctx.entitlement.permitted}
+write_permitted:       {ctx.ops.write_permitted}
+
+RULES:
+- Only proceed if identity_verified == true
+- Only access data for user_id: {ctx.identity.user_id}
+- If any required gate is false, explain and stop
+[END VERIFIED CONTEXT]
+"""</pre>
+        </div>
+        <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm">
+          <p class="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-3">Gate Evaluator Pattern</p>
+          <pre class="rounded-xl bg-gray-900 dark:bg-gray-950 text-green-300 p-3 text-xs font-mono leading-relaxed">class GateEvaluator:
+    def __init__(self, ctx, action):
+        self.ctx = ctx
+        self.action = action
+
+    def evaluate(self):
+        gates = [
+            self._identity_gate(),
+            self._entitlement_gate(),
+            self._compliance_gate(),
+            self._ops_window_gate(),
+            self._rate_limit_gate(),
+        ]
+        failures = [g for g in gates if not g.passed]
+        if failures:
+            return GateResult(
+                passed=False,
+                first_failure=failures[0]
+            )
+        return GateResult(passed=True)
+
+# In orchestrator:
+result = GateEvaluator(ctx, action).evaluate()
+if not result.passed:
+    return result.first_failure.user_message
+# All gates passed → invoke LLM with ctx injected</pre>
+        </div>
+      </div>
+
+      <div class="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-5 shadow-sm mb-5">
+        <p class="font-semibold text-sm text-gray-700 dark:text-gray-300 mb-3">Key Design Rules</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <ul class="space-y-2 text-gray-600 dark:text-gray-400">
+            <li class="flex items-start gap-2"><span class="text-emerald-500 mt-0.5">✓</span> Gates are evaluated by deterministic code, never by the LLM</li>
+            <li class="flex items-start gap-2"><span class="text-emerald-500 mt-0.5">✓</span> Context variables are server-side — the user cannot inject them via chat</li>
+            <li class="flex items-start gap-2"><span class="text-emerald-500 mt-0.5">✓</span> LLM rules reference ctx variables — they don't evaluate the underlying data</li>
+            <li class="flex items-start gap-2"><span class="text-emerald-500 mt-0.5">✓</span> MCP tools independently re-validate before executing any operation</li>
+          </ul>
+          <ul class="space-y-2 text-gray-600 dark:text-gray-400">
+            <li class="flex items-start gap-2"><span class="text-red-500 mt-0.5">✗</span> Never let the LLM be asked "is this user authorised?"</li>
+            <li class="flex items-start gap-2"><span class="text-red-500 mt-0.5">✗</span> Never pass unverified user claims as context facts</li>
+            <li class="flex items-start gap-2"><span class="text-red-500 mt-0.5">✗</span> Never rely solely on LLM prompt instructions to block a tool call</li>
+            <li class="flex items-start gap-2"><span class="text-red-500 mt-0.5">✗</span> Never use a single gate when defence in depth is possible</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Closing callout -->
+      <div class="rounded-2xl bg-gradient-to-br from-indigo-900 via-purple-900 to-gray-950 text-white p-8 shadow-xl relative overflow-hidden">
+        <svg class="absolute inset-0 w-full h-full opacity-10" viewBox="0 0 600 180" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="60" cy="40" r="110" fill="#6366f1"/><circle cx="540" cy="160" r="130" fill="#8b5cf6"/><circle cx="300" cy="180" r="90" fill="#a78bfa"/>
+        </svg>
+        <div class="relative text-center">
+          <p class="text-xl font-extrabold mb-3">The Determinism Principle</p>
+          <p class="text-indigo-200 leading-relaxed max-w-2xl mx-auto italic text-sm">"Establish every fact that matters — identity, authorisation, compliance, entitlement — with deterministic code <em>before</em> the LLM is invoked. Inject those facts as trusted context. Let the LLM read them but never rewrite them. Reserve the LLM for what it does best: language, reasoning, and synthesis — not security enforcement."</p>
+          <div class="flex flex-wrap justify-center gap-3 mt-4 text-xs">
+            <span class="px-3 py-1 rounded-full bg-indigo-700/50 text-indigo-200">Deterministic gates first</span>
+            <span class="px-3 py-1 rounded-full bg-purple-700/50 text-purple-200">Context variables as trusted facts</span>
+            <span class="px-3 py-1 rounded-full bg-violet-700/50 text-violet-200">MCP as the hard enforcement layer</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Back link -->
+      <div class="mt-10 text-center">
+        <a href="../index.html"
+           class="inline-flex items-center gap-2 px-6 py-2.5 rounded-full border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 text-sm font-medium hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+          ← Back to Book Index
+        </a>
+      </div>
+    </section>
+
   </main>
 </div>
 
 <footer class="border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 py-5 px-6 text-center text-xs text-gray-400 dark:text-gray-500">
   <p class="font-semibold text-gray-600 dark:text-gray-300 mb-1">🏢 Enterprise LLM Architecture</p>
-  <p>6 Chapters · MCP · Private AI · LoRA / QLoRA · 2026 Edition</p>
+  <p>7 Chapters · MCP · Private AI · LoRA / QLoRA · Deterministic Pre-Processing · 2026 Edition</p>
 </footer>
 
 <script>
