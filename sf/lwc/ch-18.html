@@ -56,62 +56,213 @@
     <div class="stats"><div class="st"><span class="stn">6</span><span class="stl">Core Topics</span></div><div class="st"><span class="stn">18+</span><span class="stl">Examples</span></div><div class="st"><span class="stn">10</span><span class="stl">Practice Questions</span></div></div>
     <div class="badges"><span class="badge">lightning-flow</span><span class="badge">Dynamic Fields</span><span class="badge">Multi-step</span><span class="badge">Validation</span><span class="badge">File Upload</span><span class="badge">Section Visibility</span></div>
   </section>
-  <hr class="dv">
-  
-  <section id="dynamic-forms">
+    <section id="dynamic-forms">
     <div class="lh"><span class="ln">01</span><h2 class="lt">Dynamic Forms</h2></div>
-    <p class="ld">This section covers dynamic forms — a core concept in Chapter 18 of LWC Mastery.</p>
-    <div class="cb"><h3>Dynamic Forms — Code Example</h3>
-    <pre><code class="language-javascript">// Dynamic Forms example
-// Chapter 18: Dynamic Forms & Flows in LWC
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="cb"><h3>Conditional Field Display Based on Data</h3>
+    <pre><code class="language-javascript">import { LightningElement, track } from 'lwc';
+import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+
+export default class DynamicForm extends LightningElement {
+    @track formData = {
+        type: 'individual',
+        name: '',
+        companyName: '',
+        email: '',
+        phone: ''
+    };
+
+    get isCompany() { return this.formData.type === 'company'; }
+    get isIndividual() { return this.formData.type === 'individual'; }
+
+    handleTypeChange(event) {
+        this.formData = { ...this.formData, type: event.detail.value };
+    }
+
+    get typeOptions() {
+        return [
+            { label: 'Individual', value: 'individual' },
+            { label: 'Company',    value: 'company' }
+        ];
+    }
+
+    get isFormValid() {
+        const { name, email } = this.formData;
+        return name.length > 0 && email.includes('@');
+    }
+}
+// Template shows/hides companyName field based on type:
+// &lt;template lwc:if={isCompany}&gt;
+//   &lt;lightning-input label="Company Name" value={formData.companyName}...&gt;
+// &lt;/template&gt;</code></pre></div>
   </section>
   <hr class="dv">
   <section id="flow">
     <div class="lh"><span class="ln">02</span><h2 class="lt">Embedded Flows</h2></div>
-    <p class="ld">This section covers embedded flows — a core concept in Chapter 18 of LWC Mastery.</p>
-    <div class="cb"><h3>Embedded Flows — Code Example</h3>
-    <pre><code class="language-javascript">// Embedded Flows example
-// Chapter 18: Dynamic Forms & Flows in LWC
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="cb"><h3>lightning-flow in LWC</h3>
+    <pre><code class="language-html">&lt;!-- Embed a Screen Flow inside a LWC component --&gt;
+&lt;template&gt;
+  &lt;template lwc:if={showFlow}&gt;
+    &lt;lightning-flow
+        flow-api-name={flowApiName}
+        flow-input-variables={flowInputs}
+        onstatuschange={handleFlowStatusChange}&gt;
+    &lt;/lightning-flow&gt;
+  &lt;/template&gt;
+  &lt;template lwc:else&gt;
+    &lt;lightning-button label="Start Process" onclick={handleStart}&gt;
+    &lt;/lightning-button&gt;
+  &lt;/template&gt;
+&lt;/template&gt;</code></pre>
+    <pre><code class="language-javascript">export default class FlowLauncher extends LightningElement {
+    showFlow = false;
+    flowApiName = 'Create_New_Case_Flow';
+
+    get flowInputs() {
+        return [
+            { name: 'AccountId',    type: 'String', value: this.accountId },
+            { name: 'ContactEmail', type: 'String', value: this.userEmail }
+        ];
+    }
+
+    handleStart() { this.showFlow = true; }
+
+    handleFlowStatusChange(event) {
+        const status = event.detail.status;
+        if (status === 'FINISHED' || status === 'FINISHED_SCREEN') {
+            this.showFlow = false;
+            this.dispatchEvent(new ShowToastEvent({
+                title: 'Complete!', variant: 'success'
+            }));
+        }
+        if (status === 'ERROR') {
+            console.error('Flow error:', event.detail.message);
+        }
+    }
+}</code></pre></div>
   </section>
   <hr class="dv">
   <section id="validation">
     <div class="lh"><span class="ln">03</span><h2 class="lt">Validation Patterns</h2></div>
-    <p class="ld">This section covers validation patterns — a core concept in Chapter 18 of LWC Mastery.</p>
-    <div class="cb"><h3>Validation Patterns — Code Example</h3>
-    <pre><code class="language-javascript">// Validation Patterns example
-// Chapter 18: Dynamic Forms & Flows in LWC
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="cb"><h3>Custom Validation with setCustomValidity</h3>
+    <pre><code class="language-javascript">export default class ValidatedForm extends LightningElement {
+    handleSave() {
+        const inputs = this.template.querySelectorAll('lightning-input, lightning-combobox');
+        let isValid = true;
+
+        inputs.forEach(input => {
+            // Trigger browser validation
+            input.reportValidity();
+            if (!input.checkValidity()) isValid = false;
+        });
+
+        if (isValid) this.saveData();
+    }
+
+    handleEmailBlur(event) {
+        const input = event.target;
+        const email = input.value;
+
+        if (!email.endsWith('@company.com')) {
+            input.setCustomValidity('Must be a @company.com email address');
+        } else {
+            input.setCustomValidity(''); // clear custom error
+        }
+        input.reportValidity();
+    }
+
+    // Async validation — check server for duplicate
+    async handleUsernameBlur(event) {
+        const input = event.target;
+        const exists = await checkUsernameExists({ username: input.value });
+        if (exists) {
+            input.setCustomValidity('Username already taken');
+        } else {
+            input.setCustomValidity('');
+        }
+        input.reportValidity();
+    }
+}</code></pre></div>
   </section>
   <hr class="dv">
   <section id="wizard">
     <div class="lh"><span class="ln">04</span><h2 class="lt">Multi-step Wizard</h2></div>
-    <p class="ld">This section covers multi-step wizard — a core concept in Chapter 18 of LWC Mastery.</p>
-    <div class="cb"><h3>Multi-step Wizard — Code Example</h3>
-    <pre><code class="language-javascript">// Multi-step Wizard example
-// Chapter 18: Dynamic Forms & Flows in LWC
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="cb"><h3>Step-by-step Form Pattern</h3>
+    <pre><code class="language-javascript">export default class MultiStepWizard extends LightningElement {
+    currentStep = 1;
+    totalSteps  = 4;
+    formData = {};
+
+    get progressValue()  { return (this.currentStep / this.totalSteps) * 100; }
+    get isFirstStep()    { return this.currentStep === 1; }
+    get isLastStep()     { return this.currentStep === this.totalSteps; }
+    get isStep(n)        { return this.currentStep === n; }
+
+    handleNext() {
+        if (!this.validateCurrentStep()) return;
+        this.currentStep = Math.min(this.currentStep + 1, this.totalSteps);
+    }
+    handleBack() {
+        this.currentStep = Math.max(this.currentStep - 1, 1);
+    }
+
+    validateCurrentStep() {
+        const inputs = this.template.querySelectorAll(
+            `[data-step="${this.currentStep}"] lightning-input`);
+        return Array.from(inputs).every(i => {
+            i.reportValidity(); return i.checkValidity();
+        });
+    }
+
+    async handleSubmit() {
+        if (!this.validateCurrentStep()) return;
+        await saveWizardData({ data: JSON.stringify(this.formData) });
+        this.dispatchEvent(new CustomEvent('complete', { detail: this.formData }));
+    }
+}</code></pre></div>
   </section>
   <hr class="dv">
   <section id="file">
     <div class="lh"><span class="ln">05</span><h2 class="lt">File Uploads</h2></div>
-    <p class="ld">This section covers file uploads — a core concept in Chapter 18 of LWC Mastery.</p>
-    <div class="cb"><h3>File Uploads — Code Example</h3>
-    <pre><code class="language-javascript">// File Uploads example
-// Chapter 18: Dynamic Forms & Flows in LWC
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="cb"><h3>lightning-file-upload Component</h3>
+    <pre><code class="language-html">&lt;!-- Basic file upload --&gt;
+&lt;lightning-file-upload
+    label="Attach Files"
+    name="fileUploader"
+    accept={acceptedFormats}
+    record-id={recordId}
+    onuploadfinished={handleUploadFinished}
+    multiple&gt;
+&lt;/lightning-file-upload&gt;</code></pre>
+    <pre><code class="language-javascript">export default class FileUploader extends LightningElement {
+    @api recordId;
+
+    get acceptedFormats() {
+        return ['.pdf', '.png', '.jpg', '.xlsx', '.docx'];
+    }
+
+    handleUploadFinished(event) {
+        const files = event.detail.files;
+        // files = [{ documentId: '069...', name: 'report.pdf', contentVersionId: '...' }]
+        const fileNames = files.map(f => f.name).join(', ');
+        this.dispatchEvent(new ShowToastEvent({
+            title: `${files.length} file(s) uploaded`,
+            message: fileNames,
+            variant: 'success'
+        }));
+        // Refresh the Files related list
+        notifyRecordUpdateAvailable([{ recordId: this.recordId }]);
+    }
+}</code></pre></div>
   </section>
   <hr class="dv">
   <section id="bestpractices">
     <div class="lh"><span class="ln">06</span><h2 class="lt">Best Practices</h2></div>
-    <p class="ld">This section covers best practices — a core concept in Chapter 18 of LWC Mastery.</p>
-    <div class="cb"><h3>Best Practices — Code Example</h3>
-    <pre><code class="language-javascript">// Best Practices example
-// Chapter 18: Dynamic Forms & Flows in LWC
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="bpg">
+      <div class="bpc"><h4>Validate All Inputs Before Saving</h4><p>Use <code>querySelectorAll</code> + <code>checkValidity()</code> + <code>reportValidity()</code> on all form inputs before performing DML to catch both required-field and custom validation errors.</p><div class="cc good">✅ const allValid = [...inputs].reduce((v,i) =&gt; i.reportValidity() &amp;&amp; v, true);</div></div>
+      <div class="bpc"><h4>Handle All Flow Status Events</h4><p>A Flow can finish, error, or be paused. Handle all status types in <code>onstatuschange</code> — don't only check for FINISHED.</p><div class="cc good">✅ if (['FINISHED','FINISHED_SCREEN'].includes(status)) { close(); }</div></div>
+      <div class="bpc"><h4>Clear Wizard State on Cancel</h4><p>When a user cancels a multi-step form, reset <code>currentStep</code> and <code>formData</code> so the next open starts fresh.</p><div class="cc good">✅ handleCancel() { this.currentStep = 1; this.formData = {}; this.isOpen = false; }</div></div>
+    </div>
   </section>
-  <hr class="dv">
   <div class="cn">
     <a href="ch-17.html">← Ch 17: LWC & Apex — Advanced Patterns</a>
     <span style="color:var(--tm);font-size:.875rem">Chapter 18 of 20</span>

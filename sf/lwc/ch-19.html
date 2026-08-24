@@ -56,53 +56,139 @@
     <div class="stats"><div class="st"><span class="stn">5</span><span class="stl">Core Topics</span></div><div class="st"><span class="stn">14+</span><span class="stl">Examples</span></div><div class="st"><span class="stn">10</span><span class="stl">Practice Questions</span></div></div>
     <div class="badges"><span class="badge">Agentforce</span><span class="badge">Einstein AI</span><span class="badge">@wire + @AuraEnabled</span><span class="badge">AI Response</span><span class="badge">Generative UI</span><span class="badge">Agent Actions</span></div>
   </section>
-  <hr class="dv">
-  
-  <section id="overview">
-    <div class="lh"><span class="ln">01</span><h2 class="lt">Agentforce + LWC</h2></div>
-    <p class="ld">This section covers agentforce + lwc — a core concept in Chapter 19 of LWC Mastery.</p>
-    <div class="cb"><h3>Agentforce + LWC — Code Example</h3>
-    <pre><code class="language-javascript">// Agentforce + LWC example
-// Chapter 19: LWC & Agentforce
-// See the full implementation in the LWC documentation</code></pre></div>
+    <section id="overview">
+    <div class="lh"><span class="ln">01</span><h2 class="lt">Agentforce + LWC Overview</h2></div>
+    <p class="ld">LWC components can both call Agentforce agents (via Apex) and be used as the UI layer for agent-generated responses. LWC surfaces agent outputs, provides input interfaces for agents, and embeds Einstein AI features.</p>
+    <div class="cb"><h3>Integration Architecture</h3>
+    <pre><code class="language-javascript">// Two integration patterns:
+
+// 1. LWC calls Apex @InvocableMethod (agent actions) imperatively
+//    LWC → Apex @AuraEnabled → @InvocableMethod → Agentforce Agent
+
+// 2. LWC calls Einstein AI APIs directly via Named Credentials
+//    LWC → @wire(getRecord) + custom Apex → Einstein Platform API → response
+
+// 3. LWC hosts the Agentforce Chat UI component
+//    &lt;c-copilot-chat&gt;&lt;/c-copilot-chat&gt; or custom chat UX
+
+// In all cases:
+// - LWC handles the UI/UX layer (input, display, loading states)
+// - Apex handles the API calls and business logic
+// - @AuraEnabled bridges the two layers</code></pre></div>
   </section>
   <hr class="dv">
   <section id="einstein">
     <div class="lh"><span class="ln">02</span><h2 class="lt">Einstein AI in LWC</h2></div>
-    <p class="ld">This section covers einstein ai in lwc — a core concept in Chapter 19 of LWC Mastery.</p>
-    <div class="cb"><h3>Einstein AI in LWC — Code Example</h3>
-    <pre><code class="language-javascript">// Einstein AI in LWC example
-// Chapter 19: LWC & Agentforce
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="cb"><h3>Displaying AI-Generated Content</h3>
+    <pre><code class="language-javascript">// LWC component that calls an Apex method which calls Einstein AI
+import { LightningElement, api, wire } from 'lwc';
+import generateSummary from '@salesforce/apex/EinsteinController.generateSummary';
+
+export default class AiSummaryCard extends LightningElement {
+    @api recordId;
+    isGenerating = false;
+    summary = null;
+    summaryError = null;
+
+    async handleGenerateSummary() {
+        this.isGenerating = true;
+        this.summary = null;
+        this.summaryError = null;
+        try {
+            // Calls Apex which calls Einstein AI API
+            this.summary = await generateSummary({ recordId: this.recordId });
+        } catch (error) {
+            this.summaryError = error.body?.message ?? 'Generation failed';
+        } finally {
+            this.isGenerating = false;
+        }
+    }
+
+    get hasContent() { return !!this.summary; }
+    get buttonLabel() { return this.isGenerating ? 'Generating...' : 'Generate AI Summary'; }
+}
+// Template:
+// &lt;lightning-button label={buttonLabel} disabled={isGenerating} onclick={handleGenerateSummary}&gt;
+// &lt;template lwc:if={isGenerating}&gt;&lt;lightning-spinner&gt;&lt;/lightning-spinner&gt;&lt;/template&gt;
+// &lt;template lwc:if={hasContent}&gt;&lt;div class="summary"&gt;{summary}&lt;/div&gt;&lt;/template&gt;</code></pre></div>
   </section>
   <hr class="dv">
   <section id="actions">
-    <div class="lh"><span class="ln">03</span><h2 class="lt">Agent Actions</h2></div>
-    <p class="ld">This section covers agent actions — a core concept in Chapter 19 of LWC Mastery.</p>
-    <div class="cb"><h3>Agent Actions — Code Example</h3>
-    <pre><code class="language-javascript">// Agent Actions example
-// Chapter 19: LWC & Agentforce
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="lh"><span class="ln">03</span><h2 class="lt">Calling Agent Actions from LWC</h2></div>
+    <div class="cb"><h3>LWC → Apex @AuraEnabled → @InvocableMethod</h3>
+    <pre><code class="language-javascript">// Pattern: LWC calls an Apex service method that calls the @InvocableMethod
+// (Agents call @InvocableMethod directly; LWC goes through @AuraEnabled bridge)
+
+// Apex bridge method:
+// @AuraEnabled
+// public static String lookupAccountFromLWC(String searchTerm) {
+//     AccountLookupAction.Input inp = new AccountLookupAction.Input();
+//     inp.accountName = searchTerm;
+//     List&lt;AccountLookupAction.Output&gt; results =
+//         AccountLookupAction.lookupAccount(new List&lt;AccountLookupAction.Input&gt;{inp});
+//     return results[0].summary;
+// }
+
+import lookupAccountFromLWC from '@salesforce/apex/AgentBridge.lookupAccountFromLWC';
+
+export default class AgentSearch extends LightningElement {
+    searchTerm = '';
+    result = null;
+    isLoading = false;
+
+    handleSearchChange(event) { this.searchTerm = event.detail.value; }
+
+    async handleSearch() {
+        if (!this.searchTerm) return;
+        this.isLoading = true;
+        try {
+            this.result = await lookupAccountFromLWC({ searchTerm: this.searchTerm });
+        } catch(e) {
+            this.result = 'Error: ' + e.body?.message;
+        } finally {
+            this.isLoading = false;
+        }
+    }
+}</code></pre></div>
   </section>
   <hr class="dv">
   <section id="generative">
-    <div class="lh"><span class="ln">04</span><h2 class="lt">Generative UI</h2></div>
-    <p class="ld">This section covers generative ui — a core concept in Chapter 19 of LWC Mastery.</p>
-    <div class="cb"><h3>Generative UI — Code Example</h3>
-    <pre><code class="language-javascript">// Generative UI example
-// Chapter 19: LWC & Agentforce
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="lh"><span class="ln">04</span><h2 class="lt">Generative UI Patterns</h2></div>
+    <div class="cb"><h3>Rendering AI-Structured Responses in LWC</h3>
+    <pre><code class="language-javascript">// AI returns structured data → LWC renders it dynamically
+export default class AiResponseCard extends LightningElement {
+    @api aiResponse;  // { type: 'list'|'table'|'text', data: [...] }
+
+    get responseType() { return this.aiResponse?.type; }
+    get isList()  { return this.responseType === 'list'; }
+    get isTable() { return this.responseType === 'table'; }
+    get isText()  { return this.responseType === 'text'; }
+
+    get listItems()   { return this.aiResponse?.data ?? []; }
+    get tableColumns() { return this.aiResponse?.columns ?? []; }
+    get tableRows()    { return this.aiResponse?.data ?? []; }
+    get textContent()  { return this.aiResponse?.data ?? ''; }
+}
+// Template:
+// &lt;template lwc:if={isList}&gt;
+//   &lt;ul&gt;&lt;template for:each={listItems} for:item="item"&gt;
+//     &lt;li key={item.id}&gt;{item.text}&lt;/li&gt;
+//   &lt;/template&gt;&lt;/ul&gt;
+// &lt;/template&gt;
+// &lt;template lwc:elseif={isTable}&gt;
+//   &lt;lightning-datatable data={tableRows} columns={tableColumns} key-field="id"&gt;
+// &lt;/template&gt;
+// &lt;template lwc:else&gt;&lt;p&gt;{textContent}&lt;/p&gt;&lt;/template&gt;</code></pre></div>
   </section>
   <hr class="dv">
   <section id="bestpractices">
     <div class="lh"><span class="ln">05</span><h2 class="lt">Best Practices</h2></div>
-    <p class="ld">This section covers best practices — a core concept in Chapter 19 of LWC Mastery.</p>
-    <div class="cb"><h3>Best Practices — Code Example</h3>
-    <pre><code class="language-javascript">// Best Practices example
-// Chapter 19: LWC & Agentforce
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="bpg">
+      <div class="bpc"><h4>Always Show AI Generation State</h4><p>AI generation can take 2-5 seconds. Always show a loading spinner with descriptive text so users know the system is working.</p><div class="cc good">✅ &lt;lightning-spinner alternative-text="Einstein is generating a summary..."&gt;</div></div>
+      <div class="bpc"><h4>Validate AI Outputs Before Display</h4><p>AI-generated content can be unexpected. Always validate structure and sanitise before rendering, especially if using lwc:inner-html.</p><div class="cc good">✅ this.summary = sanitize(result) || 'No summary available';</div></div>
+      <div class="bpc"><h4>Allow User Correction of AI Results</h4><p>AI outputs aren't always perfect. Provide a way for users to edit, dismiss, or regenerate AI-generated content rather than locking them into the first result.</p><div class="cc good">✅ Show Edit / Regenerate / Dismiss buttons alongside AI output</div></div>
+    </div>
   </section>
-  <hr class="dv">
   <div class="cn">
     <a href="ch-18.html">← Ch 18: LWC for Experience Cloud</a>
     <span style="color:var(--tm);font-size:.875rem">Chapter 19 of 20</span>

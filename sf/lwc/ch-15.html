@@ -56,62 +56,180 @@
     <div class="stats"><div class="st"><span class="stn">6</span><span class="stl">Core Topics</span></div><div class="st"><span class="stn">16+</span><span class="stl">Examples</span></div><div class="st"><span class="stn">10</span><span class="stl">Practice Questions</span></div></div>
     <div class="badges"><span class="badge">ARIA</span><span class="badge">tabindex</span><span class="badge">focusVisible</span><span class="badge">announceToScreenReader</span><span class="badge">WCAG 2.1</span><span class="badge">keyboard nav</span></div>
   </section>
-  <hr class="dv">
-  
-  <section id="aria">
+    <section id="aria">
     <div class="lh"><span class="ln">01</span><h2 class="lt">ARIA Basics</h2></div>
-    <p class="ld">This section covers aria basics — a core concept in Chapter 15 of LWC Mastery.</p>
-    <div class="cb"><h3>ARIA Basics — Code Example</h3>
-    <pre><code class="language-javascript">// ARIA Basics example
-// Chapter 15: Accessibility in LWC
-// See the full implementation in the LWC documentation</code></pre></div>
+    <p class="ld">Accessible Rich Internet Applications (ARIA) attributes provide semantic meaning to custom UI elements, making them usable by screen readers and other assistive technologies.</p>
+    <div class="cb"><h3>Essential ARIA Attributes in LWC</h3>
+    <pre><code class="language-html">&lt;!-- Button role and state --&gt;
+&lt;div role="button" tabindex="0"
+     aria-label="Close dialog"
+     aria-pressed={isPressed}
+     onclick={handleClose}
+     onkeydown={handleKeyDown}&gt;
+  &lt;lightning-icon icon-name="utility:close"&gt;&lt;/lightning-icon&gt;
+&lt;/div&gt;
+
+&lt;!-- Status/alert regions --&gt;
+&lt;div role="alert" aria-live="assertive"&gt;{errorMessage}&lt;/div&gt;
+&lt;div role="status" aria-live="polite"&gt;{statusMessage}&lt;/div&gt;
+
+&lt;!-- Form field labelling --&gt;
+&lt;label for="search-input"&gt;Search accounts&lt;/label&gt;
+&lt;input id="search-input" type="text"
+       aria-describedby="search-hint"
+       aria-required="true"&gt;
+&lt;p id="search-hint"&gt;Enter at least 2 characters&lt;/p&gt;
+
+&lt;!-- Expanded/collapsed state --&gt;
+&lt;button aria-expanded={isExpanded} aria-controls="panel-content"&gt;
+  Toggle Details
+&lt;/button&gt;
+&lt;div id="panel-content" aria-hidden={isCollapsed}&gt;...&lt;/div&gt;</code></pre></div>
   </section>
   <hr class="dv">
   <section id="keyboard">
     <div class="lh"><span class="ln">02</span><h2 class="lt">Keyboard Navigation</h2></div>
-    <p class="ld">This section covers keyboard navigation — a core concept in Chapter 15 of LWC Mastery.</p>
-    <div class="cb"><h3>Keyboard Navigation — Code Example</h3>
-    <pre><code class="language-javascript">// Keyboard Navigation example
-// Chapter 15: Accessibility in LWC
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="cb"><h3>Full Keyboard Accessibility</h3>
+    <pre><code class="language-javascript">export default class AccessibleList extends LightningElement {
+    focusedIndex = -1;
+    items = [];
+
+    // Handle keyboard navigation for a custom list
+    handleKeyDown(event) {
+        switch (event.key) {
+            case 'ArrowDown':
+                event.preventDefault();
+                this.focusedIndex = Math.min(
+                    this.focusedIndex + 1, this.items.length - 1);
+                this.focusItem(this.focusedIndex);
+                break;
+            case 'ArrowUp':
+                event.preventDefault();
+                this.focusedIndex = Math.max(this.focusedIndex - 1, 0);
+                this.focusItem(this.focusedIndex);
+                break;
+            case 'Enter':
+            case ' ':
+                event.preventDefault();
+                this.selectItem(this.focusedIndex);
+                break;
+            case 'Escape':
+                this.closeDropdown();
+                break;
+            case 'Home':
+                this.focusedIndex = 0;
+                this.focusItem(0);
+                break;
+            case 'End':
+                this.focusedIndex = this.items.length - 1;
+                this.focusItem(this.items.length - 1);
+                break;
+        }
+    }
+
+    focusItem(index) {
+        const items = this.template.querySelectorAll('[role="option"]');
+        if (items[index]) items[index].focus();
+    }
+}</code></pre></div>
   </section>
   <hr class="dv">
   <section id="focus">
     <div class="lh"><span class="ln">03</span><h2 class="lt">Focus Management</h2></div>
-    <p class="ld">This section covers focus management — a core concept in Chapter 15 of LWC Mastery.</p>
-    <div class="cb"><h3>Focus Management — Code Example</h3>
-    <pre><code class="language-javascript">// Focus Management example
-// Chapter 15: Accessibility in LWC
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="cb"><h3>Focus Trapping &amp; Restoration</h3>
+    <pre><code class="language-javascript">export default class ModalDialog extends LightningElement {
+    _previousFocus; // element that had focus before modal opened
+
+    openModal() {
+        // Save focus position
+        this._previousFocus = document.activeElement;
+        // Open modal, then move focus to first focusable element
+        this.isOpen = true;
+        // setTimeout needed because template re-renders asynchronously
+        setTimeout(() => {
+            const firstFocusable = this.template.querySelector(
+                'button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            );
+            firstFocusable?.focus();
+        }, 0);
+    }
+
+    closeModal() {
+        this.isOpen = false;
+        // Restore focus to where it was before opening
+        this._previousFocus?.focus();
+    }
+
+    // Trap focus inside modal while it's open
+    handleKeyDown(event) {
+        if (event.key !== 'Tab') return;
+        const focusable = this.template.querySelectorAll(
+            'button:not([disabled]), input:not([disabled]), [tabindex="0"]'
+        );
+        const first = focusable[0];
+        const last  = focusable[focusable.length - 1];
+
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault(); last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault(); first.focus();
+        }
+    }
+}</code></pre></div>
   </section>
   <hr class="dv">
   <section id="sr">
-    <div class="lh"><span class="ln">04</span><h2 class="lt">Screen Readers</h2></div>
-    <p class="ld">This section covers screen readers — a core concept in Chapter 15 of LWC Mastery.</p>
-    <div class="cb"><h3>Screen Readers — Code Example</h3>
-    <pre><code class="language-javascript">// Screen Readers example
-// Chapter 15: Accessibility in LWC
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="lh"><span class="ln">04</span><h2 class="lt">Screen Reader Support</h2></div>
+    <div class="cb"><h3>Announcements &amp; Visually Hidden Text</h3>
+    <pre><code class="language-html">&lt;!-- Visually hidden but announced by screen readers --&gt;
+&lt;span class="slds-assistive-text"&gt;{hiddenContext}&lt;/span&gt;
+
+&lt;!-- Skip to main content link (WCAG 2.4.1) --&gt;
+&lt;a href="#main-content" class="skip-link"&gt;Skip to main content&lt;/a&gt;
+&lt;main id="main-content"&gt;...&lt;/main&gt;
+
+&lt;!-- Live region for dynamic updates --&gt;
+&lt;div aria-live="polite" aria-atomic="true" class="slds-assistive-text"&gt;
+  {screenReaderAnnouncement}
+&lt;/div&gt;</code></pre>
+    <pre><code class="language-javascript">// Announce dynamic changes to screen readers
+export default class DataTable extends LightningElement {
+    screenReaderAnnouncement = '';
+
+    handleSortChange(field, direction) {
+        this.sortData(field, direction);
+        // Announce the result to screen reader users
+        this.screenReaderAnnouncement =
+            `Table sorted by ${field} in ${direction}ending order`;
+    }
+
+    handleDelete(id) {
+        this.items = this.items.filter(i => i.Id !== id);
+        this.screenReaderAnnouncement = 'Record deleted successfully';
+    }
+}</code></pre></div>
   </section>
   <hr class="dv">
   <section id="wcag">
-    <div class="lh"><span class="ln">05</span><h2 class="lt">WCAG Compliance</h2></div>
-    <p class="ld">This section covers wcag compliance — a core concept in Chapter 15 of LWC Mastery.</p>
-    <div class="cb"><h3>WCAG Compliance — Code Example</h3>
-    <pre><code class="language-javascript">// WCAG Compliance example
-// Chapter 15: Accessibility in LWC
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="lh"><span class="ln">05</span><h2 class="lt">WCAG 2.1 AA Compliance</h2></div>
+    <div class="bpg">
+      <div class="bpc"><h4>Colour Contrast (1.4.3)</h4><p>Text must have a contrast ratio of at least 4.5:1 against its background. Use SLDS tokens — they're pre-tested for contrast compliance.</p><div class="cc good">✅ Use var(--lwc-colorTextDefault) and SLDS-approved background combinations</div></div>
+      <div class="bpc"><h4>Keyboard Accessible (2.1.1)</h4><p>All interactive elements must be operable by keyboard. Never rely solely on hover or mouse events for functionality.</p><div class="cc bad">❌ onmouseover={showTooltip} with no keyboard equivalent</div><div class="cc good">✅ onfocus={showTooltip} onfocusin={showTooltip} as well</div></div>
+      <div class="bpc"><h4>Visible Focus (2.4.7)</h4><p>Keyboard focus must be visually visible at all times. Never remove the focus outline with CSS unless you replace it with a custom visible indicator.</p><div class="cc bad">❌ :focus { outline: none; }</div><div class="cc good">✅ :focus-visible { outline: 2px solid var(--cp); outline-offset: 2px; }</div></div>
+      <div class="bpc"><h4>Error Identification (3.3.1)</h4><p>Form errors must be identified in text — not just by colour. SLDS form validation messages include an icon and text.</p><div class="cc good">✅ &lt;lightning-input validity={nameValidity}&gt; shows text error message</div></div>
+      <div class="bpc"><h4>Images of Text (1.4.5)</h4><p>Don't use images to display text. Use HTML/CSS text which can be resized and read by screen readers.</p><div class="cc bad">❌ &lt;img src="submit-button.png" alt="Submit"&gt;</div><div class="cc good">✅ &lt;lightning-button label="Submit"&gt;&lt;/lightning-button&gt;</div></div>
+      <div class="bpc"><h4>Name, Role, Value (4.1.2)</h4><p>All custom UI components must have a name (label/aria-label), a role, and communicate their state via ARIA attributes.</p><div class="cc good">✅ role="checkbox" aria-checked={isChecked} aria-label={itemLabel}</div></div>
+    </div>
   </section>
   <hr class="dv">
   <section id="bestpractices">
     <div class="lh"><span class="ln">06</span><h2 class="lt">Best Practices</h2></div>
-    <p class="ld">This section covers best practices — a core concept in Chapter 15 of LWC Mastery.</p>
-    <div class="cb"><h3>Best Practices — Code Example</h3>
-    <pre><code class="language-javascript">// Best Practices example
-// Chapter 15: Accessibility in LWC
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="bpg">
+      <div class="bpc"><h4>Use Base Components Wherever Possible</h4><p>Salesforce base components (lightning-button, lightning-input, etc.) are WCAG-compliant by default. Building custom equivalents requires significant accessibility work.</p><div class="cc good">✅ &lt;lightning-combobox&gt; handles keyboard, ARIA, and focus automatically</div></div>
+      <div class="bpc"><h4>Test with a Screen Reader</h4><p>Use VoiceOver (macOS/iOS) or NVDA (Windows) to test your component. Automated tools catch ~30% of issues — manual testing is essential.</p><div class="cc good">✅ VoiceOver: Cmd+F5 / NVDA: Ctrl+Alt+N to start testing</div></div>
+      <div class="bpc"><h4>Always Provide Alternative Text for Icons</h4><p>Icon-only buttons must have <code>alternative-text</code> or <code>aria-label</code> so screen readers can announce what the button does.</p><div class="cc bad">❌ &lt;lightning-button-icon icon-name="utility:edit"&gt;</div><div class="cc good">✅ &lt;lightning-button-icon icon-name="utility:edit" alternative-text="Edit record"&gt;</div></div>
+    </div>
   </section>
-  <hr class="dv">
   <div class="cn">
     <a href="ch-14.html">← Ch 14: LWC Performance Optimisation</a>
     <span style="color:var(--tm);font-size:.875rem">Chapter 15 of 20</span>

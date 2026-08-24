@@ -56,62 +56,193 @@
     <div class="stats"><div class="st"><span class="stn">5</span><span class="stl">Core Topics</span></div><div class="st"><span class="stn">18+</span><span class="stl">Examples</span></div><div class="st"><span class="stn">10</span><span class="stl">Practice Questions</span></div></div>
     <div class="badges"><span class="badge">getRecord</span><span class="badge">createRecord</span><span class="badge">updateRecord</span><span class="badge">deleteRecord</span><span class="badge">notifyRecordUpdateAvailable</span><span class="badge">lightning-record-edit-form</span></div>
   </section>
-  <hr class="dv">
-  
-  <section id="lds-intro">
+    <section id="lds-intro">
     <div class="lh"><span class="ln">01</span><h2 class="lt">LDS Overview</h2></div>
-    <p class="ld">This section covers lds overview — a core concept in Chapter 11 of LWC Mastery.</p>
-    <div class="cb"><h3>LDS Overview — Code Example</h3>
-    <pre><code class="language-javascript">// LDS Overview example
-// Chapter 11: Lightning Data Service (LDS)
-// See the full implementation in the LWC documentation</code></pre></div>
+    <p class="ld">Lightning Data Service (LDS) is Salesforce's client-side data layer. It provides reactive wire adapters for reading and writing records, handles caching, automatically enforces FLS/sharing, and notifies all components when a record changes.</p>
+    <div class="cb"><h3>LDS vs Apex — When to Choose</h3>
+    <pre><code class="language-javascript">// USE LDS when:
+// - Reading/writing standard or custom sObject records
+// - You need automatic FLS and sharing enforcement
+// - You want built-in optimistic UI and cache management
+// - Multiple components show the same record (cache sync)
+
+// USE APEX when:
+// - Complex business logic beyond CRUD
+// - Multiple objects in one transaction
+// - Aggregate queries / reporting
+// - Operations requiring governor limit control
+
+// LDS Adapters (from lightning/uiRecordApi):
+// getRecord          — read a record
+// getRecords         — read multiple records
+// getRelatedListRecords — related records
+// createRecord       — insert a new record
+// updateRecord       — update existing record
+// deleteRecord       — delete a record
+// getObjectInfo      — object metadata
+// getPicklistValues  — picklist field values</code></pre></div>
   </section>
   <hr class="dv">
   <section id="read">
     <div class="lh"><span class="ln">02</span><h2 class="lt">Reading Records</h2></div>
-    <p class="ld">This section covers reading records — a core concept in Chapter 11 of LWC Mastery.</p>
-    <div class="cb"><h3>Reading Records — Code Example</h3>
-    <pre><code class="language-javascript">// Reading Records example
-// Chapter 11: Lightning Data Service (LDS)
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="cb"><h3>getRecord Wire Adapter</h3>
+    <pre><code class="language-javascript">import { LightningElement, wire, api } from 'lwc';
+import { getRecord, getFieldValue } from 'lightning/uiRecordApi';
+import ACCOUNT_NAME    from '@salesforce/schema/Account.Name';
+import ACCOUNT_PHONE   from '@salesforce/schema/Account.Phone';
+import ACCOUNT_WEBSITE from '@salesforce/schema/Account.Website';
+import ACCOUNT_OWNER   from '@salesforce/schema/Account.Owner.Name';
+
+const FIELDS = [ACCOUNT_NAME, ACCOUNT_PHONE, ACCOUNT_WEBSITE, ACCOUNT_OWNER];
+
+export default class AccountDetail extends LightningElement {
+    @api recordId;
+
+    @wire(getRecord, { recordId: '$recordId', fields: FIELDS })
+    account;
+
+    get name()    { return getFieldValue(this.account.data, ACCOUNT_NAME); }
+    get phone()   { return getFieldValue(this.account.data, ACCOUNT_PHONE); }
+    get website() { return getFieldValue(this.account.data, ACCOUNT_WEBSITE); }
+    get owner()   { return getFieldValue(this.account.data, ACCOUNT_OWNER); }
+
+    get isLoading() { return !this.account.data && !this.account.error; }
+    get error()     { return this.account.error?.body?.message; }
+}
+// getFieldValue safely navigates the LDS data structure
+// Returns undefined (not null/error) if field is missing</code></pre></div>
   </section>
   <hr class="dv">
   <section id="write">
-    <div class="lh"><span class="ln">03</span><h2 class="lt">Writing Records</h2></div>
-    <p class="ld">This section covers writing records — a core concept in Chapter 11 of LWC Mastery.</p>
-    <div class="cb"><h3>Writing Records — Code Example</h3>
-    <pre><code class="language-javascript">// Writing Records example
-// Chapter 11: Lightning Data Service (LDS)
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="lh"><span class="ln">03</span><h2 class="lt">Writing Records — Create, Update, Delete</h2></div>
+    <div class="cb"><h3>createRecord, updateRecord, deleteRecord</h3>
+    <pre><code class="language-javascript">import { createRecord, updateRecord, deleteRecord } from 'lightning/uiRecordApi';
+import { ShowToastEvent } from 'lightning/platformShowToastEvent';
+import ACCOUNT_OBJECT from '@salesforce/schema/Account';
+import NAME_FIELD     from '@salesforce/schema/Account.Name';
+import INDUSTRY_FIELD from '@salesforce/schema/Account.Industry';
+
+export default class AccountManager extends LightningElement {
+    @api recordId;
+
+    // CREATE
+    async handleCreate() {
+        const fields = {};
+        fields[NAME_FIELD.fieldApiName]     = 'New Account';
+        fields[INDUSTRY_FIELD.fieldApiName] = 'Technology';
+
+        try {
+            const result = await createRecord({
+                apiName: ACCOUNT_OBJECT.objectApiName, fields
+            });
+            this.dispatchEvent(new ShowToastEvent({
+                title: 'Created!', message: 'Account ID: ' + result.id,
+                variant: 'success'
+            }));
+        } catch (e) { this.showError(e); }
+    }
+
+    // UPDATE
+    async handleUpdate(name) {
+        const fields = { Id: this.recordId };
+        fields[NAME_FIELD.fieldApiName] = name;
+        try {
+            await updateRecord({ fields });
+            this.dispatchEvent(new ShowToastEvent({
+                title: 'Updated!', variant: 'success' }));
+        } catch (e) { this.showError(e); }
+    }
+
+    // DELETE
+    async handleDelete() {
+        try {
+            await deleteRecord(this.recordId);
+            this.dispatchEvent(new ShowToastEvent({
+                title: 'Deleted!', variant: 'success' }));
+            this.navigateToList();
+        } catch (e) { this.showError(e); }
+    }
+
+    showError(e) {
+        this.dispatchEvent(new ShowToastEvent({
+            title: 'Error', message: e.body?.message, variant: 'error'
+        }));
+    }
+}</code></pre></div>
   </section>
   <hr class="dv">
   <section id="record-forms">
-    <div class="lh"><span class="ln">04</span><h2 class="lt">Record Forms</h2></div>
-    <p class="ld">This section covers record forms — a core concept in Chapter 11 of LWC Mastery.</p>
-    <div class="cb"><h3>Record Forms — Code Example</h3>
-    <pre><code class="language-javascript">// Record Forms example
-// Chapter 11: Lightning Data Service (LDS)
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="lh"><span class="ln">04</span><h2 class="lt">lightning-record-*-form Components</h2></div>
+    <div class="cb"><h3>Declarative CRUD Without JS</h3>
+    <pre><code class="language-html">&lt;!-- Full CRUD without ANY JavaScript --&gt;
+
+&lt;!-- Create new record --&gt;
+&lt;lightning-record-form
+    object-api-name="Account"
+    layout-type="Compact"
+    mode="edit"
+    onsuccess={handleSuccess}&gt;
+&lt;/lightning-record-form&gt;
+
+&lt;!-- View existing record --&gt;
+&lt;lightning-record-form
+    record-id={recordId}
+    object-api-name="Account"
+    layout-type="Full"
+    mode="view"&gt;
+&lt;/lightning-record-form&gt;
+
+&lt;!-- Custom field selection --&gt;
+&lt;lightning-record-form
+    record-id={recordId}
+    object-api-name="Account"
+    fields={fieldList}
+    mode="readonly"
+    columns="2"&gt;
+&lt;/lightning-record-form&gt;</code></pre>
+    <pre><code class="language-javascript">// fieldList can be schema imports or strings:
+import NAME    from '@salesforce/schema/Account.Name';
+import PHONE   from '@salesforce/schema/Account.Phone';
+import REVENUE from '@salesforce/schema/Account.AnnualRevenue';
+
+fieldList = [NAME, PHONE, REVENUE];</code></pre></div>
   </section>
   <hr class="dv">
   <section id="refresh">
     <div class="lh"><span class="ln">05</span><h2 class="lt">Cache Refresh</h2></div>
-    <p class="ld">This section covers cache refresh — a core concept in Chapter 11 of LWC Mastery.</p>
-    <div class="cb"><h3>Cache Refresh — Code Example</h3>
-    <pre><code class="language-javascript">// Cache Refresh example
-// Chapter 11: Lightning Data Service (LDS)
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="cb"><h3>notifyRecordUpdateAvailable &amp; refreshApex</h3>
+    <pre><code class="language-javascript">import { notifyRecordUpdateAvailable } from 'lightning/uiRecordApi';
+import { refreshApex } from '@salesforce/apex';
+
+export default class RecordRefresher extends LightningElement {
+    @api recordId;
+    @wire(getRecord, { recordId: '$recordId', fields: FIELDS }) wiredRecord;
+    @wire(getRelatedList, { recordId: '$recordId' }) wiredRelated;
+
+    async handleExternalUpdate() {
+        // 1. Tell LDS cache that this record changed
+        // All components wired to this recordId will re-fetch
+        notifyRecordUpdateAvailable([{ recordId: this.recordId }]);
+    }
+
+    async handleApexRefresh() {
+        // 2. Refresh a specific @wire(apexMethod) result
+        await refreshApex(this.wiredRecord);
+        await refreshApex(this.wiredRelated);
+    }
+}
+// LDS handles cache invalidation automatically after createRecord/updateRecord
+// Call notifyRecordUpdateAvailable when you update a record via imperative Apex</code></pre></div>
   </section>
   <hr class="dv">
   <section id="bestpractices">
     <div class="lh"><span class="ln">06</span><h2 class="lt">Best Practices</h2></div>
-    <p class="ld">This section covers best practices — a core concept in Chapter 11 of LWC Mastery.</p>
-    <div class="cb"><h3>Best Practices — Code Example</h3>
-    <pre><code class="language-javascript">// Best Practices example
-// Chapter 11: Lightning Data Service (LDS)
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="bpg">
+      <div class="bpc"><h4>Use Schema Imports for Field/Object Names</h4><p>Always import field and object names via <code>@salesforce/schema/</code> rather than hard-coding strings. Schema imports fail at deploy time if the field doesn't exist, catching errors early.</p><div class="cc bad">❌ fields: ['Account.Name'] // string — fails silently if renamed</div><div class="cc good">✅ import NAME from '@salesforce/schema/Account.Name'; // compile-time check</div></div>
+      <div class="bpc"><h4>Call notifyRecordUpdateAvailable After Apex DML</h4><p>When you update a record via imperative Apex (not LDS), the LDS cache doesn't know. Call <code>notifyRecordUpdateAvailable</code> to invalidate the cache and trigger re-fetches across all components.</p><div class="cc good">✅ notifyRecordUpdateAvailable([{ recordId: id }]);</div></div>
+      <div class="bpc"><h4>Use lightning-record-form When Possible</h4><p>For standard CRUD on a single record, <code>lightning-record-form</code> with <code>layout-type="Full"</code> requires zero JavaScript and handles everything automatically.</p><div class="cc good">✅ &lt;lightning-record-form record-id={recordId} object-api-name="Account"&gt;</div></div>
+    </div>
   </section>
-  <hr class="dv">
   <div class="cn">
     <a href="ch-10.html">← Ch 10: Component Composition & Slots</a>
     <span style="color:var(--tm);font-size:.875rem">Chapter 11 of 20</span>

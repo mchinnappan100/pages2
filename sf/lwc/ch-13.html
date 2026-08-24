@@ -56,62 +56,185 @@
     <div class="stats"><div class="st"><span class="stn">6</span><span class="stl">Core Topics</span></div><div class="st"><span class="stn">16+</span><span class="stl">Examples</span></div><div class="st"><span class="stn">10</span><span class="stl">Practice Questions</span></div></div>
     <div class="badges"><span class="badge">Lazy Load</span><span class="badge">Memoisation</span><span class="badge">Debounce</span><span class="badge">shouldUpdate</span><span class="badge">Key Attribute</span><span class="badge">Chrome DevTools</span></div>
   </section>
-  <hr class="dv">
-  
-  <section id="rendering">
+    <section id="rendering">
     <div class="lh"><span class="ln">01</span><h2 class="lt">Render Performance</h2></div>
-    <p class="ld">This section covers render performance — a core concept in Chapter 13 of LWC Mastery.</p>
-    <div class="cb"><h3>Render Performance — Code Example</h3>
-    <pre><code class="language-javascript">// Render Performance example
-// Chapter 13: LWC Performance Optimisation
-// See the full implementation in the LWC documentation</code></pre></div>
+    <p class="ld">LWC's rendering is fast by default — it only patches changed DOM nodes. The biggest performance killers are unnecessary re-renders, expensive getters, and missing <code>key</code> attributes on lists.</p>
+    <div class="cb"><h3>Understanding Re-renders</h3>
+    <pre><code class="language-javascript">// LWC re-renders when:
+// 1. A reactive property changes (@api, or primitive class field)
+// 2. A bound @wire result updates
+// 3. You reassign an object/array
+
+// AVOID: getters with side effects or expensive computation
+// Every render calls all getters — keep them cheap
+get expensiveWrong() {
+    // Called on EVERY re-render — bad if items is large
+    return this.items.filter(i => i.active).sort(...).slice(0, 10);
+}
+
+// BETTER: cache the result, recompute only when items changes
+_cachedResult;
+set items(val) {
+    this._items = val;
+    this._cachedResult = val.filter(i => i.active).sort(...).slice(0, 10);
+}
+get items() { return this._items; }
+get processedItems() { return this._cachedResult; }
+
+// ALSO AVOID: creating new object/array literals in getters
+get styleObject() {
+    return { color: this.isActive ? 'blue' : 'gray' }; // new object every render
+}
+// PREFER:
+get activeStyle() { return this.isActive ? 'color:blue' : 'color:gray'; }</code></pre></div>
   </section>
   <hr class="dv">
   <section id="lazy">
     <div class="lh"><span class="ln">02</span><h2 class="lt">Lazy Loading</h2></div>
-    <p class="ld">This section covers lazy loading — a core concept in Chapter 13 of LWC Mastery.</p>
-    <div class="cb"><h3>Lazy Loading — Code Example</h3>
-    <pre><code class="language-javascript">// Lazy Loading example
-// Chapter 13: LWC Performance Optimisation
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="cb"><h3>Loading Heavy Components On Demand</h3>
+    <pre><code class="language-javascript">// Lazy load a heavy component (chart, map) only when needed
+import { LightningElement } from 'lwc';
+
+export default class Dashboard extends LightningElement {
+    showChart = false;    // chart not rendered until user requests it
+    showMap   = false;
+
+    handleShowChart() {
+        this.showChart = true;  // first render of chart happens here
+    }
+    handleShowMap() {
+        this.showMap = true;
+    }
+}
+// Template:
+// &lt;lightning-button label="Show Chart" onclick={handleShowChart}&gt;&lt;/lightning-button&gt;
+// &lt;template lwc:if={showChart}&gt;
+//   &lt;c-heavy-chart data={chartData}&gt;&lt;/c-heavy-chart&gt;
+// &lt;/template&gt;
+
+// Lazy load Apex data only when a tab is activated
+handleTabSelect(event) {
+    const tab = event.target.value;
+    if (tab === 'related' && !this.relatedLoaded) {
+        this.relatedLoaded = true; // triggers @wire with new param
+    }
+}</code></pre></div>
   </section>
   <hr class="dv">
   <section id="memo">
     <div class="lh"><span class="ln">03</span><h2 class="lt">Memoisation</h2></div>
-    <p class="ld">This section covers memoisation — a core concept in Chapter 13 of LWC Mastery.</p>
-    <div class="cb"><h3>Memoisation — Code Example</h3>
-    <pre><code class="language-javascript">// Memoisation example
-// Chapter 13: LWC Performance Optimisation
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="cb"><h3>Caching Expensive Computations</h3>
+    <pre><code class="language-javascript">export default class ExpensiveList extends LightningElement {
+    _items = [];
+    _filteredCache = null;
+    _filterTerm = '';
+
+    // Cache filtered results — only recompute when items or filter changes
+    get filteredItems() {
+        if (this._filteredCache) return this._filteredCache;
+        this._filteredCache = this._items.filter(item =>
+            item.name.toLowerCase().includes(this._filterTerm.toLowerCase())
+        );
+        return this._filteredCache;
+    }
+
+    set items(val) {
+        this._items = val ?? [];
+        this._filteredCache = null; // invalidate cache
+    }
+
+    handleFilterChange(event) {
+        this._filterTerm = event.detail.value;
+        this._filteredCache = null; // invalidate cache — triggers re-render
+    }
+
+    // For expensive get() that depends on multiple properties,
+    // use a private field + manual invalidation:
+    get sortedFilteredItems() {
+        if (!this._sortCache) {
+            this._sortCache = [...this.filteredItems]
+                .sort((a,b) => a.name.localeCompare(b.name));
+        }
+        return this._sortCache;
+    }
+}</code></pre></div>
   </section>
   <hr class="dv">
   <section id="debounce">
-    <div class="lh"><span class="ln">04</span><h2 class="lt">Debounce & Throttle</h2></div>
-    <p class="ld">This section covers debounce & throttle — a core concept in Chapter 13 of LWC Mastery.</p>
-    <div class="cb"><h3>Debounce & Throttle — Code Example</h3>
-    <pre><code class="language-javascript">// Debounce & Throttle example
-// Chapter 13: LWC Performance Optimisation
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="lh"><span class="ln">04</span><h2 class="lt">Debounce &amp; Throttle</h2></div>
+    <div class="cb"><h3>Limiting Expensive Handler Calls</h3>
+    <pre><code class="language-javascript">export default class SearchBox extends LightningElement {
+    _debounceTimer;
+
+    // Debounce: wait until user stops typing for 300ms before searching
+    handleSearchInput(event) {
+        const searchTerm = event.detail.value;
+        clearTimeout(this._debounceTimer);
+        this._debounceTimer = setTimeout(() => {
+            this.performSearch(searchTerm);
+        }, 300);
+    }
+
+    // Throttle: call scroll handler at most once every 100ms
+    _lastScrollTime = 0;
+    handleScroll(event) {
+        const now = Date.now();
+        if (now - this._lastScrollTime < 100) return; // throttle
+        this._lastScrollTime = now;
+        this.updateScrollPosition(event.target.scrollTop);
+    }
+
+    // Always clear timers in disconnectedCallback
+    disconnectedCallback() {
+        clearTimeout(this._debounceTimer);
+    }
+
+    performSearch(term) {
+        if (term.length < 2) return;
+        // Fire Apex or LMS...
+    }
+}</code></pre></div>
   </section>
   <hr class="dv">
   <section id="profile">
-    <div class="lh"><span class="ln">05</span><h2 class="lt">Profiling</h2></div>
-    <p class="ld">This section covers profiling — a core concept in Chapter 13 of LWC Mastery.</p>
-    <div class="cb"><h3>Profiling — Code Example</h3>
-    <pre><code class="language-javascript">// Profiling example
-// Chapter 13: LWC Performance Optimisation
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="lh"><span class="ln">05</span><h2 class="lt">Profiling with Chrome DevTools</h2></div>
+    <div class="cb"><h3>Finding Performance Bottlenecks</h3>
+    <pre><code class="language-javascript">// Step 1: Enable Debug Mode in Salesforce
+// Setup → Debug Mode → enable for your user
+// This loads unminified LWC code with better error messages
+
+// Step 2: Open Chrome DevTools → Performance tab
+// Click Record, interact with your component, stop recording
+
+// Step 3: Look for:
+// - Long "Rendering" tasks (yellow) — expensive getters or re-renders
+// - Frequent "Recalculate Style" — CSS that forces reflow
+// - Large "Paint" blocks — too many DOM updates
+
+// Step 4: Use Performance API in code for precision timing
+connectedCallback() {
+    performance.mark('lwc-start');
+}
+renderedCallback() {
+    performance.mark('lwc-end');
+    performance.measure('lwc-render', 'lwc-start', 'lwc-end');
+    const measure = performance.getEntriesByName('lwc-render')[0];
+    console.log('Initial render:', measure.duration.toFixed(2), 'ms');
+}
+
+// Step 5: Check wire response sizes
+// Large wire payloads slow down both network and rendering
+// Only request fields you need in RETURNING clause</code></pre></div>
   </section>
   <hr class="dv">
   <section id="bestpractices">
     <div class="lh"><span class="ln">06</span><h2 class="lt">Best Practices</h2></div>
-    <p class="ld">This section covers best practices — a core concept in Chapter 13 of LWC Mastery.</p>
-    <div class="cb"><h3>Best Practices — Code Example</h3>
-    <pre><code class="language-javascript">// Best Practices example
-// Chapter 13: LWC Performance Optimisation
-// See the full implementation in the LWC documentation</code></pre></div>
+    <div class="bpg">
+      <div class="bpc"><h4>Keep Getters Cheap</h4><p>Getters run on every render. Move expensive filtering/sorting to a cached value that you recompute only when source data changes.</p><div class="cc bad">❌ get filtered() { return this.items.filter(...).sort(...); } // every render</div><div class="cc good">✅ Invalidate cache on data change; return cached array in getter</div></div>
+      <div class="bpc"><h4>Debounce Input Handlers</h4><p>Search boxes, filter inputs, and resize handlers fire on every keystroke. Debounce to 200-400ms to avoid triggering expensive Apex/wire calls on every character.</p><div class="cc good">✅ clearTimeout(timer); timer = setTimeout(() =&gt; search(term), 300);</div></div>
+      <div class="bpc"><h4>Use lwc:if Over CSS hide for Heavy Components</h4><p>CSS <code>display:none</code> keeps the component alive (wire adapters run, lifecycle fires). <code>lwc:if</code> removes it from DOM entirely — no wire queries, no memory.</p><div class="cc good">✅ &lt;template lwc:if={showHeavyChart}&gt;&lt;c-heavy-chart&gt;&lt;/template&gt;</div></div>
+    </div>
   </section>
-  <hr class="dv">
   <div class="cn">
     <a href="ch-12.html">← Ch 12: Lightning Data Service (LDS)</a>
     <span style="color:var(--tm);font-size:.875rem">Chapter 13 of 20</span>
