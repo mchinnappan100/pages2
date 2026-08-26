@@ -8,6 +8,46 @@
         href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+// Apex language definition for highlight.js
+hljs.registerLanguage('apex', function(hljs) {
+  const KEYWORDS = {
+    keyword: 'abstract activate and any array as asc autonomous begin bigdecimal blob boolean break bulk by byte catch char class collect commit const continue convertcurrency decimal default delete desc do double else end enum escape exception extends false final finally for from future get global group having hint id if implements insert instanceof integer interface into join last_90_days last_month last_n_days last_week like limit list long map merge new not null nulls number object of on or order override package private protected public retrieve return rollback savepoint search select set sharing short sosl sort static string super switch system testmethod then this throw today transient trigger true try type undelete update upsert using virtual webservice when where while with',
+    built_in: 'Schema Database System Trigger ApexPages Messaging UserInfo Math String Integer Double Long Decimal Boolean Date DateTime Time Blob ID List Map Set SObject Account Contact Lead Opportunity Case',
+    literal: 'true false null'
+  };
+
+  return {
+    name: 'Apex',
+    aliases: ['apex'],
+    case_insensitive: true,
+    keywords: KEYWORDS,
+    contains: [
+      hljs.C_LINE_COMMENT_MODE,
+      hljs.C_BLOCK_COMMENT_MODE,
+      hljs.APOS_STRING_MODE,
+      hljs.QUOTE_STRING_MODE,
+      hljs.C_NUMBER_MODE,
+      {
+        className: 'meta',
+        begin: /@\w+/,
+        relevance: 0
+      },
+      {
+        className: 'type',
+        begin: /\b[A-Z][a-zA-Z0-9_]*(?:__[cmrst])?\b/,
+        relevance: 0
+      },
+      {
+        className: 'string',
+        begin: /'/,
+        end: /'/,
+        contains: [{ begin: /''/ }]
+      }
+    ]
+  };
+});
+</script>
 <style>
   :root[data-theme="dark"] {
     --bg:          #0d1117;
@@ -527,10 +567,10 @@
   <span class="brand">⚡ AROE</span>
   <a class="pill" href="#summary">Summary</a>
   <a class="pill" href="#problem">Problem</a>
-  <a class="pill" href="#architecture">Architecture</a>
-  <a class="pill" href="#analyzer">Analyzer</a>
-  <a class="pill" href="#runtime">Runtime</a>
-  <a class="pill" href="#rules">Rules</a>
+  <a class="pill" href="#runtime">Runtime Engine</a>
+  <a class="pill" href="#how-it-works">How It Works</a>
+  <a class="pill" href="#eligibility">Eligibility</a>
+  <a class="pill" href="#governor">Gov. Limits</a>
   <a class="pill" href="#mvp">MVP</a>
   <a class="pill" href="#vision">Vision</a>
   <div class="spacer"></div>
@@ -541,11 +581,11 @@
 <div class="hero">
   <div class="hero-tag">Engineering Proposal</div>
   <h1>Apex Runtime <span>Optimization Engine</span></h1>
-  <p>Transaction-local memoization, static AST analysis, and compiler-guided performance optimization for Salesforce Apex.</p>
+  <p>Transparent, transaction-local memoization built directly into the Apex Runtime — <strong>zero external tools, zero code changes required.</strong></p>
   <div class="hero-chips">
     <span class="chip">AROE — Apex Runtime Optimization Engine</span>
-    <span class="chip">APA — Apex Performance Analyzer</span>
-    <span class="chip">AST · CFG · Data Flow</span>
+    <span class="chip">Zero Developer Effort</span>
+    <span class="chip">Transaction-Local · No External Tools</span>
     <span class="chip">Governor Limit Savings</span>
   </div>
 </div>
@@ -559,27 +599,28 @@
     <h2>Executive Summary</h2>
   </div>
   <div class="callout">
-    <p>Salesforce Apex applications frequently access metadata, configuration, and other effectively <strong>immutable information multiple times</strong> within the same transaction — yet the underlying data does not change during the transaction's lifetime. This proposal introduces the <strong>Apex Runtime Optimization Engine (AROE)</strong>, complemented by a static AST-based <strong>Apex Performance Analyzer (APA)</strong>.</p>
+    <p>Salesforce Apex applications frequently access metadata, configuration, and effectively immutable information <strong>multiple times within the same transaction</strong> — yet the underlying data does not change during the transaction's lifetime. The <strong>Apex Runtime Optimization Engine (AROE)</strong> intercepts these redundant retrievals transparently, inside the runtime itself, with <strong>no external tools, no plugins, and no code changes required</strong> from the developer.</p>
   </div>
   <div class="card-grid">
     <div class="card">
-      <h3>Common Redundant Patterns</h3>
+      <h3>Redundant Patterns Eliminated Automatically</h3>
       <ul>
-        <li>Querying Custom Metadata Types repeatedly</li>
-        <li>Querying Custom Settings multiple times</li>
-        <li>Reading the same configuration records</li>
-        <li>Resolving object/field metadata</li>
-        <li>Loading application config via shared classes</li>
-        <li>Reconstructing the same metadata object</li>
+        <li>Repeated Custom Metadata Type queries</li>
+        <li>Repeated Custom Settings lookups</li>
+        <li>Repeated <code>Schema.describe</code> calls</li>
+        <li>Repeated configuration record retrievals</li>
+        <li>Repeated object/field metadata resolution</li>
+        <li>Repeated framework initialization</li>
       </ul>
     </div>
     <div class="card">
-      <h3>Two Complementary Layers</h3>
+      <h3>The Runtime Does The Work</h3>
       <ul>
-        <li><strong>Compile-time / static analysis</strong> — detect suspicious repeated metadata access patterns using an Apex AST</li>
-        <li><strong>Runtime optimization</strong> — transparently cache eligible metadata/configuration results within a transaction</li>
+        <li>Optimization happens <strong>inside the Apex Runtime</strong> — not a linter, not a CLI, not a plugin</li>
+        <li>Developers write ordinary Apex — the engine handles deduplication</li>
+        <li>Works automatically for existing code and managed packages</li>
+        <li>Inspired by compiler CSE, loop-invariant code motion, and memoization</li>
       </ul>
-      <p style="margin-top:10px">Inspired by compiler optimization and tree shaking — eliminate redundant work the runtime can prove is safe to skip.</p>
     </div>
   </div>
 
@@ -603,25 +644,23 @@
     <div class="card">
       <h3>Primary Goals</h3>
       <ul>
-        <li>Detect repeated metadata/configuration access</li>
-        <li>Identify calls whose results are safe to reuse</li>
-        <li>Reduce redundant database/metadata retrieval</li>
-        <li>Reduce CPU and SOQL consumption</li>
-        <li>Reduce repeated deserialization/processing</li>
-        <li>Provide actionable developer diagnostics</li>
-        <li>Preserve Apex behavioral semantics</li>
-        <li>Require little or no application-code modification</li>
+        <li><strong>Zero external tools</strong> — optimization is built into the runtime</li>
+        <li><strong>Zero code changes</strong> — existing Apex works as-is</li>
+        <li>Eliminate redundant metadata/configuration retrieval</li>
+        <li>Reduce CPU time and SOQL usage within a transaction</li>
+        <li>Preserve all Apex behavioral and security semantics</li>
+        <li>Benefit managed packages and existing frameworks automatically</li>
       </ul>
     </div>
     <div class="card">
-      <h3>Secondary Goals</h3>
+      <h3>Broader Redundancy Targets</h3>
       <ul>
+        <li>Repeated <code>Schema.describe</code> calls</li>
         <li>Repeated SOQL with identical predicates</li>
-        <li>Repeated <code>describe</code> calls</li>
         <li>Repeated configuration resolution</li>
-        <li>Repeated serialization</li>
-        <li>Repeated parsing</li>
-        <li>Repeated pure computation</li>
+        <li>Repeated serialization / parsing</li>
+        <li>Loop-invariant metadata access</li>
+        <li>Repeated framework initialization</li>
       </ul>
     </div>
   </div>
@@ -632,16 +671,16 @@
     <h2>Non-Goals</h2>
   </div>
   <div class="callout amber">
-    <p>The initial scope focuses on: <strong>transaction-local, deterministic, effectively immutable metadata/configuration access.</strong></p>
+    <p>The initial scope focuses on: <strong>transaction-local, deterministic, effectively immutable metadata/configuration access — handled entirely within the runtime.</strong></p>
   </div>
   <div class="card">
     <h3>Explicitly Out of Scope (v1)</h3>
     <ul>
-      <li>General-purpose compiler optimization</li>
-      <li>Automatic modification of developer source code</li>
+      <li>Requiring any external linter, CLI tool, or plugin</li>
+      <li>Requiring developer annotation or code modification</li>
       <li>Cross-transaction or distributed caching</li>
       <li>Caching mutable business data</li>
-      <li>Guessing whether arbitrary methods are side-effect free</li>
+      <li>Guessing purity for arbitrary user-defined methods</li>
     </ul>
   </div>
 
@@ -652,87 +691,98 @@
   </div>
   <button class="code-btn" onclick="openPopup('key-concept', 'Before / After Optimization Flow', 'text')">⟨/⟩ View Before / After Flow Diagram</button>
   <div class="callout">
-    <p>The developer does not necessarily need to know that the optimization occurred. The engine transparently handles caching behind the scenes — the result is the same, the work is not.</p>
+    <p>The developer <strong>does not need to know</strong> that the optimization occurred. No annotations. No plugins. No CLI. The runtime intercepts eligible calls, serves the cached result, and the developer's code behaves identically — with less work done.</p>
   </div>
 
-  <!-- 6. WHY AST ANALYSIS -->
+  <!-- 6. INTERNAL AST ANALYSIS -->
   <div class="section-heading">
     <div class="num">06</div>
-    <h2>Why AST Analysis Is Important</h2>
+    <h2>Internal AST Analysis — No External Tool Needed</h2>
   </div>
   <div class="card">
-    <p>Apex source code can be represented as an Abstract Syntax Tree. The analyzer can compare calls based on <strong>class, method, arguments, receiver, context, and data dependencies</strong> — enabling a redundant computation detector that goes beyond simple text matching.</p>
+    <p>The runtime represents Apex code as an internal Abstract Syntax Tree and compares call sites based on <strong>class, method, arguments, receiver, context, and data dependencies</strong> to identify redundant computation — all inside the runtime, invisible to the developer. No external analyzer, linter, or plugin is invoked.</p>
   </div>
   <button class="code-btn" onclick="openPopup('ast-example', 'AST Representation of a Call Expression', 'text')">⟨/⟩ View AST Example</button>
 
   <!-- 7. ARCHITECTURE -->
-  <div class="section-heading" id="architecture">
+  <div class="section-heading" id="runtime">
     <div class="num">07</div>
-    <h2>Proposed Architecture</h2>
+    <h2>Runtime Architecture — Entirely Self-Contained</h2>
   </div>
   <div class="arch-box">                    Apex Source
                         |
                         v
                  +--------------+
-                 | Apex Parser  |
+                 | Apex Parser  |   ← existing runtime step
                  +--------------+
                         |
                         v
                   +-----------+
-                  | Apex AST  |
+                  | Apex AST  |   ← existing runtime step
                   +-----------+
+                        |
+                        v
+              +---------------------+
+              |  Optimization Pass  |   ← NEW: inside the runtime
+              |  (no external tool) |       no plugins, no CLI
+              +---------------------+
                         |
               +---------+---------+
               |                   |
               v                   v
-       Static Analyzer       Optimization
-              |               Candidate
-              v                   |
-       Performance Rules          |
+       Eligibility Check    Purity Catalog
+       (built-in rules)    (known safe APIs)
               |                   |
               +---------+---------+
                         |
                         v
-                Optimization Model
+               Transaction Cache
                         |
-           +------------+-------------+
-           |                          |
-           v                          v
-    Developer Diagnostics        Apex Runtime
-                                 Optimization</div>
+                        v
+                   Execution
+              (redundant work
+               transparently
+                eliminated)</div>
 
-  <!-- 8-11. STATIC ANALYZER -->
-  <div class="section-heading" id="analyzer">
+  <!-- 8. INTERNAL DETECTION PIPELINE -->
+  <div class="section-heading" id="how-it-works">
     <div class="num">08</div>
-    <h2>Static Analyzer</h2>
+    <h2>How the Runtime Detects Redundancy</h2>
   </div>
   <div class="card">
-    <p>The static analyzer operates similarly to tools such as <strong>PMD, ESLint, or compiler optimization passes</strong>. It constructs an AST and identifies suspicious patterns, reporting findings with rule IDs, severity, and concrete recommendations.</p>
+    <p>The runtime's internal analysis pipeline identifies redundant computation as a normal step during Apex execution. No developer action is required — the runtime observes call patterns, checks its purity catalog, and manages the transaction cache transparently.</p>
   </div>
-  <button class="code-btn" onclick="openPopup('analyzer-example', 'APEX-PERF-001 — Analyzer Finding', 'text')">⟨/⟩ View Analyzer Output — APEX-PERF-001</button>
+  <button class="code-btn" onclick="openPopup('analyzer-example', 'Runtime Detection Output — APEX-PERF-001 Pattern', 'text')">⟨/⟩ View Runtime Detection Example</button>
 
   <div class="section-heading">
     <div class="num">09</div>
-    <h2>Control Flow Analysis</h2>
+    <h2>Internal Control &amp; Data Flow Analysis</h2>
   </div>
   <div class="card">
-    <p>AST matching alone is insufficient. The analyzer needs understanding of control flow to reason about branches, loops, assignments, variable mutations, and execution paths.</p>
+    <p>Simple call matching is insufficient — the runtime uses internal control and data flow analysis to handle branches, loops, variable mutations, and multiple execution paths, all without surfacing these details to the developer.</p>
   </div>
-  <div class="arch-box">AST
- ↓
-Control Flow Graph
- ↓
-Data Flow Analysis
- ↓
-Redundant Computation Analysis</div>
+  <div class="arch-box">Internal Runtime Analysis (no external tool)
+═══════════════════════════════════════════
 
-  <!-- 12. LOOP DETECTION -->
+  AST
+   ↓
+  Control Flow Graph   ← built inside runtime
+   ↓
+  Data Flow Analysis   ← built inside runtime
+   ↓
+  Redundant Computation Detection
+   ↓
+  Purity Catalog Check
+   ↓
+  Transaction Cache → result reused silently</div>
+
+  <!-- 10. LOOP INVARIANT -->
   <div class="section-heading">
     <div class="num">10</div>
-    <h2>Loop Invariant Code Motion</h2>
+    <h2>Loop Invariant Code Motion — Automatic</h2>
   </div>
   <div class="callout amber">
-    <p>Metadata lookup inside a loop processing 1,000 records results in <strong>1,000 redundant metadata calls</strong>. The analyzer identifies loop-invariant calls and recommends hoisting them out — a classic compiler optimization.</p>
+    <p>Metadata lookup inside a loop processing 1,000 records causes <strong>1,000 redundant metadata calls</strong>. The runtime detects this automatically and reuses the transaction cache for every iteration after the first — no developer annotation or external tool needed.</p>
   </div>
   <button class="code-btn" onclick="openPopup('loop-detect', 'Loop Invariant Detection', 'apex')">⟨/⟩ View Code Example — Loop Optimization</button>
 
@@ -770,7 +820,7 @@ Redundant Computation Analysis</div>
   <button class="code-btn" onclick="openPopup('cse-example', 'Common Subexpression Elimination', 'text')">⟨/⟩ View CSE Example</button>
 
   <!-- 14-15. RUNTIME CACHE -->
-  <div class="section-heading" id="runtime">
+  <div class="section-heading" id="eligibility">
     <div class="num">12</div>
     <h2>Runtime Transaction Cache</h2>
   </div>
@@ -900,10 +950,10 @@ Redundant Computation Analysis</div>
   <button class="code-btn" onclick="openPopup('trigger-framework', 'Trigger Framework — Before / After', 'apex')">⟨/⟩ View Example: Trigger Framework</button>
   <button class="code-btn" onclick="openPopup('recursive-trigger', 'Recursive/Repeated Trigger Processing', 'apex')">⟨/⟩ View Example: Recursive DML</button>
 
-  <!-- 23. STATIC RULES -->
+  <!-- 23. RUNTIME DETECTION RULES -->
   <div class="section-heading" id="rules">
     <div class="num">18</div>
-    <h2>Static Analyzer Rules</h2>
+    <h2>Runtime Redundancy Detection Rules</h2>
   </div>
   <div class="card">
     <table class="rule-table">
@@ -976,30 +1026,35 @@ Redundant Computation Analysis</div>
   </div>
   <button class="code-btn" onclick="openPopup('dev-ui', 'Apex Performance Analyzer UI', 'text')">⟨/⟩ View Developer UI Panel</button>
 
-  <!-- 27-28. IDE / CICD -->
+  <!-- 27-28. OBSERVABILITY (not external tools) -->
   <div class="section-heading">
     <div class="num">22</div>
-    <h2>IDE &amp; CI/CD Integration</h2>
+    <h2>Observability — Debug Logs &amp; Trace</h2>
+  </div>
+  <div class="callout">
+    <p>The optimization is <strong>transparent by design</strong>. Developers can opt into a debug log trace to observe what the runtime eliminated — but no external tool is required for the optimization itself to run.</p>
   </div>
   <div class="card-grid">
     <div class="card">
-      <h3>IDE Integration</h3>
+      <h3>Runtime Debug Log</h3>
       <ul>
-        <li>VS Code extension</li>
-        <li>Salesforce Code Analyzer</li>
-        <li>Salesforce CLI</li>
-        <li>Developer Console</li>
-        <li>Deployment validation</li>
+        <li>Cache hit / miss events visible in standard debug logs</li>
+        <li>Redundant calls eliminated shown per transaction</li>
+        <li>CPU saved and SOQL saved reported inline</li>
+        <li>Works in Developer Console, VS Code, and SFDX</li>
       </ul>
     </div>
     <div class="card">
-      <h3>CLI Scan Command</h3>
-      <p style="margin-bottom:10px">A single command scans all Apex files and reports findings:</p>
-      <code>sf apex performance scan</code>
+      <h3>No External Tool Required</h3>
+      <ul>
+        <li>Optimization runs automatically — no scan needed</li>
+        <li>No CLI command to invoke</li>
+        <li>No plugin to install</li>
+        <li>Existing deployments benefit immediately</li>
+      </ul>
     </div>
   </div>
-  <button class="code-btn" onclick="openPopup('cli-output', 'CLI Scan Output', 'bash')">⟨/⟩ View CLI Scan Output</button>
-  <button class="code-btn" onclick="openPopup('cicd-gate', 'CI/CD Performance Quality Gate', 'text')">⟨/⟩ View CI/CD Quality Gate</button>
+  <button class="code-btn" onclick="openPopup('exec-trace', 'Transaction Optimization Trace (Debug Log)', 'text')">⟨/⟩ View Execution Trace Output</button>
 
   <!-- 29-30. CORRECTNESS / SECURITY -->
   <div class="section-heading">
@@ -1071,39 +1126,40 @@ Platform optimization rules</div>
   </div>
   <div class="phases">
     <div class="phase">
-      <div class="phase-label">Phase 1</div>
-      <h4>Static Analyzer</h4>
+      <div class="phase-label">Phase 1 — Runtime Foundation</div>
+      <h4>Built-in Purity Catalog &amp; Transaction Cache</h4>
       <ul>
-        <li>Apex AST + Control Flow Graph</li>
-        <li>Known metadata API catalog</li>
-        <li>Detect: repeated describe calls, repeated Custom Metadata access, metadata inside loops</li>
-        <li>No runtime modification initially</li>
-      </ul>
-    </div>
-    <div class="phase">
-      <div class="phase-label">Phase 2</div>
-      <h4>Runtime Metadata Cache</h4>
-      <ul>
-        <li>Transaction-local caching for Schema describe, Custom Metadata, known immutable metadata</li>
+        <li>Internal purity catalog for known Salesforce metadata APIs</li>
+        <li>Transaction-local cache for Schema describe, Custom Metadata, known immutable metadata</li>
+        <li>Zero developer action — existing code benefits immediately</li>
         <li>Measure: CPU, heap, latency, cache hit rate</li>
       </ul>
     </div>
     <div class="phase">
-      <div class="phase-label">Phase 3</div>
-      <h4>Compiler-Assisted Optimization</h4>
+      <div class="phase-label">Phase 2 — Internal Analysis</div>
+      <h4>Internal AST + Control Flow + Data Flow</h4>
       <ul>
-        <li>AST/data-flow hints for common subexpressions</li>
-        <li>Loop invariant detection</li>
-        <li>Feed optimization hints into the Apex runtime</li>
+        <li>Runtime builds internal CFG and data-flow graph during execution</li>
+        <li>Detects repeated describe calls, Custom Metadata access, loop-invariant metadata</li>
+        <li>Still no external tools — all analysis runs inside the runtime</li>
       </ul>
     </div>
     <div class="phase">
-      <div class="phase-label">Phase 4</div>
-      <h4>Adaptive Optimization</h4>
+      <div class="phase-label">Phase 3 — Deeper Optimization</div>
+      <h4>Common Subexpression Elimination &amp; Loop Motion</h4>
       <ul>
-        <li>Aggregate runtime telemetry</li>
-        <li>Identify high-frequency redundant operations</li>
-        <li>Continuously improve optimization rules</li>
+        <li>CSE: identical subexpressions computed only once per transaction</li>
+        <li>Loop invariant code motion applied automatically</li>
+        <li>Constant propagation for argument equivalence detection</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-label">Phase 4 — Adaptive Runtime</div>
+      <h4>Telemetry-Driven Adaptive Optimization</h4>
+      <ul>
+        <li>Aggregate runtime telemetry identifies high-frequency redundant patterns</li>
+        <li>Platform continuously expands the purity catalog</li>
+        <li>Runtime self-improves without developer involvement</li>
       </ul>
     </div>
   </div>
@@ -1151,18 +1207,28 @@ Platform optimization rules</div>
     <h2>Recommendation</h2>
   </div>
   <div class="card-grid">
-    <div class="card">
-      <h3>1. Apex Performance Analyzer (APA)</h3>
-      <p>Static AST/data-flow analyzer identifying: repeated metadata access, metadata inside loops, repeated configuration retrieval, repeated describe operations, and other redundant computation.</p>
+    <div class="card" style="border-color: var(--accent)">
+      <h3>Apex Runtime Optimization Engine (AROE)</h3>
+      <ul style="margin-top:8px">
+        <li>Transaction-scoped optimizer built <strong>inside the Apex Runtime</strong></li>
+        <li>Transparently memoizes operations proven immutable, deterministic, and side-effect free</li>
+        <li>Works for all Apex code — new, existing, and managed packages</li>
+        <li><strong>No external tools. No developer changes. No plugins.</strong></li>
+      </ul>
     </div>
     <div class="card">
-      <h3>2. Apex Runtime Optimization Layer (AROE)</h3>
-      <p>Transaction-scoped optimizer that transparently memoizes operations proven to be: immutable, deterministic, side-effect free, and transaction safe.</p>
+      <h3>Phased Delivery</h3>
+      <ul style="margin-top:8px">
+        <li><strong>Phase 1:</strong> Purity catalog + transaction cache for known safe APIs</li>
+        <li><strong>Phase 2:</strong> Internal CFG/data-flow — detect loops &amp; redundant calls</li>
+        <li><strong>Phase 3:</strong> CSE, loop invariant motion, constant propagation</li>
+        <li><strong>Phase 4:</strong> Adaptive telemetry-driven optimization</li>
+      </ul>
     </div>
   </div>
   <div class="callout green">
-    <p>The analyzer tells developers: <em>"You are doing unnecessary work."</em><br>
-    The runtime optimizer eventually makes the answer: <strong>"Don't worry — Salesforce already eliminated it."</strong></p>
+    <p>The runtime makes the answer: <strong>"Don't worry — Salesforce already eliminated it."</strong><br>
+    No developer action required. No external tool to install. The optimization simply happens.</p>
   </div>
 
   <!-- 39. NAME -->
@@ -1174,19 +1240,21 @@ Platform optimization rules</div>
     <div class="card" style="border-color: var(--accent)">
       <h3 style="font-size:18px; color: var(--accent)">Apex Runtime Optimization Engine</h3>
       <code style="font-size:16px; color: var(--cyan)">AROE</code>
-    </div>
-    <div class="card" style="border-color: var(--purple)">
-      <h3 style="font-size:18px; color: var(--purple)">Apex Performance Analyzer</h3>
-      <code style="font-size:16px; color: var(--purple)">APA</code>
+      <p style="margin-top:10px; font-size:13px; color:var(--text-muted)">The core deliverable — built into the runtime, no external tooling.</p>
     </div>
   </div>
   <div class="diag-panel" style="text-align:center; margin-top:16px">
-    <span style="color:var(--purple); font-weight:700">Apex Performance Analyzer</span>
-    <span style="color:var(--text-muted)">  +  </span>
-    <span style="color:var(--accent); font-weight:700">Apex Runtime Optimization Engine</span>
+    <span style="color:var(--text-muted)">Developer writes ordinary Apex</span>
     <br>
-    <span style="color:var(--text-muted)">  =  </span>
-    <span style="color:var(--green); font-weight:700">Intelligent Apex Execution</span>
+    <span style="color:var(--text-muted)">  ↓  </span>
+    <br>
+    <span style="color:var(--accent); font-weight:700">AROE detects redundant work internally</span>
+    <br>
+    <span style="color:var(--text-muted)">  ↓  </span>
+    <br>
+    <span style="color:var(--green); font-weight:700">Faster execution · Fewer SOQL · Less CPU</span>
+    <br>
+    <span style="color:var(--text-muted); font-size:12px; margin-top:6px; display:block">No external tools &nbsp;·&nbsp; No annotations &nbsp;·&nbsp; No code changes</span>
   </div>
 
 </div><!-- end .container -->
@@ -1728,7 +1796,7 @@ function openPopup(id, title, lang) {
   document.getElementById('popupTitle').textContent = title;
   document.getElementById('popupTag').textContent = lang.toUpperCase();
   const codeEl = document.getElementById('popupCode');
-  codeEl.className = 'language-' + (lang === 'apex' ? 'java' : lang === 'bash' ? 'bash' : 'plaintext');
+  codeEl.className = 'language-' + (lang === 'bash' ? 'bash' : lang === 'apex' ? 'apex' : 'plaintext');
   codeEl.textContent = snippet.code;
   hljs.highlightElement(codeEl);
   document.getElementById('popupOverlay').classList.add('open');
