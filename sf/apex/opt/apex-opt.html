@@ -1,0 +1,1765 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Apex Runtime Optimization Engine — Engineering Proposal</title>
+  <link rel="icon" type="image/x-icon"
+        href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<style>
+  :root[data-theme="dark"] {
+    --bg:          #0d1117;
+    --bg2:         #161b22;
+    --bg3:         #1c2330;
+    --border:      #30363d;
+    --text:        #e6edf3;
+    --text-muted:  #8b949e;
+    --accent:      #58a6ff;
+    --accent2:     #79c0ff;
+    --green:       #3fb950;
+    --amber:       #d29922;
+    --red:         #f85149;
+    --purple:      #bc8cff;
+    --cyan:        #39d5d0;
+    --shadow:      0 4px 24px rgba(0,0,0,0.5);
+    --overlay:     rgba(0,0,0,0.75);
+  }
+  :root[data-theme="light"] {
+    --bg:          #f6f8fa;
+    --bg2:         #ffffff;
+    --bg3:         #eaeef2;
+    --border:      #d0d7de;
+    --text:        #1f2328;
+    --text-muted:  #656d76;
+    --accent:      #0969da;
+    --accent2:     #0550ae;
+    --green:       #1a7f37;
+    --amber:       #9a6700;
+    --red:         #cf222e;
+    --purple:      #8250df;
+    --cyan:        #0a7570;
+    --shadow:      0 4px 24px rgba(0,0,0,0.12);
+    --overlay:     rgba(0,0,0,0.45);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    transition: background 0.25s, color 0.25s;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    box-shadow: var(--shadow);
+  }
+  nav .brand {
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--accent);
+    white-space: nowrap;
+    margin-right: 8px;
+  }
+  nav a.pill {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3px 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: background 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+  nav a.pill:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .spacer { flex: 1; }
+  #theme-btn {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  #theme-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* ── HERO ── */
+  .hero {
+    background: linear-gradient(135deg, #0d1117 0%, #131d2e 50%, #0d1117 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 60px 24px 48px;
+    text-align: center;
+  }
+  [data-theme="light"] .hero { background: linear-gradient(135deg, #f0f6ff 0%, #e8f2ff 50%, #f0f6ff 100%); }
+  .hero-tag {
+    display: inline-block;
+    background: rgba(88,166,255,0.12);
+    border: 1px solid rgba(88,166,255,0.3);
+    border-radius: 20px;
+    padding: 4px 16px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+  .hero h1 {
+    font-size: clamp(22px, 4vw, 38px);
+    font-weight: 800;
+    line-height: 1.25;
+    color: var(--text);
+    max-width: 800px;
+    margin: 0 auto 14px;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero p {
+    font-size: 16px;
+    color: var(--text-muted);
+    max-width: 680px;
+    margin: 0 auto 24px;
+  }
+  .hero-chips { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  .chip {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 4px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  /* ── MAIN LAYOUT ── */
+  .container { max-width: 1060px; margin: 0 auto; padding: 40px 20px 80px; }
+
+  /* ── SECTION HEADINGS ── */
+  .section-heading {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 52px 0 20px;
+  }
+  .section-heading .num {
+    min-width: 36px;
+    height: 36px;
+    background: var(--accent);
+    color: #fff;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .section-heading h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 26px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+  }
+  .card h3 { font-size: 15px; font-weight: 700; color: var(--accent2); margin-bottom: 8px; }
+  .card p, .card li { color: var(--text-muted); font-size: 14px; line-height: 1.7; }
+  .card ul { padding-left: 18px; }
+  .card ul li { margin-bottom: 4px; }
+
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+
+  /* ── TIER CARDS ── */
+  .tier-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+  .tier { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .tier .tier-label {
+    display: inline-block;
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .tier-1 .tier-label { background: rgba(63,185,80,0.15); color: var(--green); }
+  .tier-2 .tier-label { background: rgba(210,153,34,0.15); color: var(--amber); }
+  .tier-3 .tier-label { background: rgba(248,81,73,0.15); color: var(--red); }
+  .tier h4 { font-size: 14px; font-weight: 700; margin-bottom: 6px; }
+  .tier p, .tier li { font-size: 13px; color: var(--text-muted); }
+  .tier ul { padding-left: 16px; }
+
+  /* ── RULE TABLE ── */
+  .rule-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px; }
+  .rule-table th {
+    background: var(--bg3);
+    color: var(--text-muted);
+    font-weight: 600;
+    text-align: left;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .rule-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text);
+  }
+  .rule-table tr:last-child td { border-bottom: none; }
+  .rule-table tr:hover td { background: var(--bg3); }
+  .rule-id { font-family: monospace; color: var(--amber); font-weight: 700; font-size: 12px; }
+
+  /* ── PHASE STEPS ── */
+  .phases { display: flex; flex-direction: column; gap: 16px; }
+  .phase {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 10px;
+    padding: 18px 22px;
+  }
+  .phase .phase-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 6px;
+  }
+  .phase h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+  .phase p, .phase li { font-size: 13px; color: var(--text-muted); }
+  .phase ul { padding-left: 16px; margin-top: 6px; }
+
+  /* ── CONFIDENCE ── */
+  .conf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+  .conf-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; }
+  .conf-badge {
+    display: inline-block;
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 10px;
+  }
+  .high .conf-badge  { background: rgba(63,185,80,0.15); color: var(--green); }
+  .med  .conf-badge  { background: rgba(210,153,34,0.15); color: var(--amber); }
+  .low  .conf-badge  { background: rgba(188,140,255,0.15); color: var(--purple); }
+  .conf-card p { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+  /* ── DIAGNOSTIC PANEL ── */
+  .diag-panel {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 22px 26px;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.8;
+  }
+  .diag-row { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; }
+  .diag-label { color: var(--text-muted); }
+  .diag-val { color: var(--accent2); font-weight: 700; }
+  .diag-val.green { color: var(--green); }
+  .diag-val.amber { color: var(--amber); }
+  .diag-sep { border-top: 1px solid var(--border); margin: 10px 0; }
+
+  /* ── ARCHITECTURE DIAGRAM ── */
+  .arch-box {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.9;
+    color: var(--text-muted);
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  /* ── INLINE CODE ── */
+  code {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 12px;
+    color: var(--cyan);
+  }
+
+  /* ── CODE POPUP TRIGGER ── */
+  .code-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    margin: 8px 0 4px;
+    user-select: none;
+  }
+  .code-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  /* ── SLIDE-IN POPUP ── */
+  .popup-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--overlay);
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .popup-overlay.open { opacity: 1; pointer-events: all; }
+
+  .popup-panel {
+    position: fixed;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: min(680px, 100vw);
+    background: var(--bg2);
+    border-left: 1px solid var(--border);
+    z-index: 201;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: -8px 0 32px rgba(0,0,0,0.4);
+  }
+  .popup-panel.open { transform: translateX(0); }
+
+  .popup-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg3);
+    flex-shrink: 0;
+  }
+  .popup-header .popup-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    flex: 1;
+  }
+  .popup-header .popup-tag {
+    background: rgba(88,166,255,0.15);
+    color: var(--accent);
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .popup-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+    padding: 2px 6px;
+    border-radius: 6px;
+    transition: background 0.15s;
+  }
+  .popup-close:hover { background: var(--border); color: var(--text); }
+
+  .popup-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+  }
+  .popup-body pre {
+    margin: 0;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  .popup-body pre code { background: none; border: none; padding: 0; font-size: inherit; color: inherit; }
+
+  /* ── METRICS GRID ── */
+  .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; }
+  .metric {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 16px;
+    text-align: center;
+  }
+  .metric .m-val { font-size: 28px; font-weight: 800; color: var(--accent); line-height: 1; margin-bottom: 6px; }
+  .metric .m-label { font-size: 12px; color: var(--text-muted); font-weight: 600; }
+
+  /* ── OPTIMIZATION LEVELS ── */
+  .opt-levels { display: flex; flex-direction: column; gap: 12px; }
+  .opt-level {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+  }
+  .opt-level .lvl-num {
+    min-width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 15px;
+    flex-shrink: 0;
+  }
+  .lvl-0 .lvl-num { background: rgba(139,148,158,0.15); color: var(--text-muted); }
+  .lvl-1 .lvl-num { background: rgba(63,185,80,0.15); color: var(--green); }
+  .lvl-2 .lvl-num { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .lvl-3 .lvl-num { background: rgba(210,153,34,0.15); color: var(--amber); }
+  .opt-level h4 { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .opt-level p { font-size: 13px; color: var(--text-muted); }
+
+  /* ── SUMMARY CALLOUT ── */
+  .callout {
+    background: rgba(88,166,255,0.07);
+    border: 1px solid rgba(88,166,255,0.25);
+    border-left: 4px solid var(--accent);
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin: 20px 0;
+  }
+  .callout.green { background: rgba(63,185,80,0.07); border-color: rgba(63,185,80,0.25); border-left-color: var(--green); }
+  .callout.amber { background: rgba(210,153,34,0.07); border-color: rgba(210,153,34,0.25); border-left-color: var(--amber); }
+  .callout p { font-size: 14px; color: var(--text); }
+  .callout strong { color: var(--accent); }
+  .callout.green strong { color: var(--green); }
+
+  /* ── PURITY GRID ── */
+  .purity-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+  .purity-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .purity-badge {
+    display: inline-block;
+    border-radius: 6px;
+    padding: 2px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+    font-family: monospace;
+  }
+  .pure .purity-badge          { background: rgba(63,185,80,0.15); color: var(--green); }
+  .txn-stable .purity-badge    { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .mutable .purity-badge       { background: rgba(248,81,73,0.15); color: var(--red); }
+  .unknown .purity-badge       { background: rgba(139,148,158,0.15); color: var(--text-muted); }
+  .purity-card p { font-size: 12px; color: var(--text-muted); line-height: 1.6; }
+
+  /* ── HR ── */
+  hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 32px 20px;
+    font-size: 13px;
+    color: var(--text-muted);
+    border-top: 1px solid var(--border);
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 640px) {
+    .hero { padding: 40px 16px 32px; }
+    nav a.pill { display: none; }
+    .popup-panel { width: 100vw; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <span class="brand">⚡ AROE</span>
+  <a class="pill" href="#summary">Summary</a>
+  <a class="pill" href="#problem">Problem</a>
+  <a class="pill" href="#architecture">Architecture</a>
+  <a class="pill" href="#analyzer">Analyzer</a>
+  <a class="pill" href="#runtime">Runtime</a>
+  <a class="pill" href="#rules">Rules</a>
+  <a class="pill" href="#mvp">MVP</a>
+  <a class="pill" href="#vision">Vision</a>
+  <div class="spacer"></div>
+  <button id="theme-btn">☀ Light</button>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-tag">Engineering Proposal</div>
+  <h1>Apex Runtime <span>Optimization Engine</span></h1>
+  <p>Transaction-local memoization, static AST analysis, and compiler-guided performance optimization for Salesforce Apex.</p>
+  <div class="hero-chips">
+    <span class="chip">AROE — Apex Runtime Optimization Engine</span>
+    <span class="chip">APA — Apex Performance Analyzer</span>
+    <span class="chip">AST · CFG · Data Flow</span>
+    <span class="chip">Governor Limit Savings</span>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="container">
+
+  <!-- 1. EXECUTIVE SUMMARY -->
+  <div class="section-heading" id="summary">
+    <div class="num">01</div>
+    <h2>Executive Summary</h2>
+  </div>
+  <div class="callout">
+    <p>Salesforce Apex applications frequently access metadata, configuration, and other effectively <strong>immutable information multiple times</strong> within the same transaction — yet the underlying data does not change during the transaction's lifetime. This proposal introduces the <strong>Apex Runtime Optimization Engine (AROE)</strong>, complemented by a static AST-based <strong>Apex Performance Analyzer (APA)</strong>.</p>
+  </div>
+  <div class="card-grid">
+    <div class="card">
+      <h3>Common Redundant Patterns</h3>
+      <ul>
+        <li>Querying Custom Metadata Types repeatedly</li>
+        <li>Querying Custom Settings multiple times</li>
+        <li>Reading the same configuration records</li>
+        <li>Resolving object/field metadata</li>
+        <li>Loading application config via shared classes</li>
+        <li>Reconstructing the same metadata object</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Two Complementary Layers</h3>
+      <ul>
+        <li><strong>Compile-time / static analysis</strong> — detect suspicious repeated metadata access patterns using an Apex AST</li>
+        <li><strong>Runtime optimization</strong> — transparently cache eligible metadata/configuration results within a transaction</li>
+      </ul>
+      <p style="margin-top:10px">Inspired by compiler optimization and tree shaking — eliminate redundant work the runtime can prove is safe to skip.</p>
+    </div>
+  </div>
+
+  <!-- 2. PROBLEM STATEMENT -->
+  <div class="section-heading" id="problem">
+    <div class="num">02</div>
+    <h2>Problem Statement</h2>
+  </div>
+  <div class="card">
+    <p>A common Apex pattern retrieves the same configuration object multiple times within a single method. When <code>ConfigService.getConfig('ORDER')</code> executes the same metadata lookup three times, the transaction performs unnecessary work.</p>
+  </div>
+  <button class="code-btn" onclick="openPopup('prob-simple', 'Repeated Metadata Access', 'apex')">⟨/⟩ View Code Example — Repeated Lookup</button>
+  <button class="code-btn" onclick="openPopup('prob-graph', 'Call Graph: Multiple Handlers', 'text')">⟨/⟩ View Code Example — Trigger Call Graph</button>
+
+  <!-- 3. GOALS -->
+  <div class="section-heading">
+    <div class="num">03</div>
+    <h2>Goals</h2>
+  </div>
+  <div class="card-grid">
+    <div class="card">
+      <h3>Primary Goals</h3>
+      <ul>
+        <li>Detect repeated metadata/configuration access</li>
+        <li>Identify calls whose results are safe to reuse</li>
+        <li>Reduce redundant database/metadata retrieval</li>
+        <li>Reduce CPU and SOQL consumption</li>
+        <li>Reduce repeated deserialization/processing</li>
+        <li>Provide actionable developer diagnostics</li>
+        <li>Preserve Apex behavioral semantics</li>
+        <li>Require little or no application-code modification</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>Secondary Goals</h3>
+      <ul>
+        <li>Repeated SOQL with identical predicates</li>
+        <li>Repeated <code>describe</code> calls</li>
+        <li>Repeated configuration resolution</li>
+        <li>Repeated serialization</li>
+        <li>Repeated parsing</li>
+        <li>Repeated pure computation</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 4. NON-GOALS -->
+  <div class="section-heading">
+    <div class="num">04</div>
+    <h2>Non-Goals</h2>
+  </div>
+  <div class="callout amber">
+    <p>The initial scope focuses on: <strong>transaction-local, deterministic, effectively immutable metadata/configuration access.</strong></p>
+  </div>
+  <div class="card">
+    <h3>Explicitly Out of Scope (v1)</h3>
+    <ul>
+      <li>General-purpose compiler optimization</li>
+      <li>Automatic modification of developer source code</li>
+      <li>Cross-transaction or distributed caching</li>
+      <li>Caching mutable business data</li>
+      <li>Guessing whether arbitrary methods are side-effect free</li>
+    </ul>
+  </div>
+
+  <!-- 5. KEY CONCEPT -->
+  <div class="section-heading">
+    <div class="num">05</div>
+    <h2>Key Concept</h2>
+  </div>
+  <button class="code-btn" onclick="openPopup('key-concept', 'Before / After Optimization Flow', 'text')">⟨/⟩ View Before / After Flow Diagram</button>
+  <div class="callout">
+    <p>The developer does not necessarily need to know that the optimization occurred. The engine transparently handles caching behind the scenes — the result is the same, the work is not.</p>
+  </div>
+
+  <!-- 6. WHY AST ANALYSIS -->
+  <div class="section-heading">
+    <div class="num">06</div>
+    <h2>Why AST Analysis Is Important</h2>
+  </div>
+  <div class="card">
+    <p>Apex source code can be represented as an Abstract Syntax Tree. The analyzer can compare calls based on <strong>class, method, arguments, receiver, context, and data dependencies</strong> — enabling a redundant computation detector that goes beyond simple text matching.</p>
+  </div>
+  <button class="code-btn" onclick="openPopup('ast-example', 'AST Representation of a Call Expression', 'text')">⟨/⟩ View AST Example</button>
+
+  <!-- 7. ARCHITECTURE -->
+  <div class="section-heading" id="architecture">
+    <div class="num">07</div>
+    <h2>Proposed Architecture</h2>
+  </div>
+  <div class="arch-box">                    Apex Source
+                        |
+                        v
+                 +--------------+
+                 | Apex Parser  |
+                 +--------------+
+                        |
+                        v
+                  +-----------+
+                  | Apex AST  |
+                  +-----------+
+                        |
+              +---------+---------+
+              |                   |
+              v                   v
+       Static Analyzer       Optimization
+              |               Candidate
+              v                   |
+       Performance Rules          |
+              |                   |
+              +---------+---------+
+                        |
+                        v
+                Optimization Model
+                        |
+           +------------+-------------+
+           |                          |
+           v                          v
+    Developer Diagnostics        Apex Runtime
+                                 Optimization</div>
+
+  <!-- 8-11. STATIC ANALYZER -->
+  <div class="section-heading" id="analyzer">
+    <div class="num">08</div>
+    <h2>Static Analyzer</h2>
+  </div>
+  <div class="card">
+    <p>The static analyzer operates similarly to tools such as <strong>PMD, ESLint, or compiler optimization passes</strong>. It constructs an AST and identifies suspicious patterns, reporting findings with rule IDs, severity, and concrete recommendations.</p>
+  </div>
+  <button class="code-btn" onclick="openPopup('analyzer-example', 'APEX-PERF-001 — Analyzer Finding', 'text')">⟨/⟩ View Analyzer Output — APEX-PERF-001</button>
+
+  <div class="section-heading">
+    <div class="num">09</div>
+    <h2>Control Flow Analysis</h2>
+  </div>
+  <div class="card">
+    <p>AST matching alone is insufficient. The analyzer needs understanding of control flow to reason about branches, loops, assignments, variable mutations, and execution paths.</p>
+  </div>
+  <div class="arch-box">AST
+ ↓
+Control Flow Graph
+ ↓
+Data Flow Analysis
+ ↓
+Redundant Computation Analysis</div>
+
+  <!-- 12. LOOP DETECTION -->
+  <div class="section-heading">
+    <div class="num">10</div>
+    <h2>Loop Invariant Code Motion</h2>
+  </div>
+  <div class="callout amber">
+    <p>Metadata lookup inside a loop processing 1,000 records results in <strong>1,000 redundant metadata calls</strong>. The analyzer identifies loop-invariant calls and recommends hoisting them out — a classic compiler optimization.</p>
+  </div>
+  <button class="code-btn" onclick="openPopup('loop-detect', 'Loop Invariant Detection', 'apex')">⟨/⟩ View Code Example — Loop Optimization</button>
+
+  <!-- 13. TREE SHAKING -->
+  <div class="section-heading">
+    <div class="num">11</div>
+    <h2>Compiler Optimization Analogies</h2>
+  </div>
+  <div class="card-grid">
+    <div class="card">
+      <h3>Dead-Code Elimination</h3>
+      <p>Remove code paths that can never execute.</p>
+    </div>
+    <div class="card">
+      <h3>Common Subexpression Elimination</h3>
+      <p>Detect identical subexpressions and compute them only once. The most relevant analogy for this proposal.</p>
+    </div>
+    <div class="card">
+      <h3>Loop-Invariant Code Motion</h3>
+      <p>Hoist computations outside loops when the value doesn't change per iteration.</p>
+    </div>
+    <div class="card">
+      <h3>Memoization</h3>
+      <p>Cache function results keyed on arguments — the core mechanism of the runtime optimizer.</p>
+    </div>
+    <div class="card">
+      <h3>Constant Propagation</h3>
+      <p>Recognize that two variables holding the same literal constant produce identical call arguments.</p>
+    </div>
+    <div class="card">
+      <h3>Transaction-Local Caching</h3>
+      <p>Scope the cache to a single transaction to preserve correctness guarantees.</p>
+    </div>
+  </div>
+  <button class="code-btn" onclick="openPopup('cse-example', 'Common Subexpression Elimination', 'text')">⟨/⟩ View CSE Example</button>
+
+  <!-- 14-15. RUNTIME CACHE -->
+  <div class="section-heading" id="runtime">
+    <div class="num">12</div>
+    <h2>Runtime Transaction Cache</h2>
+  </div>
+  <div class="callout green">
+    <p>The cache lives only for the duration of the transaction. When the transaction ends, the cache is discarded. This avoids correctness concerns associated with persistent caching while eliminating redundant work.</p>
+  </div>
+  <button class="code-btn" onclick="openPopup('cache-flow', 'Transaction Cache Flow', 'text')">⟨/⟩ View Cache Miss / Hit Flow</button>
+
+  <div class="card" style="margin-top:16px">
+    <h3>Cache Key Structure</h3>
+    <p>A transaction cache key conceptually contains: Namespace + Metadata Operation + Object/Type + Arguments + Relevant API Version.</p>
+  </div>
+  <button class="code-btn" onclick="openPopup('cache-key', 'Cache Key Hierarchy', 'text')">⟨/⟩ View Cache Key Example</button>
+
+  <!-- 16. ELIGIBILITY -->
+  <div class="section-heading">
+    <div class="num">13</div>
+    <h2>Eligibility Model</h2>
+  </div>
+  <div class="tier-grid">
+    <div class="tier tier-1">
+      <div class="tier-label">Tier 1 — Safe</div>
+      <h4>Known Immutable Metadata</h4>
+      <ul>
+        <li>Custom Metadata</li>
+        <li>Object metadata</li>
+        <li>Field metadata</li>
+        <li>Describe information</li>
+        <li>Platform metadata definitions</li>
+      </ul>
+    </div>
+    <div class="tier tier-2">
+      <div class="tier-label">Tier 2 — Conditional</div>
+      <h4>Transaction-Stable Operations</h4>
+      <ul>
+        <li>Configuration services</li>
+        <li>Framework metadata providers</li>
+        <li>Cached platform services</li>
+      </ul>
+    </div>
+    <div class="tier tier-3">
+      <div class="tier-label">Tier 3 — Unsafe</div>
+      <h4>Mutable Application Data</h4>
+      <ul>
+        <li>Arbitrary SOQL queries</li>
+        <li>DML-adjacent state</li>
+        <li>User-context-dependent data</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 17. PURITY CONTRACT -->
+  <div class="section-heading">
+    <div class="num">14</div>
+    <h2>Metadata Purity Contract</h2>
+  </div>
+  <div class="purity-grid">
+    <div class="purity-card pure">
+      <div class="purity-badge">PURE</div>
+      <p>Same inputs → same result, no side effects. Strong optimization candidate.</p>
+    </div>
+    <div class="purity-card txn-stable">
+      <div class="purity-badge">TRANSACTION_STABLE</div>
+      <p>Result stable within transaction, may depend on transaction context. Optimizable.</p>
+    </div>
+    <div class="purity-card mutable">
+      <div class="purity-badge">MUTABLE</div>
+      <p>Result can change during the transaction. Do not optimize.</p>
+    </div>
+    <div class="purity-card unknown">
+      <div class="purity-badge">UNKNOWN</div>
+      <p>Purity cannot be proven. Conservative default — do not optimize.</p>
+    </div>
+  </div>
+  <button class="code-btn" onclick="openPopup('purity-annotation', '@TransactionImmutable Annotation Concept', 'apex')">⟨/⟩ View Purity Annotation Concept</button>
+
+  <!-- 18-19. DIAGNOSTICS -->
+  <div class="section-heading">
+    <div class="num">15</div>
+    <h2>Developer Diagnostics &amp; Execution Trace</h2>
+  </div>
+  <div class="diag-panel">
+    <div style="color:var(--accent);font-weight:700;margin-bottom:10px">APEX PERFORMANCE OPTIMIZER</div>
+    <div class="diag-row"><span class="diag-label">Optimization candidate:</span><span class="diag-val">ConfigService.getConfig("ORDER")</span></div>
+    <div class="diag-sep"></div>
+    <div class="diag-row"><span class="diag-label">Calls detected:</span><span class="diag-val">8</span></div>
+    <div class="diag-row"><span class="diag-label">Calls eliminated:</span><span class="diag-val green">7</span></div>
+    <div class="diag-sep"></div>
+    <div class="diag-row"><span class="diag-label">Estimated CPU saved:</span><span class="diag-val green">14 ms</span></div>
+    <div class="diag-row"><span class="diag-label">Estimated queries saved:</span><span class="diag-val green">7</span></div>
+    <div class="diag-row"><span class="diag-label">Cache hit ratio:</span><span class="diag-val amber">87.5%</span></div>
+  </div>
+  <button class="code-btn" onclick="openPopup('exec-trace', 'Transaction Optimization Trace', 'text')" style="margin-top:12px">⟨/⟩ View Execution Trace Output</button>
+
+  <!-- 20. GOVERNOR LIMITS -->
+  <div class="section-heading">
+    <div class="num">16</div>
+    <h2>Governor Limit Implications</h2>
+  </div>
+  <div class="card-grid">
+    <div class="card">
+      <h3>Before Optimization</h3>
+      <ul>
+        <li>100 metadata requests</li>
+        <li>100 SOQL queries</li>
+        <li>CPU ≈ 950 ms</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>After Optimization</h3>
+      <ul>
+        <li>1 metadata request</li>
+        <li>1 SOQL query</li>
+        <li>CPU ≈ 300 ms</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout">
+    <p>The optimization should ideally prevent the <strong>physical work</strong> entirely — cached operations should not count toward governor limits, as the physical operation was never performed.</p>
+  </div>
+
+  <!-- 21-22. EXAMPLES -->
+  <div class="section-heading">
+    <div class="num">17</div>
+    <h2>Real-World Examples</h2>
+  </div>
+  <button class="code-btn" onclick="openPopup('trigger-framework', 'Trigger Framework — Before / After', 'apex')">⟨/⟩ View Example: Trigger Framework</button>
+  <button class="code-btn" onclick="openPopup('recursive-trigger', 'Recursive/Repeated Trigger Processing', 'apex')">⟨/⟩ View Example: Recursive DML</button>
+
+  <!-- 23. STATIC RULES -->
+  <div class="section-heading" id="rules">
+    <div class="num">18</div>
+    <h2>Static Analyzer Rules</h2>
+  </div>
+  <div class="card">
+    <table class="rule-table">
+      <thead>
+        <tr><th>Rule ID</th><th>Description</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="rule-id">APEX-PERF-001</span></td><td>Repeated metadata retrieval</td></tr>
+        <tr><td><span class="rule-id">APEX-PERF-002</span></td><td>Metadata lookup inside loop</td></tr>
+        <tr><td><span class="rule-id">APEX-PERF-003</span></td><td>Repeated describe call</td></tr>
+        <tr><td><span class="rule-id">APEX-PERF-004</span></td><td>Repeated configuration lookup</td></tr>
+        <tr><td><span class="rule-id">APEX-PERF-005</span></td><td>Repeated SOQL with identical predicates</td></tr>
+        <tr><td><span class="rule-id">APEX-PERF-006</span></td><td>Repeated serialization</td></tr>
+        <tr><td><span class="rule-id">APEX-PERF-007</span></td><td>Repeated expensive computation</td></tr>
+        <tr><td><span class="rule-id">APEX-PERF-008</span></td><td>Loop-invariant computation</td></tr>
+        <tr><td><span class="rule-id">APEX-PERF-009</span></td><td>Redundant object construction</td></tr>
+        <tr><td><span class="rule-id">APEX-PERF-010</span></td><td>Repeated framework initialization</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 24. CONFIDENCE -->
+  <div class="section-heading">
+    <div class="num">19</div>
+    <h2>Confidence Levels</h2>
+  </div>
+  <div class="conf-grid">
+    <div class="conf-card high">
+      <div class="conf-badge">HIGH</div>
+      <p>Known immutable metadata API. Same arguments. Same transaction scope. Strong optimization candidate.</p>
+    </div>
+    <div class="conf-card med">
+      <div class="conf-badge">MEDIUM</div>
+      <p>Known configuration provider. Likely transaction stable. Verify before optimizing.</p>
+    </div>
+    <div class="conf-card low">
+      <div class="conf-badge">LOW</div>
+      <p>Custom method. Purity cannot be proven. Report as informational only.</p>
+    </div>
+  </div>
+
+  <!-- 25. OPT LEVELS -->
+  <div class="section-heading">
+    <div class="num">20</div>
+    <h2>Automatic Optimization Levels</h2>
+  </div>
+  <div class="opt-levels">
+    <div class="opt-level lvl-0">
+      <div class="lvl-num">0</div>
+      <div><h4>No Optimization</h4><p>Normal Apex execution. No caching applied.</p></div>
+    </div>
+    <div class="opt-level lvl-1">
+      <div class="lvl-num">1</div>
+      <div><h4>Safe Platform Metadata Caching</h4><p>Describe, Custom Metadata, known immutable metadata automatically cached.</p></div>
+    </div>
+    <div class="opt-level lvl-2">
+      <div class="lvl-num">2</div>
+      <div><h4>Compiler/Static-Analysis Guided</h4><p>Common subexpression elimination and loop invariant detection applied based on AST findings.</p></div>
+    </div>
+    <div class="opt-level lvl-3">
+      <div class="lvl-num">3</div>
+      <div><h4>Aggressive Optimization</h4><p>Only after the platform has enough semantic information to prove safety across all edge cases.</p></div>
+    </div>
+  </div>
+
+  <!-- 26. DEV EXPERIENCE -->
+  <div class="section-heading">
+    <div class="num">21</div>
+    <h2>Developer Experience</h2>
+  </div>
+  <button class="code-btn" onclick="openPopup('dev-ui', 'Apex Performance Analyzer UI', 'text')">⟨/⟩ View Developer UI Panel</button>
+
+  <!-- 27-28. IDE / CICD -->
+  <div class="section-heading">
+    <div class="num">22</div>
+    <h2>IDE &amp; CI/CD Integration</h2>
+  </div>
+  <div class="card-grid">
+    <div class="card">
+      <h3>IDE Integration</h3>
+      <ul>
+        <li>VS Code extension</li>
+        <li>Salesforce Code Analyzer</li>
+        <li>Salesforce CLI</li>
+        <li>Developer Console</li>
+        <li>Deployment validation</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>CLI Scan Command</h3>
+      <p style="margin-bottom:10px">A single command scans all Apex files and reports findings:</p>
+      <code>sf apex performance scan</code>
+    </div>
+  </div>
+  <button class="code-btn" onclick="openPopup('cli-output', 'CLI Scan Output', 'bash')">⟨/⟩ View CLI Scan Output</button>
+  <button class="code-btn" onclick="openPopup('cicd-gate', 'CI/CD Performance Quality Gate', 'text')">⟨/⟩ View CI/CD Quality Gate</button>
+
+  <!-- 29-30. CORRECTNESS / SECURITY -->
+  <div class="section-heading">
+    <div class="num">23</div>
+    <h2>Correctness &amp; Security Considerations</h2>
+  </div>
+  <div class="card-grid">
+    <div class="card">
+      <h3>Side Effects Must Not Be Memoized</h3>
+      <p>Methods that increment counters, write DML, or modify state must never be cached regardless of argument similarity.</p>
+    </div>
+    <div class="card">
+      <h3>Mutable Data</h3>
+      <p>SOQL queries may observe DML changes mid-transaction. These must remain in Tier 3 and never be auto-cached.</p>
+    </div>
+    <div class="card">
+      <h3>User Context Isolation</h3>
+      <p>The cache key and eligibility model must account for User, Permission, Sharing, Locale, Currency, and Session context.</p>
+    </div>
+    <div class="card">
+      <h3>Cross-User Safety</h3>
+      <p>Transaction-local scope substantially reduces the risk of User A's result leaking to User B. The runtime must enforce this boundary.</p>
+    </div>
+  </div>
+
+  <!-- 31. METRICS -->
+  <div class="section-heading">
+    <div class="num">24</div>
+    <h2>Metrics</h2>
+  </div>
+  <div class="metrics-grid">
+    <div class="metric"><div class="m-val">47</div><div class="m-label">Metadata Ops</div></div>
+    <div class="metric"><div class="m-val" style="color:var(--green)">31</div><div class="m-label">Cache Hits</div></div>
+    <div class="metric"><div class="m-val" style="color:var(--amber)">16</div><div class="m-label">Cache Misses</div></div>
+    <div class="metric"><div class="m-val" style="color:var(--green)">31</div><div class="m-label">Redundant Ops Eliminated</div></div>
+    <div class="metric"><div class="m-val" style="color:var(--cyan)">82ms</div><div class="m-label">CPU Saved</div></div>
+  </div>
+
+  <!-- 32. ADAPTIVE -->
+  <div class="section-heading">
+    <div class="num">25</div>
+    <h2>Adaptive Optimization</h2>
+  </div>
+  <div class="callout">
+    <p>A more advanced implementation uses runtime profiling. When Salesforce observes a method called thousands of times across transactions with identical semantics, it becomes a <strong>platform-identified optimization candidate</strong> — an adaptive Apex runtime optimizer.</p>
+  </div>
+  <div class="arch-box">Production telemetry
+       ↓
+Pattern detection
+       ↓
+Optimization candidate
+       ↓
+Platform optimization rules</div>
+
+  <!-- 33. JIT -->
+  <div class="section-heading">
+    <div class="num">26</div>
+    <h2>Relationship to JIT Compilation</h2>
+  </div>
+  <button class="code-btn" onclick="openPopup('jit-pipeline', 'Full JIT Optimization Pipeline', 'text')">⟨/⟩ View JIT Pipeline Diagram</button>
+  <div class="card" style="margin-top:14px">
+    <p>This proposal could be the beginning of a broader <strong>Apex compiler optimization framework</strong> — a natural extension of a modern Apex execution architecture that would allow Salesforce to progressively make Apex applications faster without requiring every developer to become a performance expert.</p>
+  </div>
+
+  <!-- 34. MVP -->
+  <div class="section-heading" id="mvp">
+    <div class="num">27</div>
+    <h2>Proposed MVP — Four Phases</h2>
+  </div>
+  <div class="phases">
+    <div class="phase">
+      <div class="phase-label">Phase 1</div>
+      <h4>Static Analyzer</h4>
+      <ul>
+        <li>Apex AST + Control Flow Graph</li>
+        <li>Known metadata API catalog</li>
+        <li>Detect: repeated describe calls, repeated Custom Metadata access, metadata inside loops</li>
+        <li>No runtime modification initially</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-label">Phase 2</div>
+      <h4>Runtime Metadata Cache</h4>
+      <ul>
+        <li>Transaction-local caching for Schema describe, Custom Metadata, known immutable metadata</li>
+        <li>Measure: CPU, heap, latency, cache hit rate</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-label">Phase 3</div>
+      <h4>Compiler-Assisted Optimization</h4>
+      <ul>
+        <li>AST/data-flow hints for common subexpressions</li>
+        <li>Loop invariant detection</li>
+        <li>Feed optimization hints into the Apex runtime</li>
+      </ul>
+    </div>
+    <div class="phase">
+      <div class="phase-label">Phase 4</div>
+      <h4>Adaptive Optimization</h4>
+      <ul>
+        <li>Aggregate runtime telemetry</li>
+        <li>Identify high-frequency redundant operations</li>
+        <li>Continuously improve optimization rules</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 35-36. SUCCESS / BENCHMARKS -->
+  <div class="section-heading">
+    <div class="num">28</div>
+    <h2>Success Criteria &amp; Benchmarks</h2>
+  </div>
+  <div class="callout green">
+    <p><strong>Target: 20–50% reduction</strong> in repeated metadata/configuration work in transactions exhibiting the targeted patterns — established through benchmark workloads, not assumed.</p>
+  </div>
+  <div class="card-grid">
+    <div class="card">
+      <h3>Benchmark A — Repeated Metadata</h3>
+      <p>100 repeated metadata lookups. Baseline vs optimized CPU and SOQL.</p>
+    </div>
+    <div class="card">
+      <h3>Benchmark B — Trigger Framework</h3>
+      <p>Multiple handlers, repeated configuration resolution per handler.</p>
+    </div>
+    <div class="card">
+      <h3>Benchmark C — Loop</h3>
+      <p>200 records with a metadata lookup per record. Measure amplification ratio.</p>
+    </div>
+    <div class="card">
+      <h3>Benchmark D — Recursive Processing</h3>
+      <p>Multiple DML operations, repeated framework initialization per operation.</p>
+    </div>
+  </div>
+
+  <!-- 37. VISION -->
+  <div class="section-heading" id="vision">
+    <div class="num">29</div>
+    <h2>Long-Term Vision</h2>
+  </div>
+  <div class="callout">
+    <p>The goal is not simply "cache metadata." It is: <strong>make Apex execution aware of redundant computation and eliminate work that cannot affect the result.</strong></p>
+  </div>
+  <button class="code-btn" onclick="openPopup('vision-arch', 'Long-Term Apex Compiler Architecture', 'text')">⟨/⟩ View Long-Term Architecture Diagram</button>
+
+  <!-- 38. RECOMMENDATION -->
+  <div class="section-heading">
+    <div class="num">30</div>
+    <h2>Recommendation</h2>
+  </div>
+  <div class="card-grid">
+    <div class="card">
+      <h3>1. Apex Performance Analyzer (APA)</h3>
+      <p>Static AST/data-flow analyzer identifying: repeated metadata access, metadata inside loops, repeated configuration retrieval, repeated describe operations, and other redundant computation.</p>
+    </div>
+    <div class="card">
+      <h3>2. Apex Runtime Optimization Layer (AROE)</h3>
+      <p>Transaction-scoped optimizer that transparently memoizes operations proven to be: immutable, deterministic, side-effect free, and transaction safe.</p>
+    </div>
+  </div>
+  <div class="callout green">
+    <p>The analyzer tells developers: <em>"You are doing unnecessary work."</em><br>
+    The runtime optimizer eventually makes the answer: <strong>"Don't worry — Salesforce already eliminated it."</strong></p>
+  </div>
+
+  <!-- 39. NAME -->
+  <div class="section-heading">
+    <div class="num">31</div>
+    <h2>Proposed Project Name</h2>
+  </div>
+  <div class="card-grid">
+    <div class="card" style="border-color: var(--accent)">
+      <h3 style="font-size:18px; color: var(--accent)">Apex Runtime Optimization Engine</h3>
+      <code style="font-size:16px; color: var(--cyan)">AROE</code>
+    </div>
+    <div class="card" style="border-color: var(--purple)">
+      <h3 style="font-size:18px; color: var(--purple)">Apex Performance Analyzer</h3>
+      <code style="font-size:16px; color: var(--purple)">APA</code>
+    </div>
+  </div>
+  <div class="diag-panel" style="text-align:center; margin-top:16px">
+    <span style="color:var(--purple); font-weight:700">Apex Performance Analyzer</span>
+    <span style="color:var(--text-muted)">  +  </span>
+    <span style="color:var(--accent); font-weight:700">Apex Runtime Optimization Engine</span>
+    <br>
+    <span style="color:var(--text-muted)">  =  </span>
+    <span style="color:var(--green); font-weight:700">Intelligent Apex Execution</span>
+  </div>
+
+</div><!-- end .container -->
+
+<!-- FOOTER -->
+<footer>
+  Engineering Proposal · <a href="#">Apex Runtime Optimization Engine (AROE)</a> · Salesforce Platform
+</footer>
+
+<!-- ── POPUP OVERLAY ── -->
+<div class="popup-overlay" id="popupOverlay" onclick="closePopup()"></div>
+<div class="popup-panel" id="popupPanel">
+  <div class="popup-header">
+    <span class="popup-title" id="popupTitle">Code Example</span>
+    <span class="popup-tag" id="popupTag">Apex</span>
+    <button class="popup-close" onclick="closePopup()">✕</button>
+  </div>
+  <div class="popup-body">
+    <pre><code id="popupCode" class="language-apex"></code></pre>
+  </div>
+</div>
+
+<!-- ── CODE SNIPPETS DATA ── -->
+<script>
+const SNIPPETS = {
+  'prob-simple': {
+    lang: 'apex',
+    code: `public void process(Order__c order) {
+
+    Config__mdt config = ConfigService.getConfig('ORDER');
+
+    // Process order...
+
+    Config__mdt config2 = ConfigService.getConfig('ORDER');
+
+    // Process something else...
+
+    Config__mdt config3 = ConfigService.getConfig('ORDER');
+
+    // More processing...
+    // ↑ Three identical metadata lookups within a single transaction.
+    // Each one incurs the same cost even though the result is identical.
+}`
+  },
+  'prob-graph': {
+    lang: 'text',
+    code: `Trigger
+  |
+  +-- Handler A
+  |     |
+  |     +-- ConfigService.getConfig()   ← lookup 1
+  |
+  +-- Handler B
+  |     |
+  |     +-- ConfigService.getConfig()   ← lookup 2
+  |
+  +-- Handler C
+        |
+        +-- ConfigService.getConfig()   ← lookup 3
+
+The runtime effectively performs:
+
+  Metadata lookup   ←  lookup 1
+  Metadata lookup   ←  lookup 2
+  Metadata lookup   ←  lookup 3
+
+even though the desired value is identical across all three.`
+  },
+  'key-concept': {
+    lang: 'text',
+    code: `Repeated computation
+        ↓
+Can the runtime prove the result is stable?
+        ↓
+Yes
+        ↓
+Reuse transaction-local result
+
+══════════════════════════════════════
+
+BEFORE
+
+Apex code
+   |
+   +--> metadata lookup   ← physical retrieval
+   |
+   +--> metadata lookup   ← physical retrieval
+   |
+   +--> metadata lookup   ← physical retrieval
+
+══════════════════════════════════════
+
+AFTER
+
+Apex code
+   |
+   +--> metadata lookup   ← physical retrieval (once)
+   |
+   +--> transaction cache ← instant cache hit
+   |
+   +--> transaction cache ← instant cache hit`
+  },
+  'ast-example': {
+    lang: 'text',
+    code: `Source:
+  ConfigService.getConfig('ORDER');
+  ConfigService.getConfig('ORDER');
+
+AST Representation:
+
+  CallExpression
+   ├── Method:   getConfig
+   ├── Receiver: ConfigService
+   └── Arguments
+        └── Literal: "ORDER"
+
+The analyzer compares calls based on:
+  • Class       → ConfigService
+  • Method      → getConfig
+  • Arguments   → ["ORDER"]
+  • Receiver    → ConfigService (static call)
+
+Result: Both calls are structurally equivalent.
+Action: Flag second call as redundant computation.`
+  },
+  'analyzer-example': {
+    lang: 'text',
+    code: `═══════════════════════════════════════════════════════
+ APEX-PERF-001  Repeated Metadata Retrieval
+═══════════════════════════════════════════════════════
+
+ File:        OrderProcessor.cls
+ Method:      execute()
+ Severity:    WARNING
+ Confidence:  HIGH
+
+ MetadataService.getConfiguration()
+ is invoked multiple times within the same execution path.
+
+  Line  14 │ MetadataService.getConfiguration();
+  Line  18 │ MetadataService.getConfiguration();   ← redundant
+  Line  24 │ MetadataService.getConfiguration();   ← redundant
+
+ Occurrences:            3
+ Estimated redundant:    2
+
+ Recommendation:
+   Cache the result for the duration of the transaction,
+   or allow Apex Runtime Optimization to handle it automatically.
+
+═══════════════════════════════════════════════════════`
+  },
+  'loop-detect': {
+    lang: 'apex',
+    code: `// ── BEFORE ── (1,000 metadata lookups for 1,000 records)
+
+for (Order__c order : orders) {
+
+    Config__mdt config =
+        ConfigService.getConfig('ORDER');   // ← called 1,000×
+
+    process(order, config);
+}
+
+// ── APEX-PERF-002 ──────────────────────────────────────
+// Metadata lookup is LOOP INVARIANT.
+// ConfigService.getConfig('ORDER') does not depend on
+// any variable that changes per iteration.
+// ───────────────────────────────────────────────────────
+
+// ── AFTER ── (1 metadata lookup, 1,000 cache reads)
+
+Config__mdt config =
+    ConfigService.getConfig('ORDER');   // ← called once
+
+for (Order__c order : orders) {
+    process(order, config);             // ← reuse cached value
+}`
+  },
+  'cse-example': {
+    lang: 'text',
+    code: `Common Subexpression Elimination (CSE)
+══════════════════════════════════════
+
+BEFORE:
+  A = expensiveMetadataLookup(X)
+  B = expensiveMetadataLookup(X)
+
+AFTER (CSE applied):
+  A = expensiveMetadataLookup(X)
+  B = A
+
+Preconditions that must hold:
+  ✓  lookup(X) is deterministic for argument X
+  ✓  lookup(X) has no observable side effects
+  ✓  X has not been mutated between the two calls
+  ✓  No DML between the calls that could affect the result
+
+Constant Propagation Extension:
+  String type  = 'ORDER';
+  String type2 = 'ORDER';
+
+  getConfig(type);    ← call with "ORDER"
+  getConfig(type2);   ← also "ORDER" — CSE applicable
+
+  The analyzer can resolve type == type2 == "ORDER"
+  without requiring identical variable names.`
+  },
+  'cache-flow': {
+    lang: 'text',
+    code: `Transaction
+│
+├── Request metadata A
+│       │
+│       └── Cache miss
+│             ↓
+│         Retrieve from platform   ← physical operation
+│             ↓
+│         Store in transaction cache
+│
+├── Request metadata A
+│       │
+│       └── Cache hit ✓
+│             ↓
+│         Return cached result     ← no physical operation
+│
+└── Request metadata A
+        │
+        └── Cache hit ✓
+              ↓
+          Return cached result     ← no physical operation
+
+═══════════════════════════════════════════════════
+Transaction ends → cache discarded
+═══════════════════════════════════════════════════
+
+Transaction 2
+  Metadata A → new transaction cache (fresh start)`
+  },
+  'cache-key': {
+    lang: 'text',
+    code: `Transaction Cache Key Structure:
+
+  Namespace
+  +
+  Metadata operation
+  +
+  Object/type
+  +
+  Arguments
+  +
+  Relevant API version
+
+Example key hierarchy:
+
+  salesforce
+  │
+  └── CustomMetadata
+      │
+      ├── Config__mdt
+      │   │
+      │   └── ORDER        ← key: "sf.cmdtype.Config__mdt.ORDER"
+      │
+      └── Product__mdt
+          │
+          └── DEFAULT      ← key: "sf.cmdtype.Product__mdt.DEFAULT"
+
+Note: User context (sharing, locale) is included where
+the result may differ per-user.`
+  },
+  'purity-annotation': {
+    lang: 'apex',
+    code: `// Proposed developer annotation — marks a class as
+// transaction-immutable for the optimizer.
+
+@TransactionImmutable
+public class MetadataProvider {
+
+    public static Config__mdt getConfig(String key) {
+        return [SELECT ... FROM Config__mdt WHERE Key__c = :key];
+    }
+}
+
+// The runtime infers:
+//   PURE or TRANSACTION_STABLE classification
+//   → safe for transaction-local memoization
+
+// Without annotation — platform uses known API catalog
+// to classify built-in Salesforce metadata APIs:
+
+Schema.getGlobalDescribe()          // → PURE
+Schema.describeSObjects(types)      // → PURE
+CustomMetadata records              // → TRANSACTION_STABLE`
+  },
+  'exec-trace': {
+    lang: 'text',
+    code: `Transaction Optimization Trace (DEBUG log)
+════════════════════════════════════════════
+
+14:02:31.001 │ Metadata lookup
+             │   Object:    Config__mdt
+             │   Key:       ORDER
+             │   Result:    CACHE MISS  ← physical retrieval performed
+
+14:02:31.003 │ Metadata lookup
+             │   Object:    Config__mdt
+             │   Key:       ORDER
+             │   Result:    CACHE HIT ✓  ← returned from transaction cache
+
+14:02:31.003 │ Metadata lookup
+             │   Object:    Config__mdt
+             │   Key:       ORDER
+             │   Result:    CACHE HIT ✓
+
+14:02:31.004 │ Metadata lookup
+             │   Object:    Config__mdt
+             │   Key:       ORDER
+             │   Result:    CACHE HIT ✓
+
+════════════════════════════════════════════
+Summary:
+  Total calls:   4
+  Cache misses:  1 (physical retrievals)
+  Cache hits:    3 (eliminated)
+  Cache ratio:   75%`
+  },
+  'trigger-framework': {
+    lang: 'apex',
+    code: `// Trigger framework — multiple handlers, shared config
+
+trigger OrderTrigger on Order__c (before update) {
+    TriggerHandler.execute();
+}
+
+// ── TODAY (3 redundant lookups) ──────────────────────────
+
+// ValidationManager.execute()
+Config__mdt cfg = ConfigurationManager.getConfig();   // lookup 1
+
+// PricingManager.execute()
+Config__mdt cfg = ConfigurationManager.getConfig();   // lookup 2
+
+// FulfillmentManager.execute()
+Config__mdt cfg = ConfigurationManager.getConfig();   // lookup 3
+
+// ── WITH TRANSACTION-LOCAL MEMOIZATION ──────────────────
+
+// ValidationManager.execute()
+Config__mdt cfg = ConfigurationManager.getConfig();   // MISS → cache
+
+// PricingManager.execute()
+Config__mdt cfg = ConfigurationManager.getConfig();   // HIT ✓
+
+// FulfillmentManager.execute()
+Config__mdt cfg = ConfigurationManager.getConfig();   // HIT ✓
+
+// Particularly valuable for shared enterprise frameworks
+// where multiple components independently request
+// the same configuration.`
+  },
+  'recursive-trigger': {
+    lang: 'apex',
+    code: `// Repeated DML triggers the same framework multiple times.
+// Without optimization, each invocation independently
+// loads the same configuration.
+
+update order;    // ← Trigger fires, framework loads config
+// ...
+update order;    // ← Trigger fires again, reloads same config
+// ...
+update order;    // ← Trigger fires again, reloads same config
+
+// ─────────────────────────────────────────────────
+// With AROE, the runtime maintains across
+// the entire transaction:
+//
+//   Transaction
+//     |
+//     +-- Configuration cache  ← shared across all DML
+//     |
+//     +-- Describe cache
+//     |
+//     +-- Metadata cache
+//
+// Result: repeated framework execution does NOT mean
+// repeated metadata retrieval.`
+  },
+  'dev-ui': {
+    lang: 'text',
+    code: `┌─────────────────────────────────────────────────────┐
+│  Apex Performance Analyzer                          │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  ⚠  APEX-PERF-001                                   │
+│                                                     │
+│  Repeated metadata retrieval                        │
+│                                                     │
+│  ConfigService.getConfig("ORDER")                   │
+│                                                     │
+│  Occurrences:      8                                │
+│  Redundant calls:  7                                │
+│                                                     │
+│  Estimated CPU impact:  HIGH                        │
+│  Confidence:            HIGH                        │
+│                                                     │
+│  Recommendation                                     │
+│  ─────────────────────────────────────────────────  │
+│  Cache the configuration for the transaction        │
+│  or allow Apex Runtime Optimization to handle it.   │
+│                                                     │
+│  [View in IDE]  [Apply Fix]  [Dismiss]              │
+│                                                     │
+└─────────────────────────────────────────────────────┘`
+  },
+  'cli-output': {
+    lang: 'bash',
+    code: `$ sf apex performance scan --sourcepath force-app/
+
+Apex Performance Scan
+═══════════════════════════════════
+
+Files scanned:             2,143
+Methods scanned:          18,927
+
+Findings:
+  High:    12
+  Medium:  37
+  Low:     91
+
+Potential redundant metadata calls:
+  347
+
+Potential SOQL savings:
+  High
+
+Top offenders:
+  OrderProcessor.cls        │ APEX-PERF-002 │ loop × 200
+  TriggerDispatcher.cls     │ APEX-PERF-001 │ repeated × 8
+  ConfigurationManager.cls  │ APEX-PERF-004 │ repeated × 5
+
+Run \`sf apex performance scan --rule APEX-PERF-002\`
+for detailed loop-invariant findings.`
+  },
+  'cicd-gate': {
+    lang: 'text',
+    code: `Performance Quality Gate
+════════════════════════════════
+
+FAIL
+
+Rule:      APEX-PERF-002
+Finding:   Metadata lookup inside loop
+
+File:      OrderProcessor.cls
+Line:      47
+Method:    processOrders()
+
+Details:
+  ConfigService.getConfig('ORDER') is called inside
+  a for-each loop over a List<Order__c>.
+
+Estimated amplification:
+  1 → N   (N = number of records processed)
+
+At typical batch sizes (200 records):
+  Estimated redundant calls: 199 per execution
+
+Action required:
+  Hoist the metadata lookup above the loop or annotate
+  the class @TransactionImmutable to allow runtime caching.
+
+CI/CD pipeline blocked until finding is resolved.`
+  },
+  'jit-pipeline': {
+    lang: 'text',
+    code: `Apex Source
+     ↓
+Parser
+     ↓
+AST
+     ↓
+Semantic Analysis
+     ↓
+Optimization (proposed new layer)
+   ├── Constant folding
+   ├── Dead code elimination
+   ├── Common subexpression elimination
+   ├── Loop invariant code motion
+   ├── Inlining
+   ├── Memoization
+   └── Metadata access elimination
+     ↓
+Intermediate Representation
+     ↓
+Runtime / JIT
+     ↓
+Execution
+
+The metadata optimization proposal is the beginning
+of a broader Apex compiler optimization framework.`
+  },
+  'vision-arch': {
+    lang: 'text',
+    code: `                 Apex Source
+                      |
+                      v
+                Apex Compiler
+                      |
+             +--------+--------+
+             |                 |
+             v                 v
+           AST            Semantic Model
+             |                 |
+             +--------+--------+
+                      |
+                      v
+               Optimization IR
+                      |
+       +--------------+--------------+
+       |              |              |
+       v              v              v
+    Dead Code     CSE / Memoize   Loop Invariant
+    Elimination   Metadata        Code Motion
+                      |
+                      v
+                 Apex Runtime
+                      |
+                      v
+             Transaction Execution
+
+Goal: Make Apex applications faster WITHOUT
+requiring every developer to become a performance expert.`
+  }
+};
+
+function openPopup(id, title, lang) {
+  const snippet = SNIPPETS[id];
+  if (!snippet) return;
+  document.getElementById('popupTitle').textContent = title;
+  document.getElementById('popupTag').textContent = lang.toUpperCase();
+  const codeEl = document.getElementById('popupCode');
+  codeEl.className = 'language-' + (lang === 'apex' ? 'java' : lang === 'bash' ? 'bash' : 'plaintext');
+  codeEl.textContent = snippet.code;
+  hljs.highlightElement(codeEl);
+  document.getElementById('popupOverlay').classList.add('open');
+  document.getElementById('popupPanel').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closePopup() {
+  document.getElementById('popupOverlay').classList.remove('open');
+  document.getElementById('popupPanel').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePopup(); });
+
+// ── DARK / LIGHT TOGGLE ──
+const btn = document.getElementById('theme-btn');
+btn.addEventListener('click', () => {
+  const html = document.documentElement;
+  const isDark = html.dataset.theme === 'dark';
+  html.dataset.theme = isDark ? 'light' : 'dark';
+  btn.textContent = isDark ? '🌙 Dark' : '☀ Light';
+
+  // swap highlight.js stylesheet
+  const hlLink = document.querySelector('link[rel=stylesheet][href*="highlight"]');
+  if (hlLink) {
+    hlLink.href = isDark
+      ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css'
+      : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
+  }
+});
+</script>
+</body>
+</html>
