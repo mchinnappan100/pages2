@@ -104,6 +104,25 @@
   }
   .card.expanded { width: 540px; }
   .card.highlighted { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(99,102,241,.3); }
+  .card.dragging {
+    opacity: .88;
+    box-shadow: 0 16px 48px rgba(0,0,0,.7);
+    border-color: rgba(99,102,241,.6);
+    cursor: grabbing !important;
+    z-index: 50;
+    transition: none;
+  }
+  .section-card.dragging {
+    opacity: .88;
+    box-shadow: 0 16px 48px rgba(0,0,0,.7);
+    cursor: grabbing !important;
+    z-index: 50;
+    transition: none;
+  }
+  .card .card-header { cursor: grab; }
+  .card .card-header:active { cursor: grabbing; }
+  .section-card .section-header { cursor: grab; }
+  .section-card .section-header:active { cursor: grabbing; }
 
   .card-header {
     padding: 12px 14px 10px;
@@ -171,9 +190,12 @@
     border-bottom: 1px solid rgba(255,255,255,.03);
   }
   .attr-row:hover { background: rgba(255,255,255,.03); }
+  .attr-row.match { background: rgba(99,102,241,.14); border-left: 2px solid rgba(99,102,241,.6); }
   .attr-from { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .attr-to   { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; }
   .attr-arr  { color: var(--accent); text-align: center; }
+  .node-mapping-item.match { background: rgba(99,102,241,.09); }
+  .attr-table.search-open { max-height: none; }
 
   .card-footer {
     padding: 7px 14px;
@@ -301,9 +323,353 @@
     transition: opacity .3s;
   }
   #toast.hide { opacity: 0; pointer-events: none; }
+
+  /* ── XML slide-in panel ── */
+  #xml-panel {
+    position: fixed; top: 56px; right: 0; bottom: 0;
+    width: 52vw; min-width: 420px; max-width: 960px;
+    background: #1e1e1e;
+    border-left: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    z-index: 110;
+    transform: translateX(100%);
+    transition: transform .3s cubic-bezier(.4,0,.2,1);
+    box-shadow: -8px 0 40px rgba(0,0,0,.6);
+  }
+  #xml-panel.open { transform: translateX(0); }
+
+  #xml-panel-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 16px; height: 44px; flex-shrink: 0;
+    background: #252526; border-bottom: 1px solid #3c3c3c;
+  }
+  #xml-panel-title {
+    font-size: 12px; font-weight: 600; color: #ccc; flex: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .xml-panel-btn {
+    background: transparent; border: 1px solid #3c3c3c;
+    color: #aaa; border-radius: 4px; padding: 3px 9px;
+    font-size: 11px; cursor: pointer; transition: background .15s;
+    white-space: nowrap;
+  }
+  .xml-panel-btn:hover { background: #3c3c3c; color: #fff; }
+  .xml-panel-close {
+    background: transparent; border: none;
+    color: #888; font-size: 18px; cursor: pointer; line-height: 1;
+    padding: 2px 4px; border-radius: 4px; transition: color .15s;
+  }
+  .xml-panel-close:hover { color: #fff; }
+
+  #xml-panel-search-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px; background: #252526;
+    border-bottom: 1px solid #3c3c3c; flex-shrink: 0;
+  }
+  #xml-panel-search {
+    flex: 1; background: #3c3c3c; border: 1px solid #555;
+    color: #ccc; border-radius: 4px; padding: 4px 10px; font-size: 12px; outline: none;
+  }
+  #xml-panel-search:focus { border-color: var(--accent); }
+  #xml-match-count { font-size: 11px; color: #888; white-space: nowrap; }
+
+  #xml-status-bar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 4px 14px; background: #1e1e1e;
+    border-top: 1px solid #3c3c3c; flex-shrink: 0;
+    font-size: 11px; color: #888; min-height: 26px;
+  }
+  #xml-status-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: #10b981; flex-shrink: 0;
+    transition: background .3s;
+  }
+  #xml-status-dot.dirty  { background: #f59e0b; }
+  #xml-status-dot.error  { background: #ef4444; }
+  #xml-status-dot.saving { background: #6366f1; }
+  #xml-status-text { flex: 1; }
+  #xml-apply-btn {
+    background: rgba(99,102,241,.2); border: 1px solid rgba(99,102,241,.5);
+    color: #a5b4fc; border-radius: 4px; padding: 2px 10px;
+    font-size: 11px; cursor: pointer; transition: background .15s;
+    display: none;
+  }
+  #xml-apply-btn:hover { background: rgba(99,102,241,.35); }
+  #xml-apply-btn.visible { display: inline-block; }
+
+  #monaco-container { flex: 1; overflow: hidden; }
+
+  #xml-panel-resize {
+    position: absolute; top: 0; bottom: 0; left: -4px; width: 8px;
+    cursor: ew-resize; z-index: 1;
+  }
+  #xml-panel-resize:hover, #xml-panel-resize.resizing { background: rgba(99,102,241,.4); }
+
+  /* ── Splash screen ── */
+  #splash {
+    position: fixed; inset: 0; z-index: 500;
+    background: #0a0c12;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 0;
+    transition: opacity .5s ease, transform .5s ease;
+  }
+  #splash.fade-out { opacity: 0; transform: scale(1.03); pointer-events: none; }
+  #splash.hidden   { display: none; }
+
+  .splash-bg {
+    position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+  }
+  .splash-orb {
+    position: absolute; border-radius: 50%; filter: blur(80px); opacity: .18;
+    animation: orbFloat 8s ease-in-out infinite alternate;
+  }
+  @keyframes orbFloat {
+    from { transform: translateY(0) scale(1); }
+    to   { transform: translateY(-30px) scale(1.08); }
+  }
+
+  .splash-inner {
+    position: relative; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 28px;
+    padding: 0 24px; max-width: 860px; width: 100%;
+  }
+  .splash-logo {
+    font-size: 52px; font-weight: 800; letter-spacing: -2px;
+    background: linear-gradient(135deg, #6366f1 0%, #a78bfa 50%, #5eead4 100%);
+    -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+    animation: splashIn .6s ease both;
+  }
+  .splash-sub {
+    font-size: 15px; color: #8892a4; margin-top: -18px;
+    animation: splashIn .6s .1s ease both;
+  }
+  @keyframes splashIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .splash-features {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
+    width: 100%;
+    animation: splashIn .6s .2s ease both;
+  }
+  .splash-feat {
+    background: rgba(255,255,255,.04);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 10px; padding: 14px 12px; text-align: left;
+  }
+  .splash-feat-icon { font-size: 22px; margin-bottom: 6px; }
+  .splash-feat-title { font-size: 12px; font-weight: 600; color: #e2e8f0; margin-bottom: 3px; }
+  .splash-feat-desc  { font-size: 11px; color: #64748b; line-height: 1.4; }
+
+  .splash-shortcuts {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 8px;
+    animation: splashIn .6s .3s ease both;
+  }
+  .splash-key {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+    border-radius: 6px; padding: 5px 10px; font-size: 11px; color: #8892a4;
+  }
+  .splash-key kbd {
+    background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15);
+    border-radius: 3px; padding: 1px 5px; font-size: 10px; color: #c4c9d4;
+    font-family: inherit;
+  }
+
+  .splash-actions {
+    display: flex; align-items: center; gap: 16px;
+    animation: splashIn .6s .4s ease both;
+  }
+  .splash-start-btn {
+    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    color: white; border: none; border-radius: 8px;
+    padding: 11px 28px; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: opacity .15s;
+  }
+  .splash-start-btn:hover { opacity: .85; }
+  .splash-skip {
+    font-size: 12px; color: #475569; cursor: pointer;
+    transition: color .15s; background: none; border: none;
+  }
+  .splash-skip:hover { color: #8892a4; }
+
+  .splash-progress {
+    width: 160px; height: 2px; background: rgba(255,255,255,.08);
+    border-radius: 1px; overflow: hidden;
+    animation: splashIn .6s .5s ease both;
+  }
+  .splash-progress-bar {
+    height: 100%; background: linear-gradient(90deg, #6366f1, #5eead4);
+    border-radius: 1px;
+    animation: progressDrain 5s linear forwards;
+  }
+  @keyframes progressDrain {
+    from { width: 100%; }
+    to   { width: 0%; }
+  }
+
+  /* ── Context-sensitive help ── */
+  #help-panel {
+    position: fixed; top: 56px; left: 0; bottom: 0;
+    width: 340px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    z-index: 110;
+    transform: translateX(-100%);
+    transition: transform .3s cubic-bezier(.4,0,.2,1);
+    box-shadow: 8px 0 40px rgba(0,0,0,.5);
+  }
+  #help-panel.open { transform: translateX(0); }
+
+  #help-panel-header {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 16px; height: 48px; flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface2);
+  }
+  #help-panel-header h2 { font-size: 13px; font-weight: 600; flex: 1; }
+  .help-close-btn {
+    background: none; border: none; color: var(--text-muted);
+    font-size: 18px; cursor: pointer; border-radius: 4px; padding: 2px 5px;
+    transition: color .15s;
+  }
+  .help-close-btn:hover { color: var(--text); }
+
+  #help-topics {
+    display: flex; gap: 0; flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto; background: var(--surface2);
+  }
+  #help-topics::-webkit-scrollbar { height: 0; }
+  .help-topic-btn {
+    flex-shrink: 0; background: none; border: none; border-bottom: 2px solid transparent;
+    color: var(--text-muted); padding: 8px 12px; font-size: 11px; cursor: pointer;
+    transition: color .15s, border-color .15s; white-space: nowrap;
+  }
+  .help-topic-btn:hover  { color: var(--text); }
+  .help-topic-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  #help-content {
+    flex: 1; overflow-y: auto; padding: 16px;
+  }
+  #help-content::-webkit-scrollbar { width: 4px; }
+  #help-content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .help-section { margin-bottom: 20px; }
+  .help-section-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--accent); margin-bottom: 10px;
+  }
+  .help-item {
+    display: flex; gap: 10px; margin-bottom: 10px; align-items: flex-start;
+  }
+  .help-item-icon {
+    font-size: 18px; flex-shrink: 0; width: 26px; text-align: center; margin-top: 1px;
+  }
+  .help-item-body { flex: 1; }
+  .help-item-title { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+  .help-item-desc  { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+  .help-kbd {
+    display: inline-block; background: var(--surface2);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 1px 5px; font-size: 10px; color: var(--text);
+    font-family: inherit; margin: 1px 1px;
+  }
+  .help-badge {
+    display: inline-block; font-size: 9px; font-weight: 600;
+    padding: 1px 6px; border-radius: 8px; text-transform: uppercase;
+    letter-spacing: .4px; margin: 1px 2px;
+  }
+  .help-divider {
+    height: 1px; background: var(--border); margin: 14px 0;
+  }
+  .help-context-banner {
+    background: rgba(99,102,241,.1); border: 1px solid rgba(99,102,241,.25);
+    border-radius: 8px; padding: 10px 12px; margin-bottom: 14px;
+    font-size: 11px; color: #a5b4fc; line-height: 1.5;
+  }
+
+  /* Tooltip for toolbar buttons */
+  .has-tooltip { position: relative; }
+  .has-tooltip .tip {
+    position: absolute; top: calc(100% + 8px); left: 50%;
+    transform: translateX(-50%);
+    background: #1a1d2e; border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 10px;
+    font-size: 11px; color: var(--text); white-space: nowrap;
+    pointer-events: none; z-index: 200;
+    opacity: 0; transition: opacity .15s;
+    box-shadow: 0 4px 16px rgba(0,0,0,.4);
+    max-width: 220px; white-space: normal; text-align: center;
+  }
+  .has-tooltip:hover .tip { opacity: 1; }
+  .tip-arrow {
+    position: absolute; top: -5px; left: 50%; transform: translateX(-50%);
+    width: 8px; height: 8px; background: #1a1d2e;
+    border-left: 1px solid var(--border); border-top: 1px solid var(--border);
+    transform: translateX(-50%) rotate(45deg);
+  }
 </style>
 </head>
 <body>
+
+<!-- Splash screen -->
+<div id="splash">
+  <div class="splash-bg">
+    <div class="splash-orb" style="width:500px;height:500px;background:#6366f1;top:-100px;left:-100px;animation-delay:0s"></div>
+    <div class="splash-orb" style="width:400px;height:400px;background:#8b5cf6;bottom:-80px;right:80px;animation-delay:2s"></div>
+    <div class="splash-orb" style="width:300px;height:300px;background:#14b8a6;top:40%;left:55%;animation-delay:4s"></div>
+  </div>
+  <div class="splash-inner">
+    <div>
+      <div class="splash-logo">⬡ CML Viewer</div>
+      <div class="splash-sub">Salesforce Revenue Cloud · Context Mapping Language · Infinite Canvas</div>
+    </div>
+
+    <div class="splash-features">
+      <div class="splash-feat">
+        <div class="splash-feat-icon">🗺️</div>
+        <div class="splash-feat-title">Infinite Canvas</div>
+        <div class="splash-feat-desc">Pan, zoom, and drag cards freely. Mini-map keeps you oriented.</div>
+      </div>
+      <div class="splash-feat">
+        <div class="splash-feat-icon">🔗</div>
+        <div class="splash-feat-title">Context Mappings</div>
+        <div class="splash-feat-desc">Visualise all 14 context mappings with intents, node mappings, and attribute chains.</div>
+      </div>
+      <div class="splash-feat">
+        <div class="splash-feat-icon">⟨/⟩</div>
+        <div class="splash-feat-title">Live XML Editor</div>
+        <div class="splash-feat-desc">Edit XML in Monaco with syntax highlighting — canvas updates automatically.</div>
+      </div>
+      <div class="splash-feat">
+        <div class="splash-feat-icon">🔍</div>
+        <div class="splash-feat-title">Deep Search</div>
+        <div class="splash-feat-desc">Search across mapping titles, context nodes, and every attribute name instantly.</div>
+      </div>
+    </div>
+
+    <div class="splash-shortcuts">
+      <div class="splash-key"><kbd>Drag</kbd> canvas to pan</div>
+      <div class="splash-key"><kbd>Scroll</kbd> to zoom</div>
+      <div class="splash-key"><kbd>Drag</kbd> card header to move</div>
+      <div class="splash-key"><kbd>Click</kbd> node row to expand attrs</div>
+      <div class="splash-key"><kbd>Esc</kbd> close panels</div>
+      <div class="splash-key"><kbd>?</kbd> toggle help</div>
+    </div>
+
+    <div class="splash-actions">
+      <button class="splash-start-btn" onclick="dismissSplash()">Get Started →</button>
+      <button class="splash-skip" onclick="dismissSplash()">Skip intro</button>
+    </div>
+
+    <div class="splash-progress">
+      <div class="splash-progress-bar" id="splash-bar"></div>
+    </div>
+  </div>
+</div>
 
 <!-- Drop overlay -->
 <div id="drop-overlay">
@@ -321,6 +687,23 @@
   </div>
 </div>
 
+<!-- Help panel -->
+<div id="help-panel">
+  <div id="help-panel-header">
+    <h2>📖 Help &amp; Reference</h2>
+    <button class="help-close-btn" onclick="closeHelp()" title="Close">✕</button>
+  </div>
+  <div id="help-topics">
+    <button class="help-topic-btn active" onclick="showHelpTopic('canvas',this)">Canvas</button>
+    <button class="help-topic-btn" onclick="showHelpTopic('cards',this)">Cards</button>
+    <button class="help-topic-btn" onclick="showHelpTopic('search',this)">Search</button>
+    <button class="help-topic-btn" onclick="showHelpTopic('editor',this)">XML Editor</button>
+    <button class="help-topic-btn" onclick="showHelpTopic('export',this)">Export</button>
+    <button class="help-topic-btn" onclick="showHelpTopic('cml',this)">CML Concepts</button>
+  </div>
+  <div id="help-content"></div>
+</div>
+
 <!-- Top bar -->
 <div id="topbar">
   <h1>⬡ CML Viewer</h1>
@@ -328,15 +711,36 @@
   <div class="sep"></div>
   <input type="text" id="search" placeholder="Search mappings, nodes, attributes…">
   <div class="sep"></div>
-  <button class="ctrl-btn" onclick="resetView()">⌖ Reset</button>
+  <div class="has-tooltip">
+    <button class="ctrl-btn" onclick="resetView()">⌖ Reset</button>
+    <span class="tip"><span class="tip-arrow"></span>Reset canvas to default zoom &amp; position</span>
+  </div>
   <button class="ctrl-btn" onclick="zoomOut()">−</button>
   <div id="zoom-label">100%</div>
   <button class="ctrl-btn" onclick="zoomIn()">+</button>
   <div class="sep"></div>
-  <button class="ctrl-btn" onclick="toggleConnections()">↗ Links</button>
-  <button class="ctrl-btn" id="layout-btn" onclick="cycleLayout()">⊞ Layout</button>
-  <button class="ctrl-btn" onclick="exportSVG()" style="background:rgba(99,102,241,.18);border-color:rgba(99,102,241,.4);color:#a5b4fc">⬇ SVG</button>
+  <div class="has-tooltip">
+    <button class="ctrl-btn" onclick="toggleConnections()">↗ Links</button>
+    <span class="tip"><span class="tip-arrow"></span>Toggle connection lines between cards sharing context nodes</span>
+  </div>
+  <div class="has-tooltip">
+    <button class="ctrl-btn" id="layout-btn" onclick="cycleLayout()">⊞ Layout</button>
+    <span class="tip"><span class="tip-arrow"></span>Cycle layout: Grid → Flow (by domain) → Compact</span>
+  </div>
+  <div class="has-tooltip">
+    <button class="ctrl-btn" onclick="exportSVG()" style="background:rgba(99,102,241,.18);border-color:rgba(99,102,241,.4);color:#a5b4fc">⬇ SVG</button>
+    <span class="tip"><span class="tip-arrow"></span>Export fully-expanded canvas as SVG vector file</span>
+  </div>
+  <div class="has-tooltip">
+    <button class="ctrl-btn" id="xml-source-btn" onclick="openXmlPanel()" style="background:rgba(20,184,166,.12);border-color:rgba(20,184,166,.4);color:#5eead4">⟨/⟩ XML</button>
+    <span class="tip"><span class="tip-arrow"></span>Open live XML editor — edits update canvas in real time</span>
+  </div>
   <button class="ctrl-btn" onclick="document.getElementById('file-input').click()">Open…</button>
+  <div class="sep"></div>
+  <div class="has-tooltip">
+    <button class="ctrl-btn" id="help-btn" onclick="toggleHelp()" style="background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.35);color:#fbbf24">? Help</button>
+    <span class="tip"><span class="tip-arrow"></span>Context-sensitive help &amp; CML reference (press <kbd>?</kbd>)</span>
+  </div>
 </div>
 
 <!-- Canvas -->
@@ -361,6 +765,30 @@
 
 <div id="toast" class="hide"></div>
 
+<!-- XML slide-in panel -->
+<div id="xml-panel">
+  <div id="xml-panel-resize"></div>
+  <div id="xml-panel-header">
+    <span id="xml-panel-title">XML Source</span>
+    <button class="xml-panel-btn" onclick="xmlPanelWrap()">⇔ Wrap</button>
+    <button class="xml-panel-btn" onclick="xmlPanelFormat()">⟨/⟩ Format</button>
+    <button class="xml-panel-btn" onclick="xmlPanelCopy()">⎘ Copy</button>
+    <button class="xml-panel-close" onclick="closeXmlPanel()" title="Close">✕</button>
+  </div>
+  <div id="xml-panel-search-bar">
+    <input id="xml-panel-search" type="text" placeholder="Find in XML… (Enter = next, Shift+Enter = prev)">
+    <span id="xml-match-count"></span>
+    <button class="xml-panel-btn" id="xml-find-prev" onclick="xmlFindStep(-1)">↑</button>
+    <button class="xml-panel-btn" id="xml-find-next" onclick="xmlFindStep(1)">↓</button>
+  </div>
+  <div id="monaco-container"></div>
+  <div id="xml-status-bar">
+    <span id="xml-status-dot"></span>
+    <span id="xml-status-text">Ready</span>
+    <button id="xml-apply-btn" onclick="xmlApply()">↻ Apply</button>
+  </div>
+</div>
+
 <script>
 // ── State ──────────────────────────────────────────────────────────────
 let panX = 80, panY = 80, zoom = 1;
@@ -369,6 +797,10 @@ let showConns = true;
 let layoutMode = 0; // 0=grid, 1=flow, 2=compact
 let allCards = []; // {el, x, y, w, h, id, type}
 let parsedData = null;
+let rawXmlContent = '';
+
+// Card dragging
+let dragEl = null, dragOffX = 0, dragOffY = 0, dragMoved = false;
 
 const world = document.getElementById('world');
 const canvasWrap = document.getElementById('canvas-wrap');
@@ -493,7 +925,11 @@ function buildMappingCard(mapping, idx) {
   div.dataset.searchText = [
     mapping.title, mapping.description,
     mapping.intents.join(' '),
-    mapping.nodeMappings.map(nm => nm.contextNode + ' ' + nm.object).join(' ')
+    mapping.nodeMappings.map(nm =>
+      [nm.contextNode, nm.object, nm.mappedContextDef,
+       nm.attrs.map(a => a.attr + ' ' + (a.hydCtx || a.inputName)).join(' ')
+      ].join(' ')
+    ).join(' ')
   ].join(' ').toLowerCase();
 
   const color = colorForTitle(mapping.title);
@@ -742,16 +1178,69 @@ function renderData(data) {
 // ── Search ─────────────────────────────────────────────────────────────
 document.getElementById('search').addEventListener('input', e => {
   const q = e.target.value.toLowerCase().trim();
+
   world.querySelectorAll('.card').forEach(card => {
-    if (!q) {
-      card.classList.remove('highlighted');
-      card.style.opacity = '1';
-    } else {
-      const text = card.dataset.searchText || '';
-      const match = text.includes(q);
-      card.classList.toggle('highlighted', match);
-      card.style.opacity = match ? '1' : '0.25';
-    }
+    // Clear all previous search state
+    card.classList.remove('highlighted');
+    card.style.opacity = '1';
+    card.querySelectorAll('.attr-row').forEach(r => r.classList.remove('match'));
+    card.querySelectorAll('.node-mapping-item').forEach(r => r.classList.remove('match'));
+    card.querySelectorAll('.attr-table.search-open').forEach(t => {
+      t.classList.remove('search-open');
+      if (!t.classList.contains('open')) t.style.display = '';
+    });
+
+    if (!q) return;
+
+    const cardText = card.dataset.searchText || '';
+    const cardMatch = cardText.includes(q);
+    card.style.opacity = cardMatch ? '1' : '0.2';
+    if (!cardMatch) return;
+
+    card.classList.add('highlighted');
+
+    // Walk every node-mapping row to find attr-level matches
+    const mappingIdx = parseInt(card.dataset.id.replace('mapping-', ''));
+    if (isNaN(mappingIdx) || !parsedData) return;
+    const mapping = parsedData.mappings[mappingIdx];
+    if (!mapping) return;
+
+    mapping.nodeMappings.forEach((nm, ni) => {
+      const nmItem = card.querySelector(`.node-mapping-item:nth-of-type(${ni * 2 + 1})`);
+      // More reliable: query by data attributes on the sibling attr-table
+      const attrTable = card.querySelector(`.attr-table[data-mapping="${mappingIdx}"][data-nm="${ni}"]`);
+      const nmRow = attrTable ? attrTable.previousElementSibling : null;
+
+      const nodeText = [nm.contextNode, nm.object, nm.mappedContextDef].join(' ').toLowerCase();
+      const attrTexts = nm.attrs.map(a => (a.attr + ' ' + (a.hydCtx || a.inputName)).toLowerCase());
+      const anyAttrMatch = attrTexts.some(t => t.includes(q));
+      const nodeMatch = nodeText.includes(q);
+
+      if ((nodeMatch || anyAttrMatch) && nmRow) {
+        nmRow.classList.add('match');
+      }
+
+      if (anyAttrMatch && attrTable) {
+        // Populate if not yet built
+        if (!attrTable.innerHTML) {
+          attrTable.innerHTML = nm.attrs.map(a => `
+            <div class="attr-row">
+              <span class="attr-from" title="${escH(a.attr)}">${escH(a.attr)}</span>
+              <span class="attr-arr">→</span>
+              <span class="attr-to" title="${escH(a.inputName)}">${escH(a.hydCtx || a.inputName)}</span>
+            </div>
+          `).join('');
+        }
+        // Show the table for search
+        attrTable.classList.add('search-open');
+        attrTable.style.display = 'block';
+
+        // Highlight matching rows
+        attrTable.querySelectorAll('.attr-row').forEach((row, ai) => {
+          row.classList.toggle('match', attrTexts[ai] && attrTexts[ai].includes(q));
+        });
+      }
+    });
   });
 });
 
@@ -763,19 +1252,68 @@ function applyTransform() {
 }
 
 canvasWrap.addEventListener('mousedown', e => {
-  if (e.target.closest('.card') || e.target.closest('.section-card')) return;
-  isPanning = true;
-  lastMX = e.clientX; lastMY = e.clientY;
-  canvasWrap.classList.add('panning');
+  // Left button only
+  if (e.button !== 0) return;
+
+  const cardEl = e.target.closest('.card, .section-card');
+  if (cardEl) {
+    // Only start drag from the header (not from interactive elements)
+    const header = e.target.closest('.card-header, .section-header');
+    if (!header) return;
+
+    e.preventDefault();
+    dragEl = cardEl;
+    dragMoved = false;
+
+    // Current card position in world coords
+    const cx = parseFloat(cardEl.style.left) || 0;
+    const cy = parseFloat(cardEl.style.top)  || 0;
+    // Mouse in world coords
+    const wx = (e.clientX - panX) / zoom;
+    const wy = (e.clientY - canvasWrap.getBoundingClientRect().top - panY) / zoom;
+    dragOffX = wx - cx;
+    dragOffY = wy - cy;
+
+    cardEl.classList.add('dragging');
+    cardEl.style.zIndex = 50;
+  } else {
+    // Canvas pan
+    isPanning = true;
+    lastMX = e.clientX; lastMY = e.clientY;
+    canvasWrap.classList.add('panning');
+  }
 });
+
 window.addEventListener('mousemove', e => {
+  if (dragEl) {
+    dragMoved = true;
+    const wx = (e.clientX - panX) / zoom;
+    const wy = (e.clientY - canvasWrap.getBoundingClientRect().top - panY) / zoom;
+    const nx = wx - dragOffX;
+    const ny = wy - dragOffY;
+    dragEl.style.left = nx + 'px';
+    dragEl.style.top  = ny + 'px';
+    // Sync allCards record so minimap + connections stay correct
+    const id = dragEl.dataset.id;
+    const rec = allCards.find(c => c.id === id);
+    if (rec) { rec.x = nx; rec.y = ny; }
+    drawConnections();
+    updateMinimap();
+    return;
+  }
   if (!isPanning) return;
   panX += e.clientX - lastMX;
   panY += e.clientY - lastMY;
   lastMX = e.clientX; lastMY = e.clientY;
   applyTransform();
 });
+
 window.addEventListener('mouseup', () => {
+  if (dragEl) {
+    dragEl.classList.remove('dragging');
+    dragEl.style.zIndex = '';
+    dragEl = null;
+  }
   isPanning = false;
   canvasWrap.classList.remove('panning');
 });
@@ -846,11 +1384,14 @@ function loadFile(file) {
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const data = parseXML(e.target.result);
+      rawXmlContent = e.target.result;
+      const data = parseXML(rawXmlContent);
       document.getElementById('drop-overlay').classList.add('hidden');
       document.getElementById('file-badge').textContent = file.name + ' · ' + data.mappings.length + ' mappings';
+      document.getElementById('xml-panel-title').textContent = file.name;
       renderData(data);
       showToast('Loaded ' + data.mappings.length + ' mappings, ' + data.attrCount + ' attributes');
+      if (monacoEditor) monacoEditor.setValue(rawXmlContent);
     } catch(err) {
       showToast('Parse error: ' + err.message);
     }
@@ -1168,19 +1709,485 @@ function escH(s) {
 }
 function truncate(s, n) { return s && s.length > n ? s.slice(0, n) + '…' : s; }
 
+// ── Monaco XML Panel ───────────────────────────────────────────────────
+let monacoEditor = null;
+let monacoReady = false;
+let xmlWrapEnabled = false;
+let xmlDirty = false;
+let xmlDebounceTimer = null;
+
+function setXmlStatus(state, text) {
+  const dot  = document.getElementById('xml-status-dot');
+  const txt  = document.getElementById('xml-status-text');
+  const btn  = document.getElementById('xml-apply-btn');
+  dot.className = state ? 'dirty' === state ? '' : state : '';
+  dot.classList.add(state);
+  txt.textContent = text;
+  btn.classList.toggle('visible', state === 'dirty');
+}
+
+function loadMonaco(cb) {
+  if (monacoReady) { cb(); return; }
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs/loader.min.js';
+  script.onload = () => {
+    require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.44.0/min/vs' } });
+    require(['vs/editor/editor.main'], () => {
+      monacoReady = true;
+      cb();
+    });
+  };
+  document.head.appendChild(script);
+}
+
+function openXmlPanel() {
+  if (!rawXmlContent) { showToast('No XML loaded yet'); return; }
+  const panel = document.getElementById('xml-panel');
+  panel.classList.add('open');
+  document.getElementById('xml-source-btn').style.background = 'rgba(20,184,166,.28)';
+
+  loadMonaco(() => {
+    if (monacoEditor) {
+      monacoEditor.layout();
+      return;
+    }
+
+    monacoEditor = monaco.editor.create(document.getElementById('monaco-container'), {
+      value: rawXmlContent,
+      language: 'xml',
+      theme: 'vs-dark',
+      readOnly: false,
+      wordWrap: 'off',
+      minimap: { enabled: true },
+      scrollBeyondLastLine: false,
+      fontSize: 12,
+      lineNumbers: 'on',
+      folding: true,
+      renderLineHighlight: 'line',
+      smoothScrolling: true,
+      cursorBlinking: 'smooth',
+      scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
+      formatOnPaste: true,
+    });
+
+    // Keep editor sized to container
+    const ro = new ResizeObserver(() => monacoEditor.layout());
+    ro.observe(document.getElementById('monaco-container'));
+
+    // Live edit: debounce 800ms, validate XML, auto-apply if valid
+    monacoEditor.onDidChangeModelContent(() => {
+      xmlDirty = true;
+      setXmlStatus('dirty', 'Unsaved changes…');
+      clearTimeout(xmlDebounceTimer);
+      xmlDebounceTimer = setTimeout(() => xmlLiveUpdate(), 800);
+    });
+
+    setXmlStatus('', 'Ready — edit XML to update canvas');
+  });
+
+  // Wire find-in-panel search
+  const searchInput = document.getElementById('xml-panel-search');
+  searchInput.oninput = e => {
+    if (!monacoEditor) return;
+    const q = e.target.value;
+    if (!q) { document.getElementById('xml-match-count').textContent = ''; return; }
+    const model = monacoEditor.getModel();
+    const matches = model.findMatches(q, false, false, false, null, false);
+    document.getElementById('xml-match-count').textContent =
+      matches.length ? `${matches.length} match${matches.length > 1 ? 'es' : ''}` : 'no matches';
+    if (matches.length) {
+      monacoEditor.setSelection(matches[0].range);
+      monacoEditor.revealRangeInCenter(matches[0].range);
+    }
+    searchInput.dataset.matchIdx = '0';
+    searchInput.dataset.matches = JSON.stringify(matches.map(m => m.range));
+  };
+  searchInput.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); xmlFindStep(e.shiftKey ? -1 : 1); }
+    if (e.key === 'Escape') closeXmlPanel();
+  };
+}
+
+function xmlLiveUpdate() {
+  if (!monacoEditor) return;
+  const text = monacoEditor.getValue();
+  const model = monacoEditor.getModel();
+
+  // Parse and validate
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(text, 'application/xml');
+  const parseError = doc.querySelector('parsererror');
+
+  if (parseError) {
+    // Extract line/col from parsererror text if available
+    const errText = parseError.textContent || 'XML parse error';
+    const lineMatch = errText.match(/line\s+(\d+)/i);
+    const colMatch  = errText.match(/column\s+(\d+)/i);
+    const errLine   = lineMatch ? parseInt(lineMatch[1]) : 1;
+    const errCol    = colMatch  ? parseInt(colMatch[1])  : 1;
+
+    monaco.editor.setModelMarkers(model, 'xml-parse', [{
+      severity: monaco.MarkerSeverity.Error,
+      startLineNumber: errLine, startColumn: errCol,
+      endLineNumber: errLine,   endColumn: errCol + 10,
+      message: 'XML parse error — canvas not updated'
+    }]);
+    setXmlStatus('error', 'XML error on line ' + errLine + ' — fix to update canvas');
+    return;
+  }
+
+  // Clear any previous markers
+  monaco.editor.setModelMarkers(model, 'xml-parse', []);
+
+  // Re-parse and re-render canvas
+  try {
+    setXmlStatus('saving', 'Updating canvas…');
+    const data = parseXML(text);
+    rawXmlContent = text;
+    xmlDirty = false;
+
+    // Preserve card positions if possible (same mapping count)
+    const prevPositions = {};
+    allCards.forEach(c => { prevPositions[c.id] = { x: c.x, y: c.y }; });
+
+    renderData(data);
+
+    // Restore positions for cards that still exist
+    allCards.forEach(c => {
+      if (prevPositions[c.id]) {
+        c.x = prevPositions[c.id].x;
+        c.y = prevPositions[c.id].y;
+        const el = world.querySelector(`[data-id="${c.id}"]`);
+        if (el) { el.style.left = c.x + 'px'; el.style.top = c.y + 'px'; }
+      }
+    });
+    drawConnections();
+    updateMinimap();
+
+    const fname = document.getElementById('xml-panel-title').textContent;
+    document.getElementById('file-badge').textContent =
+      fname + ' · ' + data.mappings.length + ' mappings';
+
+    setXmlStatus('', `Canvas updated — ${data.mappings.length} mappings · ${data.attrCount} attrs`);
+    showToast('Canvas updated from editor');
+  } catch(err) {
+    setXmlStatus('error', 'Render error: ' + err.message);
+  }
+}
+
+function xmlApply() {
+  clearTimeout(xmlDebounceTimer);
+  xmlLiveUpdate();
+}
+
+function xmlFindStep(dir) {
+  if (!monacoEditor) return;
+  const input = document.getElementById('xml-panel-search');
+  const ranges = JSON.parse(input.dataset.matches || '[]');
+  if (!ranges.length) return;
+  let idx = parseInt(input.dataset.matchIdx || '0');
+  idx = (idx + dir + ranges.length) % ranges.length;
+  input.dataset.matchIdx = idx;
+  monacoEditor.setSelection(ranges[idx]);
+  monacoEditor.revealRangeInCenter(ranges[idx]);
+  document.getElementById('xml-match-count').textContent =
+    `${idx + 1} / ${ranges.length}`;
+}
+
+function closeXmlPanel() {
+  document.getElementById('xml-panel').classList.remove('open');
+  document.getElementById('xml-source-btn').style.background = 'rgba(20,184,166,.12)';
+}
+
+function xmlPanelWrap() {
+  if (!monacoEditor) return;
+  xmlWrapEnabled = !xmlWrapEnabled;
+  monacoEditor.updateOptions({ wordWrap: xmlWrapEnabled ? 'on' : 'off' });
+  showToast('Word wrap ' + (xmlWrapEnabled ? 'on' : 'off'));
+}
+
+function xmlPanelFormat() {
+  if (!monacoEditor) return;
+  monacoEditor.getAction('editor.action.formatDocument').run()
+    .then(() => showToast('XML formatted'));
+}
+
+function xmlPanelCopy() {
+  const text = monacoEditor ? monacoEditor.getValue() : rawXmlContent;
+  if (!text) return;
+  navigator.clipboard.writeText(text)
+    .then(() => showToast('XML copied to clipboard'))
+    .catch(() => showToast('Copy failed'));
+}
+
+// Panel resize handle
+(function() {
+  const handle = document.getElementById('xml-panel-resize');
+  const panel  = document.getElementById('xml-panel');
+  let resizing = false, startX = 0, startW = 0;
+
+  handle.addEventListener('mousedown', e => {
+    resizing = true; startX = e.clientX;
+    startW = panel.offsetWidth;
+    handle.classList.add('resizing');
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!resizing) return;
+    const delta = startX - e.clientX;
+    const newW = Math.max(380, Math.min(window.innerWidth * 0.85, startW + delta));
+    panel.style.width = newW + 'px';
+    if (monacoEditor) monacoEditor.layout();
+  });
+  window.addEventListener('mouseup', () => {
+    if (resizing) { resizing = false; handle.classList.remove('resizing'); }
+  });
+})();
+
+// ── Splash screen ──────────────────────────────────────────────────────
+let splashTimer = null;
+
+function dismissSplash() {
+  const el = document.getElementById('splash');
+  clearTimeout(splashTimer);
+  el.classList.add('fade-out');
+  setTimeout(() => el.classList.add('hidden'), 520);
+}
+
+// Auto-dismiss after 5 seconds (matches the CSS progress bar)
+splashTimer = setTimeout(dismissSplash, 5000);
+
+// ── Context-sensitive Help ──────────────────────────────────────────────
+const HELP_TOPICS = {
+  canvas: {
+    label: 'Canvas',
+    context: 'How to navigate and arrange the infinite canvas.',
+    sections: [
+      {
+        title: 'Navigation',
+        items: [
+          { icon: '🖱️', title: 'Pan canvas', desc: 'Click and drag on the <em>empty background</em> to pan.' },
+          { icon: '🔍', title: 'Zoom', desc: '<kbd>Scroll wheel</kbd> to zoom in/out centred on cursor. Use <kbd>−</kbd> / <kbd>+</kbd> buttons in the toolbar.' },
+          { icon: '⌖', title: 'Reset view', desc: 'Click <kbd>⌖ Reset</kbd> to return to the default zoom (75%) and position.' },
+        ]
+      },
+      {
+        title: 'Card Arrangement',
+        items: [
+          { icon: '✋', title: 'Drag cards', desc: 'Grab any card by its <strong>header bar</strong> and drag to reposition. Connection lines update live.' },
+          { icon: '⊞', title: 'Layout modes', desc: '<kbd>⊞ Layout</kbd> cycles through <strong>Grid</strong> (4 cols), <strong>Flow</strong> (grouped by domain), and <strong>Compact</strong> (5 cols). Dragged positions are preserved when re-rendering.' },
+          { icon: '↗', title: 'Connection lines', desc: '<kbd>↗ Links</kbd> toggles curved dashed lines between cards that share context nodes.' },
+        ]
+      },
+      {
+        title: 'Mini-map',
+        items: [
+          { icon: '🗺️', title: 'Overview', desc: 'The mini-map (bottom-right) shows all cards at once. The indigo rectangle is your current viewport.' },
+        ]
+      }
+    ]
+  },
+  cards: {
+    label: 'Cards',
+    context: 'Each card represents one <code>contextMappings</code> block from the CML XML.',
+    sections: [
+      {
+        title: 'Card Anatomy',
+        items: [
+          { icon: '🎨', title: 'Color bar', desc: 'Left edge color indicates domain: <span class="help-badge" style="background:rgba(99,102,241,.2);color:#818cf8">indigo</span> SalesTransaction · <span class="help-badge" style="background:rgba(16,185,129,.2);color:#34d399">green</span> Asset · <span class="help-badge" style="background:rgba(245,158,11,.2);color:#fbbf24">amber</span> Quote · <span class="help-badge" style="background:rgba(236,72,153,.2);color:#f472b6">pink</span> Order · <span class="help-badge" style="background:rgba(20,184,166,.2);color:#2dd4bf">teal</span> Contract' },
+          { icon: '🏷️', title: 'Intent badges', desc: '<span class="help-badge" style="background:rgba(14,165,233,.15);color:#0ea5e9">HYDRATION</span> <span class="help-badge" style="background:rgba(16,185,129,.15);color:#10b981">PERSISTENCE</span> <span class="help-badge" style="background:rgba(245,158,11,.15);color:#f59e0b">ASSOCIATION</span> <span class="help-badge" style="background:rgba(236,72,153,.15);color:#ec4899">TRANSLATION</span> — one badge per <code>mappingIntent</code> in the XML.' },
+          { icon: '↕', title: 'Node mapping rows', desc: 'Each row is a <code>contextNodeMappings</code> entry. Shows the context node chip → mapped object.' },
+        ]
+      },
+      {
+        title: 'Interactions',
+        items: [
+          { icon: '👆', title: 'Expand attributes', desc: 'Click any <strong>node mapping row</strong> to expand its attribute list (<code>contextAttributeMappings</code>). Each row shows: attribute name → query attribute.' },
+          { icon: '↔', title: 'Widen card', desc: 'Click the card <strong>header</strong> to toggle wider (540px) mode for long names.' },
+          { icon: '🔗', title: 'Inherited from', desc: 'Footer shows the <code>inheritedFrom</code> path — hover for the full path.' },
+        ]
+      }
+    ]
+  },
+  search: {
+    label: 'Search',
+    context: 'Search filters cards live and highlights matching attributes.',
+    sections: [
+      {
+        title: 'How search works',
+        items: [
+          { icon: '🔍', title: 'Full-depth search', desc: 'Searches card title, description, intent types, context node names, object names, and every attribute name (both sides of the mapping).' },
+          { icon: '💡', title: 'Auto-expand', desc: 'When a search term matches attributes inside a node mapping, that attr-table opens automatically with matching rows highlighted in purple.' },
+          { icon: '🔆', title: 'Dim non-matches', desc: 'Cards that don\'t match are dimmed to 20% opacity. Matching cards get a purple border highlight.' },
+          { icon: '✕', title: 'Clear search', desc: 'Clear the search box to restore all cards to full opacity.' },
+        ]
+      },
+      {
+        title: 'Tips',
+        items: [
+          { icon: '💬', title: 'Partial match', desc: 'Searches are case-insensitive substring matches. Try <kbd>Recurring</kbd>, <kbd>ASP</kbd>, <kbd>hydration</kbd>, or a Salesforce API field name.' },
+          { icon: '📌', title: 'Attribute search', desc: 'To find which mapping contains a field like <kbd>ContractClassification__c</kbd>, just type it — the containing card and row will highlight.' },
+        ]
+      }
+    ]
+  },
+  editor: {
+    label: 'XML Editor',
+    context: 'Monaco-powered live editor — changes propagate to the canvas automatically.',
+    sections: [
+      {
+        title: 'Opening the editor',
+        items: [
+          { icon: '⟨/⟩', title: 'Open', desc: 'Click <kbd>⟨/⟩ XML</kbd> in the toolbar to slide open the editor panel.' },
+          { icon: '↔', title: 'Resize', desc: 'Drag the <strong>left edge</strong> of the panel to resize it (380px – 85vw).' },
+          { icon: '✕', title: 'Close', desc: 'Click <kbd>✕</kbd> or press <kbd>Esc</kbd> to close.' },
+        ]
+      },
+      {
+        title: 'Editing',
+        items: [
+          { icon: '✏️', title: 'Live update', desc: 'After 800ms of idle typing, the XML is validated and the canvas re-renders. Card positions you\'ve dragged are preserved.' },
+          { icon: '🟡', title: 'Status bar', desc: 'Bottom bar shows: 🟢 in sync · 🟡 unsaved · 🔵 rendering · 🔴 error. The <kbd>↻ Apply</kbd> button forces immediate apply.' },
+          { icon: '🔴', title: 'Validation', desc: 'Parse errors show red squiggles at the error line. The canvas is not updated until the XML is valid.' },
+          { icon: '⟨/⟩', title: 'Format', desc: '<kbd>⟨/⟩ Format</kbd> pretty-prints the XML using Monaco\'s built-in formatter.' },
+          { icon: '⇔', title: 'Word wrap', desc: '<kbd>⇔ Wrap</kbd> toggles line wrapping for long attribute paths.' },
+          { icon: '⎘', title: 'Copy', desc: '<kbd>⎘ Copy</kbd> copies the current editor content (including any edits) to the clipboard.' },
+        ]
+      },
+      {
+        title: 'Find in XML',
+        items: [
+          { icon: '🔍', title: 'Find bar', desc: 'Type in the find bar to highlight all matches. Shows match count.' },
+          { icon: '↑↓', title: 'Navigate', desc: '<kbd>↑</kbd> / <kbd>↓</kbd> buttons or <kbd>Enter</kbd> / <kbd>Shift+Enter</kbd> step through matches.' },
+        ]
+      }
+    ]
+  },
+  export: {
+    label: 'Export',
+    context: 'Export the full canvas as a scalable vector graphic.',
+    sections: [
+      {
+        title: 'SVG Export',
+        items: [
+          { icon: '⬇', title: 'Save as SVG', desc: 'Click <kbd>⬇ SVG</kbd> to download a fully-expanded SVG. Every card is shown with all attribute rows visible — regardless of what\'s currently open on screen.' },
+          { icon: '📐', title: 'Vector quality', desc: 'The SVG is generated programmatically from parsed data (not a DOM screenshot), so it scales perfectly in Illustrator, Inkscape, or any browser.' },
+          { icon: '🔗', title: 'Connections included', desc: 'Cubic bezier connection lines between related cards are included in the export.' },
+          { icon: '📋', title: 'Context nodes', desc: 'The full Context Attribute Definitions panel is included at the bottom in a 4-column chip grid.' },
+        ]
+      }
+    ]
+  },
+  cml: {
+    label: 'CML Concepts',
+    context: 'Key Salesforce Revenue Cloud Context Mapping Language concepts.',
+    sections: [
+      {
+        title: 'ContextDefinition',
+        items: [
+          { icon: '📄', title: 'What it is', desc: 'A metadata file that defines how Salesforce Revenue Cloud maps data between objects during pricing and order orchestration.' },
+          { icon: '🔗', title: 'contextDefinitionReferences', desc: 'Declares which standard context definitions this custom CML extends (e.g. <code>SalesTransactionContext__stdctx</code>).' },
+        ]
+      },
+      {
+        title: 'contextMappings',
+        items: [
+          { icon: '🗂️', title: 'Mapping block', desc: 'Each mapping is a named group of <code>contextNodeMappings</code> that connects one or more Salesforce objects together for a specific purpose (hydration, persistence, etc.).' },
+          { icon: '🏷️', title: 'mappingIntent', desc: '<strong>hydration</strong> — load data from DB into context. <strong>persistence</strong> — write context back to DB. <strong>association</strong> — relate two context nodes. <strong>translation</strong> — transform field values between nodes.' },
+        ]
+      },
+      {
+        title: 'contextNodeMappings',
+        items: [
+          { icon: '⬡', title: 'Node mapping', desc: 'Maps a context node (e.g. <code>SalesTransactionItem</code>) to a Salesforce object (e.g. <code>OrderItem</code>). The <code>contextNode</code> is the in-memory representation; <code>object</code> is the SObject.' },
+          { icon: '↔', title: 'contextAttributeMappings', desc: 'Maps individual fields: <code>contextAttribute</code> is the field on the context node; <code>contextInputAttributeName</code> is the field used as input; <code>ctxAttrHydrationCtxs/contextQueryAttribute</code> is the Salesforce field queried.' },
+        ]
+      },
+      {
+        title: 'contextNodes (definitions)',
+        items: [
+          { icon: '📋', title: 'Attribute definitions', desc: 'The <code>contextNodes</code> block at the end of the CML defines all available attributes with their <code>dataType</code> (string, number, datetime), <code>fieldType</code> (inputoutput), and whether they are key fields.' },
+          { icon: '🔑', title: 'Key fields', desc: 'Attributes with <code>&lt;key&gt;true&lt;/key&gt;</code> are used as record identifiers for lookup and association operations.' },
+        ]
+      }
+    ]
+  }
+};
+
+let currentHelpTopic = 'canvas';
+
+function renderHelpTopic(key) {
+  const topic = HELP_TOPICS[key];
+  if (!topic) return;
+  const content = document.getElementById('help-content');
+
+  let html = `<div class="help-context-banner">${topic.context}</div>`;
+  topic.sections.forEach(sec => {
+    html += `<div class="help-section">`;
+    html += `<div class="help-section-title">${sec.title}</div>`;
+    sec.items.forEach(item => {
+      html += `
+        <div class="help-item">
+          <div class="help-item-icon">${item.icon}</div>
+          <div class="help-item-body">
+            <div class="help-item-title">${item.title}</div>
+            <div class="help-item-desc">${item.desc.replace(/<kbd>/g,'<kbd class="help-kbd">').replace(/<\/kbd>/g,'</kbd>')}</div>
+          </div>
+        </div>`;
+    });
+    html += `</div><div class="help-divider"></div>`;
+  });
+
+  content.innerHTML = html;
+  currentHelpTopic = key;
+}
+
+function showHelpTopic(key, btn) {
+  document.querySelectorAll('.help-topic-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderHelpTopic(key);
+}
+
+function toggleHelp() {
+  const panel = document.getElementById('help-panel');
+  const btn   = document.getElementById('help-btn');
+  const open  = panel.classList.toggle('open');
+  btn.style.background = open ? 'rgba(245,158,11,.25)' : 'rgba(245,158,11,.1)';
+  if (open) renderHelpTopic(currentHelpTopic);
+}
+
+function closeHelp() {
+  document.getElementById('help-panel').classList.remove('open');
+  document.getElementById('help-btn').style.background = 'rgba(245,158,11,.1)';
+}
+
+// ? key shortcut
+window.addEventListener('keydown', e => {
+  if (e.key === '?' && !e.target.matches('input,textarea,[contenteditable]')) {
+    toggleHelp();
+  }
+});
+
+// Escape key closes open panels
+window.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('xml-panel').classList.contains('open')) { closeXmlPanel(); return; }
+  if (document.getElementById('help-panel').classList.contains('open')) { closeHelp(); return; }
+});
+
 // ── Auto-load if same directory ────────────────────────────────────────
-// Attempt to auto-load DRO-CML.xml if accessed via file:// or local server
 (async () => {
   try {
     const res = await fetch('DRO-CML.xml');
     if (res.ok) {
       const text = await res.text();
-      const fakeFile = { name: 'DRO-CML.xml' };
       showToast('Auto-loading DRO-CML.xml…');
       try {
+        rawXmlContent = text;
         const data = parseXML(text);
         document.getElementById('drop-overlay').classList.add('hidden');
         document.getElementById('file-badge').textContent = 'DRO-CML.xml · ' + data.mappings.length + ' mappings';
+        document.getElementById('xml-panel-title').textContent = 'DRO-CML.xml';
         renderData(data);
         showToast('Loaded ' + data.mappings.length + ' mappings · ' + data.attrCount + ' attributes');
       } catch(err) {
