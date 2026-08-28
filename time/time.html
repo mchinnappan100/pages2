@@ -1,12 +1,11 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Live Monument Clock</title>
-<link rel="icon" type="image/x-icon"
-        href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
   * { box-sizing: border-box; }
   html, body { margin:0; width:100%; height:100%; overflow:hidden; }
@@ -178,6 +177,62 @@
     margin-top:3px;
   }
 
+  .map-popover {
+    position:absolute;
+    width:340px;
+    height:300px;
+    border-radius:12px;
+    overflow:hidden;
+    box-shadow:0 8px 32px rgba(0,0,0,.65);
+    border:2px solid rgba(255,255,255,.25);
+    opacity:0;
+    pointer-events:none;
+    transition:opacity .2s ease, transform .2s ease;
+    transform:scale(.95);
+    z-index:200;
+    display:flex;
+    flex-direction:column;
+  }
+  .map-popover.visible {
+    opacity:1;
+    pointer-events:auto;
+    transform:scale(1);
+  }
+  .map-toolbar {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    background:rgba(15,22,26,.92);
+    padding:5px 10px;
+    flex-shrink:0;
+    cursor:move;
+    user-select:none;
+  }
+  .map-toolbar .map-title {
+    color:#fff;
+    font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size:11px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+  }
+  .map-toolbar-btns { display:flex; gap:6px; align-items:center; }
+  .map-toolbar-btns button {
+    background:rgba(255,255,255,.12);
+    border:1px solid rgba(255,255,255,.2);
+    color:#fff;
+    border-radius:6px;
+    padding:2px 8px;
+    font-size:13px;
+    cursor:pointer;
+    line-height:1.4;
+    transition:background .15s;
+  }
+  .map-toolbar-btns button:hover { background:rgba(255,255,255,.28); }
+  #map-container {
+    flex:1;
+    width:100%;
+  }
+
   @media (max-width:700px) {
     .scene { background-size:auto 100%; }
     .clock { width:min(60vw, 340px); top:66%; }
@@ -193,22 +248,35 @@
     <div class="digital" id="digital"></div>
   </div>
 
-  <div class="tz-panel monaco">
+  <div class="tz-panel monaco" data-map="monaco">
     <div class="mp-label">Monaco</div>
     <div class="mp-time" id="monaco-time"></div>
     <div class="mp-date" id="monaco-date"></div>
   </div>
 
-  <div class="tz-panel india">
+  <div class="tz-panel india" data-map="india">
     <div class="mp-label">India</div>
     <div class="mp-time" id="india-time"></div>
     <div class="mp-date" id="india-date"></div>
   </div>
 
-  <div class="tz-panel london">
+  <div class="tz-panel london" data-map="london">
     <div class="mp-label">London</div>
     <div class="mp-time" id="london-time"></div>
     <div class="mp-date" id="london-date"></div>
+  </div>
+
+  <div class="map-popover" id="map-popover">
+    <div class="map-toolbar" id="map-drag-handle">
+      <span class="map-title" id="map-title">Map</span>
+      <div class="map-toolbar-btns">
+        <button id="map-zoom-in"  title="Zoom in">+</button>
+        <button id="map-zoom-out" title="Zoom out">−</button>
+        <button id="map-reset"    title="Reset view">⌂</button>
+        <button id="map-close"    title="Close">✕</button>
+      </div>
+    </div>
+    <div id="map-container"></div>
   </div>
 </div>
 
@@ -284,6 +352,107 @@ function updateClock() {
   requestAnimationFrame(updateClock);
 }
 updateClock();
+
+// Map popover with Leaflet navigation
+const MAP_CONFIGS = {
+  monaco: { label:'Monaco',  lat:43.7384, lng:7.4246,  zoom:13 },
+  india:  { label:'Coimbatore, India', lat:11.0168, lng:76.9558, zoom:12 },
+  london: { label:'London',  lat:51.5074, lng:-0.1278, zoom:11 },
+};
+
+const popover    = document.getElementById('map-popover');
+const mapTitleEl = document.getElementById('map-title');
+let leafletMap   = null;
+let currentMarker = null;
+let currentKey   = null;
+let hideTimer    = null;
+
+function initLeaflet() {
+  leafletMap = L.map('map-container', { zoomControl:false });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution:'© OpenStreetMap contributors', maxZoom:19
+  }).addTo(leafletMap);
+}
+
+function showMap(key) {
+  if (!leafletMap) initLeaflet();
+  const cfg = MAP_CONFIGS[key];
+  mapTitleEl.textContent = cfg.label;
+  if (currentKey !== key) {
+    if (currentMarker) currentMarker.remove();
+    leafletMap.setView([cfg.lat, cfg.lng], cfg.zoom);
+    currentMarker = L.marker([cfg.lat, cfg.lng]).addTo(leafletMap);
+    currentKey = key;
+  }
+  // let Leaflet recalculate size after CSS transition
+  setTimeout(() => leafletMap.invalidateSize(), 220);
+}
+
+function positionPopover(panel) {
+  const rect      = panel.getBoundingClientRect();
+  const sceneRect = panel.closest('.scene').getBoundingClientRect();
+  const popW = 340, popH = 300, gap = 10;
+
+  let left = rect.right - sceneRect.left + gap;
+  let top  = rect.top   - sceneRect.top;
+
+  if (left + popW > sceneRect.width - 10)
+    left = rect.left - sceneRect.left - popW - gap;
+  top = Math.max(8, Math.min(top, sceneRect.height - popH - 8));
+
+  popover.style.left = left + 'px';
+  popover.style.top  = top  + 'px';
+}
+
+function openPopover(key, panel) {
+  clearTimeout(hideTimer);
+  positionPopover(panel);
+  popover.classList.add('visible');
+  showMap(key);
+}
+
+function scheduleHide() {
+  hideTimer = setTimeout(() => popover.classList.remove('visible'), 120);
+}
+
+document.querySelectorAll('.tz-panel').forEach(panel => {
+  panel.addEventListener('mouseenter', () => openPopover(panel.dataset.map, panel));
+  panel.addEventListener('mouseleave', scheduleHide);
+});
+
+popover.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+popover.addEventListener('mouseleave', scheduleHide);
+
+// Toolbar buttons
+document.getElementById('map-zoom-in') .addEventListener('click', () => leafletMap && leafletMap.zoomIn());
+document.getElementById('map-zoom-out').addEventListener('click', () => leafletMap && leafletMap.zoomOut());
+document.getElementById('map-reset')   .addEventListener('click', () => {
+  if (!leafletMap || !currentKey) return;
+  const cfg = MAP_CONFIGS[currentKey];
+  leafletMap.setView([cfg.lat, cfg.lng], cfg.zoom);
+});
+document.getElementById('map-close').addEventListener('click', () => {
+  clearTimeout(hideTimer);
+  popover.classList.remove('visible');
+});
+
+// Drag to reposition
+(function() {
+  const handle = document.getElementById('map-drag-handle');
+  let dragging = false, ox = 0, oy = 0;
+  handle.addEventListener('mousedown', e => {
+    dragging = true;
+    ox = e.clientX - popover.offsetLeft;
+    oy = e.clientY - popover.offsetTop;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    popover.style.left = (e.clientX - ox) + 'px';
+    popover.style.top  = (e.clientY - oy) + 'px';
+  });
+  document.addEventListener('mouseup', () => { dragging = false; });
+})();
 </script>
 </body>
 </html>
