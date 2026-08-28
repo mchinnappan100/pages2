@@ -312,4 +312,3 @@ to:
 
 Commit the change and re-run the CML deployment.
 
-I can also turn this into a **formal Salesforce deployment SOP/KB format** with sections for *Symptoms, Root Cause, Resolution, Prevention, and Troubleshooting* if you want to publish it internally.
