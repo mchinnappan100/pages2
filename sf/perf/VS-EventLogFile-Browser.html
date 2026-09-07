@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EventLogFile Browser vs. SF Perf Monitor</title>
+
+<link rel="icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,500;0,700;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f4f1eb;
+    --bg-card: #ffffff;
+    --bg-nav: rgba(244,241,235,0.92);
+    --text: #1a1612;
+    --muted: #7a7268;
+    --accent1: #c84b2f;
+    --accent2: #2d5f8a;
+    --accent3: #3a7d52;
+    --accent4: #8a5c2d;
+    --border: rgba(26,22,18,0.1);
+    --tag-bg: rgba(200,75,47,0.08);
+    --pill-basic: #eef4f9;
+    --pill-basic-text: #2d5f8a;
+    --pill-inter: #eef6f1;
+    --pill-inter-text: #3a7d52;
+    --pill-adv: #fdf0ec;
+    --pill-adv-text: #c84b2f;
+    --pill-bp: #fef8ef;
+    --pill-bp-text: #8a5c2d;
+    --thead-bg: #f8f6f2;
+    --row-hover: #faf8f5;
+    --code-bg: #f7f4ee;
+    --code-text: #3a3530;
+    --bp-example-bg: #f7f4ee;
+    --shadow: 0 8px 30px rgba(0,0,0,0.06);
+  }
+
+  [data-theme="dark"] {
+    --bg: #0f1117;
+    --bg-card: #161b27;
+    --bg-nav: rgba(15,17,23,0.92);
+    --text: #e4e6ef;
+    --muted: #6b7280;
+    --accent1: #e06447;
+    --accent2: #5b9fd4;
+    --accent3: #4ade80;
+    --accent4: #f5c842;
+    --border: rgba(255,255,255,0.08);
+    --tag-bg: rgba(224,100,71,0.1);
+    --pill-basic: rgba(91,159,212,0.12);
+    --pill-basic-text: #5b9fd4;
+    --pill-inter: rgba(74,222,128,0.1);
+    --pill-inter-text: #4ade80;
+    --pill-adv: rgba(224,100,71,0.1);
+    --pill-adv-text: #e06447;
+    --pill-bp: rgba(245,200,66,0.1);
+    --pill-bp-text: #f5c842;
+    --thead-bg: #1e2535;
+    --row-hover: #1a2030;
+    --code-bg: #1e2535;
+    --code-text: #a8b4c8;
+    --bp-example-bg: #1a2030;
+    --shadow: 0 8px 30px rgba(0,0,0,0.4);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 100vh;
+    transition: background 0.3s, color 0.3s;
+  }
+
+  /* ── NAV ──────────────────────────────────────────────────────────────── */
+  nav {
+    position: sticky; top: 0;
+    background: var(--bg-nav);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2.5rem;
+    height: 60px;
+  }
+  .nav-brand {
+    font-family: 'Fraunces', serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .nav-brand span {
+    display: inline-flex;
+    width: 28px; height: 28px;
+    background: var(--accent2);
+    border-radius: 6px;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 0.85rem;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+  }
+  .nav-links {
+    display: flex; gap: 0.25rem;
+    list-style: none; align-items: center;
+  }
+  .nav-links a {
+    text-decoration: none;
+    color: var(--muted);
+    font-size: 0.8rem; font-weight: 500;
+    padding: 6px 12px; border-radius: 20px;
+    transition: all 0.2s;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+  .nav-links a:hover { color: var(--text); background: var(--border); }
+
+  /* ── NAV CONTROLS ─────────────────────────────────────────────────────── */
+  .nav-controls {
+    display: flex; align-items: center; gap: 8px;
+    position: relative;
+  }
+  .nav-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: var(--muted);
+    transition: all 0.2s;
+    white-space: nowrap;
+    line-height: 1;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .nav-btn:hover { color: var(--text); background: var(--border); }
+
+  /* ── SETTINGS POPOVER ─────────────────────────────────────────────────── */
+  .settings-popover {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px); right: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 1rem 1.25rem;
+    box-shadow: var(--shadow);
+    min-width: 230px;
+    z-index: 200;
+    transition: background 0.3s;
+  }
+  .settings-popover.open { display: block; }
+  .settings-popover h5 {
+    font-size: 0.7rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    color: var(--muted); margin-bottom: 0.75rem;
+  }
+  .col-pills { display: flex; gap: 8px; }
+  .col-pill {
+    flex: 1; padding: 7px 0;
+    border-radius: 10px;
+    border: 1.5px solid var(--border);
+    background: none; cursor: pointer;
+    font-size: 0.78rem; font-weight: 500;
+    color: var(--muted); text-align: center;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .col-pill:hover { border-color: var(--accent2); color: var(--accent2); }
+  .col-pill.active {
+    background: var(--pill-basic);
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+  .settings-divider { height: 1px; background: var(--border); margin: 0.9rem 0; }
+  .settings-row {
+    display: flex; align-items: center;
+    justify-content: space-between; gap: 10px;
+  }
+  .settings-label { font-size: 0.78rem; color: var(--text); font-weight: 400; }
+  .toggle-switch { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
+  .toggle-switch input { opacity: 0; width: 0; height: 0; }
+  .toggle-track {
+    position: absolute; inset: 0;
+    background: var(--border); border-radius: 20px;
+    cursor: pointer; transition: background 0.2s;
+  }
+  .toggle-track::after {
+    content: ''; position: absolute;
+    left: 3px; top: 3px;
+    width: 14px; height: 14px;
+    border-radius: 50%; background: white;
+    transition: transform 0.2s;
+  }
+  .toggle-switch input:checked + .toggle-track { background: var(--accent3); }
+  .toggle-switch input:checked + .toggle-track::after { transform: translateX(16px); }
+
+  /* ── COLUMN / FONT / DENSITY OVERRIDES ───────────────────────────────── */
+  body.cols-2 .cards-grid { grid-template-columns: repeat(2, 1fr); }
+  body.cols-2 .bp-grid    { grid-template-columns: repeat(2, 1fr); }
+  html.font-sm { font-size: 13px; }
+  html.font-lg { font-size: 17px; }
+  body.density-compact .card       { padding: 1rem; }
+  body.density-compact .cards-grid { gap: 12px; }
+  body.density-compact .bp-grid    { gap: 10px; }
+  body.density-compact .bp-item    { padding: 0.85rem 1rem; }
+  body.density-compact .section    { padding: 2rem 2.5rem; }
+  body.density-comfortable .card       { padding: 2rem; }
+  body.density-comfortable .cards-grid { gap: 28px; }
+  body.density-comfortable .bp-grid    { gap: 22px; }
+  body.density-comfortable .bp-item    { padding: 1.6rem 1.8rem; }
+  body.density-comfortable .section    { padding: 4rem 2.5rem; }
+
+  /* ── HERO ─────────────────────────────────────────────────────────────── */
+  .hero {
+    max-width: 1100px; margin: 0 auto;
+    padding: 5rem 2.5rem 3rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3rem; align-items: center;
+  }
+  .hero-eyebrow {
+    font-size: 0.75rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--accent2); margin-bottom: 1rem;
+  }
+  .hero h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    font-weight: 700; line-height: 1.1;
+    letter-spacing: -0.03em; color: var(--text);
+  }
+  .hero h1 em { font-style: italic; color: var(--accent2); }
+  .hero-desc {
+    margin-top: 1.5rem; color: var(--muted);
+    font-size: 1rem; max-width: 440px; line-height: 1.75;
+  }
+  .hero-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2rem; }
+  .hero-tag {
+    display: inline-block;
+    padding: 6px 14px; border-radius: 100px;
+    font-size: 0.78rem; font-weight: 500;
+    border: 1.5px solid;
+  }
+  .tag-basic { background: var(--pill-basic); color: var(--pill-basic-text); border-color: var(--pill-basic-text); }
+  .tag-inter { background: var(--pill-inter); color: var(--pill-inter-text); border-color: var(--pill-inter-text); }
+  .tag-adv   { background: var(--pill-adv);   color: var(--pill-adv-text);   border-color: var(--pill-adv-text); }
+  .tag-bp    { background: var(--pill-bp);    color: var(--pill-bp-text);    border-color: var(--pill-bp-text); }
+
+  .hero-visual { display: flex; flex-direction: column; gap: 12px; }
+  .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 1.25rem;
+    transition: background 0.3s, border-color 0.3s;
+  }
+  .stat-card .num {
+    font-family: 'Fraunces', serif;
+    font-size: 2rem; font-weight: 700;
+    color: var(--text); line-height: 1;
+  }
+  .stat-card .label {
+    font-size: 0.78rem; color: var(--muted);
+    margin-top: 4px; font-weight: 400;
+  }
+  .stat-card.accent { background: var(--accent2); border-color: var(--accent2); }
+  .stat-card.accent .num, .stat-card.accent .label { color: white; }
+
+  /* ── SECTIONS ─────────────────────────────────────────────────────────── */
+  .section {
+    max-width: 1100px; margin: 0 auto;
+    padding: 3rem 2.5rem;
+  }
+  .section-header {
+    display: flex; align-items: center; gap: 1rem;
+    margin-bottom: 2.5rem; padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-badge {
+    font-size: 0.7rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.1em;
+    padding: 5px 14px; border-radius: 100px;
+  }
+  .section-title {
+    font-family: 'Fraunces', serif;
+    font-size: 1.75rem; font-weight: 700;
+    letter-spacing: -0.02em; color: var(--text);
+  }
+  .section-num {
+    font-family: 'Fraunces', serif;
+    font-size: 3rem; font-weight: 300;
+    color: var(--border); margin-left: auto; line-height: 1;
+  }
+
+  /* ── CARDS ────────────────────────────────────────────────────────────── */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 1.5rem;
+    position: relative; overflow: hidden;
+    transition: transform 0.2s, box-shadow 0.2s, background 0.3s;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+  .card-accent {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 3px; border-radius: 16px 16px 0 0;
+  }
+  .accent-basic { background: var(--accent2); }
+  .accent-inter { background: var(--accent3); }
+  .accent-adv   { background: var(--accent1); }
+  .accent-bp    { background: var(--accent4); }
+
+  .card-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    display: flex; align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem; font-size: 1.2rem;
+  }
+  .icon-basic { background: var(--pill-basic); }
+  .icon-inter { background: var(--pill-inter); }
+  .icon-adv   { background: var(--pill-adv); }
+  .icon-bp    { background: var(--pill-bp); }
+
+  .card h3 {
+    font-family: 'Fraunces', serif;
+    font-size: 1.05rem; font-weight: 700;
+    letter-spacing: -0.01em; margin-bottom: 0.5rem; color: var(--text);
+  }
+  .card p {
+    font-size: 0.88rem; color: var(--muted);
+    line-height: 1.65; margin-bottom: 1rem;
+  }
+  .card-topics { display: flex; flex-direction: column; gap: 6px; }
+  .topic-item {
+    display: flex; align-items: flex-start;
+    gap: 8px; font-size: 0.82rem;
+    color: var(--text); line-height: 1.5;
+  }
+  .topic-dot {
+    width: 5px; height: 5px;
+    border-radius: 50%; margin-top: 7px; flex-shrink: 0;
+  }
+  .dot-basic { background: var(--accent2); }
+  .dot-inter { background: var(--accent3); }
+  .dot-adv   { background: var(--accent1); }
+  .dot-bp    { background: var(--accent4); }
+
+  /* ── BEST PRACTICES ───────────────────────────────────────────────────── */
+  .bp-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .bp-item {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent4);
+    border-radius: 0 12px 12px 0;
+    padding: 1.25rem 1.5rem;
+    transition: background 0.3s;
+  }
+  .bp-item h4 {
+    font-size: 0.9rem; font-weight: 500;
+    color: var(--text); margin-bottom: 0.35rem;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .bp-check {
+    display: inline-flex; align-items: center;
+    justify-content: center;
+    width: 18px; height: 18px;
+    background: var(--accent3);
+    border-radius: 50%; color: white;
+    font-size: 0.65rem; flex-shrink: 0;
+  }
+  .bp-item p { font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
+  .bp-example {
+    margin-top: 0.75rem;
+    background: var(--bp-example-bg);
+    border-radius: 6px;
+    padding: 0.6rem 0.85rem;
+    font-size: 0.75rem; color: var(--code-text);
+    font-family: 'Courier New', monospace;
+    line-height: 1.6; white-space: pre-wrap;
+    transition: background 0.3s;
+  }
+
+  /* ── DIVIDER ──────────────────────────────────────────────────────────── */
+  .divider {
+    max-width: 1100px; margin: 0 auto;
+    padding: 0 2.5rem; border: none;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── TABLE ────────────────────────────────────────────────────────────── */
+  .compare-wrap {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px; overflow: hidden;
+    margin-bottom: 2rem; transition: background 0.3s;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  thead th {
+    background: var(--thead-bg);
+    padding: 12px 16px; text-align: left;
+    font-weight: 500; font-size: 0.78rem;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); border-bottom: 1px solid var(--border);
+    transition: background 0.3s;
+  }
+  tbody td {
+    padding: 11px 16px; border-bottom: 1px solid var(--border);
+    color: var(--text); vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover td { background: var(--row-hover); }
+
+  .badge {
+    display: inline-block; font-size: 0.7rem; font-weight: 500;
+    padding: 3px 10px; border-radius: 100px;
+  }
+  .b-yes   { background: var(--pill-inter); color: var(--pill-inter-text); }
+  .b-no    { background: rgba(107,114,128,.12); color: var(--muted); }
+  .b-elfb  { background: var(--pill-basic); color: var(--pill-basic-text); }
+  .b-sfpm  { background: var(--pill-adv);   color: var(--pill-adv-text); }
+  .b-both  { background: var(--pill-inter); color: var(--pill-inter-text); }
+  .b-partial { background: var(--pill-bp);  color: var(--pill-bp-text); }
+
+  tbody tr[data-winner="sfpm"] td { background: rgba(200,75,47,0.05); }
+  tbody tr[data-winner="elfb"] td { background: rgba(45,95,138,0.05); }
+  body.hl-none tbody tr[data-winner] td       { background: transparent; }
+  body.hl-sfpm tbody tr[data-winner="elfb"] td { background: transparent; }
+  body.hl-elfb tbody tr[data-winner="sfpm"] td { background: transparent; }
+
+  /* ── COLLAPSIBLE EXAMPLES ─────────────────────────────────────────────── */
+  .card-example {
+    margin-top: 1rem;
+    border-top: 1px dashed var(--border);
+    padding-top: 0.85rem;
+  }
+  .example-toggle {
+    background: none; border: none; cursor: pointer;
+    display: flex; align-items: center; gap: 6px;
+    font-size: 0.75rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    padding: 0; color: var(--muted); transition: color 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .example-toggle:hover { color: var(--text); }
+  .toggle-icon { display: inline-block; font-size: 0.7rem; transition: transform 0.25s; }
+  .example-body { display: none; margin-top: 0.75rem; }
+  .example-body.visible { display: block; }
+  .example-scenario {
+    font-size: 0.8rem; font-style: italic;
+    color: var(--muted); margin-bottom: 0.6rem;
+    padding-left: 0.75rem; border-left: 2px solid var(--border);
+    line-height: 1.55;
+  }
+  .example-code {
+    background: var(--code-bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.75rem 1rem;
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem; color: var(--code-text);
+    line-height: 1.6; white-space: pre-wrap;
+    word-break: break-word; margin-bottom: 0.5rem;
+    transition: background 0.3s;
+  }
+  .example-note { font-size: 0.78rem; color: var(--muted); line-height: 1.55; }
+
+  /* ── FIELD REFERENCE GRID ─────────────────────────────────────────────── */
+  .field-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 10px;
+    margin-top: 0.5rem;
+  }
+  .field-chip {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.6rem 0.9rem;
+    transition: background 0.3s;
+  }
+  .field-chip .fname {
+    font-family: 'Courier New', monospace;
+    font-size: 0.78rem; font-weight: 700;
+    color: var(--accent2);
+    display: block; margin-bottom: 2px;
+  }
+  .field-chip .fdesc { font-size: 0.75rem; color: var(--muted); line-height: 1.45; }
+
+  /* ── FOOTER ───────────────────────────────────────────────────────────── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 2rem 2.5rem;
+    max-width: 1100px; margin: 0 auto;
+    display: flex; align-items: center;
+    justify-content: space-between;
+  }
+  footer p { font-size: 0.8rem; color: var(--muted); }
+  .footer-logo {
+    font-family: 'Fraunces', serif;
+    font-size: 1rem; font-weight: 700; color: var(--muted);
+  }
+
+  html { scroll-behavior: smooth; }
+
+  @media (max-width: 768px) {
+    .hero { grid-template-columns: 1fr; padding: 3rem 1.25rem; }
+    .hero-visual { display: none; }
+    .section { padding: 2rem 1.25rem; }
+    nav { padding: 0 1.25rem; }
+    .nav-links { display: none; }
+    footer { flex-direction: column; gap: 1rem; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="nav-brand">
+    <span>📋</span>
+    ELF Browser vs. SF Perf Monitor
+  </div>
+  <ul class="nav-links">
+    <li><a href="#what">What Is ELF Browser</a></li>
+    <li><a href="#events">Event Types</a></li>
+    <li><a href="#fields">Key Fields</a></li>
+    <li><a href="#compare">Comparison</a></li>
+    <li><a href="#workflow">Workflow</a></li>
+    <li><a href="#limits">Limits</a></li>
+  </ul>
+  <div class="nav-controls">
+    <button id="theme-toggle" class="nav-btn" onclick="toggleTheme()">🌙 Dark</button>
+    <button class="nav-btn" onclick="toggleSettings()">⚙ Settings</button>
+    <div class="settings-popover" id="settings-popover">
+
+      <h5>Card columns</h5>
+      <div class="col-pills">
+        <button class="col-pill" id="col-pill-2" onclick="setCols(2)">2 cols</button>
+        <button class="col-pill active" id="col-pill-3" onclick="setCols(3)">3 cols</button>
+      </div>
+
+      <div class="settings-divider"></div>
+
+      <h5>Font size</h5>
+      <div class="col-pills">
+        <button class="col-pill" id="font-pill-sm" onclick="setFont('sm')">Small</button>
+        <button class="col-pill active" id="font-pill-md" onclick="setFont('md')">Medium</button>
+        <button class="col-pill" id="font-pill-lg" onclick="setFont('lg')">Large</button>
+      </div>
+
+      <div class="settings-divider"></div>
+
+      <h5>Density</h5>
+      <div class="col-pills">
+        <button class="col-pill" id="density-pill-compact" onclick="setDensity('compact')">Compact</button>
+        <button class="col-pill active" id="density-pill-default" onclick="setDensity('default')">Default</button>
+        <button class="col-pill" id="density-pill-comfortable" onclick="setDensity('comfortable')">Airy</button>
+      </div>
+
+      <div class="settings-divider"></div>
+
+      <h5>Expand examples</h5>
+      <div class="settings-row">
+        <span class="settings-label">Open all example blocks</span>
+        <label class="toggle-switch">
+          <input type="checkbox" id="expand-all-toggle" onchange="setExpandAll(this.checked)">
+          <span class="toggle-track"></span>
+        </label>
+      </div>
+
+      <div class="settings-divider"></div>
+
+      <h5>Highlight table rows</h5>
+      <div class="col-pills">
+        <button class="col-pill" id="hl-pill-sfpm" onclick="setHighlight('sfpm')">SF Perf Mon</button>
+        <button class="col-pill" id="hl-pill-elfb" onclick="setHighlight('elfb')">ELF Browser</button>
+        <button class="col-pill active" id="hl-pill-both" onclick="setHighlight('both')">Both</button>
+        <button class="col-pill" id="hl-pill-none" onclick="setHighlight('none')">None</button>
+      </div>
+
+    </div>
+  </div>
+</nav>
+
+<!-- ── HERO ──────────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div>
+    <p class="hero-eyebrow">Salesforce Event Monitoring · Reference Guide · 2026</p>
+    <h1>EventLogFile <em>Browser</em><br>vs. SF Perf Monitor</h1>
+    <p class="hero-desc">The native ELF Browser gives you raw CSV downloads. SF Perf Monitor turns the same data into interactive dashboards, percentile analysis, anti-pattern detection, and automated delivery — without leaving your terminal.</p>
+    <div class="hero-tags">
+      <span class="hero-tag tag-basic">EventLogFile</span>
+      <span class="hero-tag tag-inter">P95 · Percentiles</span>
+      <span class="hero-tag tag-adv">Anti-Patterns</span>
+      <span class="hero-tag tag-bp">Slack · Teams · Email</span>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="stat-row">
+      <div class="stat-card accent">
+        <div class="num">5</div>
+        <div class="label">Event types monitored</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">30</div>
+        <div class="label">Days data retention</div>
+      </div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="num">P99</div>
+        <div class="label">Percentile breakdown</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">8</div>
+        <div class="label">Anti-pattern rules</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── WHAT IS ELF BROWSER ──────────────────────────────────────────────── -->
+<hr class="divider">
+<section class="section" id="what">
+  <div class="section-header">
+    <span class="section-badge tag-basic">Section 01</span>
+    <h2 class="section-title">What Is the EventLogFile Browser?</h2>
+    <span class="section-num">01</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">🏛️</div>
+      <h3>Native Salesforce Tool</h3>
+      <p>The EventLogFile Browser is a built-in Salesforce feature accessible from Setup → Event Monitoring → Event Log File Browser. It lets administrators browse and download raw event log CSV files directly from the platform UI.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Available in Enterprise, Performance, Unlimited, Developer editions</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Requires the <strong>Event Monitoring</strong> add-on license (or included in Shield)</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>No local tooling or installation required — browser only</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Also accessible via the EventLogFile REST API: <code>/services/data/vXX.0/sobjects/EventLogFile</code></div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Real-time event monitoring available (1-hour intervals) as a separate add-on</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">📥</div>
+      <h3>What It Does</h3>
+      <p>The ELF Browser is a download interface. You select a date, pick an event type, and download a CSV file containing every event of that type recorded in your org on that day.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Filter by event type and date range</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Download CSV — one file per event type per day</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>View log file size and row count before downloading</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>No aggregation, no visualisation, no percentile analysis</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>CSV files can be opened in Excel, imported into Splunk, or fed into custom scripts</div>
+      </div>
+      <div class="card-example">
+        <button class="example-toggle" onclick="toggleExample(this)"><span class="toggle-icon">▶</span> See Example</button>
+        <div class="example-body">
+          <p class="example-scenario">You navigate to Setup → Event Monitoring → Event Log File Browser and see:</p>
+          <div class="example-code">Date         Event Type        Size       Rows
+2026-09-05   ApexExecution     2.4 MB     12,847  [Download]
+2026-09-05   ApexTrigger       890 KB     4,201   [Download]
+2026-09-05   RestApi           5.1 MB     31,440  [Download]
+2026-09-05   ApexCallout       340 KB     1,823   [Download]</div>
+          <div class="example-note">Clicking Download gives you a raw CSV. You then open it in Excel, write a SOQL query against it, or pipe it into a script to find slowest entry points — all manual steps.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">🔑</div>
+      <h3>Licensing &amp; Access</h3>
+      <p>Event Monitoring data access requires a specific license. The ELF Browser surfaces this data — but only for orgs where the license is active.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span><strong>Event Monitoring add-on:</strong> purchased separately — gives ELF access without full Shield</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span><strong>Salesforce Shield:</strong> includes Event Monitoring + Platform Encryption + Field Audit Trail</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span><strong>Developer Edition:</strong> limited access — some event types available for testing</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Required profile permission: <em>View Event Log Files</em></div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>SF Perf Monitor uses the same license — it calls the same EventLogFile SOQL API the browser uses</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── EVENT TYPES ──────────────────────────────────────────────────────── -->
+<hr class="divider">
+<section class="section" id="events">
+  <div class="section-header">
+    <span class="section-badge tag-inter">Section 02</span>
+    <h2 class="section-title">The Five Core Event Types</h2>
+    <span class="section-num">02</span>
+  </div>
+  <p style="color:var(--muted);font-size:0.9rem;margin-bottom:2rem;max-width:720px;">
+    Salesforce records dozens of event types. SF Perf Monitor focuses on the five that carry actionable performance timing data — each with a distinct identity column and duration field.
+  </p>
+  <div class="cards-grid">
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">🏃</div>
+      <h3>ApexExecution</h3>
+      <p>Records every synchronous Apex execution — anonymous blocks, future methods, batch execute, and scheduled Apex invocations. The highest-signal event type for Apex performance.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><strong>Identity:</strong> <code>ENTRY_POINT</code> — class.method or anonymous</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><strong>Duration:</strong> <code>RUN_TIME</code> (total wall time) + <code>EXEC_TIME</code> (CPU only)</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><code>DB_TOTAL_TIME</code> — total time spent in database calls</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><code>NUMBER_SOQL_QUERIES</code> — SOQL query count per transaction</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><code>NUMBER_DML_STATEMENTS</code> — DML statement count per transaction</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><code>CPU_TIME</code> — Salesforce governor CPU time consumed</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">⚙️</div>
+      <h3>ApexTrigger</h3>
+      <p>Records every trigger execution — before/after insert, update, delete, undelete. Bulkification issues show up clearly in the trigger execution times vs. record counts.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><strong>Identity:</strong> <code>TRIGGER_NAME</code></div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><strong>Duration:</strong> <code>RUN_TIME</code> + <code>EXEC_TIME</code></div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><code>TRIGGER_TYPE</code> — before/after insert/update/delete/undelete</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><code>NUMBER_SOQL_QUERIES</code> — critical for detecting SOQL-in-loop</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><code>ROWS_PROCESSED</code> — number of records in the trigger batch</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">🌐</div>
+      <h3>RestApi</h3>
+      <p>Records every inbound REST API request — Salesforce standard REST endpoints including SOQL queries via REST, CRUD operations, and Chatter API calls.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><strong>Identity:</strong> <code>URI</code> — the request path</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><strong>Duration:</strong> <code>RUN_TIME</code></div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><code>METHOD</code> — GET / POST / PATCH / DELETE</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><code>STATUS_CODE</code> — HTTP response code</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><code>ROWS_PROCESSED</code> — records returned or modified</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Integration latency baseline — compare across deploy dates</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">🔗</div>
+      <h3>ApexRestApi</h3>
+      <p>Records invocations of custom <code>@RestResource</code> Apex classes — your own REST endpoints exposed to external systems and integrations.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><strong>Identity:</strong> <code>URI</code> — the custom endpoint path</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><strong>Duration:</strong> <code>RUN_TIME</code></div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><code>METHOD</code> — HTTP method of the request</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><code>STATUS_CODE</code> — response status</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span>Critical for SLA monitoring on integration endpoints</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">📡</div>
+      <h3>ApexCallout</h3>
+      <p>Records every outbound HTTP callout from Apex — calls to external APIs, web services, named credentials, and platform events. Shows the latency of <em>external</em> dependencies.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span><strong>Identity:</strong> <code>URL</code> — the endpoint called</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span><strong>Duration:</strong> <code>TIME</code> — round-trip callout time in ms</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span><code>METHOD</code> — HTTP method (GET / POST / PUT)</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span><code>STATUS_CODE</code> — HTTP response from external system</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Use to distinguish: "is it our Apex, or the external API?"</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── KEY FIELDS ────────────────────────────────────────────────────────── -->
+<hr class="divider">
+<section class="section" id="fields">
+  <div class="section-header">
+    <span class="section-badge tag-adv">Section 03</span>
+    <h2 class="section-title">Key Fields in Every Log File</h2>
+    <span class="section-num">03</span>
+  </div>
+  <p style="color:var(--muted);font-size:0.9rem;margin-bottom:2rem;max-width:720px;">
+    Every EventLogFile CSV shares a set of common fields regardless of event type. These are the ones SF Perf Monitor reads and indexes for every row.
+  </p>
+  <div class="compare-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Field</th>
+          <th>Present in</th>
+          <th>Used by SF Perf Monitor for</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>TIMESTAMP</code></td><td>All types</td><td>Trend chart x-axis, heatmap hour/day bucketing, time-range filter</td></tr>
+        <tr><td><code>REQUEST_ID</code></td><td>All types</td><td>Correlation key to ApexLog debug records (🔍 badge)</td></tr>
+        <tr><td><code>USER_ID</code></td><td>All types</td><td>Per-user breakdown (future), audit trail</td></tr>
+        <tr><td><code>SESSION_KEY</code></td><td>Most types</td><td>Session-level correlation</td></tr>
+        <tr><td><code>ENTRY_POINT</code></td><td>ApexExecution</td><td>Primary grouping key — bar chart x-axis, drill-down identity</td></tr>
+        <tr><td><code>TRIGGER_NAME</code></td><td>ApexTrigger</td><td>Primary grouping key for trigger performance rows</td></tr>
+        <tr><td><code>URI</code></td><td>RestApi · ApexRestApi</td><td>Primary grouping key for REST endpoint performance rows</td></tr>
+        <tr><td><code>URL</code></td><td>ApexCallout</td><td>Primary grouping key for outbound callout performance rows</td></tr>
+        <tr><td><code>RUN_TIME</code></td><td>All except ApexCallout</td><td>Duration for all percentile calculations (P50–P99), slow % threshold test</td></tr>
+        <tr><td><code>TIME</code></td><td>ApexCallout</td><td>Duration field for callout percentile calculations</td></tr>
+        <tr><td><code>EXEC_TIME</code></td><td>ApexExecution · ApexTrigger</td><td>CPU-only time — shown alongside RUN_TIME in drill-down KPI strip</td></tr>
+        <tr><td><code>DB_TOTAL_TIME</code></td><td>ApexExecution · ApexTrigger</td><td>Database time — shown in drill-down, helps distinguish CPU vs. I/O latency</td></tr>
+        <tr><td><code>NUMBER_SOQL_QUERIES</code></td><td>ApexExecution · ApexTrigger</td><td>Governor limit signal — shown in drill-down stats</td></tr>
+        <tr><td><code>NUMBER_DML_STATEMENTS</code></td><td>ApexExecution · ApexTrigger</td><td>Governor limit signal — shown in drill-down stats</td></tr>
+        <tr><td><code>CPU_TIME</code></td><td>ApexExecution</td><td>Governor CPU usage — shown in drill-down</td></tr>
+        <tr><td><code>STATUS_CODE</code></td><td>RestApi · ApexRestApi · ApexCallout</td><td>Error rate detection — non-2xx rows flagged in drill-down</td></tr>
+        <tr><td><code>ROWS_PROCESSED</code></td><td>ApexTrigger · RestApi</td><td>Bulk operation size — shown in drill-down</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ── COMPARISON ────────────────────────────────────────────────────────── -->
+<hr class="divider">
+<section class="section" id="compare">
+  <div class="section-header">
+    <span class="section-badge tag-bp">Section 04</span>
+    <h2 class="section-title">Full Capability Comparison</h2>
+    <span class="section-num">04</span>
+  </div>
+  <div class="compare-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th>ELF Browser (native)</th>
+          <th>SF Perf Monitor</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr data-winner="elfb">
+          <td><strong>Access method</strong></td>
+          <td><span class="badge b-elfb">Browser</span> Setup → Event Monitoring</td>
+          <td><span class="badge b-sfpm">CLI</span> <code>node server.js -o my-org</code></td>
+        </tr>
+        <tr data-winner="elfb">
+          <td><strong>Installation required</strong></td>
+          <td>None — built in</td>
+          <td><code>npm install</code> + Node.js</td>
+        </tr>
+        <tr data-winner="sfpm">
+          <td><strong>Visualisation</strong></td>
+          <td><span class="badge b-no">None</span> raw CSV only</td>
+          <td><span class="badge b-yes">Yes</span> bar charts, trend, heatmap, KPI cards</td>
+        </tr>
+        <tr data-winner="sfpm">
+          <td><strong>Percentile analysis</strong></td>
+          <td><span class="badge b-no">None</span> — you compute manually</td>
+          <td><span class="badge b-yes">Yes</span> P50 · P75 · P90 · P95 · P99 · Max per entry point</td>
+        </tr>
+        <tr data-winner="sfpm">
+          <td><strong>Slow % threshold</strong></td>
+          <td><span class="badge b-no">None</span></td>
+          <td><span class="badge b-yes">Yes</span> configurable threshold (default 3000 ms), % and count per entry point</td>
+        </tr>
+        <tr data-winner="sfpm">
+          <td><strong>Trend over time</strong></td>
+          <td><span class="badge b-no">None</span></td>
+          <td><span class="badge b-yes">Yes</span> stacked area chart — slow vs. total requests per hour</td>
+        </tr>
+        <tr data-winner="sfpm">
+          <td><strong>Hour × day heatmap</strong></td>
+          <td><span class="badge b-no">None</span></td>
+          <td><span class="badge b-yes">Yes</span> slow % by hour-of-day × day-of-week grid</td>
+        </tr>
+        <tr data-winner="sfpm">
+          <td><strong>Drill-down</strong></td>
+          <td><span class="badge b-no">None</span> — find rows manually in CSV</td>
+          <td><span class="badge b-yes">Yes</span> click any bar → KPI strip + sparkline + row table</td>
+        </tr>
+        <tr data-winner="sfpm">
+          <td><strong>Source code viewer</strong></td>
+          <td><span class="badge b-no">None</span></td>
+          <td><span class="badge b-yes">Yes</span> Monaco editor via Tooling API + anti-pattern hints</td>
+        </tr>
+        <tr data-winner="sfpm">
+          <td><strong>Anti-pattern detection</strong></td>
+          <td><span class="badge b-no">None</span></td>
+          <td><span class="badge b-yes">Yes</span> 8 rules: SOQL/DML in loop, callout in trigger, hardcoded Id…</td>
+        </tr>
+        <tr data-winner="sfpm">
+          <td><strong>AI assistance</strong></td>
+          <td><span class="badge b-no">None</span></td>
+          <td><span class="badge b-yes">Yes</span> Ollama / Claude / OpenAI / xAI / Gemini (opt-in)</td>
+        </tr>
+        <tr data-winner="sfpm">
+          <td><strong>Debug log correlation</strong></td>
+          <td><span class="badge b-no">None</span></td>
+          <td><span class="badge b-yes">Yes</span> <code>REQUEST_ID</code> → ApexLog 🔍 badge → Monaco viewer</td>
+        </tr>
+        <tr data-winner="sfpm">
+          <td><strong>Notifications</strong></td>
+          <td><span class="badge b-no">None</span></td>
+          <td><span class="badge b-yes">Yes</span> Slack (Block Kit + PNG), Teams (Adaptive Card), Email</td>
+        </tr>
+        <tr data-winner="sfpm">
+          <td><strong>Scheduled auto-fetch</strong></td>
+          <td><span class="badge b-no">None</span></td>
+          <td><span class="badge b-yes">Yes</span> cron expression — any interval, auto-notifies on completion</td>
+        </tr>
+        <tr data-winner="sfpm">
+          <td><strong>Export</strong></td>
+          <td>CSV download per event type per day</td>
+          <td>PNG · SVG · HTML · PDF dashboard + CSV from cache</td>
+        </tr>
+        <tr>
+          <td><strong>Multi-event comparison</strong></td>
+          <td>Download separately, compare manually</td>
+          <td>All 5 event types side-by-side in one dashboard</td>
+        </tr>
+        <tr data-winner="elfb">
+          <td><strong>Event type coverage</strong></td>
+          <td>All ~50+ Salesforce event types available</td>
+          <td>5 performance-critical types (ApexExecution · ApexTrigger · RestApi · ApexRestApi · ApexCallout)</td>
+        </tr>
+        <tr data-winner="elfb">
+          <td><strong>Raw data access</strong></td>
+          <td>Full CSV — every field, every row</td>
+          <td>Same CSV cached to <code>data/</code> — full data available</td>
+        </tr>
+        <tr data-winner="elfb">
+          <td><strong>Historical range</strong></td>
+          <td>Up to 30 days (24-hour files), 1-hour files with Real-Time add-on</td>
+          <td>Same retention — limited by what ELF API returns</td>
+        </tr>
+        <tr data-winner="elfb">
+          <td><strong>Platform dependency</strong></td>
+          <td>Salesforce UI — works anywhere</td>
+          <td>Local Node.js — requires dev environment</td>
+        </tr>
+        <tr data-winner="elfb">
+          <td><strong>License required</strong></td>
+          <td>Event Monitoring add-on or Salesforce Shield</td>
+          <td>Same — uses the same EventLogFile API</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ── WORKFLOW ──────────────────────────────────────────────────────────── -->
+<hr class="divider">
+<section class="section" id="workflow">
+  <div class="section-header">
+    <span class="section-badge tag-inter">Section 05</span>
+    <h2 class="section-title">Investigation Workflow</h2>
+    <span class="section-num">05</span>
+  </div>
+  <div class="cards-grid">
+
+    <div class="card">
+      <div class="card-accent accent-inter"></div>
+      <div class="card-icon icon-inter">🔍</div>
+      <h3>With ELF Browser Only</h3>
+      <p>The manual path — effective but slow. Good for one-off investigations or when SF Perf Monitor is not available.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><strong>1.</strong> Setup → Event Monitoring → choose date and event type</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><strong>2.</strong> Download CSV (can be several MB)</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><strong>3.</strong> Open in Excel / Numbers — sort by <code>RUN_TIME</code> descending</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><strong>4.</strong> Filter to <code>ENTRY_POINT</code> of interest — manually compute avg, P95</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><strong>5.</strong> Cross-reference <code>REQUEST_ID</code> against ApexLog manually in Dev Console</div>
+        <div class="topic-item"><span class="topic-dot dot-inter"></span><strong>6.</strong> Repeat for each event type and each day</div>
+      </div>
+      <div class="card-example">
+        <button class="example-toggle" onclick="toggleExample(this)"><span class="toggle-icon">▶</span> See Example</button>
+        <div class="example-body">
+          <p class="example-scenario">Finding P95 for OrderService manually in Excel:</p>
+          <div class="example-code">1. Download ApexExecution CSV (2.4 MB, 12,847 rows)
+2. Filter column A (ENTRY_POINT) = "OrderService*"
+   → 847 matching rows
+3. Sort by RUN_TIME descending
+4. P95 = row at rank ceil(0.95 × 847) = row 805
+   → RUN_TIME at row 805 = 4,200 ms
+5. Write formula: =PERCENTILE(C2:C848, 0.95)
+   → 4,200 ms  ← matches manual sort ✓
+6. Repeat for each of the 5 event types…</div>
+          <div class="example-note">This takes 15–30 minutes per event type per day. SF Perf Monitor does it in under 3 seconds for all 5 types at once.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-adv"></div>
+      <div class="card-icon icon-adv">⚡</div>
+      <h3>With SF Perf Monitor</h3>
+      <p>The same data, fully automated — from org credentials to interactive dashboard in one command.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><strong>1.</strong> <code>node server.js -o my-org</code> — fetches all 5 event types automatically</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><strong>2.</strong> Dashboard opens at <code>localhost:3000</code> — P95, slow %, KPI cards rendered instantly</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><strong>3.</strong> Click the slowest bar → drill-down: KPI strip + sparkline + row table</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><strong>4.</strong> ⚡ View Source → Monaco editor with 8 anti-pattern rules highlighted</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><strong>5.</strong> 🔍 badge on row → click → ApexLog body in Monaco viewer</div>
+        <div class="topic-item"><span class="topic-dot dot-adv"></span><strong>6.</strong> 🤖 Ask AI to fix → source + findings + P95 injected into AI Sidekick</div>
+      </div>
+      <div class="card-example">
+        <button class="example-toggle" onclick="toggleExample(this)"><span class="toggle-icon">▶</span> See Example</button>
+        <div class="example-body">
+          <p class="example-scenario">Same investigation, with SF Perf Monitor:</p>
+          <div class="example-code">$ node server.js -o production-org
+
+[startup] Fetching ApexExecution…  12,847 rows
+[startup] Fetching ApexTrigger…     4,201 rows
+[startup] Fetching RestApi…        31,440 rows
+[startup] Fetching ApexRestApi…     2,109 rows
+[startup] Fetching ApexCallout…     1,823 rows
+[startup] Done in 4.2s — open http://localhost:3000
+
+Dashboard shows:
+  OrderService.processOrder
+  P95: 4,200 ms  Slow%: 31%  ← immediately visible
+  🔴 CRITICAL: SOQL inside loop (line 42)  ← auto-detected</div>
+          <div class="example-note">Total time from command to actionable finding: under 10 seconds.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-accent accent-basic"></div>
+      <div class="card-icon icon-basic">🗓️</div>
+      <h3>Ongoing Monitoring (Scheduled)</h3>
+      <p>For continuous oversight — not just ad-hoc investigations — SF Perf Monitor adds automated scheduled delivery that ELF Browser has no equivalent for.</p>
+      <div class="card-topics">
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Settings → Auto-Fetch Schedule: set a cron expression (e.g. <code>0 8 * * 1-5</code>)</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Each run: fetches latest ELF data → regenerates all charts → sends Action Plan</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Slack: Block Kit card with health status + top-5 slowest + critical issues</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Teams: Adaptive Card v1.4 with health-colour-coded status</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>Email: dark-theme HTML report with KPI grid + per-event table</div>
+        <div class="topic-item"><span class="topic-dot dot-basic"></span>ELF Browser: no scheduling, no delivery, no comparison over time</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ── LIMITS & GOTCHAS ──────────────────────────────────────────────────── -->
+<hr class="divider">
+<section class="section" id="limits">
+  <div class="section-header">
+    <span class="section-badge tag-bp">Section 06</span>
+    <h2 class="section-title">Limits, Gotchas &amp; Best Practices</h2>
+    <span class="section-num">06</span>
+  </div>
+  <div class="bp-grid">
+
+    <div class="bp-item">
+      <h4><span class="bp-check">!</span> Data Is Available After ~1 Hour</h4>
+      <p>EventLogFile records are not real-time. 24-hour log files become available approximately 1 hour after the end of the log day. Don't expect yesterday's logs immediately at midnight.</p>
+      <div class="bp-example">Real-time alternative: Event Monitoring Real-Time
+  → Separate add-on license
+  → 1-hour interval files (vs 24-hour)
+  → Available ~1 hour after the hour closes
+  → Same API, same CSV format</div>
+    </div>
+
+    <div class="bp-item">
+      <h4><span class="bp-check">!</span> 30-Day Retention Limit</h4>
+      <p>Salesforce retains EventLogFile data for 30 days by default (1 day with some editions). SF Perf Monitor caches CSVs locally — meaning data persists past the 30-day window as long as you fetched it while it was available.</p>
+      <div class="bp-example">Cache location: data/<org>_<EventType>.csv
+  → Persists indefinitely on your local machine
+  → Re-downloaded only on "Refresh" or auto-fetch
+  → gitignored — never committed to the repo
+  → Back it up manually if long-term retention needed</div>
+    </div>
+
+    <div class="bp-item">
+      <h4><span class="bp-check">!</span> One File Per Day Per Event Type</h4>
+      <p>Each EventLogFile record covers exactly one event type for one day. If you want a full picture, you must fetch all five types — the ELF Browser requires five separate downloads; SF Perf Monitor fetches all five in one startup sequence.</p>
+      <div class="bp-example">ELF Browser: 5 downloads × 1 click each = 5 manual steps
+SF Perf Monitor:
+  → SOQL: SELECT Id, EventType, LogFile
+           FROM EventLogFile
+           WHERE EventType = 'ApexExecution'
+           AND LogDate = TODAY
+  → Runs for all 5 types in parallel on startup</div>
+    </div>
+
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Use REQUEST_ID to Correlate Logs</h4>
+      <p>Every EventLogFile row has a <code>REQUEST_ID</code>. When <code>--debug-logs</code> is enabled, SF Perf Monitor joins EventLogFile rows against ApexLog records on this field — a 🔍 badge appears on any row with a matching debug log.</p>
+      <div class="bp-example">Correlation flow:
+  ELF row REQUEST_ID: 4bERC00000001234
+  → O(1) index lookup in DL.index
+  → 🔍 badge appears on the row
+  → Click → lazy-fetch ApexLog body
+  → Monaco viewer opens the full debug log</div>
+    </div>
+
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Large Files: Use the Cache</h4>
+      <p>A busy RestApi log can exceed 50 MB. The first fetch takes time — subsequent refreshes skip the download if the file hasn't changed. SF Perf Monitor caches CSV to <code>data/</code> and only re-downloads on explicit refresh.</p>
+      <div class="bp-example">Cache-hit path (fast):
+  GET /api/fetch → check data/<org>_RestApi.csv
+  → file exists + same log date → skip download
+  → parse + index in memory (~200ms for 30k rows)
+
+Force re-download:
+  → Click 🔄 Refresh in the dashboard toolbar
+  → Or delete data/<org>_<EventType>.csv manually</div>
+    </div>
+
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Threshold Tuning</h4>
+      <p>The default slow threshold is 3000 ms. Tune it to match your org's SLA — a batch job at 8000 ms may be fine; a UI-driven Apex call at 3000 ms is not. Use <code>-t</code> flag or Settings → Threshold.</p>
+      <div class="bp-example">Threshold guidance by event type:
+  ApexExecution (UI-triggered) : 2000 – 3000 ms
+  ApexExecution (batch/future) : 10000 – 30000 ms
+  ApexTrigger                  : 1000 – 2000 ms
+  RestApi / ApexRestApi        : 1000 – 3000 ms
+  ApexCallout                  : 3000 – 8000 ms
+  → Use -t per run, or Settings slider per session</div>
+    </div>
+
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Governor Limit Fields Are Leading Indicators</h4>
+      <p><code>NUMBER_SOQL_QUERIES</code> and <code>NUMBER_DML_STATEMENTS</code> in the CSV are per-transaction governor usage counts. High values here predict future limit errors before they occur.</p>
+      <div class="bp-example">Warning signs in drill-down stats:
+  SOQL queries > 80  (limit = 100)    ← 80% headroom used
+  DML statements > 120 (limit = 150)  ← 80% headroom used
+  CPU time > 8000 ms (limit = 10000)  ← 80% headroom used
+  → Address before the org grows further</div>
+    </div>
+
+    <div class="bp-item">
+      <h4><span class="bp-check">✓</span> Security: No Shell Interpolation</h4>
+      <p>SF Perf Monitor calls <code>sf data query</code> via <code>execFileAsync('sf', [...args])</code> — never via shell string interpolation. Org aliases and event type strings are passed as array elements, never concatenated into a shell command.</p>
+      <div class="bp-example">Safe:
+  execFileAsync('sf', [
+    'data', 'query',
+    '--query', 'SELECT Id, EventType FROM EventLogFile',
+    '--target-org', orgAlias,   ← array element, not string
+    '--json'
+  ])
+
+Never:
+  exec(`sf data query -q "..." -o ${orgAlias}`)
+  ← command injection risk if alias contains shell chars</div>
+    </div>
+
+  </div>
+</section>
+
+<footer>
+  <div class="footer-logo">SF Perf Monitor</div>
+  <p>EventLogFile Browser Reference · Runtime Analysis · Apex Performance Monitoring</p>
+</footer>
+
+<script>
+function toggleExample(btn) {
+  var body = btn.nextElementSibling;
+  var isOpen = body.classList.contains('visible');
+  body.classList.toggle('visible', !isOpen);
+  btn.innerHTML = isOpen
+    ? '<span class="toggle-icon">▶</span> See Example'
+    : '<span class="toggle-icon" style="transform:rotate(90deg)">▶</span> Hide Example';
+}
+
+function toggleTheme() {
+  var html = document.documentElement;
+  var isDark = html.getAttribute('data-theme') === 'dark';
+  html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+  document.getElementById('theme-toggle').textContent = isDark ? '🌙 Dark' : '☀️ Light';
+}
+if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+  document.documentElement.setAttribute('data-theme', 'dark');
+  document.getElementById('theme-toggle').textContent = '☀️ Light';
+}
+
+function toggleSettings() {
+  document.getElementById('settings-popover').classList.toggle('open');
+}
+document.addEventListener('click', function(e) {
+  var pop = document.getElementById('settings-popover');
+  if (pop.classList.contains('open') && !e.target.closest('.nav-controls')) {
+    pop.classList.remove('open');
+  }
+});
+
+function setCols(n) {
+  document.body.classList.toggle('cols-2', n === 2);
+  document.getElementById('col-pill-2').classList.toggle('active', n === 2);
+  document.getElementById('col-pill-3').classList.toggle('active', n === 3);
+}
+
+function setFont(size) {
+  document.documentElement.classList.remove('font-sm', 'font-md', 'font-lg');
+  document.documentElement.classList.add('font-' + size);
+  ['sm','md','lg'].forEach(function(s) {
+    document.getElementById('font-pill-' + s).classList.toggle('active', s === size);
+  });
+}
+
+function setDensity(d) {
+  document.body.classList.remove('density-compact', 'density-comfortable');
+  if (d !== 'default') document.body.classList.add('density-' + d);
+  ['compact','default','comfortable'].forEach(function(v) {
+    document.getElementById('density-pill-' + v).classList.toggle('active', v === d);
+  });
+}
+
+function setExpandAll(on) {
+  document.querySelectorAll('.example-body').forEach(function(body) {
+    body.classList.toggle('visible', on);
+  });
+  document.querySelectorAll('.example-toggle').forEach(function(btn) {
+    btn.innerHTML = on
+      ? '<span class="toggle-icon" style="transform:rotate(90deg)">▶</span> Hide Example'
+      : '<span class="toggle-icon">▶</span> See Example';
+  });
+}
+
+function setHighlight(mode) {
+  document.body.classList.remove('hl-none', 'hl-sfpm', 'hl-elfb');
+  if (mode !== 'both') document.body.classList.add('hl-' + mode);
+  ['sfpm','elfb','both','none'].forEach(function(v) {
+    document.getElementById('hl-pill-' + v).classList.toggle('active', v === mode);
+  });
+}
+</script>
+</body>
+</html>
