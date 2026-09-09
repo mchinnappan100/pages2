@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Salesforce Trust — Instance Monitor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" type="image/x-icon"
+        href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            sfblue: '#0b5cab',
+            sfsky: '#1b96ff'
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="app.css" />
+</head>
+
+<body class="h-full bg-slate-50 text-slate-900 dark:bg-[#080e1a] dark:text-slate-100">
+<div class="min-h-screen flex flex-col">
+
+  <!-- Header -->
+  <header class="h-16 shrink-0 border-b border-slate-200 dark:border-slate-800/50
+                 bg-white/90 dark:bg-[#080e1a]/90 backdrop-blur-xl sticky top-0 z-40">
+    <div class="h-full px-5 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-sfblue flex items-center justify-center shadow-sm">
+          <span class="text-white font-black text-lg">S</span>
+        </div>
+        <div>
+          <h1 class="font-bold text-lg leading-tight">Salesforce Trust</h1>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Instance Monitor</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <span id="lastUpdated" class="hidden sm:block text-xs text-slate-400 dark:text-slate-500"></span>
+        <button id="refreshBtn" title="Refresh data"
+          class="w-10 h-10 rounded-lg border border-slate-200 dark:border-slate-700
+                 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center
+                 text-slate-500 text-lg select-none">↻</button>
+        <a id="trustLink" href="https://status.salesforce.com/" target="_blank"
+           class="hidden sm:inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium
+                  border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
+          Trust Site ↗
+        </a>
+        <button id="themeBtn"
+          class="w-10 h-10 rounded-lg border border-slate-200 dark:border-slate-700
+                 hover:bg-slate-100 dark:hover:bg-slate-800" title="Toggle theme"></button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main -->
+  <main class="flex-1 flex min-h-0" style="--pane-w:288px">
+
+    <!-- Left pane: resizable via splitter -->
+    <aside id="left-pane"
+      class="shrink-0 border-r border-slate-200 dark:border-[#1e3a5f]/30
+             bg-white dark:bg-[#0d1627] flex flex-col sticky top-16 self-start
+             h-[calc(100vh-4rem)] overflow-hidden"
+      style="width:var(--pane-w); min-width:160px; max-width:520px">
+      <div class="p-4 border-b border-slate-200 dark:border-slate-800">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <h2 class="font-semibold">My Instances</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Your Salesforce pods</p>
+          </div>
+          <button id="addBtn"
+            class="w-9 h-9 rounded-lg bg-sfblue text-white hover:bg-blue-700 text-xl flex items-center justify-center"
+            title="Add instance">+</button>
+        </div>
+        <input id="filterInput" type="search" placeholder="Filter instances…"
+          class="w-full rounded-lg border border-slate-200 dark:border-[#1e3a5f]/50
+                 bg-slate-50 dark:bg-[#080e1a] px-3 py-2 text-sm outline-none
+                 focus:ring-2 focus:ring-sfsky/40 placeholder:text-slate-400 dark:placeholder:text-slate-600" />
+      </div>
+
+      <div id="instanceList" class="flex-1 overflow-auto p-2"></div>
+
+      <!-- Footer: count + import/export -->
+      <div class="p-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
+        <div class="flex justify-between text-xs text-slate-500 dark:text-slate-400">
+          <span>Instances</span>
+          <span id="instanceCount">0</span>
+        </div>
+
+        <!-- Export row -->
+        <div class="grid grid-cols-2 gap-1.5 text-xs font-medium">
+          <button onclick="exportJSON()"
+            class="flex items-center justify-center gap-1 rounded-lg border
+                   border-slate-200 dark:border-slate-700 px-2 py-1.5
+                   hover:bg-slate-50 dark:hover:bg-slate-800
+                   text-slate-600 dark:text-slate-400">
+            ↓ JSON
+          </button>
+          <button onclick="exportCSV()"
+            class="flex items-center justify-center gap-1 rounded-lg border
+                   border-slate-200 dark:border-slate-700 px-2 py-1.5
+                   hover:bg-slate-50 dark:hover:bg-slate-800
+                   text-slate-600 dark:text-slate-400">
+            ↓ CSV
+          </button>
+          <label
+            class="flex items-center justify-center gap-1 rounded-lg border
+                   border-slate-200 dark:border-slate-700 px-2 py-1.5
+                   hover:bg-slate-50 dark:hover:bg-slate-800
+                   text-slate-600 dark:text-slate-400 cursor-pointer"
+            title="Import JSON">
+            ↑ JSON
+            <input id="uploadInputJSON" type="file" accept=".json" class="hidden" />
+          </label>
+          <label
+            class="flex items-center justify-center gap-1 rounded-lg border
+                   border-slate-200 dark:border-slate-700 px-2 py-1.5
+                   hover:bg-slate-50 dark:hover:bg-slate-800
+                   text-slate-600 dark:text-slate-400 cursor-pointer"
+            title="Import CSV">
+            ↑ CSV
+            <input id="uploadInputCSV" type="file" accept=".csv,text/csv" class="hidden" />
+          </label>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Animated drag splitter -->
+    <div id="splitter" title="Drag to resize"></div>
+
+    <!-- Right pane -->
+    <section id="right-pane" class="flex-1 min-w-0 overflow-auto">
+      <div class="max-w-6xl mx-auto p-5 md:p-8">
+
+        <!-- Hero -->
+        <div class="rounded-2xl bg-gradient-to-br from-sfblue to-blue-700 text-white p-6 md:p-8 shadow-lg">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+            <div class="flex items-center gap-5">
+              <!-- Health donut — hidden when no score -->
+              <div id="heroDonutWrap" class="hidden shrink-0">
+                <svg id="heroDonut" width="88" height="88" viewBox="0 0 88 88"
+                     style="filter:drop-shadow(0 2px 8px rgba(0,0,0,.35))">
+                  <!-- bg ring -->
+                  <circle cx="44" cy="44" r="36" fill="none"
+                          stroke="rgba(255,255,255,.18)" stroke-width="10"/>
+                  <!-- progress arc -->
+                  <circle id="heroDonutArc" cx="44" cy="44" r="36" fill="none"
+                          stroke="#ffffff" stroke-width="10"
+                          stroke-linecap="round"
+                          stroke-dasharray="226.2 226.2"
+                          stroke-dashoffset="226.2"
+                          transform="rotate(-90 44 44)"
+                          style="transition:stroke-dashoffset .7s cubic-bezier(.4,0,.2,1),
+                                             stroke .4s ease"/>
+                  <!-- centre text -->
+                  <text id="heroDonutPct" x="44" y="48" text-anchor="middle"
+                        font-size="17" font-weight="800"
+                        fill="white" font-family="ui-sans-serif,system-ui,sans-serif">—</text>
+                </svg>
+                <p id="heroDonutLabel" class="text-center text-xs text-blue-200 mt-1 font-medium w-[88px]"></p>
+              </div>
+
+              <div>
+                <div class="flex items-center gap-2 mb-2">
+                  <span id="heroStatusDot"
+                    class="w-3 h-3 rounded-full bg-slate-400 transition-colors"></span>
+                  <span id="heroStatusLabel"
+                    class="text-sm font-medium text-blue-100">Loading…</span>
+                </div>
+                <h2 id="heroInstance" class="text-3xl md:text-4xl font-black tracking-tight">—</h2>
+                <p id="heroMeta" class="mt-2 text-blue-200 text-sm">Salesforce Trust history and service events</p>
+              </div>
+            </div>
+            <a id="historyLink" href="#" target="_blank"
+               class="inline-flex items-center justify-center gap-2 rounded-xl bg-white text-sfblue
+                      px-4 py-3 font-semibold hover:bg-blue-50 shadow-sm whitespace-nowrap">
+              View on Trust ↗
+            </a>
+          </div>
+        </div>
+
+        <!-- Tab bar -->
+        <div class="mt-6 bg-white dark:bg-[#0d1627] rounded-xl border border-slate-200 dark:border-[#1e3a5f]/60 shadow-sm dark:shadow-[0_0_0_1px_rgba(30,58,95,0.4)]">
+
+          <!-- Tab buttons -->
+          <div class="flex border-b border-slate-200 dark:border-slate-800 px-1">
+            <button data-tab="status"
+              class="tab-btn relative px-5 py-4 text-xs font-semibold uppercase tracking-widest
+                     text-slate-500 dark:text-slate-400 hover:text-sfblue dark:hover:text-blue-400
+                     transition-colors whitespace-nowrap">
+              Current Status
+              <span class="tab-underline absolute bottom-0 left-0 right-0 h-0.5
+                           bg-sfblue rounded-t hidden"></span>
+            </button>
+            <button data-tab="history"
+              class="tab-btn relative px-5 py-4 text-xs font-semibold uppercase tracking-widest
+                     text-slate-500 dark:text-slate-400 hover:text-sfblue dark:hover:text-blue-400
+                     transition-colors whitespace-nowrap">
+              History
+              <span class="tab-underline absolute bottom-0 left-0 right-0 h-0.5
+                           bg-sfblue rounded-t hidden"></span>
+            </button>
+            <button data-tab="maintenance"
+              class="tab-btn relative px-5 py-4 text-xs font-semibold uppercase tracking-widest
+                     text-slate-500 dark:text-slate-400 hover:text-sfblue dark:hover:text-blue-400
+                     transition-colors whitespace-nowrap">
+              Maintenance
+              <span class="tab-underline absolute bottom-0 left-0 right-0 h-0.5
+                           bg-sfblue rounded-t hidden"></span>
+            </button>
+          </div>
+
+          <!-- ── Tab: Current Status ── -->
+          <div id="tab-status" class="tab-panel p-6 hidden">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div class="rounded-xl border border-slate-100 dark:border-slate-800
+                          bg-slate-50 dark:bg-[#080e1a] p-5">
+                <p class="text-xs uppercase tracking-wider text-slate-400 mb-2">Status</p>
+                <p id="statusCard" class="text-lg font-bold flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+                  <span>—</span>
+                </p>
+              </div>
+              <div class="rounded-xl border border-slate-100 dark:border-slate-800
+                          bg-slate-50 dark:bg-[#080e1a] p-5">
+                <p class="text-xs uppercase tracking-wider text-slate-400 mb-2">Events in Period</p>
+                <p id="eventCount" class="text-lg font-bold">—</p>
+              </div>
+              <div class="rounded-xl border border-slate-100 dark:border-slate-800
+                          bg-slate-50 dark:bg-[#080e1a] p-5">
+                <p class="text-xs uppercase tracking-wider text-slate-400 mb-2">Last Event</p>
+                <p id="lastEvent" class="text-lg font-bold">—</p>
+              </div>
+            </div>
+
+            <!-- General messages / active advisories -->
+            <div class="mt-6">
+              <h4 class="text-sm font-semibold uppercase tracking-wider text-slate-400 mb-3">
+                Active Advisories
+              </h4>
+              <div id="advisories" class="space-y-3">
+                <div class="skeleton rounded-xl border border-slate-100 dark:border-slate-800 p-4">
+                  <div class="h-3 bg-slate-200 dark:bg-slate-700 rounded w-1/2 mb-2"></div>
+                  <div class="h-3 bg-slate-200 dark:bg-slate-700 rounded w-3/4"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Tab: History (incidents) ── -->
+          <div id="tab-history" class="tab-panel hidden">
+            <!-- Timeline controls -->
+            <div class="flex items-center gap-2 px-5 pt-5 pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div class="flex rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden text-sm font-medium">
+                <button data-days="1"  class="range-btn px-3 py-1.5 bg-white dark:bg-[#0d1627] hover:bg-slate-50 dark:hover:bg-[#1e3a5f]/40">24 Hours</button>
+                <button data-days="3"  class="range-btn px-3 py-1.5 bg-white dark:bg-[#0d1627] hover:bg-slate-50 dark:hover:bg-[#1e3a5f]/40">3 Days</button>
+                <button data-days="7"  class="range-btn px-3 py-1.5 bg-white dark:bg-[#0d1627] hover:bg-slate-50 dark:hover:bg-[#1e3a5f]/40">7 Days</button>
+                <button data-days="30" class="range-btn px-3 py-1.5 bg-white dark:bg-[#0d1627] hover:bg-slate-50 dark:hover:bg-[#1e3a5f]/40">30 Days</button>
+              </div>
+              <button id="timelineNow"
+                class="ml-auto px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700
+                       text-sm font-medium bg-white dark:bg-slate-900 hover:bg-slate-50">Now</button>
+            </div>
+
+            <!-- Timeline chart -->
+            <div id="timelineWrap" class="relative overflow-x-auto">
+              <div id="timelineChart" class="relative select-none min-w-0"></div>
+            </div>
+
+            <!-- Incident list below chart -->
+            <div class="px-5 pb-5">
+              <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3 mt-6">
+                Incident Log
+              </h4>
+              <div id="history" class="space-y-3"></div>
+            </div>
+
+            <!-- period selector kept for incident list filtering, hidden -->
+            <select id="period" class="hidden">
+              <option value="30">30 days</option>
+              <option value="90">90 days</option>
+              <option value="365">1 year</option>
+            </select>
+          </div>
+
+          <!-- ── Tab: Maintenance ── -->
+          <div id="tab-maintenance" class="tab-panel p-6 hidden">
+            <p class="text-sm text-slate-500 dark:text-slate-400 mb-5">
+              Scheduled and recent maintenance for
+              <span id="maintInstance"
+                class="font-semibold text-slate-700 dark:text-slate-300">—</span>
+            </p>
+            <div id="maintenanceList" class="space-y-3"></div>
+          </div>
+
+        </div><!-- /tab card -->
+
+        <!-- Incident Detail Modal -->
+        <div id="incidentModal"
+          class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm
+                 items-center justify-center p-4">
+          <div class="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl
+                      bg-white dark:bg-slate-900 shadow-2xl
+                      border border-slate-200 dark:border-slate-800">
+
+            <!-- Modal header -->
+            <div class="flex items-center justify-between px-6 py-4
+                        border-b border-slate-200 dark:border-slate-800 shrink-0">
+              <h3 class="text-lg font-bold">Incident Details</h3>
+              <button id="closeIncidentModal"
+                class="w-8 h-8 flex items-center justify-center rounded-lg
+                       text-slate-400 hover:text-slate-900 dark:hover:text-white
+                       hover:bg-slate-100 dark:hover:bg-slate-800 text-xl">×</button>
+            </div>
+
+            <!-- Scrollable body -->
+            <div class="overflow-y-auto flex-1 px-6 py-5 space-y-6">
+
+              <!-- Incident Information -->
+              <section>
+                <div class="flex items-center justify-between mb-4">
+                  <h4 class="text-xs font-bold uppercase tracking-widest text-slate-500">
+                    Incident Information
+                  </h4>
+                  <span id="modalIncidentId"
+                    class="text-xs text-slate-400 font-mono"></span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="space-y-4">
+                    <div>
+                      <p class="text-xs text-slate-400 mb-1">Status</p>
+                      <p id="modalStatus" class="font-semibold text-emerald-600 dark:text-emerald-400"></p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-slate-400 mb-1">Impacted Instances</p>
+                      <p id="modalInstances" class="text-sm font-medium text-sfblue flex flex-wrap gap-1"></p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-slate-400 mb-1">Impacted Services</p>
+                      <p id="modalServices" class="text-sm font-semibold"></p>
+                    </div>
+                  </div>
+                  <div class="space-y-4">
+                    <div>
+                      <p class="text-xs text-slate-400 mb-1">Start Time</p>
+                      <p id="modalStart" class="text-sm font-semibold"></p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-slate-400 mb-1">End Time</p>
+                      <p id="modalEnd" class="text-sm font-semibold"></p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-slate-400 mb-1">Duration</p>
+                      <p id="modalDuration" class="text-sm font-semibold"></p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- Incident History / Timeline -->
+              <section>
+                <h4 class="text-xs font-bold uppercase tracking-widest text-slate-500 mb-4">
+                  Incident History
+                </h4>
+                <div id="modalTimeline" class="space-y-3"></div>
+              </section>
+
+            </div>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <p class="mt-6 text-xs text-slate-400 dark:text-slate-600 text-center">
+          Data sourced live from
+          <a href="https://api.status.salesforce.com" target="_blank"
+             class="underline hover:text-slate-600 dark:hover:text-slate-400">
+            api.status.salesforce.com
+          </a>
+        </p>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Toast -->
+<div id="toast"
+  class="hidden fixed bottom-5 right-5 z-50 rounded-xl
+         bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900
+         px-4 py-3 text-sm shadow-xl font-medium transition-opacity"></div>
+
+<!-- Add instance modal -->
+<div id="modal"
+  class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm
+         items-center justify-center p-4">
+  <div class="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 shadow-2xl
+              border border-slate-200 dark:border-slate-800">
+    <div class="p-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-start">
+      <div>
+        <h3 id="modalTitle" class="font-bold text-lg">Add Salesforce Instance</h3>
+        <p id="modalSubtitle" class="text-sm text-slate-500 mt-1">Attach an optional label and group</p>
+      </div>
+      <button id="closeModal"
+        class="text-slate-400 hover:text-slate-900 dark:hover:text-white text-2xl leading-none">×</button>
+    </div>
+    <form id="addForm" class="p-5 space-y-4">
+      <div>
+        <label class="block text-sm font-medium mb-1.5">Instance name <span class="text-red-500">*</span></label>
+        <input id="instanceInput" required pattern="[A-Za-z0-9-]+"
+          placeholder="e.g. NA1, CAN50, EU25"
+          class="w-full rounded-lg border border-slate-200 dark:border-slate-700
+                 bg-slate-50 dark:bg-slate-950 px-3 py-2.5 outline-none
+                 focus:ring-2 focus:ring-sfsky/40 uppercase tracking-widest text-sm" />
+        <p class="mt-1 text-xs text-slate-400">Letters, numbers, and hyphens only.</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1.5">Label <span class="text-slate-400 font-normal">(optional)</span></label>
+        <input id="labelInput"
+          placeholder="e.g. Production, UAT, DEV"
+          class="w-full rounded-lg border border-slate-200 dark:border-slate-700
+                 bg-slate-50 dark:bg-slate-950 px-3 py-2.5 outline-none
+                 focus:ring-2 focus:ring-sfsky/40 text-sm" />
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1.5">Group <span class="text-slate-400 font-normal">(optional)</span></label>
+        <div class="flex gap-2">
+          <input id="groupInput" list="groupSuggestions"
+            placeholder="e.g. PROD, UAT, DEV, SANDBOX"
+            class="flex-1 rounded-lg border border-slate-200 dark:border-slate-700
+                   bg-slate-50 dark:bg-slate-950 px-3 py-2.5 outline-none
+                   focus:ring-2 focus:ring-sfsky/40 text-sm" />
+          <datalist id="groupSuggestions"></datalist>
+        </div>
+        <p class="mt-1 text-xs text-slate-400">Choose existing or type a new group name.</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1.5">Health Score <span class="text-slate-400 font-normal">(optional, 0–100)</span></label>
+        <div class="flex items-center gap-3">
+          <input id="healthInput" type="number" min="0" max="100" step="1"
+            placeholder="e.g. 95"
+            class="w-28 rounded-lg border border-slate-200 dark:border-slate-700
+                   bg-slate-50 dark:bg-slate-950 px-3 py-2.5 outline-none
+                   focus:ring-2 focus:ring-sfsky/40 text-sm" />
+          <span class="text-xs text-slate-400">%</span>
+          <span id="healthPreview" class="text-xs font-semibold"></span>
+        </div>
+        <p class="mt-1 text-xs text-slate-400">Your estimated service health percentage.</p>
+      </div>
+      <div class="flex justify-end gap-2 pt-1">
+        <button type="button" id="cancelBtn"
+          class="px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700
+                 hover:bg-slate-50 dark:hover:bg-slate-800 text-sm">Cancel</button>
+        <button type="submit" id="modalSubmitBtn"
+          class="px-4 py-2 rounded-lg bg-sfblue text-white font-semibold hover:bg-blue-700 text-sm">
+          Add Instance
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="app-min.js"></script>
+</body>
+</html>
