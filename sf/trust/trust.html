@@ -21,6 +21,10 @@
     }
   </script>
   <link rel="stylesheet" href="app.css" />
+  <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs/loader.js"></script>
+  <script>
+    require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs' } });
+  </script>
 </head>
 
 <body class="h-full bg-slate-50 text-slate-900 dark:bg-[#080e1a] dark:text-slate-100">
@@ -45,21 +49,38 @@
         <button id="refreshBtn" title="Refresh data"
           class="w-10 h-10 rounded-lg border border-slate-200 dark:border-slate-700
                  hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center justify-center
-                 text-slate-500 text-lg select-none">↻</button>
+                 text-slate-500 select-none">
+          <svg id="refreshIcon" xmlns="http://www.w3.org/2000/svg"
+               class="w-5 h-5" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2.2"
+               stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 4v6h-6"/>
+            <path d="M1 20v-6h6"/>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"/>
+            <path d="M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+          </svg>
+        </button>
         <a id="trustLink" href="https://status.salesforce.com/" target="_blank"
            class="hidden sm:inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium
                   border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800">
           Trust Site ↗
         </a>
-        <button id="themeBtn"
-          class="w-10 h-10 rounded-lg border border-slate-200 dark:border-slate-700
-                 hover:bg-slate-100 dark:hover:bg-slate-800" title="Toggle theme"></button>
+        <div class="relative" id="themePickerWrap">
+          <button id="themeBtn"
+            class="w-10 h-10 rounded-lg border border-slate-200 dark:border-slate-700
+                   hover:bg-slate-100 dark:hover:bg-slate-800 text-base" title="Theme"></button>
+          <div id="themeMenu"
+               class="hidden absolute right-0 top-12 z-[60] w-44 rounded-xl overflow-hidden
+                      bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700
+                      shadow-2xl">
+          </div>
+        </div>
       </div>
     </div>
   </header>
 
   <!-- Main -->
-  <main class="flex-1 flex min-h-0" style="--pane-w:288px">
+  <main class="flex-1 flex min-h-0" style="--pane-w:288px; --rpane-w:auto">
 
     <!-- Left pane: resizable via splitter -->
     <aside id="left-pane"
@@ -134,7 +155,27 @@
     <div id="splitter" title="Drag to resize"></div>
 
     <!-- Right pane -->
-    <section id="right-pane" class="flex-1 min-w-0 overflow-auto">
+    <section id="right-pane" class="min-w-0 overflow-auto relative"
+             style="flex: 1 1 var(--rpane-w); width: var(--rpane-w)">
+
+      <!-- Loading overlay -->
+      <div id="loadingOverlay"
+           class="hidden absolute inset-0 z-30 flex flex-col items-center justify-center gap-4
+                  bg-white/70 dark:bg-[#080e1a]/70 backdrop-blur-sm">
+        <svg class="w-12 h-12 text-sfblue" viewBox="0 0 50 50"
+             xmlns="http://www.w3.org/2000/svg">
+          <circle cx="25" cy="25" r="20" fill="none"
+                  stroke="currentColor" stroke-width="4"
+                  stroke-linecap="round"
+                  stroke-dasharray="90 60"
+                  style="animation:spin 0.9s linear infinite;transform-origin:center"/>
+        </svg>
+        <span id="loadingLabel"
+              class="text-sm font-semibold text-slate-600 dark:text-slate-300 tracking-wide">
+          Loading…
+        </span>
+      </div>
+
       <div class="max-w-6xl mx-auto p-5 md:p-8">
 
         <!-- Hero -->
@@ -289,16 +330,216 @@
           </div>
 
           <!-- ── Tab: Maintenance ── -->
-          <div id="tab-maintenance" class="tab-panel p-6 hidden">
-            <p class="text-sm text-slate-500 dark:text-slate-400 mb-5">
-              Scheduled and recent maintenance for
-              <span id="maintInstance"
-                class="font-semibold text-slate-700 dark:text-slate-300">—</span>
-            </p>
-            <div id="maintenanceList" class="space-y-3"></div>
+          <div id="tab-maintenance" class="tab-panel hidden">
+
+            <!-- Maintenance subtab bar -->
+            <div class="flex border-b border-slate-200 dark:border-slate-800 px-1">
+              <button data-subtab="maint-table"
+                class="maint-subtab-btn relative px-4 py-3 text-xs font-semibold uppercase tracking-widest
+                       text-slate-500 dark:text-slate-400 hover:text-sfblue dark:hover:text-blue-400
+                       transition-colors whitespace-nowrap">
+                Table
+                <span class="maint-subtab-underline absolute bottom-0 left-0 right-0 h-0.5
+                             bg-sfblue rounded-t hidden"></span>
+              </button>
+              <button data-subtab="maint-json"
+                class="maint-subtab-btn relative px-4 py-3 text-xs font-semibold uppercase tracking-widest
+                       text-slate-500 dark:text-slate-400 hover:text-sfblue dark:hover:text-blue-400
+                       transition-colors whitespace-nowrap">
+                JSON Payload
+                <span class="maint-subtab-underline absolute bottom-0 left-0 right-0 h-0.5
+                             bg-sfblue rounded-t hidden"></span>
+              </button>
+            </div>
+
+            <!-- Subtab: Table -->
+            <div id="maint-subtab-table" class="maint-subtab-panel">
+            <div class="flex min-h-0">
+
+              <!-- Main column -->
+              <div class="flex-1 min-w-0 p-4 border-r border-slate-200 dark:border-slate-800 overflow-x-auto">
+
+                <!-- Toolbar -->
+                <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div class="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                    <span id="maintDateRange">—</span>
+                    <span id="maintItemCount" class="font-semibold text-slate-700 dark:text-slate-300"></span>
+                    <button id="maintExportCSV"
+                      class="ml-1 flex items-center gap-1 px-2.5 py-1 rounded-lg border
+                             border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800
+                             text-slate-600 dark:text-slate-400 font-medium">
+                      ↓ CSV
+                    </button>
+                  </div>
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <!-- Page size -->
+                    <div class="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+                      <label for="maintPageSize">Show</label>
+                      <select id="maintPageSize"
+                        class="rounded border border-slate-200 dark:border-slate-700
+                               bg-white dark:bg-[#080e1a] px-1 py-0.5 text-xs outline-none">
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="0">All</option>
+                      </select>
+                      <span>per page</span>
+                    </div>
+                    <!-- Quick Find -->
+                    <div class="relative">
+                      <svg class="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
+                      <input id="maintQuickFind" type="search" placeholder="Search…"
+                        class="pl-7 pr-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700
+                               bg-white dark:bg-[#080e1a] text-xs outline-none
+                               focus:ring-2 focus:ring-sfsky/40 w-40" />
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Sortable column headers -->
+                <div id="maintTableHead"
+                     class="hidden sm:grid text-xs font-semibold uppercase tracking-wider select-none
+                            text-slate-500 dark:text-slate-500 bg-slate-50 dark:bg-[#111d35]
+                            border border-slate-200 dark:border-slate-700 rounded-t-lg px-2 py-2">
+                </div>
+
+                <!-- Rows -->
+                <div id="maintenanceList"
+                     class="border border-t-0 border-slate-200 dark:border-slate-700 rounded-b-lg overflow-hidden"></div>
+
+                <!-- Pagination -->
+                <div id="maintPagination" class="flex items-center justify-between gap-2 mt-3 text-xs text-slate-500 dark:text-slate-400"></div>
+              </div>
+
+              <!-- Instance Details sidebar -->
+              <div id="maintSidebar" class="w-48 shrink-0 p-4 text-sm space-y-3 hidden sm:block">
+                <h3 class="font-bold text-slate-800 dark:text-slate-200">Instance Details</h3>
+                <div>
+                  <p class="text-xs uppercase tracking-wider text-slate-400 mb-0.5">Version</p>
+                  <p id="sidebarVersion" class="font-medium text-slate-700 dark:text-slate-300 text-xs">—</p>
+                </div>
+                <div>
+                  <p class="text-xs uppercase tracking-wider text-slate-400 mb-0.5">Region</p>
+                  <p id="sidebarRegion" class="font-medium text-slate-700 dark:text-slate-300 text-xs">—</p>
+                </div>
+                <div>
+                  <p class="text-xs uppercase tracking-wider text-slate-400 mb-0.5">Environment</p>
+                  <p id="sidebarEnvironment" class="font-medium text-slate-700 dark:text-slate-300 text-xs">—</p>
+                </div>
+                <div>
+                  <p class="text-xs uppercase tracking-wider text-slate-400 mb-0.5">Maintenance Window</p>
+                  <p id="sidebarWindow" class="font-medium text-slate-700 dark:text-slate-300 text-xs">—</p>
+                </div>
+                <div>
+                  <p class="text-xs uppercase tracking-wider text-slate-400 mb-0.5">Products</p>
+                  <p id="sidebarProducts" class="text-sfblue dark:text-blue-400 text-xs font-medium">—</p>
+                </div>
+              </div>
+
+            </div>
+            </div><!-- /maint-subtab-table -->
+
+            <!-- Subtab: JSON Payload -->
+            <div id="maint-subtab-json" class="maint-subtab-panel hidden">
+              <div class="flex items-center justify-between px-4 py-2 border-b border-slate-200 dark:border-slate-800">
+                <span class="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                  Raw API response — <code class="font-mono">GET /v1/maintenances?instanceKey=<span id="maintJsonInstance"></span></code>
+                </span>
+                <button id="maintJsonCopy"
+                  class="text-xs px-3 py-1 rounded-lg border border-slate-200 dark:border-slate-700
+                         hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400">
+                  Copy JSON
+                </button>
+              </div>
+              <div id="maintJsonEditor" style="height:520px;"></div>
+            </div>
+
           </div>
 
         </div><!-- /tab card -->
+
+        <!-- Maintenance Detail Modal -->
+        <div id="maintModal"
+          class="hidden fixed inset-0 z-50 bg-black/50 backdrop-blur-sm
+                 items-center justify-center p-4">
+          <div class="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl
+                      bg-white dark:bg-[#0d1627] shadow-2xl
+                      border border-slate-200 dark:border-[#1e3a5f]/60">
+
+            <!-- Close button -->
+            <button id="closeMaintModal"
+              class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center
+                     rounded-lg text-slate-400 hover:text-slate-900 dark:hover:text-white
+                     hover:bg-slate-100 dark:hover:bg-slate-800 text-xl z-10">×</button>
+
+            <!-- Title block -->
+            <div class="px-7 pt-7 pb-4 shrink-0 text-center border-b border-slate-200 dark:border-slate-700">
+              <h3 id="mmTitle" class="text-xl font-bold text-slate-900 dark:text-slate-100 mb-1"></h3>
+              <p  id="mmSubtitle" class="text-sm text-slate-500 dark:text-slate-400"></p>
+            </div>
+
+            <!-- Scrollable body -->
+            <div class="overflow-y-auto flex-1 px-7 py-5 space-y-6">
+
+              <!-- Release / Maintenance Information -->
+              <section>
+                <div class="flex items-center justify-between mb-4">
+                  <h4 id="mmSectionLabel"
+                    class="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400"></h4>
+                  <span id="mmId" class="text-xs text-slate-400 font-mono"></span>
+                </div>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4 text-sm">
+                  <!-- Left column -->
+                  <div class="space-y-4">
+                    <div>
+                      <p class="text-xs text-slate-400 mb-0.5">Status</p>
+                      <p id="mmStatus" class="font-semibold"></p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-slate-400 mb-0.5">Impacted Instances</p>
+                      <div id="mmInstances" class="flex flex-wrap gap-1"></div>
+                    </div>
+                    <div>
+                      <p class="text-xs text-slate-400 mb-0.5">Impacted Services</p>
+                      <p id="mmServices" class="font-semibold"></p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-slate-400 mb-0.5">Type</p>
+                      <p id="mmType" class="font-semibold"></p>
+                    </div>
+                    <div id="mmAvailWrap">
+                      <p class="text-xs text-slate-400 mb-0.5">Availability</p>
+                      <p id="mmAvail" class="text-slate-700 dark:text-slate-300"></p>
+                    </div>
+                  </div>
+                  <!-- Right column -->
+                  <div class="space-y-4">
+                    <div>
+                      <p class="text-xs text-slate-400 mb-0.5">Planned Start Time</p>
+                      <p id="mmStart" class="font-semibold"></p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-slate-400 mb-0.5">Planned End Time</p>
+                      <p id="mmEnd" class="font-semibold"></p>
+                    </div>
+                    <div>
+                      <p class="text-xs text-slate-400 mb-0.5">Duration</p>
+                      <p id="mmDuration" class="font-semibold"></p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <!-- History -->
+              <section>
+                <h4 id="mmHistoryLabel"
+                  class="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-4"></h4>
+                <div id="mmHistory" class="space-y-3"></div>
+              </section>
+
+            </div>
+          </div>
+        </div>
 
         <!-- Incident Detail Modal -->
         <div id="incidentModal"
@@ -385,6 +626,10 @@
         </p>
       </div>
     </section>
+
+    <!-- Right-edge splitter -->
+    <div id="right-splitter" title="Drag to resize · double-click to reset"></div>
+
   </main>
 </div>
 
