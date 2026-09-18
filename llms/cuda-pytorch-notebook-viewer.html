@@ -1,0 +1,986 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUDA × PyTorch — Notebook Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;600&family=Fraunces:ital,opsz,wght@1,9..144,500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   Notebook Viewer — design system (matches cuda-pytorch-book)
+   ============================================================ */
+:root{
+  --font-display:'Syne',sans-serif;
+  --font-serif:'Fraunces',serif;
+  --font-body:'DM Sans',sans-serif;
+  --font-mono:'JetBrains Mono',monospace;
+  --radius-m:12px;
+  --radius-s:6px;
+  --maxw:960px;
+  --user-font-size:15px;
+  --settings-width:340px;
+}
+[data-theme="dark"]{
+  --bg:#14151a;--bg-alt:#1a1c22;--surface:#1f222a;--surface-2:#262a33;
+  --border:#33373f;--text:#eef0f4;--text-dim:#a3a9b5;
+  --accent:#e8a446;--accent-2:#4fb0a5;--accent-contrast:#14151a;
+  --shadow:0 8px 24px rgba(0,0,0,.35);
+  --code-bg:#191c24;--code-border:#2a2e38;
+  --md-num:#888;
+}
+[data-theme="light"]{
+  --bg:#f7f5f0;--bg-alt:#f0ede5;--surface:#ffffff;--surface-2:#f2efe8;
+  --border:#e0dcd0;--text:#201d18;--text-dim:#6c665a;
+  --accent:#c96a24;--accent-2:#1f7a5c;--accent-contrast:#ffffff;
+  --shadow:0 6px 18px rgba(60,45,20,.10);
+  --code-bg:#f5f3ee;--code-border:#ddd9cf;
+  --md-num:#aaa;
+}
+[data-theme="sepia"]{
+  --bg:#efe4cd;--bg-alt:#e7d9bc;--surface:#f7efdc;--surface-2:#eadfc4;
+  --border:#d8c69e;--text:#3a2c18;--text-dim:#7a6748;
+  --accent:#a8541f;--accent-2:#4c6b3c;--accent-contrast:#f7efdc;
+  --shadow:0 6px 18px rgba(80,55,20,.16);
+  --code-bg:#ece0c3;--code-border:#cfc0a0;
+  --md-num:#bba;
+}
+[data-theme="arctic"]{
+  --bg:#eef4f8;--bg-alt:#e3edf4;--surface:#ffffff;--surface-2:#e9f1f6;
+  --border:#d3e2ec;--text:#16232c;--text-dim:#556a78;
+  --accent:#1c7fb0;--accent-2:#d1673c;--accent-contrast:#ffffff;
+  --shadow:0 6px 18px rgba(30,70,100,.10);
+  --code-bg:#e8f0f5;--code-border:#c8dae4;
+  --md-num:#9bb;
+}
+[data-theme="midnight"]{
+  --bg:#0f0f1c;--bg-alt:#141425;--surface:#1a1a30;--surface-2:#21213c;
+  --border:#333360;--text:#ecebff;--text-dim:#9d9cc4;
+  --accent:#8c7bf0;--accent-2:#e8a446;--accent-contrast:#0f0f1c;
+  --shadow:0 10px 28px rgba(0,0,10,.5);
+  --code-bg:#14142a;--code-border:#2a2a50;
+  --md-num:#666;
+}
+[data-theme="volcano"]{
+  --bg:#1c1211;--bg-alt:#241715;--surface:#2a1a17;--surface-2:#331f1b;
+  --border:#4a2c26;--text:#f5e9e2;--text-dim:#c79c8d;
+  --accent:#f0603a;--accent-2:#e8b23d;--accent-contrast:#1c1211;
+  --shadow:0 10px 28px rgba(0,0,0,.5);
+  --code-bg:#1f1310;--code-border:#3d2018;
+  --md-num:#7a5;
+}
+
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:var(--user-font-size);line-height:1.6;transition:background .2s,color .2s;}
+body.settings-open{overflow:hidden;}
+a{color:var(--accent-2);text-decoration:none;}
+a:hover{text-decoration:underline;}
+
+/* ---- topbar ---- */
+.topbar{position:sticky;top:0;z-index:50;background:color-mix(in srgb,var(--bg) 90%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);}
+.topbar-inner{max-width:calc(var(--maxw) + 80px);margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+.brand{display:flex;align-items:center;gap:9px;text-decoration:none;font-family:var(--font-display);font-weight:700;font-size:.98rem;color:var(--text);white-space:nowrap;}
+.brand-mark{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:var(--radius-s);background:var(--accent);color:var(--accent-contrast);font-weight:700;font-size:.9rem;}
+.chapter-filters{display:flex;gap:6px;flex:1;flex-wrap:wrap;align-items:center;}
+.chapter-filters span{font-family:var(--font-mono);font-size:.72rem;color:var(--text-dim);white-space:nowrap;}
+.ch-btn{background:var(--surface-2);border:1px solid var(--border);color:var(--text-dim);font-family:var(--font-mono);font-size:.72rem;padding:5px 10px;border-radius:999px;cursor:pointer;white-space:nowrap;transition:all .15s;}
+.ch-btn:hover,.ch-btn.active{background:var(--accent);border-color:var(--accent);color:var(--accent-contrast);font-weight:600;}
+.topbar-actions{display:flex;gap:8px;align-items:center;margin-left:auto;}
+.icon-btn{display:flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);color:var(--text-dim);font-family:var(--font-body);font-size:.84rem;padding:7px 13px;border-radius:999px;cursor:pointer;white-space:nowrap;transition:border-color .15s,color .15s;}
+.icon-btn:hover{border-color:var(--accent);color:var(--accent);}
+.icon-btn svg{flex-shrink:0;}
+
+/* ---- settings panel ---- */
+.settings-overlay{position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:80;opacity:0;visibility:hidden;transition:opacity .2s,visibility .2s;}
+.settings-overlay.open{opacity:1;visibility:visible;}
+.settings-panel{position:fixed;top:0;right:0;height:100%;width:var(--settings-width);max-width:92vw;background:var(--surface);border-left:1px solid var(--border);z-index:90;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .25s;}
+.settings-panel.open{transform:translateX(0);}
+.settings-header{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.settings-header h2{font-family:var(--font-display);font-size:1.05rem;margin:0;}
+.settings-close{background:none;border:1px solid var(--border);color:var(--text);width:32px;height:32px;border-radius:var(--radius-s);cursor:pointer;font-size:.9rem;}
+.settings-close:hover{border-color:var(--accent);}
+.settings-body{padding:20px;overflow-y:auto;flex:1;}
+.settings-section{margin-bottom:22px;}
+.settings-section h3{font-family:var(--font-display);font-size:.86rem;margin:0 0 10px;color:var(--text-dim);}
+.theme-swatch-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.theme-swatch{display:flex;flex-direction:column;align-items:center;gap:7px;background:var(--surface-2);border:1px solid var(--border);color:var(--text);font-size:.78rem;padding:10px 4px;border-radius:var(--radius-s);cursor:pointer;}
+.theme-swatch.active{border-color:var(--accent);color:var(--accent);font-weight:600;}
+.swatch-dot{width:18px;height:18px;border-radius:50%;border:1px solid rgba(0,0,0,.15);}
+.swatch-light{background:#f7f5f0}.swatch-sepia{background:#e7d9bc}.swatch-arctic{background:#cfe6f2}.swatch-dark{background:#1f222a}.swatch-midnight{background:#1a1a30}.swatch-volcano{background:#331f1b}
+.settings-row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px;}
+.settings-row h3{margin:0;}
+.range-value{font-family:var(--font-mono);font-size:.78rem;color:var(--accent);}
+.settings-range{width:100%;accent-color:var(--accent);}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);}
+.toggle-row:last-child{border-bottom:none;}
+.toggle-label{font-size:.88rem;color:var(--text);}
+.toggle{position:relative;display:inline-block;width:38px;height:22px;}
+.toggle input{opacity:0;width:0;height:0;}
+.toggle-slider{position:absolute;inset:0;background:var(--border);border-radius:999px;cursor:pointer;transition:.2s;}
+.toggle-slider:before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:white;border-radius:50%;transition:.2s;}
+.toggle input:checked+.toggle-slider{background:var(--accent);}
+.toggle input:checked+.toggle-slider:before{transform:translateX(16px);}
+.settings-reset{width:100%;background:none;border:1px solid var(--border);color:var(--text-dim);font-family:var(--font-body);font-size:.84rem;padding:10px;border-radius:var(--radius-s);cursor:pointer;margin-top:6px;}
+.settings-reset:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ---- notebook container ---- */
+.nb-container{max-width:var(--maxw);margin:0 auto;padding:32px 24px 80px;}
+
+/* ---- notebook cells ---- */
+.nb-cell{display:flex;gap:0;margin-bottom:2px;position:relative;}
+.nb-cell.hidden{display:none;}
+.nb-cell-gutter{width:52px;flex-shrink:0;display:flex;align-items:flex-start;justify-content:flex-end;padding:13px 10px 0 0;font-family:var(--font-mono);font-size:.72rem;color:var(--md-num);user-select:none;}
+.nb-cell-gutter.code-gutter{padding-top:15px;}
+.nb-cell-body{flex:1;min-width:0;}
+
+/* markdown cells */
+.md-cell{padding:10px 0 6px;color:var(--text);}
+.md-cell h1{font-family:var(--font-display);font-weight:800;font-size:1.8rem;margin:.3em 0 .5em;color:var(--text);}
+.md-cell h2{font-family:var(--font-display);font-weight:700;font-size:1.3rem;margin:1.4em 0 .4em;color:var(--text);padding-top:.6em;border-top:2px solid var(--accent);}
+.md-cell h3{font-family:var(--font-display);font-weight:600;font-size:1.05rem;margin:1.1em 0 .3em;color:var(--accent-2);}
+.md-cell p{margin:.5em 0;color:var(--text-dim);}
+.md-cell strong{color:var(--text);font-weight:600;}
+.md-cell em{font-family:var(--font-serif);font-style:italic;}
+.md-cell code{font-family:var(--font-mono);font-size:.84em;background:var(--surface-2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;color:var(--accent-2);}
+.md-cell hr{border:none;border-top:1px solid var(--border);margin:1.2em 0;}
+.md-cell pre{background:var(--code-bg);border:1px solid var(--code-border);border-radius:var(--radius-s);padding:14px 16px;overflow-x:auto;margin:.8em 0;}
+.md-cell pre code{background:none;border:none;padding:0;font-size:.86em;color:var(--text-dim);}
+.md-cell blockquote{border-left:3px solid var(--accent);margin:.8em 0;padding:.2em 0 .2em 16px;font-family:var(--font-serif);font-style:italic;color:var(--text-dim);}
+.md-cell ul,.md-cell ol{margin:.4em 0;padding-left:1.6em;color:var(--text-dim);}
+.md-cell li{margin:.25em 0;}
+.md-cell table{width:100%;border-collapse:collapse;margin:.8em 0;font-size:.88rem;}
+.md-cell th,.md-cell td{text-align:left;padding:8px 12px;border:1px solid var(--border);}
+.md-cell th{background:var(--surface-2);font-family:var(--font-display);font-size:.82rem;color:var(--text);}
+.md-cell td{color:var(--text-dim);}
+.md-cell td:first-child{color:var(--text);font-weight:600;}
+
+/* chapter badge */
+.ch-badge{display:inline-block;font-family:var(--font-mono);font-size:.68rem;background:var(--accent);color:var(--accent-contrast);padding:2px 8px;border-radius:999px;margin-bottom:8px;font-weight:600;letter-spacing:.04em;}
+
+/* code cells */
+.code-cell{position:relative;margin:4px 0;}
+.code-cell-header{display:flex;align-items:center;justify-content:space-between;padding:7px 14px;background:var(--surface-2);border:1px solid var(--code-border);border-bottom:none;border-radius:var(--radius-s) var(--radius-s) 0 0;gap:10px;}
+.code-lang{font-family:var(--font-mono);font-size:.7rem;color:var(--accent-2);letter-spacing:.06em;}
+.code-actions{display:flex;gap:6px;align-items:center;}
+.copy-btn{background:none;border:1px solid var(--border);color:var(--text-dim);font-family:var(--font-body);font-size:.76rem;padding:4px 10px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all .15s;}
+.copy-btn:hover{border-color:var(--accent-2);color:var(--accent-2);}
+.copy-btn.copied{border-color:var(--accent);color:var(--accent);}
+.collapse-btn{background:none;border:none;color:var(--text-dim);cursor:pointer;font-size:.82rem;padding:2px 6px;border-radius:3px;line-height:1;}
+.collapse-btn:hover{color:var(--text);}
+.code-source{background:var(--code-bg);border:1px solid var(--code-border);border-radius:0 0 var(--radius-s) var(--radius-s);overflow-x:auto;}
+.code-source pre{margin:0;padding:16px 18px;font-family:var(--font-mono);font-size:.84rem;line-height:1.65;white-space:pre;color:var(--text);}
+.code-cell.collapsed .code-source{display:none;}
+.code-cell.collapsed .code-cell-header{border-radius:var(--radius-s);border-bottom:1px solid var(--code-border);}
+
+/* Python syntax */
+.py-kw{color:#c792ea;}
+.py-bi{color:#82aaff;}
+.py-str{color:#c3e88d;}
+.py-num{color:#f78c6c;}
+.py-cm{color:#676e95;font-style:italic;}
+.py-dec{color:#e8a446;}
+.py-cls{color:#ffcb6b;}
+.py-op{color:#89ddff;}
+[data-theme="light"] .py-kw{color:#7c3aed;}
+[data-theme="light"] .py-bi{color:#1d4ed8;}
+[data-theme="light"] .py-str{color:#15803d;}
+[data-theme="light"] .py-num{color:#b45309;}
+[data-theme="light"] .py-cm{color:#9ca3af;}
+[data-theme="light"] .py-dec{color:#c96a24;}
+[data-theme="light"] .py-cls{color:#b45309;}
+[data-theme="light"] .py-op{color:#0891b2;}
+[data-theme="sepia"] .py-kw{color:#7c3aed;}
+[data-theme="sepia"] .py-bi{color:#1e40af;}
+[data-theme="sepia"] .py-str{color:#166534;}
+[data-theme="sepia"] .py-num{color:#92400e;}
+[data-theme="sepia"] .py-cm{color:#9c8b6e;}
+[data-theme="sepia"] .py-dec{color:#a8541f;}
+[data-theme="arctic"] .py-kw{color:#6d28d9;}
+[data-theme="arctic"] .py-bi{color:#1c7fb0;}
+[data-theme="arctic"] .py-str{color:#0f766e;}
+[data-theme="arctic"] .py-num{color:#d1673c;}
+[data-theme="arctic"] .py-cm{color:#6b8494;}
+[data-theme="arctic"] .py-dec{color:#1c7fb0;}
+
+/* CUDA/C++ syntax */
+.cpp-kw{color:#89ddff;}
+.cpp-tp{color:#ffcb6b;}
+.cpp-pp{color:#c792ea;}
+.cpp-str{color:#c3e88d;}
+.cpp-cm{color:#676e95;font-style:italic;}
+.cpp-num{color:#f78c6c;}
+.cpp-attr{color:#e8a446;}
+[data-theme="light"] .cpp-kw{color:#0891b2;}
+[data-theme="light"] .cpp-tp{color:#b45309;}
+[data-theme="light"] .cpp-pp{color:#7c3aed;}
+[data-theme="light"] .cpp-str{color:#15803d;}
+[data-theme="light"] .cpp-cm{color:#9ca3af;}
+[data-theme="light"] .cpp-num{color:#b45309;}
+[data-theme="light"] .cpp-attr{color:#c96a24;}
+
+/* chapter section headings */
+.ch-section{padding:20px 0 4px;}
+.ch-section-label{font-family:var(--font-mono);font-size:.7rem;color:var(--accent);letter-spacing:.08em;}
+.ch-section-title{font-family:var(--font-display);font-weight:700;font-size:1.3rem;margin:4px 0 0;color:var(--text);}
+
+/* cell count */
+.nb-meta{text-align:center;padding:16px 0 6px;font-family:var(--font-mono);font-size:.75rem;color:var(--text-dim);}
+.nb-meta span{color:var(--accent);}
+
+/* hero */
+.nb-hero{max-width:var(--maxw);margin:0 auto;padding:40px 24px 24px;}
+.nb-hero-eyebrow{font-family:var(--font-mono);font-size:.8rem;color:var(--accent-2);margin:0 0 10px;}
+.nb-hero-title{font-family:var(--font-display);font-weight:800;font-size:clamp(1.5rem,3.5vw,2.3rem);margin:0 0 12px;}
+.nb-hero-sub{color:var(--text-dim);font-size:1rem;max-width:64ch;margin:0 0 20px;}
+.nb-hero-chips{display:flex;flex-wrap:wrap;gap:8px;}
+.chip{font-family:var(--font-mono);font-size:.72rem;padding:4px 11px;border-radius:999px;background:var(--surface);border:1px solid var(--border);color:var(--text-dim);}
+
+/* footer */
+.nb-footer{text-align:center;padding:32px 24px;font-size:.82rem;color:var(--text-dim);border-top:1px solid var(--border);}
+.nb-footer a{color:var(--accent-2);}
+
+/* responsive */
+@media(max-width:640px){
+  .nb-container,.nb-hero{padding-left:14px;padding-right:14px;}
+  .nb-cell-gutter{width:36px;font-size:.65rem;padding-right:7px;}
+  .topbar-inner{padding:10px 14px;gap:10px;}
+  .chapter-filters{display:none;}
+  .settings-panel{width:100%!important;max-width:100vw;}
+}
+@media(prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto;}
+  *{transition:none!important;}
+}
+</style>
+</head>
+<body data-theme="dark">
+
+<!-- SETTINGS OVERLAY -->
+<div class="settings-overlay" id="settingsOverlay" hidden></div>
+
+<!-- SETTINGS PANEL -->
+<aside class="settings-panel" id="settingsPanel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle" aria-hidden="true">
+  <div class="settings-header">
+    <h2 id="settingsTitle">Settings</h2>
+    <button class="settings-close" id="settingsClose" aria-label="Close settings">✕</button>
+  </div>
+  <div class="settings-body">
+    <section class="settings-section">
+      <h3>Theme</h3>
+      <div class="theme-swatch-grid" id="themeSwatchGrid">
+        <button class="theme-swatch" data-theme="light"   type="button"><span class="swatch-dot swatch-light"></span>Light</button>
+        <button class="theme-swatch" data-theme="sepia"   type="button"><span class="swatch-dot swatch-sepia"></span>Sepia</button>
+        <button class="theme-swatch" data-theme="arctic"  type="button"><span class="swatch-dot swatch-arctic"></span>Arctic</button>
+        <button class="theme-swatch" data-theme="dark"    type="button"><span class="swatch-dot swatch-dark"></span>Dark</button>
+        <button class="theme-swatch" data-theme="midnight" type="button"><span class="swatch-dot swatch-midnight"></span>Midnight</button>
+        <button class="theme-swatch" data-theme="volcano" type="button"><span class="swatch-dot swatch-volcano"></span>Volcano</button>
+      </div>
+    </section>
+    <section class="settings-section">
+      <div class="settings-row"><h3>Text size</h3><span class="range-value" id="fontSizeValue">15px</span></div>
+      <input type="range" class="settings-range" id="fontSizeRange" min="13" max="19" step="1" value="15">
+    </section>
+    <section class="settings-section">
+      <div class="settings-row"><h3>Content width</h3><span class="range-value" id="widthValue">960px</span></div>
+      <input type="range" class="settings-range" id="widthRange" min="700" max="1300" step="20" value="960">
+    </section>
+    <section class="settings-section">
+      <h3>Display</h3>
+      <div class="toggle-row">
+        <span class="toggle-label">Line numbers</span>
+        <label class="toggle"><input type="checkbox" id="lineNumToggle" checked><span class="toggle-slider"></span></label>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">Collapse code cells by default</span>
+        <label class="toggle"><input type="checkbox" id="collapseToggle"><span class="toggle-slider"></span></label>
+      </div>
+    </section>
+    <button class="settings-reset" id="settingsReset" type="button">Reset to defaults</button>
+  </div>
+</aside>
+
+<!-- TOPBAR -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <a href="cuda-pytorch-book.html" class="brand">
+      <span class="brand-mark">⊕</span>
+      CUDA×PyTorch
+    </a>
+    <div class="chapter-filters" id="chapterFilters">
+      <span>Jump:</span>
+      <button class="ch-btn active" data-filter="all" type="button">All</button>
+      <button class="ch-btn" data-filter="1"  type="button">Ch 1</button>
+      <button class="ch-btn" data-filter="2"  type="button">Ch 2</button>
+      <button class="ch-btn" data-filter="3"  type="button">Ch 3</button>
+      <button class="ch-btn" data-filter="4"  type="button">Ch 4</button>
+      <button class="ch-btn" data-filter="5"  type="button">Ch 5</button>
+      <button class="ch-btn" data-filter="6"  type="button">Ch 6</button>
+      <button class="ch-btn" data-filter="7"  type="button">Ch 7</button>
+      <button class="ch-btn" data-filter="8"  type="button">Ch 8</button>
+      <button class="ch-btn" data-filter="9"  type="button">Ch 9</button>
+      <button class="ch-btn" data-filter="10" type="button">Ch 10</button>
+      <button class="ch-btn" data-filter="appendix" type="button">Appendix</button>
+    </div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="downloadBtn" type="button">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 12l-4-4h2.5V3h3v5H12L8 12zm-5 2h10v1.5H3V14z"/></svg>
+        Download .ipynb
+      </button>
+      <button class="icon-btn" id="settingsBtn" type="button">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M8 10.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5zm0-1a1.5 1.5 0 110-3 1.5 1.5 0 010 3z"/><path d="M6.022 1.678a5.979 5.979 0 011.956-.33c.67 0 1.33.113 1.956.33l.31 1.076c.38.13.742.303 1.08.513l1.077-.317a5.99 5.99 0 011.386 1.386l-.317 1.077c.21.338.384.7.513 1.08l1.076.31a5.979 5.979 0 010 3.912l-1.076.31a5.008 5.008 0 01-.513 1.08l.317 1.077a5.99 5.99 0 01-1.386 1.386l-1.077-.317a5.008 5.008 0 01-1.08.513l-.31 1.076a5.979 5.979 0 01-3.912 0l-.31-1.076a5.008 5.008 0 01-1.08-.513l-1.077.317A5.99 5.99 0 01.678 11.978l.317-1.077a5.008 5.008 0 01-.513-1.08L.406 9.51a5.979 5.979 0 010-3.02l1.076-.31a5.008 5.008 0 01.513-1.08L1.678 4.022A5.99 5.99 0 013.064 2.636l1.077.317a5.008 5.008 0 011.08-.513l.31-1.076z"/></svg>
+        Settings
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<div class="nb-hero">
+  <p class="nb-hero-eyebrow">Jupyter Notebook</p>
+  <h1 class="nb-hero-title">CUDA Programming in PyTorch</h1>
+  <p class="nb-hero-sub">10 chapters of runnable code — custom kernels, autograd integration, Triton, profiling, multi-GPU, and production packaging. Each chapter's cells are filterable and independently copyable.</p>
+  <div class="nb-hero-chips">
+    <span class="chip">10 chapters</span>
+    <span class="chip">Python + CUDA C++</span>
+    <span class="chip">Triton</span>
+    <span class="chip">torch.autograd</span>
+    <span class="chip">DDP</span>
+    <span class="chip">torch.compile</span>
+  </div>
+</div>
+
+<!-- NOTEBOOK OUTPUT -->
+<main class="nb-container" id="nbContainer"></main>
+
+<footer class="nb-footer">
+  <a href="cuda-pytorch-book.html">← Back to book</a>
+  &nbsp;·&nbsp;
+  <a href="gpu-accel-book.html">GPU &amp; Accelerator Book</a>
+  &nbsp;·&nbsp;
+  <span>Notebook viewer — rendered client-side</span>
+</footer>
+
+<script>
+// ============================================================
+// Notebook data (embedded cells)
+// ============================================================
+var CELLS = [
+{"id":"title","type":"markdown","ch":0,"src":"# CUDA Programming in PyTorch: A Practical Guide\n\nThis notebook accompanies the 10-chapter book. Each chapter section contains\nrunnable code examples. Chapters 3–5 require a CUDA GPU and an installed\nC++ compiler. Chapters 7–10 can be explored with PyTorch's CPU fallbacks.\n\n**Prerequisites**\n```\npip install torch torchvision --index-url https://download.pytorch.org/whl/cu121\npip install triton          # Chapter 7 (Linux only)\npip install tensorboard     # Chapter 8 profiler traces\n```"},
+{"id":"imports","type":"code","ch":0,"src":"import torch\nimport sys\n\nprint(f\"PyTorch  : {torch.__version__}\")\nprint(f\"Python   : {sys.version.split()[0]}\")\nprint(f\"CUDA avail: {torch.cuda.is_available()}\")\nif torch.cuda.is_available():\n    print(f\"CUDA ver : {torch.version.cuda}\")\n    print(f\"GPU      : {torch.cuda.get_device_name(0)}\")\n    print(f\"VRAM     : {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB\")"},
+
+{"id":"ch1-header","type":"markdown","ch":1,"src":"---\n## Chapter 1 — Why Custom CUDA in PyTorch?\n\nPyTorch dispatches every operator to a pre-written CUDA kernel.  \nChaining ops like `relu(x + bias)` launches two kernels with two HBM round-trips.\nA fused custom kernel does the same work in one pass."},
+{"id":"ch1-demo","type":"code","ch":1,"src":"import torch\n\ndevice = 'cuda' if torch.cuda.is_available() else 'cpu'\nx    = torch.randn(4096, 4096, device=device)\nbias = torch.randn(4096,       device=device)\n\n# Standard PyTorch: 2 kernel launches, 2 HBM round-trips\ndef unfused(x, bias):\n    return torch.relu(x + bias)\n\nimport torch.fx as fx\n\ndef count_ops(fn, *args):\n    \"\"\"Symbolically trace and count aten ops.\"\"\"\n    try:\n        traced = fx.symbolic_trace(fn)\n        ops = [n.target for n in traced.graph.nodes if n.op == 'call_function']\n        return ops\n    except Exception:\n        return [\"tracing not available for this function\"]\n\nimport torch.nn as nn\n\nclass UnfusedModel(nn.Module):\n    def forward(self, x, bias):\n        return torch.relu(x + bias)\n\nops = count_ops(UnfusedModel(), x, bias)\nprint(\"Operators in unfused relu(x + bias):\")\nfor op in ops:\n    print(f\"  {op}\")\n\nprint(\"\\nA fused kernel collapses all of these into a single kernel launch.\")"},
+
+{"id":"ch2-header","type":"markdown","ch":2,"src":"---\n## Chapter 2 — Environment & Project Setup\n\nVerify your environment matches a known-good configuration before writing any kernel code."},
+{"id":"ch2-env-check","type":"code","ch":2,"src":"import torch\nimport subprocess, shutil, sys\n\nprint(\"=== Environment check ===\")\nprint(f\"torch          : {torch.__version__}\")\nprint(f\"torch.cuda     : {torch.version.cuda}\")\n\nnvcc = shutil.which('nvcc')\nif nvcc:\n    result = subprocess.run(['nvcc', '--version'], capture_output=True, text=True)\n    nvcc_ver = result.stdout.splitlines()[-1].strip()\n    print(f\"nvcc           : {nvcc_ver}\")\nelse:\n    print(\"nvcc           : NOT FOUND (install CUDA Toolkit)\")\n\ncxx = shutil.which('c++') or shutil.which('g++')\nprint(f\"c++ compiler   : {cxx or 'NOT FOUND'}\")\n\nfrom torch.utils.cpp_extension import include_paths\nprint(\"\\nTorch include paths:\")\nfor p in include_paths(cuda=True)[:3]:\n    print(f\"  {p}\")"},
+{"id":"ch2-inline-ext","type":"code","ch":2,"src":"# Minimal inline extension (no .cu file needed — for CPU demo)\nfrom torch.utils.cpp_extension import load_inline\n\ncpp_src = \"\"\"\n#include <torch/extension.h>\ntorch::Tensor square_cpu(torch::Tensor x) {\n    return x * x;\n}\nPYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {\n    m.def(\"square\", &square_cpu, \"Square elements (CPU)\");\n}\n\"\"\"\n\next = load_inline(\n    name='square_ext',\n    cpp_sources=[cpp_src],\n    verbose=False,\n)\n\nx = torch.tensor([1.0, 2.0, 3.0, 4.0])\nout = ext.square(x)\nprint(\"Input : \", x.tolist())\nprint(\"Output:\", out.tolist())\nassert torch.allclose(out, x**2), \"Mismatch!\"\nprint(\"✓ inline extension works\")"},
+
+{"id":"ch3-header","type":"markdown","ch":3,"src":"---\n## Chapter 3 — Your First CUDA Kernel\n\nThe minimal pattern: `__global__` kernel → C++ launcher → pybind11 binding → Python call.\n\n> **Requires CUDA GPU.** The cell detects and skips gracefully on CPU-only machines."},
+{"id":"ch3-relu-kernel","type":"code","ch":3,"src":"import torch\nfrom torch.utils.cpp_extension import load_inline\n\nif not torch.cuda.is_available():\n    print(\"SKIP: No CUDA GPU detected.\")\nelse:\n    cuda_src = \"\"\"\n    #include <cuda_runtime.h>\n    #include <torch/extension.h>\n\n    __global__ void relu_kernel(const float* __restrict__ x,\n                                float* __restrict__ out, int N) {\n        int i = blockIdx.x * blockDim.x + threadIdx.x;\n        if (i < N) out[i] = x[i] > 0.f ? x[i] : 0.f;\n    }\n\n    torch::Tensor relu_cuda(torch::Tensor x) {\n        TORCH_CHECK(x.is_cuda(),       \"x must be a CUDA tensor\");\n        TORCH_CHECK(x.is_contiguous(), \"x must be contiguous\");\n        TORCH_CHECK(x.scalar_type() == torch::kFloat, \"float32 only\");\n        auto out = torch::empty_like(x);\n        int N = x.numel();\n        const int threads = 256;\n        const int blocks  = (N + threads - 1) / threads;\n        relu_kernel<<<blocks, threads>>>(\n            x.data_ptr<float>(), out.data_ptr<float>(), N);\n        return out;\n    }\n    \"\"\"\n\n    cpp_src = \"\"\"\n    torch::Tensor relu_cuda(torch::Tensor x);\n    PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {\n        m.def(\"relu\", &relu_cuda, \"Custom ReLU (CUDA)\");\n    }\n    \"\"\"\n\n    relu_ext = load_inline(\n        name='relu_ext',\n        cpp_sources=[cpp_src],\n        cuda_sources=[cuda_src],\n        extra_cuda_cflags=['-O3'],\n        verbose=False,\n    )\n\n    x = torch.randn(1_000_000, device='cuda')\n    out = relu_ext.relu(x)\n    ref = torch.relu(x)\n    assert torch.allclose(out, ref), \"Mismatch!\"\n    print(f\"✓ Custom ReLU correct on {x.numel():,} elements\")\n    print(f\"  max abs error: {(out - ref).abs().max().item():.2e}\")"},
+
+{"id":"ch4-header","type":"markdown","ch":4,"src":"---\n## Chapter 4 — Memory & Data Layout\n\nKey concepts: contiguous vs non-contiguous tensors, memory coalescing, stride-aware access."},
+{"id":"ch4-strides","type":"code","ch":4,"src":"import torch\n\nx = torch.randn(4, 6)\nprint(\"Original tensor:\")\nprint(f\"  shape  : {x.shape}\")\nprint(f\"  strides: {x.stride()}   ← row-major: move 6 floats to next row\")\nprint(f\"  contiguous: {x.is_contiguous()}\")\n\nxt = x.T\nprint(\"\\nTransposed tensor:\")\nprint(f\"  shape  : {xt.shape}\")\nprint(f\"  strides: {xt.stride()}   ← non-contiguous: stride[0]=1, stride[1]=6\")\nprint(f\"  contiguous: {xt.is_contiguous()}\")\n\nxt_c = xt.contiguous()\nprint(f\"\\nAfter .contiguous():\")\nprint(f\"  strides: {xt_c.stride()}\")\nprint(f\"  contiguous: {xt_c.is_contiguous()}\")\nprint(f\"  same storage? {xt.data_ptr() == xt_c.data_ptr()}\")"},
+{"id":"ch4-coalescing-demo","type":"code","ch":4,"src":"import torch\n\nif not torch.cuda.is_available():\n    print(\"SKIP: CUDA required for coalescing benchmark.\")\nelse:\n    N = 4096\n    x = torch.randn(N, N, device='cuda')\n\n    def bench(fn, repeats=200):\n        for _ in range(10): fn()  # warm-up\n        torch.cuda.synchronize()\n        start = torch.cuda.Event(enable_timing=True)\n        end   = torch.cuda.Event(enable_timing=True)\n        start.record()\n        for _ in range(repeats): fn()\n        end.record()\n        torch.cuda.synchronize()\n        return start.elapsed_time(end) / repeats  # ms\n\n    t_row = bench(lambda: x.sum(dim=1))\n    t_col = bench(lambda: x.sum(dim=0))\n\n    print(f\"Row sum   (coalesced-friendly): {t_row:.3f} ms\")\n    print(f\"Col sum   (transpose pattern) : {t_col:.3f} ms\")\n    print(f\"Ratio     : {t_col/t_row:.2f}x\")"},
+
+{"id":"ch5-header","type":"markdown","ch":5,"src":"---\n## Chapter 5 — Custom C++/CUDA Extensions\n\nMulti-dtype dispatch with `AT_DISPATCH_FLOATING_TYPES_AND_HALF` and TORCH_LIBRARY registration."},
+{"id":"ch5-gelu-cuda","type":"code","ch":5,"src":"import torch\nfrom torch.utils.cpp_extension import load_inline\n\nif not torch.cuda.is_available():\n    print(\"SKIP: CUDA required.\")\nelse:\n    cuda_src = \"\"\"\n    #include <cuda_runtime.h>\n    #include <torch/extension.h>\n\n    template <typename scalar_t>\n    __global__ void gelu_kernel(const scalar_t* __restrict__ x,\n                                scalar_t* __restrict__ out, int N) {\n        int i = blockIdx.x * blockDim.x + threadIdx.x;\n        if (i < N) {\n            float v  = static_cast<float>(x[i]);\n            const float c = 0.7978845608f;\n            float t = c * (v + 0.044715f * v * v * v);\n            out[i] = static_cast<scalar_t>(0.5f * v * (1.f + tanhf(t)));\n        }\n    }\n\n    torch::Tensor gelu_cuda(torch::Tensor x) {\n        TORCH_CHECK(x.is_cuda());\n        auto out = torch::empty_like(x);\n        int N = x.numel();\n        int threads = 256, blocks = (N + 255) / 256;\n        AT_DISPATCH_FLOATING_TYPES_AND_HALF(x.scalar_type(), \"gelu_cuda\", [&]() {\n            gelu_kernel<scalar_t><<<blocks, threads>>>(\n                x.data_ptr<scalar_t>(), out.data_ptr<scalar_t>(), N);\n        });\n        return out;\n    }\n    \"\"\"\n\n    cpp_src = \"\"\"\n    torch::Tensor gelu_cuda(torch::Tensor x);\n    PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {\n        m.def(\"gelu\", &gelu_cuda, \"Custom GELU (float32 + float16)\");\n    }\n    \"\"\"\n\n    gelu_ext = load_inline(\n        name='gelu_ext',\n        cpp_sources=[cpp_src],\n        cuda_sources=[cuda_src],\n        extra_cuda_cflags=['-O3'],\n        verbose=False,\n    )\n\n    for dtype in [torch.float32, torch.float16]:\n        x   = torch.randn(2**20, device='cuda', dtype=dtype)\n        out = gelu_ext.gelu(x)\n        ref = torch.nn.functional.gelu(x)\n        tol = 1e-3 if dtype == torch.float16 else 1e-5\n        ok  = torch.allclose(out.float(), ref.float(), atol=tol)\n        print(f\"dtype={dtype}: max_err={( out.float()-ref.float()).abs().max():.2e}  {'✓' if ok else '✗'}\")"},
+
+{"id":"ch6-header","type":"markdown","ch":6,"src":"---\n## Chapter 6 — Autograd Integration\n\nWrap a custom forward+backward in `torch.autograd.Function` and verify gradients."},
+{"id":"ch6-autograd-fn","type":"code","ch":6,"src":"import torch\n\nclass GeluFunction(torch.autograd.Function):\n    @staticmethod\n    def forward(ctx, x: torch.Tensor) -> torch.Tensor:\n        ctx.save_for_backward(x)\n        c = 0.7978845608\n        return 0.5 * x * (1.0 + torch.tanh(c * (x + 0.044715 * x**3)))\n\n    @staticmethod\n    def backward(ctx, grad_out: torch.Tensor) -> torch.Tensor:\n        (x,) = ctx.saved_tensors\n        c   = 0.7978845608\n        t   = torch.tanh(c * (x + 0.044715 * x**3))\n        dgelu = 0.5 * (1.0 + t) + 0.5 * x * (1.0 - t**2) * c * (1.0 + 3*0.044715 * x**2)\n        return grad_out * dgelu\n\ndef fast_gelu(x):\n    return GeluFunction.apply(x)\n\nx = torch.randn(128, dtype=torch.float64, requires_grad=True)\nout = fast_gelu(x)\nref = torch.nn.functional.gelu(x)\nprint(f\"Forward max_err : {(out - ref).abs().max().item():.2e}\")\n\nx_gc = torch.randn(16, dtype=torch.float64, requires_grad=True)\nok = torch.autograd.gradcheck(fast_gelu, (x_gc,), eps=1e-5, atol=1e-4)\nprint(f\"gradcheck       : {'PASSED ✓' if ok else 'FAILED ✗'}\")"},
+{"id":"ch6-training-loop","type":"code","ch":6,"src":"import torch\nimport torch.nn as nn\n\nclass CustomGeluMLP(nn.Module):\n    def __init__(self, d_in, d_hidden, d_out):\n        super().__init__()\n        self.fc1 = nn.Linear(d_in,     d_hidden)\n        self.fc2 = nn.Linear(d_hidden, d_out)\n\n    def forward(self, x):\n        return self.fc2(fast_gelu(self.fc1(x)))\n\ndevice = 'cuda' if torch.cuda.is_available() else 'cpu'\nmodel  = CustomGeluMLP(64, 256, 10).to(device)\noptim  = torch.optim.Adam(model.parameters(), lr=1e-3)\n\nlosses = []\nfor step in range(50):\n    x      = torch.randn(32, 64, device=device)\n    target = torch.randint(10, (32,), device=device)\n    loss   = nn.functional.cross_entropy(model(x), target)\n    loss.backward()\n    optim.step()\n    optim.zero_grad()\n    losses.append(loss.item())\n\nprint(f\"Training with custom GELU on {device}\")\nprint(f\"  initial loss : {losses[0]:.4f}\")\nprint(f\"  final   loss : {losses[-1]:.4f}\")\nprint(\"  ✓ gradients flow through custom Function\")"},
+
+{"id":"ch7-header","type":"markdown","ch":7,"src":"---\n## Chapter 7 — Triton: Python-Level Kernels\n\nTriton lets you write tile-level GPU kernels in Python. No `threadIdx`, no warp-level intrinsics — Triton handles scheduling.\n\n> **Requires `triton` package** (`pip install triton`) and a CUDA GPU."},
+{"id":"ch7-triton-check","type":"code","ch":7,"src":"try:\n    import triton\n    import triton.language as tl\n    print(f\"Triton version: {triton.__version__}\")\n    HAS_TRITON = True\nexcept ImportError:\n    print(\"triton not installed — run: pip install triton\")\n    HAS_TRITON = False"},
+{"id":"ch7-softmax-kernel","type":"code","ch":7,"src":"if not (HAS_TRITON and torch.cuda.is_available()):\n    print(\"SKIP: Triton + CUDA required.\")\nelse:\n    import triton\n    import triton.language as tl\n    import torch\n\n    @triton.jit\n    def softmax_kernel(\n        X_ptr, Out_ptr,\n        stride_row,\n        N: tl.constexpr,\n        BLOCK: tl.constexpr,\n    ):\n        row  = tl.program_id(0)\n        cols = tl.arange(0, BLOCK)\n        mask = cols < N\n        x    = tl.load(X_ptr + row * stride_row + cols,\n                       mask=mask, other=-float('inf'))\n        x    = x - tl.max(x, axis=0)\n        x    = tl.exp(x)\n        x    = x / tl.sum(x, axis=0)\n        tl.store(Out_ptr + row * stride_row + cols, x, mask=mask)\n\n    def triton_softmax(x: torch.Tensor) -> torch.Tensor:\n        rows, cols = x.shape\n        out   = torch.empty_like(x)\n        BLOCK = triton.next_power_of_2(cols)\n        softmax_kernel[(rows,)](\n            x, out,\n            stride_row=x.stride(0),\n            N=cols,\n            BLOCK=BLOCK,\n            num_warps=4 if BLOCK <= 2048 else 8,\n        )\n        return out\n\n    x   = torch.randn(512, 1024, device='cuda')\n    out = triton_softmax(x)\n    ref = torch.softmax(x, dim=1)\n    print(f\"Triton softmax max_err: {(out - ref).abs().max().item():.2e}\")\n    assert torch.allclose(out, ref, atol=1e-5)\n    print(\"✓ Triton softmax matches torch.softmax\")"},
+{"id":"ch7-triton-bench","type":"code","ch":7,"src":"if not (HAS_TRITON and torch.cuda.is_available()):\n    print(\"SKIP.\")\nelse:\n    import torch\n\n    def bench_ms(fn, repeats=200, warmup=25):\n        for _ in range(warmup): fn()\n        torch.cuda.synchronize()\n        s = torch.cuda.Event(enable_timing=True)\n        e = torch.cuda.Event(enable_timing=True)\n        s.record()\n        for _ in range(repeats): fn()\n        e.record()\n        torch.cuda.synchronize()\n        return s.elapsed_time(e) / repeats\n\n    x = torch.randn(2048, 2048, device='cuda')\n    t_triton = bench_ms(lambda: triton_softmax(x))\n    t_torch  = bench_ms(lambda: torch.softmax(x, dim=1))\n\n    print(f\"Triton softmax : {t_triton:.3f} ms\")\n    print(f\"torch.softmax  : {t_torch:.3f}  ms\")\n    print(f\"Ratio          : {t_triton/t_torch:.2f}x\")"},
+
+{"id":"ch8-header","type":"markdown","ch":8,"src":"---\n## Chapter 8 — Profiling & Benchmarking\n\nThe reusable benchmark harness from the book, plus PyTorch Profiler."},
+{"id":"ch8-benchmark-harness","type":"code","ch":8,"src":"import torch\n\ndef benchmark(fn, *args, warmup=25, repeats=200):\n    \"\"\"\n    GPU-side benchmark using CUDA Events.\n    Returns median elapsed time in milliseconds.\n    \"\"\"\n    if not torch.cuda.is_available():\n        raise RuntimeError(\"CUDA required\")\n\n    for _ in range(warmup):\n        fn(*args)\n    torch.cuda.synchronize()\n\n    start = torch.cuda.Event(enable_timing=True)\n    end   = torch.cuda.Event(enable_timing=True)\n    times = []\n\n    for _ in range(repeats):\n        start.record()\n        fn(*args)\n        end.record()\n        torch.cuda.synchronize()\n        times.append(start.elapsed_time(end))\n\n    times.sort()\n    return times[len(times) // 2]  # median\n\nif torch.cuda.is_available():\n    x = torch.randn(4096, 4096, device='cuda', dtype=torch.float16)\n    t_relu  = benchmark(torch.relu, x)\n    t_gelu  = benchmark(torch.nn.functional.gelu, x)\n    t_silu  = benchmark(torch.nn.functional.silu, x)\n    bytes_rw = 2 * x.numel() * x.element_size()\n    print(f\"Activation benchmark on {x.shape} float16 tensor\")\n    print(f\"{'Op':<12} {'ms':>8} {'TB/s':>8}\")\n    print(\"-\" * 32)\n    for name, t in [(\"relu\", t_relu), (\"gelu\", t_gelu), (\"silu\", t_silu)]:\n        bw = bytes_rw / (t * 1e-3) / 1e12\n        print(f\"{name:<12} {t:>8.3f} {bw:>8.2f}\")\nelse:\n    print(\"SKIP: CUDA required for benchmark.\")"},
+{"id":"ch8-profiler","type":"code","ch":8,"src":"import torch\nimport torch.nn as nn\nfrom torch.profiler import profile, record_function, ProfilerActivity\n\ndevice = 'cuda' if torch.cuda.is_available() else 'cpu'\n\nmodel  = nn.Sequential(\n    nn.Linear(512, 2048), nn.GELU(),\n    nn.Linear(2048, 512),\n).to(device)\n\nx = torch.randn(128, 512, device=device)\n\nactivities = [ProfilerActivity.CPU]\nif torch.cuda.is_available():\n    activities.append(ProfilerActivity.CUDA)\n\nwith profile(\n    activities=activities,\n    record_shapes=True,\n    with_stack=False,\n) as prof:\n    for _ in range(5):\n        with record_function(\"forward\"):\n            out = model(x)\n        with record_function(\"backward\"):\n            out.sum().backward()\n\nsort_by = 'cuda_time_total' if torch.cuda.is_available() else 'cpu_time_total'\nprint(prof.key_averages().table(sort_by=sort_by, row_limit=10))"},
+
+{"id":"ch9-header","type":"markdown","ch":9,"src":"---\n## Chapter 9 — Multi-GPU & CUDA Streams\n\nCUDA streams for compute/transfer overlap; DistributedDataParallel (DDP) for multi-GPU training."},
+{"id":"ch9-streams","type":"code","ch":9,"src":"import torch\n\nif not torch.cuda.is_available():\n    print(\"SKIP: CUDA required.\")\nelse:\n    compute_stream  = torch.cuda.Stream()\n    transfer_stream = torch.cuda.Stream()\n\n    x_cpu = torch.randn(8192, 8192, pin_memory=True)\n\n    with torch.cuda.stream(transfer_stream):\n        x_gpu = x_cpu.to('cuda', non_blocking=True)\n\n    compute_stream.wait_stream(transfer_stream)\n\n    with torch.cuda.stream(compute_stream):\n        result = torch.relu(x_gpu)\n\n    torch.cuda.synchronize()\n    print(f\"Result shape: {result.shape}, sum: {result.sum().item():.2f}\")\n    print(\"✓ Compute/transfer overlap using CUDA streams\")"},
+{"id":"ch9-multi-gpu-info","type":"code","ch":9,"src":"import torch\n\nn = torch.cuda.device_count()\nprint(f\"Available CUDA devices: {n}\")\nfor i in range(n):\n    p = torch.cuda.get_device_properties(i)\n    print(f\"  [{i}] {p.name} — {p.total_memory / 1e9:.1f} GB VRAM  \"\n          f\"(sm_{p.major}{p.minor}, {p.multi_processor_count} SMs)\")\n\nif n >= 2:\n    x  = torch.randn(1024, 512)\n    x0 = x[:512].cuda(0)\n    x1 = x[512:].cuda(1)\n    print(f\"\\nTensor split across 2 GPUs:\")\n    print(f\"  GPU 0 shard: {x0.shape}\")\n    print(f\"  GPU 1 shard: {x1.shape}\")\nelif n == 1:\n    print(\"\\nOnly 1 GPU — DDP example omitted (requires 2+).\")\nelse:\n    print(\"\\nNo GPU — multi-GPU examples require CUDA hardware.\")"},
+{"id":"ch9-ddp-snippet","type":"code","ch":9,"src":"# DDP training loop — reference code\n# Launch with: torchrun --nproc_per_node=NUM_GPUS train.py\n\nDDP_TEMPLATE = '''\nimport os, torch\nimport torch.distributed as dist\nfrom torch.nn.parallel import DistributedDataParallel as DDP\n\ndef setup(rank, world_size):\n    os.environ[\"MASTER_ADDR\"] = \"localhost\"\n    os.environ[\"MASTER_PORT\"] = \"12355\"\n    dist.init_process_group(\"nccl\", rank=rank, world_size=world_size)\n\ndef train(rank, world_size):\n    setup(rank, world_size)\n    torch.cuda.set_device(rank)\n    model = MyModel().cuda(rank)\n    model = DDP(model, device_ids=[rank])\n    optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)\n    for batch in dataloader:\n        out  = model(batch[\"x\"].cuda(rank))\n        loss = out.sum()\n        loss.backward()\n        optimizer.step(); optimizer.zero_grad()\n    dist.destroy_process_group()\n'''\n\nprint(\"DDP template (save as train.py):\")\nprint(DDP_TEMPLATE)"},
+
+{"id":"ch10-header","type":"markdown","ch":10,"src":"---\n## Chapter 10 — Packaging & Production\n\nAbstract (meta) functions for `torch.compile` compatibility; multi-arch `setup.py`; CPU fallback dispatcher."},
+{"id":"ch10-torch-library","type":"code","ch":10,"src":"import torch\nfrom torch.library import Library, impl\n\nlib = Library(\"demo_ops\", \"DEF\")\nlib.define(\"gelu(Tensor x) -> Tensor\")\n\n@impl(lib, \"gelu\", \"CPU\")\ndef _gelu_cpu(x):\n    return torch.nn.functional.gelu(x)\n\nif torch.cuda.is_available():\n    @impl(lib, \"gelu\", \"CUDA\")\n    def _gelu_cuda(x):\n        return torch.nn.functional.gelu(x)  # placeholder\n\nfrom torch.library import impl_abstract\n@impl_abstract(\"demo_ops::gelu\")\ndef _gelu_abstract(x):\n    return torch.empty_like(x)\n\ndevice = 'cuda' if torch.cuda.is_available() else 'cpu'\nx = torch.randn(8, device=device)\nout = torch.ops.demo_ops.gelu(x)\nprint(f\"torch.ops.demo_ops.gelu: {out.shape} on {out.device}\")\nprint(f\"max_err vs reference   : {(out - torch.nn.functional.gelu(x)).abs().max().item():.2e}\")"},
+{"id":"ch10-torch-compile","type":"code","ch":10,"src":"import torch\n\ndevice = 'cuda' if torch.cuda.is_available() else 'cpu'\n\ndef model_fn(x):\n    return torch.ops.demo_ops.gelu(x) * 2.0\n\ncompiled = torch.compile(model_fn)\n\nx   = torch.randn(512, device=device)\nout = compiled(x)\nprint(f\"torch.compile output shape: {out.shape}\")\nprint(\"✓ Custom op is torch.compile-compatible\")"},
+{"id":"ch10-setup-py-template","type":"code","ch":10,"src":"SETUP_PY_TEMPLATE = '''\n# setup.py for a production CUDA extension wheel\nfrom setuptools import setup, find_packages\nfrom torch.utils.cpp_extension import BuildExtension, CUDAExtension\n\nARCHS = [\"70\", \"80\", \"89\", \"90\"]\ngencode = []\nfor arch in ARCHS:\n    gencode += [f\"-gencode=arch=compute_{arch},code=sm_{arch}\"]\ngencode += [\"-gencode=arch=compute_90,code=compute_90\"]  # PTX fallback\n\nsetup(\n    name=\"my_cuda_ops\",\n    version=\"0.1.0\",\n    packages=find_packages(),\n    ext_modules=[CUDAExtension(\n        \"my_cuda_ops._C\",\n        sources=[\"csrc/ops.cpp\", \"csrc/gelu_kernel.cu\"],\n        extra_compile_args={\n            \"cxx\":  [\"-O3\", \"-std=c++17\"],\n            \"nvcc\": [\"-O3\", \"--use_fast_math\"] + gencode,\n        },\n    )],\n    cmdclass={\"build_ext\": BuildExtension},\n)\n# Build wheel: python setup.py bdist_wheel\n'''\nprint(SETUP_PY_TEMPLATE)"},
+
+{"id":"appendix","type":"markdown","ch":"appendix","src":"---\n## Appendix — Quick Reference\n\n| Chapter | Core concept | Key API |\n|---------|-------------|--------|\n| 1 — Why custom CUDA | Framework ceiling, HBM round-trips | PyTorch dispatch |\n| 2 — Setup | CUDA toolkit ↔ PyTorch ABI | `load()`, `CUDAExtension`, nvcc |\n| 3 — First kernel | `__global__`, `data_ptr`, grid/block | `load_inline`, pybind11 |\n| 4 — Memory | Strides, coalescing, `__shared__` | `PackedTensorAccessor` |\n| 5 — Custom extensions | Multi-dtype dispatch, shape checks | `AT_DISPATCH`, `TORCH_LIBRARY` |\n| 6 — Autograd | Custom forward + backward | `torch.autograd.Function`, `gradcheck` |\n| 7 — Triton | Tile-level Python kernels | `@triton.jit`, `tl.load`/`tl.store` |\n| 8 — Profiling | CUDA Events, roofline | `torch.profiler`, `ncu` |\n| 9 — Multi-GPU | Streams, device guards, DDP | `torch.cuda.Stream`, `DDP` |\n| 10 — Production | Multi-arch, compile compat | `impl_abstract`, `setup.py`, wheels |"}
+];
+
+// ============================================================
+// Markdown renderer (minimal, no deps)
+// ============================================================
+function renderMarkdown(src) {
+  var lines = src.split('\n');
+  var html = '';
+  var i = 0;
+  var inUl = false, inOl = false;
+
+  function closeLists() {
+    if (inUl) { html += '</ul>'; inUl = false; }
+    if (inOl) { html += '</ol>'; inOl = false; }
+  }
+
+  function inlineCode(s) {
+    return s
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+      .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+      .replace(/^> (.+)$/, '<blockquote>$1</blockquote>');
+  }
+
+  while (i < lines.length) {
+    var line = lines[i];
+
+    // fenced code block
+    if (line.startsWith('```')) {
+      closeLists();
+      var lang = line.slice(3).trim();
+      var codeLines = [];
+      i++;
+      while (i < lines.length && !lines[i].startsWith('```')) {
+        codeLines.push(lines[i].replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'));
+        i++;
+      }
+      html += '<pre><code>' + codeLines.join('\n') + '</code></pre>';
+      i++; continue;
+    }
+
+    // hr
+    if (/^-{3,}$/.test(line.trim())) { closeLists(); html += '<hr>'; i++; continue; }
+
+    // headings
+    var hm = line.match(/^(#{1,3}) (.+)/);
+    if (hm) {
+      closeLists();
+      var level = hm[1].length;
+      html += '<h' + level + '>' + inlineCode(hm[2]) + '</h' + level + '>';
+      i++; continue;
+    }
+
+    // table
+    if (line.includes('|') && lines[i+1] && /^\|[-| ]+\|$/.test(lines[i+1])) {
+      closeLists();
+      var headers = line.split('|').filter(function(c){return c.trim();}).map(function(c){return '<th>'+inlineCode(c.trim())+'</th>';});
+      html += '<table><thead><tr>' + headers.join('') + '</tr></thead><tbody>';
+      i += 2;
+      while (i < lines.length && lines[i].includes('|')) {
+        var cells = lines[i].split('|').filter(function(c){return c.trim();}).map(function(c){return '<td>'+inlineCode(c.trim())+'</td>';});
+        html += '<tr>' + cells.join('') + '</tr>';
+        i++;
+      }
+      html += '</tbody></table>'; continue;
+    }
+
+    // blockquote
+    if (line.startsWith('> ')) {
+      closeLists();
+      html += '<blockquote>' + inlineCode(line.slice(2)) + '</blockquote>';
+      i++; continue;
+    }
+
+    // unordered list
+    if (/^[-*] /.test(line)) {
+      if (!inUl) { if (inOl){html+='</ol>';inOl=false;} html += '<ul>'; inUl = true; }
+      html += '<li>' + inlineCode(line.replace(/^[-*] /, '')) + '</li>';
+      i++; continue;
+    }
+
+    // ordered list
+    if (/^\d+\. /.test(line)) {
+      if (!inOl) { if (inUl){html+='</ul>';inUl=false;} html += '<ol>'; inOl = true; }
+      html += '<li>' + inlineCode(line.replace(/^\d+\. /, '')) + '</li>';
+      i++; continue;
+    }
+
+    closeLists();
+
+    // blank line
+    if (!line.trim()) { i++; continue; }
+
+    // paragraph
+    html += '<p>' + inlineCode(line) + '</p>';
+    i++;
+  }
+  closeLists();
+  return html;
+}
+
+// ============================================================
+// Python syntax highlighter
+// ============================================================
+function highlightPython(code) {
+  var keywords = ['False','None','True','and','as','assert','async','await',
+    'break','class','continue','def','del','elif','else','except','finally',
+    'for','from','global','if','import','in','is','lambda','not','or','pass',
+    'raise','return','try','while','with','yield'];
+  var builtins = ['abs','all','any','bool','bytes','dict','dir','enumerate',
+    'filter','float','format','getattr','hasattr','int','isinstance','len',
+    'list','map','max','min','next','open','print','range','repr','reversed',
+    'round','set','sorted','str','sum','super','tuple','type','vars','zip'];
+
+  // Escape HTML first
+  var s = code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // Process line by line to handle strings and comments safely
+  var lines = s.split('\n');
+  var result = lines.map(function(line) {
+    var out = '';
+    var i = 0;
+    while (i < line.length) {
+      // comment
+      if (line[i] === '#') {
+        out += '<span class="py-cm">' + line.slice(i) + '</span>';
+        i = line.length;
+        continue;
+      }
+      // triple-quoted strings (already escaped)
+      if (line.slice(i,i+3) === '&qu' || line.slice(i,i+6) === '&quot;') {
+        // simplistic: just pass through
+      }
+      // strings: ' or "
+      if (line[i] === '"' || line[i] === "'") {
+        var q = line[i];
+        var j = i + 1;
+        while (j < line.length) {
+          if (line[j] === '\\') { j += 2; continue; }
+          if (line[j] === q) { j++; break; }
+          j++;
+        }
+        out += '<span class="py-str">' + line.slice(i, j) + '</span>';
+        i = j;
+        continue;
+      }
+      // numbers
+      if (/[0-9]/.test(line[i]) && (i === 0 || /[\s,(=+\-*\/[{]/.test(line[i-1]))) {
+        var k = i;
+        while (k < line.length && /[0-9_\.eExXxb]/.test(line[k])) k++;
+        out += '<span class="py-num">' + line.slice(i, k) + '</span>';
+        i = k;
+        continue;
+      }
+      // decorators
+      if (line[i] === '@') {
+        var d = i + 1;  // start after '@' so d always advances past i
+        while (d < line.length && /[\w\.]/.test(line[d])) d++;
+        out += '<span class="py-dec">' + line.slice(i, d) + '</span>';
+        i = d;
+        continue;
+      }
+      // words: keywords, builtins, class names
+      if (/[a-zA-Z_]/.test(line[i])) {
+        var w = i;
+        while (w < line.length && /[\w]/.test(line[w])) w++;
+        var word = line.slice(i, w);
+        if (keywords.indexOf(word) >= 0) {
+          out += '<span class="py-kw">' + word + '</span>';
+        } else if (builtins.indexOf(word) >= 0) {
+          out += '<span class="py-bi">' + word + '</span>';
+        } else if (/^[A-Z][a-zA-Z0-9_]*$/.test(word)) {
+          out += '<span class="py-cls">' + word + '</span>';
+        } else {
+          out += word;
+        }
+        i = w;
+        continue;
+      }
+      out += line[i];
+      i++;
+    }
+    return out;
+  });
+  return result.join('\n');
+}
+
+// ============================================================
+// CUDA/C++ syntax highlighter
+// ============================================================
+function highlightCuda(code) {
+  var keywords = ['auto','bool','break','case','char','class','const','continue',
+    'default','do','double','else','enum','explicit','extern','false','float',
+    'for','if','inline','int','long','namespace','new','nullptr','operator',
+    'private','protected','public','return','short','signed','sizeof','static',
+    'struct','switch','template','this','throw','true','try','typedef','typename',
+    'unsigned','using','virtual','void','while'];
+  var cudaKw = ['__global__','__device__','__host__','__shared__','__constant__',
+    '__restrict__','blockIdx','blockDim','threadIdx','gridDim','warpSize'];
+
+  var s = code.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  var lines = s.split('\n');
+  var result = lines.map(function(line) {
+    // preprocessor
+    if (/^\s*#/.test(line.replace(/&lt;/g,'<').replace(/&gt;/,'>'))) {
+      return '<span class="cpp-pp">' + line + '</span>';
+    }
+    var out = '';
+    var i = 0;
+    while (i < line.length) {
+      // C++ comment
+      if (line.slice(i,i+2) === '//') {
+        out += '<span class="cpp-cm">' + line.slice(i) + '</span>';
+        i = line.length; continue;
+      }
+      // strings
+      if (line[i] === '"') {
+        var j = i+1;
+        while (j < line.length && line[j] !== '"') { if (line[j]==='\\') j++; j++; }
+        out += '<span class="cpp-str">' + line.slice(i, j+1) + '</span>';
+        i = j+1; continue;
+      }
+      // numbers
+      if (/[0-9]/.test(line[i]) && (i===0||/[\s,(=+\-*\/[{<>]/.test(line[i-1]))) {
+        var k = i;
+        while (k < line.length && /[0-9_\.eExXxbfuUlL]/.test(line[k])) k++;
+        out += '<span class="cpp-num">' + line.slice(i, k) + '</span>';
+        i = k; continue;
+      }
+      // words
+      if (/[a-zA-Z_]/.test(line[i])) {
+        var w = i;
+        while (w < line.length && /[\w]/.test(line[w])) w++;
+        var word = line.slice(i, w);
+        if (cudaKw.indexOf(word) >= 0) {
+          out += '<span class="cpp-attr">' + word + '</span>';
+        } else if (keywords.indexOf(word) >= 0) {
+          out += '<span class="cpp-kw">' + word + '</span>';
+        } else if (/^[A-Z][a-zA-Z0-9_]*$/.test(word) || word === 'scalar_t') {
+          out += '<span class="cpp-tp">' + word + '</span>';
+        } else {
+          out += word;
+        }
+        i = w; continue;
+      }
+      out += line[i]; i++;
+    }
+    return out;
+  });
+  return result.join('\n');
+}
+
+// ============================================================
+// Detect if a code cell contains CUDA/C++ embedded string
+// ============================================================
+function detectLang(src) {
+  if (src.includes('__global__') || src.includes('#include') || src.includes('cuda_src') || src.includes('cpp_src')) return 'python+cuda';
+  return 'python';
+}
+
+// ============================================================
+// Render notebook
+// ============================================================
+var S = (function(){
+  var KEY = 'cuda-nb-viewer-v1';
+  var DEF = {theme:'dark',fontSize:15,width:960,lineNums:true,collapseDefault:false};
+  try { var r = localStorage.getItem(KEY); return r ? Object.assign({},DEF,JSON.parse(r)) : Object.assign({},DEF); } catch(e){ return Object.assign({},DEF); }
+})();
+var SKEY = 'cuda-nb-viewer-v1';
+
+function saveS() { try{localStorage.setItem(SKEY,JSON.stringify(S));}catch(e){} }
+
+function applySettings() {
+  document.body.setAttribute('data-theme', S.theme);
+  document.documentElement.style.setProperty('--user-font-size', S.fontSize+'px');
+  document.documentElement.style.setProperty('--maxw', S.width+'px');
+  // sync UI
+  document.querySelectorAll('.theme-swatch').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-theme') === S.theme);
+  });
+  var fR = document.getElementById('fontSizeRange'), fV = document.getElementById('fontSizeValue');
+  if(fR) fR.value = S.fontSize; if(fV) fV.textContent = S.fontSize+'px';
+  var wR = document.getElementById('widthRange'), wV = document.getElementById('widthValue');
+  if(wR) wR.value = S.width; if(wV) wV.textContent = S.width+'px';
+  var lN = document.getElementById('lineNumToggle'); if(lN) lN.checked = S.lineNums;
+  var cD = document.getElementById('collapseToggle'); if(cD) cD.checked = S.collapseDefault;
+  // apply line numbers visibility
+  document.querySelectorAll('.nb-cell-gutter').forEach(function(g){
+    g.style.display = S.lineNums ? '' : 'none';
+  });
+}
+
+var codeCount = 0;
+var chTitles = {
+  1: 'Why Custom CUDA in PyTorch?',
+  2: 'Environment & Project Setup',
+  3: 'Your First CUDA Kernel',
+  4: 'Memory & Data Layout',
+  5: 'Custom C++/CUDA Extensions',
+  6: 'Autograd Integration',
+  7: 'Triton: Python-Level Kernels',
+  8: 'Profiling & Benchmarking',
+  9: 'Multi-GPU & CUDA Streams',
+  10: 'Packaging & Production',
+  appendix: 'Appendix'
+};
+
+function buildNotebook() {
+  var container = document.getElementById('nbContainer');
+  var cellNum = 0;
+  var codeCellIdx = 0;
+  var lastCh = null;
+
+  var codeCells = CELLS.filter(function(c){return c.type==='code';});
+  document.querySelector('.nb-meta').innerHTML =
+    '<span>' + CELLS.length + '</span> total cells &nbsp;·&nbsp; ' +
+    '<span>' + codeCells.length + '</span> code cells &nbsp;·&nbsp; ' +
+    '<span>' + CELLS.filter(function(c){return c.type==='markdown';}).length + '</span> markdown cells';
+
+  CELLS.forEach(function(cell) {
+    cellNum++;
+    var chAttr = 'data-ch="' + cell.ch + '"';
+
+    if (cell.type === 'markdown') {
+      // Chapter section divider
+      if (cell.id.endsWith('-header') && cell.ch && cell.ch !== lastCh) {
+        lastCh = cell.ch;
+      }
+
+      var div = document.createElement('div');
+      div.className = 'nb-cell';
+      div.setAttribute('data-ch', cell.ch);
+      div.innerHTML =
+        '<div class="nb-cell-gutter">' + cellNum + '</div>' +
+        '<div class="nb-cell-body"><div class="md-cell">' +
+        renderMarkdown(cell.src) +
+        '</div></div>';
+      container.appendChild(div);
+
+    } else {
+      codeCellIdx++;
+      var idx = codeCellIdx;
+      var lang = detectLang(cell.src);
+      var langLabel = lang === 'python+cuda' ? 'Python + CUDA C++' : 'Python';
+
+      // Choose highlighter — for mixed cells show Python highlight
+      var highlighted = highlightPython(cell.src);
+
+      var cellEl = document.createElement('div');
+      cellEl.className = 'nb-cell' + (S.collapseDefault ? ' collapsed-init' : '');
+      cellEl.setAttribute('data-ch', cell.ch);
+      cellEl.id = 'cell-' + cell.id;
+
+      var colClass = S.collapseDefault ? ' collapsed' : '';
+
+      cellEl.innerHTML =
+        '<div class="nb-cell-gutter code-gutter">[' + idx + ']</div>' +
+        '<div class="nb-cell-body">' +
+          '<div class="code-cell' + colClass + '" id="cc-' + idx + '">' +
+            '<div class="code-cell-header">' +
+              '<span class="code-lang">' + langLabel + '</span>' +
+              '<div class="code-actions">' +
+                '<button class="copy-btn" data-target="' + idx + '" type="button">' +
+                  '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V2zm2 0v10h8V2H6zM2 4a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-1h-2v1H2V6h1V4H2z"/></svg>' +
+                  'Copy' +
+                '</button>' +
+                '<button class="collapse-btn" data-target="' + idx + '" type="button" title="Collapse/expand">▾</button>' +
+              '</div>' +
+            '</div>' +
+            '<div class="code-source" id="cs-' + idx + '">' +
+              '<pre>' + highlighted + '</pre>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+
+      container.appendChild(cellEl);
+    }
+  });
+}
+
+// ============================================================
+// Chapter filter
+// ============================================================
+function initFilter() {
+  document.querySelectorAll('.ch-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('.ch-btn').forEach(function(b){b.classList.remove('active');});
+      btn.classList.add('active');
+      var f = btn.getAttribute('data-filter');
+      document.querySelectorAll('.nb-cell').forEach(function(cell) {
+        var ch = cell.getAttribute('data-ch');
+        if (f === 'all') {
+          cell.classList.remove('hidden');
+        } else {
+          cell.classList.toggle('hidden', String(ch) !== String(f));
+        }
+      });
+      if (f !== 'all') {
+        var first = document.querySelector('.nb-cell:not(.hidden)');
+        if (first) first.scrollIntoView({behavior:'smooth', block:'start'});
+      }
+    });
+  });
+}
+
+// ============================================================
+// Copy buttons
+// ============================================================
+function initCopyButtons() {
+  document.getElementById('nbContainer').addEventListener('click', function(e) {
+    var btn = e.target.closest('.copy-btn');
+    if (!btn) return;
+    var idx = btn.getAttribute('data-target');
+    var pre = document.querySelector('#cs-' + idx + ' pre');
+    if (!pre) return;
+    var text = pre.textContent;
+    navigator.clipboard.writeText(text).then(function() {
+      btn.classList.add('copied');
+      btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/></svg> Copied!';
+      setTimeout(function() {
+        btn.classList.remove('copied');
+        btn.innerHTML = '<svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M4 2a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V2zm2 0v10h8V2H6zM2 4a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-1h-2v1H2V6h1V4H2z"/></svg> Copy';
+      }, 2000);
+    });
+  });
+
+  // Collapse buttons
+  document.getElementById('nbContainer').addEventListener('click', function(e) {
+    var btn = e.target.closest('.collapse-btn');
+    if (!btn) return;
+    var idx = btn.getAttribute('data-target');
+    var cc = document.getElementById('cc-' + idx);
+    if (!cc) return;
+    var collapsed = cc.classList.toggle('collapsed');
+    btn.textContent = collapsed ? '▸' : '▾';
+  });
+}
+
+// ============================================================
+// Download button
+// ============================================================
+function initDownload() {
+  document.getElementById('downloadBtn').addEventListener('click', function() {
+    fetch('cuda_pytorch_guide.ipynb')
+      .then(function(r){return r.blob();})
+      .then(function(blob){
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = 'cuda_pytorch_guide.ipynb';
+        a.click(); URL.revokeObjectURL(url);
+      })
+      .catch(function() {
+        // Fallback: rebuild from cells
+        var nbObj = {
+          nbformat: 4, nbformat_minor: 5,
+          metadata: {kernelspec:{display_name:'Python 3',language:'python',name:'python3'},language_info:{name:'python',version:'3.11.0'}},
+          cells: CELLS.map(function(c) {
+            if (c.type === 'markdown') {
+              return {cell_type:'markdown',id:c.id,metadata:{},source:c.src.split('\n').map(function(l,i,a){return i<a.length-1?l+'\n':l;})};
+            } else {
+              return {cell_type:'code',id:c.id,metadata:{},source:c.src.split('\n').map(function(l,i,a){return i<a.length-1?l+'\n':l;}),outputs:[],execution_count:null};
+            }
+          })
+        };
+        var blob2 = new Blob([JSON.stringify(nbObj, null, 1)], {type:'application/json'});
+        var url2 = URL.createObjectURL(blob2);
+        var a2 = document.createElement('a');
+        a2.href = url2; a2.download = 'cuda_pytorch_guide.ipynb';
+        a2.click(); URL.revokeObjectURL(url2);
+      });
+  });
+}
+
+// ============================================================
+// Settings panel
+// ============================================================
+function initSettings() {
+  var btn = document.getElementById('settingsBtn');
+  var ov  = document.getElementById('settingsOverlay');
+  var pnl = document.getElementById('settingsPanel');
+  var cl  = document.getElementById('settingsClose');
+  ov.removeAttribute('hidden');
+
+  function openP() {
+    ov.classList.add('open'); pnl.classList.add('open');
+    document.body.classList.add('settings-open');
+    pnl.removeAttribute('hidden'); pnl.setAttribute('aria-hidden','false');
+  }
+  function closeP() {
+    ov.classList.remove('open'); pnl.classList.remove('open');
+    document.body.classList.remove('settings-open');
+    pnl.setAttribute('aria-hidden','true');
+  }
+
+  btn.addEventListener('click', function(){ pnl.classList.contains('open') ? closeP() : openP(); });
+  if(cl) cl.addEventListener('click', closeP);
+  ov.addEventListener('click', closeP);
+  document.addEventListener('keydown', function(e){ if(e.key==='Escape') closeP(); });
+
+  document.querySelectorAll('.theme-swatch').forEach(function(sw){
+    sw.addEventListener('click', function(){
+      S.theme = sw.getAttribute('data-theme');
+      applySettings(); saveS();
+    });
+  });
+
+  var fR = document.getElementById('fontSizeRange');
+  if(fR) fR.addEventListener('input', function(){ S.fontSize = Number(fR.value); applySettings(); saveS(); });
+
+  var wR = document.getElementById('widthRange');
+  if(wR) wR.addEventListener('input', function(){ S.width = Number(wR.value); applySettings(); saveS(); });
+
+  var lN = document.getElementById('lineNumToggle');
+  if(lN) lN.addEventListener('change', function(){
+    S.lineNums = lN.checked;
+    document.querySelectorAll('.nb-cell-gutter').forEach(function(g){
+      g.style.display = S.lineNums ? '' : 'none';
+    });
+    saveS();
+  });
+
+  var cD = document.getElementById('collapseToggle');
+  if(cD) cD.addEventListener('change', function(){
+    S.collapseDefault = cD.checked;
+    saveS();
+    // Apply to all existing code cells
+    document.querySelectorAll('.code-cell').forEach(function(cc) {
+      if (S.collapseDefault) {
+        cc.classList.add('collapsed');
+        var btn2 = cc.querySelector('.collapse-btn'); if(btn2) btn2.textContent='▸';
+      } else {
+        cc.classList.remove('collapsed');
+        var btn3 = cc.querySelector('.collapse-btn'); if(btn3) btn3.textContent='▾';
+      }
+    });
+  });
+
+  var rst = document.getElementById('settingsReset');
+  if(rst) rst.addEventListener('click', function(){
+    S = {theme:'dark',fontSize:15,width:960,lineNums:true,collapseDefault:false};
+    applySettings(); saveS();
+    var lN2=document.getElementById('lineNumToggle'); if(lN2) lN2.checked=true;
+    var cD2=document.getElementById('collapseToggle'); if(cD2) cD2.checked=false;
+  });
+}
+
+// ============================================================
+// Boot
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+  buildNotebook();
+  applySettings();
+  initFilter();
+  initCopyButtons();
+  initDownload();
+  initSettings();
+});
+</script>
+
+<!-- meta cell count placeholder -->
+<div class="nb-meta" id="nbMeta"><span>…</span> cells loading</div>
+<script>
+// Move nb-meta inside the container after DOM build
+document.addEventListener('DOMContentLoaded', function(){
+  var meta = document.getElementById('nbMeta');
+  var container = document.getElementById('nbContainer');
+  if(meta && container) container.parentNode.insertBefore(meta, container);
+});
+</script>
+</body>
+</html>
