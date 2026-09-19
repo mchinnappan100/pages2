@@ -1571,70 +1571,82 @@ mark.nb-match.current{
 /* ══════════════════════════════════════════════════════════
    Feature 1 — Glossary tooltips
    ══════════════════════════════════════════════════════════ */
+/* ── Glossary terms — underline only, no child tooltip ── */
 .gloss-term{
   border-bottom: 2px dotted var(--accent-2);
   cursor: help;
-  position: relative;
   color: inherit;
 }
-.gloss-tip{
-  visibility: hidden;
-  opacity: 0;
+
+/* ── Global floating tooltip ── */
+#glossTooltip{
+  position: fixed;
+  z-index: 2000;
+  width: 290px;
   pointer-events: none;
-  position: absolute;
-  bottom: calc(100% + 10px);
-  left: 50%;
-  transform: translateX(-50%) translateY(4px);
-  transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s;
-  width: 270px;
-  z-index: 700;
-  /* Glass card */
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity .16s ease, transform .16s ease;
+  border-radius: var(--radius-m);
+  overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--accent-2);
-  border-radius: var(--radius-m);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2);
-  overflow: hidden;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.25);
 }
-/* Accent bar at top */
-.gloss-tip::before{
-  content: '';
-  display: block;
+#glossTooltip.visible{
+  opacity: 1;
+  transform: translateY(0);
+}
+/* Rainbow accent bar */
+#glossTooltip .gt-bar{
   height: 3px;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-2) 100%);
 }
-/* Down-pointing arrow */
-.gloss-tip::after{
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  border: 7px solid transparent;
-  border-top-color: var(--accent-2);
+#glossTooltip .gt-inner{
+  padding: 9px 13px 11px;
 }
-.gloss-tip-inner{
-  padding: 8px 12px 10px;
-}
-.gloss-tip-term{
+#glossTooltip .gt-term{
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--accent-2);
-  margin-bottom: 4px;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
-.gloss-tip-body{
+#glossTooltip .gt-term::before{
+  content: '';
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+#glossTooltip .gt-body{
   font-family: var(--font-body);
-  font-size: 0.79rem;
+  font-size: 0.8rem;
   color: var(--text);
-  line-height: 1.5;
+  line-height: 1.55;
 }
-.gloss-term:hover .gloss-tip,
-.gloss-term:focus .gloss-tip{
-  visibility: visible;
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-  transition: opacity .18s ease, transform .18s ease, visibility 0s linear 0s;
+/* Arrow caret — injected via JS so we can flip it */
+#glossTooltip .gt-caret{
+  position: absolute;
+  left: var(--caret-x, 50%);
+  width: 0; height: 0;
+  border: 8px solid transparent;
+  pointer-events: none;
+}
+#glossTooltip .gt-caret.above{
+  top: 100%;
+  border-top-color: var(--accent-2);
+  transform: translateX(-50%);
+}
+#glossTooltip .gt-caret.below{
+  bottom: 100%;
+  border-bottom-color: var(--accent-2);
+  transform: translateX(-50%);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -1930,6 +1942,16 @@ mark.nb-match.current{
     <button id="execHistClose" title="Close">✕</button>
   </div>
   <div id="execHistoryList"></div>
+</div>
+
+<!-- Global glossary tooltip -->
+<div id="glossTooltip" role="tooltip" aria-live="polite">
+  <div class="gt-bar"></div>
+  <div class="gt-inner">
+    <div class="gt-term" id="glossTipTerm"></div>
+    <div class="gt-body" id="glossTipBody"></div>
+  </div>
+  <span class="gt-caret above" id="glossTipCaret"></span>
 </div>
 
 <!-- Hyperparameter explorer panel -->
@@ -4799,7 +4821,67 @@ Sample output: [1, 14823, 7291, 3040, 18562, 901, 22147, 5673, 29900, 11234, 887
   };
 
   function initGlossary() {
-    /* Walk all .nb-md and .nb-code elements and wrap known terms */
+    var tooltip  = document.getElementById('glossTooltip');
+    var tipTerm  = document.getElementById('glossTipTerm');
+    var tipBody  = document.getElementById('glossTipBody');
+    var tipCaret = document.getElementById('glossTipCaret');
+    var TIP_W    = 290;
+    var TIP_GAP  = 10;   /* gap between term and tooltip edge */
+    var hideTimer = null;
+
+    /* ── position tooltip near a target element ── */
+    function showTip(target) {
+      var def = GLOSSARY[target.dataset.gloss];
+      if (!def) return;
+      tipTerm.textContent = target.dataset.gloss;
+      tipBody.textContent = def;
+
+      tooltip.classList.remove('visible');
+      tooltip.style.visibility = 'hidden';
+      tooltip.style.opacity = '0';
+
+      /* Measure after making it block so getBoundingClientRect works */
+      tooltip.style.display = 'block';
+      var tRect = target.getBoundingClientRect();
+      var tipH  = tooltip.offsetHeight;
+      var vw    = window.innerWidth;
+
+      /* Try above first, fall back to below */
+      var above = (tRect.top - tipH - TIP_GAP) >= 4;
+      var tipTop, caretClass;
+      if (above) {
+        tipTop     = tRect.top - tipH - TIP_GAP + window.scrollY;
+        caretClass = 'above';          /* caret points down from tooltip bottom */
+      } else {
+        tipTop     = tRect.bottom + TIP_GAP + window.scrollY;
+        caretClass = 'below';          /* caret points up from tooltip top */
+      }
+
+      /* Horizontal: centre on term, clamp to viewport */
+      var idealLeft = tRect.left + tRect.width / 2 - TIP_W / 2;
+      var clampedLeft = Math.max(8, Math.min(idealLeft, vw - TIP_W - 8));
+
+      /* Caret x relative to tooltip */
+      var caretX = (tRect.left + tRect.width / 2) - clampedLeft;
+      caretX = Math.max(14, Math.min(caretX, TIP_W - 14));
+
+      tooltip.style.left   = clampedLeft + 'px';
+      tooltip.style.top    = tipTop + 'px';
+      tooltip.style.width  = TIP_W + 'px';
+      tooltip.style.setProperty('--caret-x', caretX + 'px');
+
+      tipCaret.className = 'gt-caret ' + caretClass;
+
+      tooltip.style.visibility = '';
+      tooltip.style.opacity    = '';
+      tooltip.classList.add('visible');
+    }
+
+    function hideTip() {
+      tooltip.classList.remove('visible');
+    }
+
+    /* ── wrap terms in text nodes ── */
     function wrapTerms(root) {
       if (!root) return;
       var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null, false);
@@ -4807,18 +4889,15 @@ Sample output: [1, 14823, 7291, 3040, 18562, 901, 22147, 5673, 29900, 11234, 887
       var n;
       while ((n = walker.nextNode())) nodes.push(n);
 
+      var terms   = Object.keys(GLOSSARY).sort(function (a, b) { return b.length - a.length; });
+      var pattern = terms.map(function (t) { return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|');
+      var re      = new RegExp('\\b(' + pattern + ')\\b', 'g');
+
       nodes.forEach(function (node) {
         var parent = node.parentNode;
-        /* Skip inside existing gloss-term, script, code already highlighted, or interactive elements */
-        if (!parent || parent.closest('.gloss-term, script, style, input, textarea, button')) return;
-
+        if (!parent || parent.closest('.gloss-term,script,style,input,textarea,button')) return;
         var text = node.nodeValue;
-        var terms = Object.keys(GLOSSARY).sort(function (a, b) { return b.length - a.length; });
-        var pattern = terms.map(function (t) {
-          return t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        }).join('|');
-        var re = new RegExp('\\b(' + pattern + ')\\b', 'g');
-        if (!re.test(text)) return;
+        if (!re.test(text)) { re.lastIndex = 0; return; }
         re.lastIndex = 0;
 
         var frag = document.createDocumentFragment();
@@ -4828,21 +4907,8 @@ Sample output: [1, 14823, 7291, 3040, 18562, 901, 22147, 5673, 29900, 11234, 887
           var span = document.createElement('span');
           span.className = 'gloss-term';
           span.setAttribute('tabindex', '0');
-          span.textContent = m[0];
-          var tip = document.createElement('span');
-          tip.className = 'gloss-tip';
-          var inner = document.createElement('span');
-          inner.className = 'gloss-tip-inner';
-          var termHead = document.createElement('div');
-          termHead.className = 'gloss-tip-term';
-          termHead.textContent = m[0];
-          var body = document.createElement('div');
-          body.className = 'gloss-tip-body';
-          body.textContent = GLOSSARY[m[0]] || GLOSSARY[m[1]] || '';
-          inner.appendChild(termHead);
-          inner.appendChild(body);
-          tip.appendChild(inner);
-          span.appendChild(tip);
+          span.dataset.gloss = m[0];
+          span.textContent   = m[0];
           frag.appendChild(span);
           last = re.lastIndex;
         }
@@ -4851,9 +4917,32 @@ Sample output: [1, 14823, 7291, 3040, 18562, 901, 22147, 5673, 29900, 11234, 887
       });
     }
 
-    /* Run on all markdown cells */
+    /* ── event delegation on document ── */
+    document.addEventListener('mouseover', function (e) {
+      var term = e.target.closest('.gloss-term');
+      if (!term) return;
+      clearTimeout(hideTimer);
+      showTip(term);
+    });
+    document.addEventListener('mouseout', function (e) {
+      var term = e.target.closest('.gloss-term');
+      if (!term) return;
+      hideTimer = setTimeout(hideTip, 120);
+    });
+    document.addEventListener('focusin', function (e) {
+      var term = e.target.closest('.gloss-term');
+      if (term) showTip(term);
+    });
+    document.addEventListener('focusout', function (e) {
+      var term = e.target.closest('.gloss-term');
+      if (term) hideTip();
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') hideTip();
+    });
+
+    /* ── inject into markdown cells and code comments ── */
     document.querySelectorAll('.nb-md').forEach(wrapTerms);
-    /* Run on code comments only (text nodes inside .cm spans) */
     document.querySelectorAll('.nb-code .cm').forEach(wrapTerms);
   }
 
