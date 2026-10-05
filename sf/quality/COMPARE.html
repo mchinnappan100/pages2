@@ -279,6 +279,7 @@
         <div class="content-container p-8 prose-enhanced">
             <h1>SF Perf Monitor + SF Graphy vs. PMD vs. Apex Guru</h1>
 <p>A feature-by-feature comparison of three Apex developer tooling approaches.</p>
+<p><img src="https://raw.githubusercontent.com/mchinnappan100/npmjs-images/main/quality-tools/Apex-Dev-tools.png" alt="Apex Dev Tools Comparison"></p>
 <hr>
 <h2>The Three Tools at a Glance</h2>
 <table>
@@ -556,6 +557,71 @@
 <li><code>--file-list</code> and incremental scanning modes for large monorepos</li>
 </ul>
 <p>SF Perf Monitor has a cron scheduler and headless mode but is designed for scheduled monitoring, not per-commit quality gating. Apex Guru has no CLI.</p>
+<hr>
+<h2>⚠️ PMD Warning: <code>@SuppressWarnings</code> Abuse</h2>
+<p>PMD allows developers to silence any rule violation by annotating a class or method with <code>@SuppressWarnings(&#39;PMD&#39;)</code> (or a specific rule name such as <code>@SuppressWarnings(&#39;PMD.ApexCRUDViolation&#39;)</code>). This is a legitimate escape hatch for genuine false positives — but in practice it is routinely misused to make the CI gate green without fixing the underlying problem.</p>
+<h3>What it looks like</h3>
+<pre><code class="language-apex">@SuppressWarnings(&#39;PMD.OperationWithLimitsInLoop&#39;)
+public void processAll(List&lt;Account&gt; accounts) {
+    for (Account a : accounts) {
+        update a;  // DML inside loop — silenced, not fixed
+    }
+}
+</code></pre>
+<pre><code class="language-apex">@SuppressWarnings(&#39;PMD&#39;)  // blanket suppression — silences every rule on this class
+public class DataMigrationHelper {
+    // ...
+}
+</code></pre>
+<h3>Why this is dangerous</h3>
+<ul>
+<li>A suppressed violation is <strong>invisible in PMD reports</strong> — the CI gate passes, the defect ships.</li>
+<li>Blanket <code>@SuppressWarnings(&#39;PMD&#39;)</code> on a class silences all current <em>and future</em> rules, including security rules added in later PMD versions.</li>
+<li>Over time, a codebase can accumulate dozens of suppressed violations that represent real governor-limit risks, CRUD/FLS gaps, or SOQL injection vectors — all hidden.</li>
+<li>Suppressions are often added under time pressure and never reviewed or removed once the underlying issue is resolved.</li>
+</ul>
+<h3>How to audit: <code>pmd-annotations</code></h3>
+<p>Use the <strong><a href="https://www.npmjs.com/package/pmd-annotations">pmd-annotations</a></strong> npm package to scan an SFDX project and report every <code>@SuppressWarnings</code> annotation in use, who added it, and which rule it suppresses.</p>
+<pre><code class="language-bash">npm install -g pmd-annotations
+pmd-annotations --dir force-app/main/default/classes
+</code></pre>
+<p>Sample output:</p>
+<pre><code>File                          Line  Annotation
+────────────────────────────  ────  ──────────────────────────────────────────
+DataMigrationHelper.cls          1  @SuppressWarnings(&#39;PMD&#39;)  [BLANKET — all rules]
+OrderService.cls                12  @SuppressWarnings(&#39;PMD.OperationWithLimitsInLoop&#39;)
+TriggerHandler.cls              34  @SuppressWarnings(&#39;PMD.ApexCRUDViolation&#39;)
+AccountController.cls           89  @SuppressWarnings(&#39;PMD.ApexSOQLInjection&#39;)
+</code></pre>
+<h3>Recommended governance</h3>
+<table>
+<thead>
+<tr>
+<th>Action</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Ban blanket suppressions</strong></td>
+<td>Reject any <code>@SuppressWarnings(&#39;PMD&#39;)</code> without a specific rule name in code review</td>
+</tr>
+<tr>
+<td><strong>Require a comment</strong></td>
+<td>Mandate that every suppression is accompanied by a comment explaining why the false positive is genuine</td>
+</tr>
+<tr>
+<td><strong>Run <code>pmd-annotations</code> in CI</strong></td>
+<td>Add it as a separate CI step and fail if new suppression annotations are introduced without a corresponding PR review label</td>
+</tr>
+<tr>
+<td><strong>Periodic audit</strong></td>
+<td>Schedule a quarterly <code>pmd-annotations</code> run and review the full list — remove suppressions where the underlying code has since been fixed</td>
+</tr>
+<tr>
+<td><strong>Track as tech debt</strong></td>
+<td>Log suppressions that cover real issues as backlog tickets rather than leaving them silently suppressed</td>
+</tr>
+</tbody></table>
 <hr>
 <h2>When to Use Each Tool</h2>
 <h3>Use SF Perf Monitor when you want to:</h3>
