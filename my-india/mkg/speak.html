@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Voice Transcriber</title>
+  <link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f1117;
+      --surface:   #181c27;
+      --surface2:  #1e2333;
+      --border:    rgba(255,255,255,.08);
+      --text:      #e8eaf0;
+      --muted:     #6b7280;
+      --accent:    #6366f1;
+      --accent2:   #818cf8;
+      --danger:    #ef4444;
+      --success:   #22c55e;
+      --warn:      #f59e0b;
+      --shadow:    0 8px 40px rgba(0,0,0,.5);
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 16px 60px;
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    header {
+      width: 100%;
+      max-width: 820px;
+      padding: 32px 0 24px;
+      text-align: center;
+    }
+    .app-title {
+      font-size: clamp(1.8rem, 4vw, 2.6rem);
+      font-weight: 700;
+      letter-spacing: -.03em;
+      background: linear-gradient(135deg, #818cf8 0%, #c084fc 50%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+    .app-sub {
+      font-size: .88rem;
+      color: var(--muted);
+      letter-spacing: .02em;
+    }
+
+    /* ── Main card ────────────────────────────────────────── */
+    .card {
+      width: 100%;
+      max-width: 820px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    /* ── Language row ─────────────────────────────────────── */
+    .lang-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+    .lang-label {
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .lang-select {
+      flex: 1;
+      min-width: 220px;
+      padding: 10px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: .88rem;
+      outline: none;
+      cursor: pointer;
+      transition: border-color .2s;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+    .lang-select:focus { border-color: var(--accent); }
+    .lang-select option { background: #1e2333; }
+
+    /* ── Mic button area ──────────────────────────────────── */
+    .mic-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      margin-bottom: 28px;
+    }
+
+    .mic-ring {
+      position: relative;
+      width: 100px;
+      height: 100px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .mic-ring-pulse {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      opacity: 0;
+      transform: scale(1);
+      transition: opacity .3s;
+    }
+    .mic-ring.active .mic-ring-pulse {
+      animation: pulse-ring 1.4s ease-out infinite;
+    }
+    @keyframes pulse-ring {
+      0%   { transform: scale(1);    opacity: .7; }
+      100% { transform: scale(1.9);  opacity: 0;  }
+    }
+
+    .mic-btn {
+      position: relative;
+      z-index: 1;
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      background: linear-gradient(135deg, #4f46e5, #7c3aed);
+      box-shadow: 0 0 0 0 rgba(99,102,241,.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform .15s, box-shadow .3s;
+      outline: none;
+    }
+    .mic-btn:hover  { transform: scale(1.06); }
+    .mic-btn:active { transform: scale(.96);  }
+    .mic-btn.recording {
+      background: linear-gradient(135deg, #dc2626, #b91c1c);
+      animation: mic-glow 1.2s ease-in-out infinite alternate;
+    }
+    @keyframes mic-glow {
+      from { box-shadow: 0 0 12px 4px rgba(239,68,68,.3); }
+      to   { box-shadow: 0 0 28px 10px rgba(239,68,68,.6); }
+    }
+    .mic-btn svg { width: 36px; height: 36px; fill: #fff; pointer-events: none; }
+
+    /* ── Waveform ─────────────────────────────────────────── */
+    .waveform {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      height: 36px;
+      opacity: 0;
+      transition: opacity .3s;
+    }
+    .waveform.active { opacity: 1; }
+    .wave-bar {
+      width: 4px;
+      border-radius: 2px;
+      background: var(--accent2);
+      height: 8px;
+      transform-origin: bottom center;
+    }
+    .waveform.active .wave-bar { animation: wave-anim 1s ease-in-out infinite; }
+    .wave-bar:nth-child(1)  { animation-delay: 0s;    }
+    .wave-bar:nth-child(2)  { animation-delay: .1s;   }
+    .wave-bar:nth-child(3)  { animation-delay: .2s;   }
+    .wave-bar:nth-child(4)  { animation-delay: .3s;   }
+    .wave-bar:nth-child(5)  { animation-delay: .15s;  }
+    .wave-bar:nth-child(6)  { animation-delay: .05s;  }
+    .wave-bar:nth-child(7)  { animation-delay: .25s;  }
+    .wave-bar:nth-child(8)  { animation-delay: .35s;  }
+    .wave-bar:nth-child(9)  { animation-delay: .1s;   }
+    .wave-bar:nth-child(10) { animation-delay: .2s;   }
+    .wave-bar:nth-child(11) { animation-delay: .05s;  }
+    .wave-bar:nth-child(12) { animation-delay: .3s;   }
+    @keyframes wave-anim {
+      0%, 100% { height: 8px;  }
+      50%       { height: 28px; }
+    }
+
+    /* ── Status pill ──────────────────────────────────────── */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: 100px;
+      font-size: .74rem;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      transition: all .25s;
+    }
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background .25s;
+    }
+    .status-pill.idle    { color: var(--muted); }
+    .status-pill.listening { color: var(--success); border-color: rgba(34,197,94,.3); background: rgba(34,197,94,.08); }
+    .status-pill.listening .status-dot { background: var(--success); animation: blink 1s step-start infinite; }
+    .status-pill.processing { color: var(--warn); border-color: rgba(245,158,11,.3); background: rgba(245,158,11,.08); }
+    .status-pill.processing .status-dot { background: var(--warn); }
+    .status-pill.error { color: var(--danger); border-color: rgba(239,68,68,.3); background: rgba(239,68,68,.08); }
+    .status-pill.error .status-dot { background: var(--danger); }
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ── Interim text ─────────────────────────────────────── */
+    .interim-box {
+      min-height: 32px;
+      padding: 6px 0;
+      font-size: .85rem;
+      color: rgba(129,140,248,.7);
+      font-style: italic;
+      text-align: center;
+      letter-spacing: .01em;
+      transition: opacity .2s;
+    }
+
+    /* ── Transcript ───────────────────────────────────────── */
+    .transcript-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .transcript-label {
+      font-size: .7rem;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .action-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 12px;
+      border-radius: 8px;
+      font-size: .74rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--muted);
+      font-family: 'Inter', sans-serif;
+      transition: all .15s;
+      white-space: nowrap;
+    }
+    .action-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+    .action-btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+    .action-btn svg { width: 13px; height: 13px; flex-shrink: 0; }
+
+    .transcript-box {
+      position: relative;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      min-height: 200px;
+      max-height: 420px;
+      overflow-y: auto;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: .88rem;
+      line-height: 1.8;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+      scroll-behavior: smooth;
+      transition: border-color .2s;
+    }
+    .transcript-box:focus { outline: none; border-color: var(--accent); }
+    .transcript-box:empty::before {
+      content: 'Your transcription will appear here…';
+      color: var(--muted);
+      font-style: italic;
+      font-family: 'Inter', sans-serif;
+    }
+    .transcript-box .segment { display: inline; }
+    .transcript-box .segment.new {
+      background: rgba(99,102,241,.18);
+      border-radius: 3px;
+      padding: 1px 2px;
+      animation: fade-bg 2s ease forwards;
+    }
+    @keyframes fade-bg {
+      0%   { background: rgba(99,102,241,.35); }
+      100% { background: transparent; }
+    }
+
+    /* Scrollbar */
+    .transcript-box::-webkit-scrollbar { width: 6px; }
+    .transcript-box::-webkit-scrollbar-track { background: transparent; }
+    .transcript-box::-webkit-scrollbar-thumb { background: rgba(255,255,255,.1); border-radius: 3px; }
+
+    /* ── Word count ───────────────────────────────────────── */
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .word-count {
+      font-size: .72rem;
+      color: var(--muted);
+      letter-spacing: .04em;
+    }
+    .char-count { font-size: .72rem; color: var(--muted); letter-spacing: .04em; }
+
+    /* ── Browser warning ──────────────────────────────────── */
+    .browser-warn {
+      display: none;
+      background: rgba(245,158,11,.1);
+      border: 1px solid rgba(245,158,11,.3);
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: .82rem;
+      color: #fbbf24;
+      line-height: 1.6;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .browser-warn.show { display: block; }
+
+    /* ── Footer ───────────────────────────────────────────── */
+    .app-footer {
+      margin-top: 24px;
+      font-size: .72rem;
+      color: var(--muted);
+      text-align: center;
+      letter-spacing: .04em;
+      line-height: 1.7;
+    }
+
+    /* ── Responsive ───────────────────────────────────────── */
+    @media (max-width: 520px) {
+      .card { padding: 20px 16px; }
+      .mic-btn { width: 68px; height: 68px; }
+      .mic-btn svg { width: 28px; height: 28px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1 class="app-title">🎙 Voice Transcriber</h1>
+  <p class="app-sub">Speak in any language — see your words in real time</p>
+</header>
+
+<div class="card">
+
+  <!-- Browser warning -->
+  <div class="browser-warn" id="browser-warn">
+    ⚠️ Your browser may not fully support the Web Speech API.
+    For best results use <strong>Google Chrome</strong> or <strong>Microsoft Edge</strong>.
+  </div>
+
+  <!-- Language selector -->
+  <div class="lang-row">
+    <span class="lang-label">Language</span>
+    <select class="lang-select" id="lang-select">
+      <optgroup label="English">
+        <option value="en-US" selected>English (United States)</option>
+        <option value="en-GB">English (United Kingdom)</option>
+        <option value="en-AU">English (Australia)</option>
+        <option value="en-IN">English (India)</option>
+        <option value="en-CA">English (Canada)</option>
+      </optgroup>
+      <optgroup label="South Asian">
+        <option value="hi-IN">Hindi — हिन्दी</option>
+        <option value="ta-IN">Tamil — தமிழ்</option>
+        <option value="te-IN">Telugu — తెలుగు</option>
+        <option value="kn-IN">Kannada — ಕನ್ನಡ</option>
+        <option value="ml-IN">Malayalam — മലയാളം</option>
+        <option value="mr-IN">Marathi — मराठी</option>
+        <option value="gu-IN">Gujarati — ગુજરાતી</option>
+        <option value="pa-IN">Punjabi — ਪੰਜਾਬੀ</option>
+        <option value="bn-IN">Bengali — বাংলা</option>
+        <option value="ur-PK">Urdu — اردو</option>
+      </optgroup>
+      <optgroup label="East Asian">
+        <option value="zh-CN">Chinese Mandarin (Simplified)</option>
+        <option value="zh-TW">Chinese Mandarin (Traditional)</option>
+        <option value="ja-JP">Japanese — 日本語</option>
+        <option value="ko-KR">Korean — 한국어</option>
+      </optgroup>
+      <optgroup label="European">
+        <option value="es-ES">Spanish (Spain)</option>
+        <option value="es-MX">Spanish (Mexico)</option>
+        <option value="fr-FR">French — Français</option>
+        <option value="de-DE">German — Deutsch</option>
+        <option value="it-IT">Italian — Italiano</option>
+        <option value="pt-BR">Portuguese (Brazil)</option>
+        <option value="pt-PT">Portuguese (Portugal)</option>
+        <option value="ru-RU">Russian — Русский</option>
+        <option value="nl-NL">Dutch — Nederlands</option>
+        <option value="pl-PL">Polish — Polski</option>
+        <option value="sv-SE">Swedish — Svenska</option>
+        <option value="da-DK">Danish — Dansk</option>
+        <option value="fi-FI">Finnish — Suomi</option>
+        <option value="nb-NO">Norwegian — Norsk</option>
+        <option value="cs-CZ">Czech — Čeština</option>
+        <option value="ro-RO">Romanian — Română</option>
+        <option value="el-GR">Greek — Ελληνικά</option>
+        <option value="uk-UA">Ukrainian — Українська</option>
+        <option value="hu-HU">Hungarian — Magyar</option>
+        <option value="sk-SK">Slovak — Slovenčina</option>
+        <option value="bg-BG">Bulgarian — Български</option>
+        <option value="hr-HR">Croatian — Hrvatski</option>
+        <option value="tr-TR">Turkish — Türkçe</option>
+      </optgroup>
+      <optgroup label="Middle East &amp; African">
+        <option value="ar-SA">Arabic — العربية</option>
+        <option value="he-IL">Hebrew — עברית</option>
+        <option value="fa-IR">Persian — فارسی</option>
+        <option value="id-ID">Indonesian — Bahasa Indonesia</option>
+        <option value="ms-MY">Malay — Bahasa Melayu</option>
+        <option value="th-TH">Thai — ภาษาไทย</option>
+        <option value="vi-VN">Vietnamese — Tiếng Việt</option>
+        <option value="sw-KE">Swahili — Kiswahili</option>
+        <option value="af-ZA">Afrikaans</option>
+      </optgroup>
+    </select>
+  </div>
+
+  <!-- Mic button -->
+  <div class="mic-area">
+    <div class="mic-ring" id="mic-ring">
+      <div class="mic-ring-pulse"></div>
+      <button class="mic-btn" id="mic-btn" title="Click to start / stop recording" onclick="toggleRecording()">
+        <!-- Mic icon -->
+        <svg id="mic-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 1a4 4 0 0 1 4 4v6a4 4 0 0 1-8 0V5a4 4 0 0 1 4-4zm6.364 9a.75.75 0 0 1 .743.648l.007.102A7 7 0 0 1 12.75 17.93V20h2.5a.75.75 0 0 1 0 1.5h-6.5a.75.75 0 0 1 0-1.5h2.5v-2.07A7 7 0 0 1 4.886 10.75a.75.75 0 0 1 1.492-.148L6.386 11a5.5 5.5 0 0 0 11 0 .75.75 0 0 1 .978-.722z"/>
+        </svg>
+        <!-- Stop icon (hidden initially) -->
+        <svg id="stop-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display:none">
+          <rect x="5" y="5" width="14" height="14" rx="2"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Waveform bars -->
+    <div class="waveform" id="waveform">
+      <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+      <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+      <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+      <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+    </div>
+
+    <!-- Status pill -->
+    <div class="status-pill idle" id="status-pill">
+      <div class="status-dot"></div>
+      <span id="status-text">Ready</span>
+    </div>
+
+    <!-- Interim text -->
+    <div class="interim-box" id="interim-box"></div>
+  </div>
+
+  <!-- Transcript -->
+  <div class="transcript-header">
+    <span class="transcript-label">Transcript</span>
+    <div class="action-row">
+      <button class="action-btn" onclick="copyTranscript()" title="Copy to clipboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy
+      </button>
+      <button class="action-btn" onclick="downloadTranscript()" title="Download as .txt">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Download
+      </button>
+      <button class="action-btn danger" onclick="clearTranscript()" title="Clear transcript">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        Clear
+      </button>
+    </div>
+  </div>
+
+  <div class="transcript-box" id="transcript" contenteditable="true" spellcheck="false" tabindex="0"></div>
+
+  <div class="meta-row">
+    <span class="word-count" id="word-count">0 words</span>
+    <span class="char-count" id="char-count">0 characters</span>
+  </div>
+
+</div>
+
+<p class="app-footer">
+  Powered by the Web Speech API &nbsp;·&nbsp; Works best in Chrome &amp; Edge &nbsp;·&nbsp; Speech stays on your device
+</p>
+
+<script>
+  // ── Browser check ──────────────────────────────────────────
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    document.getElementById('browser-warn').classList.add('show');
+    document.getElementById('mic-btn').disabled = true;
+    document.getElementById('mic-btn').style.opacity = '.4';
+    document.getElementById('mic-btn').style.cursor = 'not-allowed';
+  }
+
+  // ── State ──────────────────────────────────────────────────
+  let recognition = null;
+  let isRecording  = false;
+  let finalText    = '';
+
+  // ── DOM refs ───────────────────────────────────────────────
+  const micBtn      = document.getElementById('mic-btn');
+  const micRing     = document.getElementById('mic-ring');
+  const micIcon     = document.getElementById('mic-icon');
+  const stopIcon    = document.getElementById('stop-icon');
+  const waveform    = document.getElementById('waveform');
+  const statusPill  = document.getElementById('status-pill');
+  const statusText  = document.getElementById('status-text');
+  const interimBox  = document.getElementById('interim-box');
+  const transcript  = document.getElementById('transcript');
+  const wordCount   = document.getElementById('word-count');
+  const charCount   = document.getElementById('char-count');
+  const langSelect  = document.getElementById('lang-select');
+
+  // ── Set status ─────────────────────────────────────────────
+  function setStatus(state, text) {
+    statusPill.className = 'status-pill ' + state;
+    statusText.textContent = text;
+  }
+
+  // ── Update word / char counts ──────────────────────────────
+  function updateCounts() {
+    const raw = transcript.innerText.trim();
+    const words = raw ? raw.split(/\s+/).filter(Boolean).length : 0;
+    wordCount.textContent = words + (words === 1 ? ' word' : ' words');
+    charCount.textContent = raw.length + (raw.length === 1 ? ' character' : ' characters');
+  }
+  transcript.addEventListener('input', updateCounts);
+
+  // ── Append final text to transcript ───────────────────────
+  function appendSegment(text) {
+    if (!text.trim()) return;
+    const span = document.createElement('span');
+    span.className = 'segment new';
+    span.textContent = (transcript.innerText.trim() ? ' ' : '') + text.trim();
+    transcript.appendChild(span);
+    transcript.scrollTop = transcript.scrollHeight;
+    updateCounts();
+    // Remove highlight after animation
+    setTimeout(() => span.classList.remove('new'), 2000);
+  }
+
+  // ── Build recognition ──────────────────────────────────────
+  function buildRecognition() {
+    if (!SpeechRecognition) return null;
+    const r = new SpeechRecognition();
+    r.continuous      = true;
+    r.interimResults  = true;
+    r.lang            = langSelect.value;
+
+    r.onstart = () => {
+      isRecording = true;
+      micBtn.classList.add('recording');
+      micRing.classList.add('active');
+      waveform.classList.add('active');
+      micIcon.style.display = 'none';
+      stopIcon.style.display = '';
+      setStatus('listening', 'Listening…');
+    };
+
+    r.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const result = e.results[i];
+        if (result.isFinal) {
+          appendSegment(result[0].transcript);
+          interim = '';
+        } else {
+          interim += result[0].transcript;
+        }
+      }
+      interimBox.textContent = interim;
+    };
+
+    r.onspeechend = () => {
+      setStatus('processing', 'Processing…');
+    };
+
+    r.onerror = (e) => {
+      let msg = 'Error';
+      if (e.error === 'not-allowed')   msg = 'Microphone access denied';
+      else if (e.error === 'no-speech') msg = 'No speech detected';
+      else if (e.error === 'network')  msg = 'Network error';
+      else msg = 'Error: ' + e.error;
+      setStatus('error', msg);
+      stopRecording();
+    };
+
+    r.onend = () => {
+      // Auto-restart if we didn't stop intentionally
+      if (isRecording) {
+        try { r.start(); } catch(_) {}
+        setStatus('listening', 'Listening…');
+      } else {
+        interimBox.textContent = '';
+        micBtn.classList.remove('recording');
+        micRing.classList.remove('active');
+        waveform.classList.remove('active');
+        micIcon.style.display = '';
+        stopIcon.style.display = 'none';
+        setStatus('idle', 'Ready');
+      }
+    };
+
+    return r;
+  }
+
+  // ── Start/stop ─────────────────────────────────────────────
+  function startRecording() {
+    if (!SpeechRecognition) return;
+    recognition = buildRecognition();
+    try {
+      recognition.start();
+    } catch(err) {
+      setStatus('error', 'Could not start microphone');
+    }
+  }
+
+  function stopRecording() {
+    isRecording = false;
+    if (recognition) {
+      recognition.stop();
+      recognition = null;
+    }
+  }
+
+  function toggleRecording() {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }
+
+  // ── Restart when language changes mid-session ──────────────
+  langSelect.addEventListener('change', () => {
+    if (isRecording) {
+      stopRecording();
+      setTimeout(startRecording, 300);
+    }
+  });
+
+  // ── Copy ───────────────────────────────────────────────────
+  async function copyTranscript() {
+    const text = transcript.innerText.trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      const btn = event.currentTarget;
+      const orig = btn.innerHTML;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+      btn.style.color = '#22c55e';
+      btn.style.borderColor = '#22c55e';
+      setTimeout(() => { btn.innerHTML = orig; btn.style.color=''; btn.style.borderColor=''; }, 1800);
+    } catch(_) {
+      document.execCommand('copy');
+    }
+  }
+
+  // ── Download ───────────────────────────────────────────────
+  function downloadTranscript() {
+    const text = transcript.innerText.trim();
+    if (!text) return;
+    const lang = langSelect.options[langSelect.selectedIndex].text.split('—')[0].trim().replace(/\s+/g,'-');
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `transcript-${lang}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  // ── Clear ──────────────────────────────────────────────────
+  function clearTranscript() {
+    if (!transcript.innerText.trim()) return;
+    transcript.innerHTML = '';
+    interimBox.textContent = '';
+    finalText = '';
+    updateCounts();
+  }
+
+  // ── Keyboard shortcut: Space = toggle (when not typing) ────
+  document.addEventListener('keydown', (e) => {
+    if (e.target === transcript) return;
+    if (e.code === 'Space' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      e.preventDefault();
+      toggleRecording();
+    }
+  });
+</script>
+</body>
+</html>
