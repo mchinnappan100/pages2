@@ -1,4 +1,4 @@
-# Knowledge Article: Prevent Salesforce CLI from Attempting Login to Deactivated Users
+# Knowledge Article: Prevent Salesforce CLI from Attempting Login for Deactivated Users
 
 ## Overview
 
