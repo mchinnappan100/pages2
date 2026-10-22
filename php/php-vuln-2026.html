@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PHP Critical RCE Vulnerabilities — October 2026</title>
+
+<link rel="icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,500;0,700;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:           #f4f1eb;
+    --bg-card:      #ffffff;
+    --text:         #1a1612;
+    --muted:        #7a7268;
+    --accent1:      #c84b2f;   /* danger red */
+    --accent2:      #2d5f8a;   /* info blue */
+    --accent3:      #3a7d52;   /* safe green */
+    --accent4:      #8a5c2d;   /* warn amber */
+    --border:       rgba(26,22,18,0.1);
+    --tag-bg:       rgba(200,75,47,0.08);
+    --tag-color:    #c84b2f;
+    --pill-basic:   #eef4f9; --pill-basic-text:  #2d5f8a;
+    --pill-inter:   #eef6f1; --pill-inter-text:  #3a7d52;
+    --pill-adv:     #fdf0ec; --pill-adv-text:    #c84b2f;
+    --pill-bp:      #fef8ef; --pill-bp-text:     #8a5c2d;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* NAV */
+  nav {
+    position: sticky; top: 0;
+    background: rgba(244,241,235,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 2.5rem; height: 60px;
+  }
+  .nav-brand {
+    font-family: 'Fraunces', serif; font-size: 1.25rem; font-weight: 700;
+    color: var(--text); letter-spacing: -0.02em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .nav-brand span {
+    width: 28px; height: 28px; background: var(--accent1); border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-size: 0.85rem; font-family: 'DM Sans', sans-serif; font-weight: 500;
+  }
+  .nav-links { display: flex; gap: 0.25rem; list-style: none; }
+  .nav-links a {
+    text-decoration: none; color: var(--muted); font-size: 0.8rem; font-weight: 500;
+    padding: 6px 12px; border-radius: 20px; transition: all 0.2s;
+    letter-spacing: 0.03em; text-transform: uppercase;
+  }
+  .nav-links a:hover { color: var(--text); background: var(--border); }
+
+  /* HERO */
+  .hero {
+    max-width: 1100px; margin: 0 auto;
+    padding: 5rem 2.5rem 3rem;
+    display: grid; grid-template-columns: 1fr 1fr; gap: 3rem; align-items: center;
+  }
+  .hero-eyebrow {
+    font-size: 0.75rem; font-weight: 500; text-transform: uppercase;
+    letter-spacing: 0.12em; color: var(--accent1); margin-bottom: 1rem;
+  }
+  .hero h1 {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(2.5rem, 4vw, 3.8rem);
+    font-weight: 700; line-height: 1.05; letter-spacing: -0.03em; color: var(--text);
+  }
+  .hero h1 em { font-style: italic; color: var(--accent1); }
+  .hero-desc { margin-top: 1.5rem; color: var(--muted); font-size: 1rem; max-width: 420px; line-height: 1.75; }
+  .hero-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2rem; }
+  .hero-tag { display: inline-block; padding: 6px 14px; border-radius: 100px; font-size: 0.78rem; font-weight: 500; border: 1.5px solid; }
+  .tag-basic  { background: var(--pill-basic);  color: var(--pill-basic-text);  border-color: var(--pill-basic-text); }
+  .tag-inter  { background: var(--pill-inter);  color: var(--pill-inter-text);  border-color: var(--pill-inter-text); }
+  .tag-adv    { background: var(--pill-adv);    color: var(--pill-adv-text);    border-color: var(--pill-adv-text); }
+  .tag-bp     { background: var(--pill-bp);     color: var(--pill-bp-text);     border-color: var(--pill-bp-text); }
+
+  .hero-visual { display: flex; flex-direction: column; gap: 12px; }
+  .stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stat-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 1.25rem;
+  }
+  .stat-card .num {
+    font-family: 'Fraunces', serif; font-size: 2rem; font-weight: 700;
+    color: var(--text); line-height: 1;
+  }
+  .stat-card .label { font-size: 0.78rem; color: var(--muted); margin-top: 4px; font-weight: 400; }
+  .stat-card.accent { background: var(--accent1); border-color: var(--accent1); }
+  .stat-card.accent .num, .stat-card.accent .label { color: white; }
+  .stat-card.accent2 { background: var(--accent2); border-color: var(--accent2); }
+  .stat-card.accent2 .num, .stat-card.accent2 .label { color: white; }
+
+  /* SECTION */
+  .section { max-width: 1100px; margin: 0 auto; padding: 3rem 2.5rem; }
+  .section-header {
+    display: flex; align-items: center; gap: 1rem;
+    margin-bottom: 2.5rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border);
+  }
+  .section-badge {
+    font-size: 0.7rem; font-weight: 500; text-transform: uppercase;
+    letter-spacing: 0.1em; padding: 5px 14px; border-radius: 100px;
+  }
+  .badge-red    { background: var(--pill-adv);   color: var(--pill-adv-text); }
+  .badge-blue   { background: var(--pill-basic); color: var(--pill-basic-text); }
+  .badge-green  { background: var(--pill-inter); color: var(--pill-inter-text); }
+  .badge-amber  { background: var(--pill-bp);    color: var(--pill-bp-text); }
+  .section-title {
+    font-family: 'Fraunces', serif; font-size: 1.75rem; font-weight: 700;
+    letter-spacing: -0.02em; color: var(--text);
+  }
+  .section-num {
+    font-family: 'Fraunces', serif; font-size: 3.5rem; font-weight: 700;
+    color: var(--border); line-height: 1; margin-left: auto;
+  }
+
+  /* CARDS GRID */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  .card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 20px; padding: 1.75rem;
+  }
+  .card-icon { font-size: 1.75rem; margin-bottom: 1rem; }
+  .card h3 {
+    font-family: 'Fraunces', serif; font-size: 1.1rem; font-weight: 700;
+    letter-spacing: -0.01em; margin-bottom: 0.6rem;
+  }
+  .card p { color: var(--muted); font-size: 0.9rem; line-height: 1.6; }
+  .card.danger { border-color: rgba(200,75,47,0.3); background: #fdf3f1; }
+  .card.warn   { border-color: rgba(138,92,45,0.3);  background: #fef9f3; }
+  .card.safe   { border-color: rgba(58,125,82,0.3);  background: #f2faf5; }
+  .card.info   { border-color: rgba(45,95,138,0.3);  background: #f0f6fc; }
+
+  /* ARCHITECTURE DIAGRAM */
+  .arch-diagram {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 20px; padding: 2rem; margin-bottom: 2rem;
+  }
+  .arch-row {
+    display: flex; align-items: center; gap: 0; flex-wrap: wrap;
+    justify-content: center; margin-bottom: 1.5rem;
+  }
+  .arch-box {
+    background: var(--bg); border: 1.5px solid var(--border);
+    border-radius: 10px; padding: 0.6rem 1rem; font-size: 0.82rem;
+    font-weight: 500; text-align: center; min-width: 110px;
+  }
+  .arch-box.red   { background: #fdf3f1; border-color: rgba(200,75,47,0.4); color: var(--accent1); }
+  .arch-box.blue  { background: #f0f6fc; border-color: rgba(45,95,138,0.4);  color: var(--accent2); }
+  .arch-box.green { background: #f2faf5; border-color: rgba(58,125,82,0.4);  color: var(--accent3); }
+  .arch-box.amber { background: #fef9f3; border-color: rgba(138,92,45,0.4);  color: var(--accent4); }
+  .arch-arrow { color: var(--muted); font-size: 1.2rem; padding: 0 6px; }
+  .arch-label {
+    font-size: 0.78rem; color: var(--muted); text-align: center;
+    margin-bottom: 0.5rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .arch-note {
+    font-size: 0.82rem; color: var(--muted); margin-top: 0.4rem; line-height: 1.5;
+    border-left: 3px solid var(--border); padding-left: 0.75rem;
+  }
+
+  /* CVE CARDS */
+  .cve-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 20px; padding: 2rem; margin-bottom: 1.5rem;
+  }
+  .cve-card.critical { border-left: 4px solid var(--accent1); }
+  .cve-header { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .cve-id {
+    font-family: 'Fraunces', serif; font-size: 1.3rem; font-weight: 700;
+    color: var(--accent1); letter-spacing: -0.01em;
+  }
+  .cve-cvss {
+    display: inline-block; background: var(--accent1); color: white;
+    font-size: 0.75rem; font-weight: 700; padding: 4px 10px; border-radius: 100px;
+    letter-spacing: 0.05em;
+  }
+  .cve-title { font-family: 'Fraunces', serif; font-size: 1rem; font-weight: 500; color: var(--text); margin-top: 4px; }
+  .cve-body { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  .cve-section h4 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 0.6rem; font-weight: 500; }
+  .cve-section p, .cve-section li { font-size: 0.9rem; color: var(--text); line-height: 1.65; }
+  .cve-section ul { padding-left: 1.2rem; }
+  .cve-section li { margin-bottom: 0.3rem; }
+
+  /* VERSION TABLE */
+  .vtable { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  .vtable th {
+    background: var(--text); color: white; font-weight: 500; font-size: 0.78rem;
+    text-transform: uppercase; letter-spacing: 0.06em; padding: 0.75rem 1rem; text-align: left;
+  }
+  .vtable th:first-child { border-radius: 10px 0 0 0; }
+  .vtable th:last-child  { border-radius: 0 10px 0 0; }
+  .vtable td { padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); }
+  .vtable tr:last-child td { border-bottom: none; }
+  .vtable tr:hover td { background: rgba(26,22,18,0.02); }
+  .status-pill {
+    display: inline-block; padding: 3px 10px; border-radius: 100px;
+    font-size: 0.73rem; font-weight: 500;
+  }
+  .pill-vuln  { background: #fdf0ec; color: var(--accent1); }
+  .pill-fixed { background: #eef6f1; color: var(--accent3); }
+  .pill-eol   { background: #f5f5f5; color: #999; }
+
+  /* MITIGATION */
+  .mit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .mit-card {
+    background: var(--bg-card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 1.5rem;
+  }
+  .mit-card h3 { font-family: 'Fraunces', serif; font-size: 1rem; font-weight: 700; margin-bottom: 0.75rem; }
+  .mit-card code {
+    display: block; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.6rem 0.9rem; font-size: 0.82rem;
+    font-family: monospace; margin: 0.4rem 0; color: var(--accent2);
+  }
+  .mit-card p { font-size: 0.88rem; color: var(--muted); margin-bottom: 0.4rem; line-height: 1.55; }
+  .mit-card.warn-card { border-color: rgba(200,75,47,0.3); background: #fdf3f1; }
+  .mit-card.warn-card h3 { color: var(--accent1); }
+
+  /* CHECKER */
+  .checker-block {
+    background: var(--text); color: white; border-radius: 20px; padding: 2rem;
+  }
+  .checker-block h3 { font-family: 'Fraunces', serif; font-size: 1.3rem; font-weight: 700; margin-bottom: 1rem; }
+  .checker-block pre {
+    background: rgba(255,255,255,0.07); border-radius: 10px;
+    padding: 1rem 1.25rem; font-size: 0.85rem; font-family: monospace;
+    line-height: 1.8; overflow-x: auto; color: #e2dfd9;
+  }
+  .checker-block .comment { color: #7a7268; }
+  .checker-block p { font-size: 0.88rem; color: rgba(255,255,255,0.65); margin-top: 1rem; line-height: 1.6; }
+
+  /* FOOTER */
+  footer {
+    max-width: 1100px; margin: 0 auto; padding: 2rem 2.5rem 4rem;
+    border-top: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+    font-size: 0.8rem; color: var(--muted);
+  }
+  footer a { color: var(--accent2); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 700px) {
+    .hero { grid-template-columns: 1fr; }
+    .cve-body { grid-template-columns: 1fr; }
+    .mit-grid { grid-template-columns: 1fr; }
+    .stat-row { grid-template-columns: 1fr 1fr; }
+    nav { padding: 0 1rem; }
+    .nav-links { display: none; }
+    .section { padding: 2rem 1.25rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand">
+    <span>🐘</span> PHP Security RCA
+  </div>
+  <ul class="nav-links">
+    <li><a href="#headline">Headline</a></li>
+    <li><a href="#arch">Architecture</a></li>
+    <li><a href="#cves">CVEs</a></li>
+    <li><a href="#versions">Versions</a></li>
+    <li><a href="#mitigations">Mitigations</a></li>
+    <li><a href="#checker">Checker</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-text">
+    <div class="hero-eyebrow">Critical RCA · October 2026</div>
+    <h1>PHP Remote Code<br><em>Execution</em><br>Vulnerabilities</h1>
+    <p class="hero-desc">
+      Two CVSS 9.2 bugs in PHP's request lifecycle — OOM corruption and stale worker state —
+      enable unauthenticated RCE before any application code runs.
+      The only complete fix is upgrading.
+    </p>
+    <div class="hero-tags">
+      <span class="hero-tag tag-adv">CVE-2026-109618</span>
+      <span class="hero-tag tag-adv">CVE-2026-109619</span>
+      <span class="hero-tag tag-basic">CVSS v4.0: 9.2</span>
+      <span class="hero-tag tag-inter">PHP 8.2 – 8.5</span>
+      <span class="hero-tag tag-bp">PHP-FPM · mod_php · CGI</span>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="stat-row">
+      <div class="stat-card accent">
+        <div class="num">9.2</div>
+        <div class="label">CVSS v4.0 score (both CVEs)</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">2</div>
+        <div class="label">Critical RCE vulnerabilities</div>
+      </div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-card accent2">
+        <div class="num">~77%</div>
+        <div class="label">of websites run PHP (W3Techs)</div>
+      </div>
+      <div class="stat-card">
+        <div class="num">4</div>
+        <div class="label">Patched branches: 8.2 · 8.3 · 8.4 · 8.5</div>
+      </div>
+    </div>
+    <div class="stat-card" style="background:#fdf3f1;border-color:rgba(200,75,47,0.3)">
+      <div class="num" style="color:var(--accent1);font-size:1.1rem;">⚠️ No complete mitigation exists</div>
+      <div class="label" style="margin-top:6px">Updating PHP is the only safe choice</div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 1: THE HEADLINE -->
+<div class="section" id="headline">
+  <div class="section-header">
+    <span class="section-badge badge-amber">Context</span>
+    <h2 class="section-title">Where the "70% of the internet" number comes from</h2>
+    <span class="section-num">01</span>
+  </div>
+  <div class="cards">
+    <div class="card info">
+      <div class="card-icon">📊</div>
+      <h3>The statistic is real…</h3>
+      <p>PHP powers roughly 77% of all websites whose server-side language is known (W3Techs, 2026).
+         WordPress alone accounts for ~43% of all websites globally — and WordPress runs on PHP.</p>
+    </div>
+    <div class="card warn">
+      <div class="card-icon">⚠️</div>
+      <h3>…but the risk is nuanced</h3>
+      <p>The vast majority of those 77% run shared-hosting stacks where PHP-FPM is already isolated per-user,
+         or managed platforms (WP.com, WP Engine) that patched within hours of disclosure.</p>
+    </div>
+    <div class="card danger">
+      <div class="card-icon">🚨</div>
+      <h3>Who is actually at highest risk</h3>
+      <p>Self-hosted servers running <strong>mod_php</strong> inside Apache with no memory caps,
+         old PHP 8.1 (EOL — no patch ever), and sites that cannot update because a theme
+         or plugin has a hard version dependency.</p>
+    </div>
+    <div class="card safe">
+      <div class="card-icon">✅</div>
+      <h3>Who is already protected</h3>
+      <p>Managed WordPress platforms, Cloudflare Workers, containerised PHP-FPM with cgroup memory
+         limits, and any installation running 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12 or later.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 2: PHP ARCHITECTURE -->
+<div class="section" id="arch">
+  <div class="section-header">
+    <span class="section-badge badge-blue">Architecture</span>
+    <h2 class="section-title">How PHP serves web requests — and why it matters here</h2>
+    <span class="section-num">02</span>
+  </div>
+
+  <div class="arch-diagram">
+    <p class="arch-label">PHP-FPM request lifecycle (most common production setup)</p>
+    <div class="arch-row">
+      <div class="arch-box blue">Browser</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box blue">Nginx / Apache<br><small>reverse proxy</small></div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box amber">FastCGI (FPM)<br><small>worker pool</small></div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box red">PHP Worker<br><small>persistent process</small></div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box green">App code<br><small>WordPress / Laravel…</small></div>
+    </div>
+    <p class="arch-note">
+      A PHP-FPM <strong>worker</strong> is a long-running process that handles many requests sequentially.
+      Between requests, the Zend Engine resets its internal state — but only partially.
+      Both CVEs exploit windows where that reset is incomplete or interrupted.
+    </p>
+  </div>
+
+  <div class="arch-diagram">
+    <p class="arch-label">mod_php inside Apache (highest-risk configuration)</p>
+    <div class="arch-row">
+      <div class="arch-box blue">Browser</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box red">Apache + mod_php<br><small>PHP runs in-process</small></div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box green">App code</div>
+    </div>
+    <p class="arch-note">
+      With <strong>mod_php</strong>, PHP shares the Apache worker's memory space directly.
+      There is no process isolation between requests. An exploit that corrupts the PHP heap
+      can affect the entire Apache worker — and a demonstrated exploit for CVE-2026-109618
+      triggers <em>before</em> any application code runs.
+    </p>
+  </div>
+
+  <div class="cards" style="margin-top:1.5rem">
+    <div class="card info">
+      <div class="card-icon">🔄</div>
+      <h3>Worker reuse model</h3>
+      <p>PHP workers are expensive to spin up, so they are reused across thousands of requests.
+         This is a performance win — but it means any state that leaks between requests
+         (global variables, internal structs) persists until the worker is recycled.</p>
+    </div>
+    <div class="card warn">
+      <div class="card-icon">🧠</div>
+      <h3>Zend memory arena</h3>
+      <p>PHP uses a custom memory allocator (Zend MM). Per-request memory is allocated from an arena
+         and bulk-freed at request end. If PHP is killed mid-cleanup (OOM), that arena may hold
+         partially-initialized structs that the next cleanup pass treats as valid.</p>
+    </div>
+    <div class="card warn">
+      <div class="card-icon">🌐</div>
+      <h3>Global vs. request scope</h3>
+      <p>PHP distinguishes "persistent" (process-lifetime) allocations from per-request ones.
+         The stale-state bug (CVE-2026-109619) arises when a pointer to a freed per-request
+         object is stored in a persistent (global) slot and read by the next request's init phase.</p>
+    </div>
+    <div class="card danger">
+      <div class="card-icon">⚡</div>
+      <h3>Pre-application attack surface</h3>
+      <p>Both bugs are triggered during PHP's own request setup — before <code>index.php</code> loads.
+         No WAF rule, no application firewall, and no PHP-level input sanitisation can stop them.
+         The only defence is the C-level fix in the PHP binary itself.</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 3: CVEs -->
+<div class="section" id="cves">
+  <div class="section-header">
+    <span class="section-badge badge-red">CVE Details</span>
+    <h2 class="section-title">The two critical vulnerabilities</h2>
+    <span class="section-num">03</span>
+  </div>
+
+  <!-- CVE 1 -->
+  <div class="cve-card critical">
+    <div class="cve-header">
+      <div>
+        <div class="cve-id">CVE-2026-109618</div>
+        <div class="cve-title">RCE via Out-of-Memory Corruption</div>
+      </div>
+      <span class="cve-cvss">CVSS 9.2 · CRITICAL</span>
+    </div>
+    <div class="cve-body">
+      <div class="cve-section">
+        <h4>Root cause</h4>
+        <p>PHP's Zend Engine initialises internal request data structures in multiple stages.
+           If the OS kills the process mid-initialisation (triggered by hitting
+           <code>memory_limit</code>), some structures are only partially built.</p>
+        <p style="margin-top:0.6rem">
+           When PHP then runs its cleanup phase, it iterates those structures assuming they are
+           complete. Treating a half-built struct as valid leads to a <strong>type confusion</strong>
+           on the heap — which an attacker can groom into arbitrary code execution.
+        </p>
+      </div>
+      <div class="cve-section">
+        <h4>Attack surface</h4>
+        <ul>
+          <li>Attacker sends a crafted POST body large enough to trigger the OOM condition</li>
+          <li>Works unauthenticated — no application code needs to run</li>
+          <li>Highest risk with <strong>mod_php</strong> (demonstrated public exploit)</li>
+          <li>PHP-FPM is also affected but process isolation limits blast radius</li>
+        </ul>
+        <h4 style="margin-top:1rem">GitHub Advisory</h4>
+        <p>GHSA-w8hw-w9fx-j79w</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- CVE 2 -->
+  <div class="cve-card critical">
+    <div class="cve-header">
+      <div>
+        <div class="cve-id">CVE-2026-109619</div>
+        <div class="cve-title">RCE via Stale Global State After Request Teardown</div>
+      </div>
+      <span class="cve-cvss">CVSS 9.2 · CRITICAL</span>
+    </div>
+    <div class="cve-body">
+      <div class="cve-section">
+        <h4>Root cause</h4>
+        <p>PHP stores a pointer to a per-request internal object in a global (persistent) slot
+           during session upload-progress tracking.  If the request ends abnormally
+           (fatal error, execution timeout), the teardown path skips resetting that slot.</p>
+        <p style="margin-top:0.6rem">
+           The next request begins, reads the stale pointer — which now points to freed memory
+           in the heap — before normal initialisation has a chance to overwrite it.
+           On a worker that receives attacker-controlled allocation patterns, this becomes a
+           <strong>use-after-free → RCE</strong>.
+        </p>
+      </div>
+      <div class="cve-section">
+        <h4>Attack surface</h4>
+        <ul>
+          <li>Requires <code>session.upload_progress.enabled=On</code> (default in many distros)</li>
+          <li>Attacker must be able to send two sequential requests to the same worker</li>
+          <li>Also triggered by attacker-reachable fatal errors and execution timeouts</li>
+          <li>Affects PHP-FPM, mod_php, FrankenPHP, LiteSpeed, and php-cgi</li>
+        </ul>
+        <h4 style="margin-top:1rem">GitHub Advisory</h4>
+        <p>GHSA-6wmf-4rv5-p3rp</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 4: AFFECTED VERSIONS -->
+<div class="section" id="versions">
+  <div class="section-header">
+    <span class="section-badge badge-amber">Versions</span>
+    <h2 class="section-title">Affected and fixed versions</h2>
+    <span class="section-num">04</span>
+  </div>
+
+  <div class="arch-diagram" style="padding:0;overflow:hidden">
+    <table class="vtable">
+      <thead>
+        <tr>
+          <th>PHP Branch</th>
+          <th>Status</th>
+          <th>Last Vulnerable</th>
+          <th>Fixed Version</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>PHP 8.5.x</strong></td>
+          <td><span class="status-pill pill-fixed">✅ Patched</span></td>
+          <td>8.5.11</td>
+          <td><strong>8.5.12</strong></td>
+          <td>Active support</td>
+        </tr>
+        <tr>
+          <td><strong>PHP 8.4.x</strong></td>
+          <td><span class="status-pill pill-fixed">✅ Patched</span></td>
+          <td>8.4.26</td>
+          <td><strong>8.4.27</strong></td>
+          <td>Active support</td>
+        </tr>
+        <tr>
+          <td><strong>PHP 8.3.x</strong></td>
+          <td><span class="status-pill pill-fixed">✅ Patched</span></td>
+          <td>8.3.35</td>
+          <td><strong>8.3.36</strong></td>
+          <td>Security fixes only</td>
+        </tr>
+        <tr>
+          <td><strong>PHP 8.2.x</strong></td>
+          <td><span class="status-pill pill-fixed">✅ Patched</span></td>
+          <td>8.2.34</td>
+          <td><strong>8.2.35</strong></td>
+          <td>Security fixes only</td>
+        </tr>
+        <tr>
+          <td><strong>PHP 8.1.x</strong></td>
+          <td><span class="status-pill pill-eol">💀 EOL</span></td>
+          <td>All versions</td>
+          <td>None — EOL Dec 2025</td>
+          <td>Some distros backported a fix</td>
+        </tr>
+        <tr>
+          <td><strong>PHP 8.0.x and older</strong></td>
+          <td><span class="status-pill pill-eol">💀 EOL</span></td>
+          <td>All versions</td>
+          <td>None</td>
+          <td>Upgrade branch immediately</td>
+        </tr>
+        <tr>
+          <td><strong>PHP 7.x</strong></td>
+          <td><span class="status-pill pill-vuln">🚨 Vulnerable</span></td>
+          <td>All versions</td>
+          <td>None — EOL Nov 2022</td>
+          <td>Unpatched. Migrate to 8.x now.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p style="color:var(--muted);font-size:0.85rem;margin-top:0.75rem">
+    * Debian, Ubuntu LTS, and RHEL vendors have independently backported fixes to their
+    packaged PHP 8.1 and 7.4 builds. Check your distro's security advisory tracker.
+  </p>
+</div>
+
+<!-- SECTION 5: MITIGATIONS -->
+<div class="section" id="mitigations">
+  <div class="section-header">
+    <span class="section-badge badge-red">Mitigations</span>
+    <h2 class="section-title">What to do — and what won't save you</h2>
+    <span class="section-num">05</span>
+  </div>
+
+  <div class="cve-card" style="background:#fdf3f1;border-color:rgba(200,75,47,0.4);margin-bottom:2rem">
+    <p style="font-size:1rem;font-weight:500;color:var(--accent1)">
+      ⚠️ The PHP Security Team's official position: <em>"There are no complete mitigations.
+      Updating is the only safe choice."</em>
+    </p>
+    <p style="margin-top:0.75rem;font-size:0.88rem;color:var(--muted)">
+      The partial workarounds below reduce attack surface but do not close the vulnerabilities.
+      Use them only as a temporary bridge while you prepare the upgrade.
+    </p>
+  </div>
+
+  <div class="mit-grid">
+    <div class="mit-card">
+      <h3>CVE-2026-109618 — Reduce OOM exposure</h3>
+      <p>Set a generous memory limit so requests fail gracefully rather than mid-init:</p>
+      <code>memory_limit = -1</code>
+      <p>Or cap inbound body size to reduce the attack surface:</p>
+      <code>post_max_size = 8M</code>
+      <p>Use OS-level cgroup memory limits on containers rather than PHP's own limit.</p>
+    </div>
+    <div class="mit-card">
+      <h3>CVE-2026-109619 — Disable session upload progress</h3>
+      <p>This is the primary attack trigger. Disable it in <code>php.ini</code> and restart all workers:</p>
+      <code>session.upload_progress.enabled = 0</code>
+      <p>On PHP 8.5 only, also set:</p>
+      <code>fatal_error_backtraces = 0</code>
+      <p>Audit your app for any attacker-reachable code paths that cause fatal errors or timeouts.</p>
+    </div>
+    <div class="mit-card">
+      <h3>PHP-FPM: restart workers regularly</h3>
+      <p>Force worker recycling to limit how long stale state can persist:</p>
+      <code>pm.max_requests = 500</code>
+      <p>Pair with a low <code>request_terminate_timeout</code> so hung workers are killed promptly.</p>
+    </div>
+    <div class="mit-card warn-card">
+      <h3>What does NOT help</h3>
+      <p>❌ WAF rules — the exploit fires before app code loads</p>
+      <p>❌ Application-level input validation — same reason</p>
+      <p>❌ <code>disable_functions</code> — no user function is called</p>
+      <p>❌ <code>open_basedir</code> — filesystem restrictions, not memory safety</p>
+      <p>❌ Updating WordPress / plugins — the bug is in the PHP binary itself</p>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 6: CHECKER TOOL -->
+<div class="section" id="checker">
+  <div class="section-header">
+    <span class="section-badge badge-green">Tooling</span>
+    <h2 class="section-title">Automated vulnerability checker</h2>
+    <span class="section-num">06</span>
+  </div>
+
+  <div class="checker-block">
+    <h3>php-vuln-check.js — Node.js CLI (zero dependencies)</h3>
+    <pre><span class="comment"># check local PHP binary</span>
+node php-vuln-check.js
+
+<span class="comment"># check a single site via HTTP response headers</span>
+node php-vuln-check.js --url https://example.com
+
+<span class="comment"># bulk-check a list of URLs (one per line)</span>
+node php-vuln-check.js --file hosts.txt
+
+<span class="comment"># JSON output — pipe into monitoring or alerting</span>
+node php-vuln-check.js --file hosts.txt --json
+
+<span class="comment"># exit code 1 if any host is vulnerable or EOL</span>
+<span class="comment"># exit code 0 if all hosts are patched</span></pre>
+    <p>
+      The checker reads the <code>X-Powered-By</code> and <code>Server</code> HTTP response headers
+      to detect exposed PHP versions. Servers that suppress those headers are reported as
+      <code>HEADER_HIDDEN</code> — which is good practice but requires a direct local check.
+      Source: <code>scripts/php-vuln-check.js</code> in this repo.
+    </p>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div>
+    <strong>PHP Security Advisory</strong> · October 21, 2026 ·
+    <a href="https://www.php.net/index.php#2026-10-21-5" target="_blank">php.net announcement</a> ·
+    <a href="https://www.php.net/ChangeLog-8.php" target="_blank">PHP 8 Changelog</a>
+  </div>
+  <div>
+    CVE-2026-109618 · GHSA-w8hw-w9fx-j79w &nbsp;|&nbsp;
+    CVE-2026-109619 · GHSA-6wmf-4rv5-p3rp
+  </div>
+</footer>
+
+</body>
+</html>
