@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kovai PDF Studio</title>
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<script src="app-min.js" defer></script>
+<link rel="stylesheet" href="app.css">
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 min-h-screen transition-colors duration-200">
+
+<!-- Splash Screen -->
+<div id="splash">
+  <!-- Stars layer -->
+  <div class="absolute inset-0 overflow-hidden pointer-events-none" id="splash-stars"></div>
+
+  <div class="relative flex flex-col items-center gap-6 select-none">
+    <!-- Logo mark -->
+    <div class="splash-logo-ring">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="white" opacity="0.15"/>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8L14 2z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M14 2v6h6" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="5.2" y="19.5" font-family="Arial,sans-serif" font-size="5.5" font-weight="bold" fill="white">PDF</text>
+      </svg>
+    </div>
+
+    <!-- Name + tagline -->
+    <div class="text-center">
+      <div class="flex items-baseline justify-center gap-2 mb-1">
+        <span class="text-3xl font-light text-white tracking-wide">Kovai</span>
+        <span class="text-3xl font-bold text-white tracking-tight">PDF Studio</span>
+      </div>
+      <p class="text-sm text-indigo-300 tracking-widest uppercase font-medium">Read · Annotate · Sign</p>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="flex flex-col items-center gap-3">
+      <div class="splash-bar-track">
+        <div class="splash-bar-fill"></div>
+      </div>
+      <div class="splash-dots flex gap-2">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+
+    <!-- Version tag -->
+    <p class="text-xs text-white/25 tracking-widest mt-2">v1.0</p>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast"></div>
+
+<!-- Top Bar -->
+<header class="h-12 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center px-3 gap-1.5 sticky top-0 z-50 shadow-sm">
+  <!-- Logo -->
+  <div class="flex items-center gap-2 font-semibold text-indigo-600 dark:text-indigo-400 text-base select-none mr-2 whitespace-nowrap">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="#6366f1" opacity="0.15"/>
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8L14 2z" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M14 2v6h6" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="5.5" y="19" font-family="Arial,sans-serif" font-size="5.5" font-weight="bold" fill="#6366f1">PDF</text>
+    </svg>
+    <span class="whitespace-nowrap">Kovai PDF Studio</span>
+  </div>
+
+  <!-- File ops -->
+  <div class="flex items-center gap-0.5">
+    <button id="btn-open-pdf" onclick="document.getElementById('file-input').click()" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-600" title="Open PDF (Ctrl+O)">
+      <i class="fa-solid fa-folder-open"></i>
+    </button>
+    <input id="file-input" type="file" accept=".pdf" class="hidden" onchange="loadPDFFromFile(event)">
+    <button id="btn-open-url" onclick="openUrlModal()" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-600" title="Open PDF from URL (Ctrl+U)">
+      <i class="fa-solid fa-link"></i>
+    </button>
+    <button onclick="savePDF()" id="btn-save" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-600 opacity-50 cursor-not-allowed" title="Save (Ctrl+S)" disabled>
+      <i class="fa-solid fa-floppy-disk"></i>
+    </button>
+    <button onclick="downloadAnnotations()" id="btn-export" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-600 opacity-50 cursor-not-allowed" title="Export annotations" disabled>
+      <i class="fa-solid fa-download"></i>
+    </button>
+  </div>
+
+  <div class="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5 flex-shrink-0"></div>
+
+  <!-- Nav -->
+  <div id="nav-group" class="flex items-center gap-0.5">
+    <button onclick="prevPage()" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-50" title="Previous page">
+      <i class="fa-solid fa-chevron-left"></i>
+    </button>
+    <div class="flex items-center gap-1 text-sm">
+      <input id="page-input" type="number" min="1" value="1" class="w-10 text-center bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-md px-1 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" onchange="goToPage(this.value)">
+      <span class="text-slate-400">/</span>
+      <span id="total-pages" class="text-slate-500 dark:text-slate-400">-</span>
+    </div>
+    <button onclick="nextPage()" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-50" title="Next page">
+      <i class="fa-solid fa-chevron-right"></i>
+    </button>
+  </div>
+
+  <div class="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5 flex-shrink-0"></div>
+
+  <!-- Zoom -->
+  <div id="zoom-group" class="flex items-center gap-0.5">
+    <button onclick="zoomOut()" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-50" title="Zoom out">
+      <i class="fa-solid fa-minus"></i>
+    </button>
+    <span id="zoom-label" class="text-sm text-slate-500 dark:text-slate-400 w-12 text-center">100%</span>
+    <button onclick="zoomIn()" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-50" title="Zoom in">
+      <i class="fa-solid fa-plus"></i>
+    </button>
+    <button onclick="fitWidth()" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 text-xs px-2 w-auto" title="Fit width">Fit</button>
+  </div>
+
+  <div class="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5 flex-shrink-0"></div>
+
+  <!-- Tools -->
+  <div class="flex items-center gap-0.5" id="tool-group">
+    <button id="tool-select" onclick="setTool('select')" class="toolbar-btn active bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" title="Select / Pan">
+      <i class="fa-solid fa-arrow-pointer"></i>
+    </button>
+    <button id="tool-highlight" onclick="setTool('highlight')" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" title="Highlight">
+      <i class="fa-solid fa-highlighter"></i>
+    </button>
+    <button id="tool-note" onclick="setTool('note')" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" title="Add note">
+      <i class="fa-solid fa-note-sticky"></i>
+    </button>
+    <button id="tool-draw" onclick="setTool('draw')" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" title="Freehand draw">
+      <i class="fa-solid fa-pen"></i>
+    </button>
+    <button id="tool-text" onclick="setTool('text')" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" title="Add text">
+      <i class="fa-solid fa-font"></i>
+    </button>
+    <button id="tool-sign" onclick="setTool('sign')" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" title="Signature">
+      <i class="fa-solid fa-signature"></i>
+    </button>
+  </div>
+
+  <div class="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5 flex-shrink-0"></div>
+
+  <!-- Color picker -->
+  <div class="flex items-center gap-1" id="color-group">
+    <div class="color-swatch selected" style="background:#fde047" onclick="setColor('#fde047')" title="Yellow"></div>
+    <div class="color-swatch" style="background:#86efac" onclick="setColor('#86efac')" title="Green"></div>
+    <div class="color-swatch" style="background:#93c5fd" onclick="setColor('#93c5fd')" title="Blue"></div>
+    <div class="color-swatch" style="background:#fca5a5" onclick="setColor('#fca5a5')" title="Red"></div>
+    <div class="color-swatch" style="background:#c4b5fd" onclick="setColor('#c4b5fd')" title="Purple"></div>
+    <!-- Custom color picker -->
+    <label title="Custom color" class="relative cursor-pointer" style="width:20px;height:20px">
+      <div id="custom-swatch" class="color-swatch flex items-center justify-center text-white" style="background:#6366f1;font-size:10px" title="Custom color">
+        <i class="fa-solid fa-eye-dropper" style="pointer-events:none"></i>
+      </div>
+      <input type="color" id="custom-color-input" value="#6366f1"
+        class="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+        oninput="onCustomColor(this.value)"
+        onchange="onCustomColor(this.value)">
+    </label>
+  </div>
+
+  <div class="flex-1"></div>
+
+  <!-- Search -->
+  <div class="relative flex items-center">
+    <input id="search-input" type="text" placeholder="Search…" class="w-44 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 pr-8" onkeydown="handleSearchKey(event)">
+    <button onclick="searchText()" class="absolute right-2 text-slate-400 hover:text-indigo-500 text-xs">
+      <i class="fa-solid fa-magnifying-glass"></i>
+    </button>
+  </div>
+  <!-- Match navigation (hidden until results) -->
+  <div id="search-nav" class="hidden flex items-center gap-1">
+    <button onclick="prevMatch()" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-50" title="Previous match (Shift+Enter)">
+      <i class="fa-solid fa-chevron-up text-xs"></i>
+    </button>
+    <span id="search-count" class="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap px-1"></span>
+    <button onclick="nextMatch()" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-50" title="Next match (Enter)">
+      <i class="fa-solid fa-chevron-down text-xs"></i>
+    </button>
+  </div>
+  <button onclick="clearSearch()" id="btn-clear-search" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-red-500 hidden" title="Clear search">
+    <i class="fa-solid fa-xmark"></i>
+  </button>
+
+  <div class="w-px h-5 bg-slate-200 dark:bg-slate-600 mx-0.5 flex-shrink-0"></div>
+
+  <!-- Sidebar toggles -->
+  <button onclick="toggleSidebar('thumbnails')" id="btn-thumbs" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" title="Page thumbnails">
+    <i class="fa-solid fa-table-cells"></i>
+  </button>
+  <button onclick="toggleSidebar('annotations')" id="btn-annots" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300" title="Annotations list">
+    <i class="fa-solid fa-list-ul"></i>
+  </button>
+
+  <!-- More menu -->
+  <div class="relative" id="more-menu-wrap">
+    <button onclick="toggleMoreMenu()" class="toolbar-btn bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-indigo-50" title="More options">
+      <i class="fa-solid fa-ellipsis-vertical"></i>
+    </button>
+    <div id="more-menu" class="hidden absolute right-0 top-10 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 py-1 overflow-hidden">
+      <button onclick="toggleTheme(); toggleMoreMenu()" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300">
+        <i id="theme-icon" class="fa-solid fa-moon w-4 text-slate-400"></i> Toggle theme
+      </button>
+      <button onclick="startTour(); toggleMoreMenu()" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300">
+        <i class="fa-solid fa-map w-4 text-indigo-400"></i> Guided tour
+      </button>
+      <button onclick="toggleShortcuts(); toggleMoreMenu()" class="w-full flex items-center gap-3 px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300">
+        <i class="fa-solid fa-keyboard w-4 text-slate-400"></i> Keyboard shortcuts
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- Main Layout -->
+<div class="flex h-[calc(100vh-48px)] overflow-hidden">
+
+  <!-- Left Sidebar -->
+  <aside id="left-sidebar" class="sidebar-panel w-0 overflow-hidden bg-white dark:bg-slate-800 border-r border-slate-200 dark:border-slate-700 flex flex-col">
+    <div id="sidebar-thumbnails" class="hidden flex-col h-full">
+      <div class="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide border-b border-slate-200 dark:border-slate-700">Pages</div>
+      <div id="thumb-container" class="flex-1 overflow-y-auto p-2 flex flex-col gap-2"></div>
+    </div>
+    <div id="sidebar-annotations" class="hidden flex-col h-full">
+      <div class="px-3 py-2 text-xs font-semibold text-slate-500 uppercase tracking-wide border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+        <span>Annotations</span>
+        <button onclick="clearAllAnnotations()" class="text-red-400 hover:text-red-600 text-xs">Clear all</button>
+      </div>
+      <div id="annot-list" class="flex-1 overflow-y-auto p-2 flex flex-col gap-1.5"></div>
+    </div>
+  </aside>
+
+  <!-- PDF Viewer -->
+  <main class="flex-1 overflow-y-auto overflow-x-auto bg-slate-200 dark:bg-slate-900 relative" id="viewer-main">
+    <!-- Drop zone / landing -->
+    <div id="drop-zone" class="flex flex-col items-center justify-center h-full min-h-full">
+      <div class="text-center p-12 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-2xl bg-white dark:bg-slate-800 max-w-md mx-auto">
+        <svg class="mx-auto mb-4" width="72" height="72" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" fill="#818cf8" opacity="0.2"/>
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8L14 2z" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M14 2v6h6" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <text x="5.2" y="19.5" font-family="Arial,sans-serif" font-size="5.5" font-weight="bold" fill="#818cf8">PDF</text>
+        </svg>
+        <h2 class="text-xl font-semibold mb-2">Open a PDF</h2>
+        <p class="text-slate-400 text-sm mb-6">Drag & drop a PDF here, or click to browse</p>
+        <div class="flex gap-3 justify-center flex-wrap">
+          <button onclick="document.getElementById('file-input').click()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-6 py-2.5 rounded-lg font-medium transition-colors">
+            <i class="fa-solid fa-folder-open mr-2"></i>Browse files
+          </button>
+          <button onclick="openUrlModal()" class="bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 border border-slate-200 dark:border-slate-600 text-slate-700 dark:text-slate-300 px-6 py-2.5 rounded-lg font-medium transition-colors">
+            <i class="fa-solid fa-link mr-2 text-indigo-500"></i>Open URL
+          </button>
+        </div>
+        <p class="text-xs text-slate-300 dark:text-slate-500 mt-4">Supports local files and public PDF URLs</p>
+      </div>
+    </div>
+
+    <div id="pdf-container" class="hidden"></div>
+  </main>
+</div>
+
+<!-- URL Modal -->
+<div id="url-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 items-center justify-center" style="display:none" onclick="if(event.target===this)closeUrlModal()">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 w-[500px] max-w-[95vw]">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-semibold text-lg flex items-center gap-2">
+        <i class="fa-solid fa-link text-indigo-500"></i> Open PDF from URL
+      </h3>
+      <button onclick="closeUrlModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl">&times;</button>
+    </div>
+    <div class="mb-3">
+      <label class="block text-xs font-medium text-slate-500 mb-1.5">PDF URL</label>
+      <div class="flex gap-2">
+        <input id="url-input" type="url" placeholder="https://example.com/document.pdf"
+          class="flex-1 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          onkeydown="if(event.key==='Enter')loadFromUrl()">
+        <button onclick="loadFromUrl()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-5 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap">
+          Load
+        </button>
+      </div>
+    </div>
+    <!-- Quick examples -->
+    <div class="mb-2">
+      <p class="text-xs font-medium text-slate-400 mb-2">Quick examples</p>
+      <div class="flex flex-col gap-1.5">
+        <button onclick="setUrlExample('https://arxiv.org/pdf/1706.03762')" class="text-left text-xs px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 transition-colors truncate">
+          <i class="fa-solid fa-file-pdf text-indigo-400 mr-1.5"></i>Attention Is All You Need (arXiv)
+        </button>
+        <button onclick="setUrlExample('https://arxiv.org/pdf/1810.04805')" class="text-left text-xs px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 transition-colors truncate">
+          <i class="fa-solid fa-file-pdf text-indigo-400 mr-1.5"></i>BERT Paper (arXiv)
+        </button>
+        <button onclick="setUrlExample('https://www.w3.org/WAI/WCAG21/wcag-2.1.pdf')" class="text-left text-xs px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-700 hover:bg-indigo-50 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 transition-colors truncate">
+          <i class="fa-solid fa-file-pdf text-indigo-400 mr-1.5"></i>WCAG 2.1 Spec (W3C)
+        </button>
+      </div>
+    </div>
+    <p id="url-error" class="text-xs text-red-500 hidden mt-2"></p>
+    <p class="text-xs text-slate-400 mt-3 leading-relaxed">
+      <i class="fa-solid fa-circle-info mr-1"></i>
+      The server must allow cross-origin requests (CORS). Most arXiv, W3C, and government PDF URLs work directly.
+    </p>
+  </div>
+</div>
+
+<!-- Signature Modal -->
+<div id="sig-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 w-[480px] max-w-[95vw]">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-semibold text-lg">Draw Signature</h3>
+      <button onclick="closeSigModal()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+        <i class="fa-solid fa-xmark text-xl"></i>
+      </button>
+    </div>
+    <canvas id="sig-canvas" class="sig-canvas w-full" height="180"></canvas>
+    <div class="flex items-center justify-between mt-4">
+      <div class="flex gap-2">
+        <button onclick="clearSig()" class="px-3 py-1.5 text-sm border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700">Clear</button>
+        <select id="sig-color" class="text-sm border border-slate-200 dark:border-slate-600 rounded-lg px-2 bg-white dark:bg-slate-700">
+          <option value="#1e293b">Black</option>
+          <option value="#1d4ed8">Blue</option>
+          <option value="#b91c1c">Red</option>
+        </select>
+      </div>
+      <button onclick="applySig()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-5 py-1.5 rounded-lg text-sm font-medium transition-colors">
+        Place Signature
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Note Input Modal -->
+<div id="note-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 w-[360px] max-w-[95vw]">
+    <h3 class="font-semibold text-lg mb-3">Add Note</h3>
+    <textarea id="note-text" placeholder="Type your note…" rows="4" class="w-full border border-slate-200 dark:border-slate-600 rounded-lg p-3 text-sm bg-white dark:bg-slate-700 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+    <div class="flex justify-end gap-2 mt-3">
+      <button onclick="cancelNote()" class="px-4 py-1.5 text-sm border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700">Cancel</button>
+      <button onclick="confirmNote()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-5 py-1.5 rounded-lg text-sm font-medium">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- Text Input Modal -->
+<div id="text-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden items-center justify-center">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 w-[360px] max-w-[95vw]">
+    <h3 class="font-semibold text-lg mb-3">Add Text Label</h3>
+    <input id="text-input-val" type="text" placeholder="Type text…" class="w-full border border-slate-200 dark:border-slate-600 rounded-lg p-3 text-sm bg-white dark:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500" onkeydown="if(event.key==='Enter')confirmText()">
+    <div class="flex justify-end gap-2 mt-3">
+      <button onclick="cancelText()" class="px-4 py-1.5 text-sm border border-slate-200 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700">Cancel</button>
+      <button onclick="confirmText()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-5 py-1.5 rounded-lg text-sm font-medium">Place</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Tour overlay -->
+<div id="tour-overlay" style="display:none" class="tour-overlay" onclick="endTour()"></div>
+<div id="tour-spotlight" class="tour-spotlight" style="display:none"></div>
+<div id="tour-popover" class="tour-popover arrow-top" style="display:none">
+  <!-- Header row: step count + close -->
+  <div class="flex items-center justify-between mb-3">
+    <span class="text-xs font-semibold text-indigo-500 uppercase tracking-widest" id="tour-step-num"></span>
+    <button onclick="endTour()" class="w-6 h-6 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-600 text-base leading-none transition-colors">&times;</button>
+  </div>
+  <!-- Content -->
+  <h3 class="font-semibold text-base mb-1.5" id="tour-title"></h3>
+  <p class="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-4" id="tour-body"></p>
+  <!-- Dots -->
+  <div class="flex justify-center gap-1.5 mb-4" id="tour-dots"></div>
+  <!-- Nav buttons -->
+  <div class="flex gap-2">
+    <button id="tour-btn-prev" onclick="tourPrev()" class="flex-1 py-2 text-sm border border-slate-200 dark:border-slate-600 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors font-medium">← Prev</button>
+    <button id="tour-btn-next" onclick="tourNext()" class="flex-1 py-2 text-sm bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-semibold transition-colors shadow-sm">Next →</button>
+  </div>
+</div>
+
+<!-- Context Help Panel -->
+<div id="help-panel" class="help-panel">
+  <div class="bg-indigo-500 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center text-white font-semibold text-sm">
+      <i id="help-icon" class="fa-solid fa-arrow-pointer text-white mr-2"></i>
+      <span id="help-tool-title">Select</span>
+    </div>
+    <button onclick="toggleHelpPanel()" class="text-white/70 hover:text-white text-lg leading-none">&times;</button>
+  </div>
+  <div class="p-4">
+    <p class="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-2">Tips</p>
+    <ul id="help-tips" class="text-sm text-slate-600 dark:text-slate-300 space-y-2 leading-snug"></ul>
+  </div>
+  <div class="px-4 pb-3">
+    <button onclick="startTour()" class="w-full text-xs text-indigo-500 hover:text-indigo-700 font-medium py-1.5 border border-indigo-200 dark:border-indigo-800 rounded-lg">
+      <i class="fa-solid fa-map mr-1"></i> Take guided tour
+    </button>
+  </div>
+</div>
+
+<!-- Help FAB -->
+<button id="help-fab" class="help-fab" onclick="toggleHelpPanel()" title="Context-sensitive help">
+  <i class="fa-solid fa-question"></i>
+</button>
+
+<!-- Keyboard Shortcuts Panel -->
+<div id="shortcuts-panel" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 items-center justify-center" style="display:none" onclick="if(event.target===this)toggleShortcuts()">
+  <div class="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 w-[420px] max-w-[95vw]">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="font-semibold text-lg flex items-center gap-2"><i class="fa-solid fa-keyboard text-indigo-500"></i> Keyboard Shortcuts</h3>
+      <button onclick="toggleShortcuts()" class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xl">&times;</button>
+    </div>
+    <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+      <div class="text-slate-500 dark:text-slate-400 font-medium col-span-2 text-xs uppercase tracking-wide mb-1">File</div>
+      <div class="flex justify-between"><span>Open PDF</span><kbd class="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">Ctrl O</kbd></div>
+      <div class="flex justify-between"><span>Save PDF</span><kbd class="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">Ctrl S</kbd></div>
+
+      <div class="text-slate-500 dark:text-slate-400 font-medium col-span-2 text-xs uppercase tracking-wide mt-3 mb-1">Navigation</div>
+      <div class="flex justify-between"><span>Next page</span><kbd class="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">→ / ↓</kbd></div>
+      <div class="flex justify-between"><span>Prev page</span><kbd class="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">← / ↑</kbd></div>
+      <div class="flex justify-between"><span>Zoom in</span><kbd class="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">Ctrl +</kbd></div>
+      <div class="flex justify-between"><span>Zoom out</span><kbd class="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">Ctrl −</kbd></div>
+      <div class="flex justify-between"><span>Search</span><kbd class="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">Ctrl F</kbd></div>
+
+      <div class="text-slate-500 dark:text-slate-400 font-medium col-span-2 text-xs uppercase tracking-wide mt-3 mb-1">Tools</div>
+      <div class="flex justify-between"><span>Select / Pan</span><kbd class="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">Esc</kbd></div>
+      <div class="flex justify-between"><span>Highlight</span><kbd class="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">H</kbd></div>
+      <div class="flex justify-between"><span>Note</span><kbd class="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">N</kbd></div>
+      <div class="flex justify-between"><span>Draw</span><kbd class="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">D</kbd></div>
+      <div class="flex justify-between"><span>Text</span><kbd class="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">T</kbd></div>
+      <div class="flex justify-between"><span>Signature</span><kbd class="bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded text-xs">S</kbd></div>
+    </div>
+    <div class="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center">
+      <button onclick="startTour(); toggleShortcuts();" class="text-sm text-indigo-500 hover:text-indigo-700 font-medium">
+        <i class="fa-solid fa-map mr-1"></i>Take guided tour
+      </button>
+      <button onclick="toggleShortcuts()" class="px-4 py-1.5 bg-indigo-500 hover:bg-indigo-600 text-white text-sm rounded-lg">Close</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
