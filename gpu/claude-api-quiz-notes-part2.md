@@ -538,3 +538,64 @@ response = client.messages.create(
 - **A:** A good name helps, but a name alone can't convey boundaries, formats, or when to prefer one tool over another.
 - **C:** The JSON Schema version has essentially no effect on whether Claude calls the tool well.
 - **D:** `required` enforces which fields must be present, but it doesn't tell Claude what values are appropriate or when the tool applies. It's useful and secondary.
+
+---
+
+## 20. Which Claude Code hook event fires when a session ends (cleanup and telemetry)?
+
+- A. `PostToolUse` with `matcher="*"`
+- **B. `SessionEnd`** (correct)
+- C. `Stop`
+- D. `UserPromptSubmit`
+
+**Why B:**
+- `SessionEnd` runs when a Claude Code session terminates (for example on exit or clear), which makes it the natural place for cleanup (temp files, background processes, locks) and final telemetry or logging for the whole session.
+- The hook input includes the session ID and the reason the session ended, so your script can record how it finished.
+
+**Related hook events (for contrast):**
+- `SessionStart`: when a session begins or resumes, useful for loading context or setting up the environment.
+- `UserPromptSubmit`: when the user submits a prompt, before Claude processes it.
+- `PreToolUse` / `PostToolUse`: before and after a tool call, for validation, blocking, formatting, or logging per tool.
+- `Stop`: when Claude finishes responding to a turn (not when the session ends).
+- `SubagentStop`: when a sub-agent finishes.
+- `Notification`: when Claude Code sends a notification, such as waiting for permission or input.
+- `PreCompact`: before context compaction.
+
+**Why not the others:**
+- **A:** `PostToolUse` fires after every matching tool call. With a `*` matcher it would run many times per session, not once at the end.
+- **C:** `Stop` fires each time Claude finishes a response, which can happen many times in one session, so it isn't a session-end signal.
+- **D:** `UserPromptSubmit` fires when you send a prompt, at the start of a turn.
+
+**Practical tips:**
+- Hooks are configured in `settings.json` under `hooks`, with a command to run per event. They execute with your user permissions, so review them carefully.
+- Keep `SessionEnd` hooks fast and tolerant of failure, since the session may be closing and the hook shouldn't block exit.
+- Don't log secrets or full prompts in telemetry unless that's intended and permitted.
+
+**Note:** Answered from memory without checking the current docs. The set of hook events changes between versions, so verify names and payloads in the official Claude Code hooks reference.
+
+---
+
+## 21. What is the `anthropic-beta: interleaved-thinking-2025-05-14` header used for?
+
+- A. Enabling streaming for extended thinking
+- **B. Allowing thinking blocks to be interleaved with tool use in the same turn, so Claude can think between tool calls** (correct)
+- C. Enabling the beta model tier
+- D. Setting thinking token budget
+
+**Why B:**
+- Without it, extended thinking happens once at the start of a turn, before Claude's first tool call. With interleaved thinking, Claude can reason again after each tool result, then decide the next step, which suits multi-step agent workflows.
+- It lets Claude react to what a tool returned (an unexpected result, a failed call, new information) before choosing the next action, instead of committing to a plan up front.
+- With interleaved thinking, `budget_tokens` can exceed `max_tokens`, because the budget applies to the total of all thinking blocks across the whole assistant turn rather than to a single block.
+
+**Practical tips:**
+- Send the beta header in the request (`anthropic-beta: interleaved-thinking-2025-05-14`), and enable extended thinking as usual with the `thinking` parameter.
+- When continuing a tool-use turn, pass the thinking blocks back unmodified along with the `tool_use` and `tool_result` blocks, including their signatures.
+- Expect higher token usage and latency, since there is more reasoning per turn.
+- Beta headers and model support change over time. Newer models may support interleaved thinking differently or by default, so check current docs for your model before relying on the header.
+
+**Why not the others:**
+- **A:** Streaming is independent of this header. You can stream with or without extended thinking or interleaving.
+- **C:** It doesn't select a model or tier. The model is chosen with the `model` parameter.
+- **D:** The thinking budget is set with `thinking: {"type": "enabled", "budget_tokens": N}`. The header changes how thinking can occur, not how much you allow.
+
+**Note:** Answered from memory without checking the current docs. Verify the current header name, supported models, and budget rules in the official extended thinking documentation.
