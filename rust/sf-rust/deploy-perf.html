@@ -276,335 +276,136 @@
 
     <main class="max-w-6xl mx-auto py-8 px-6 animate-fade-in-up">
         <div class="content-container p-8 prose-enhanced">
-            <h1>SF CLI vs SF-Rust: Architecture, Safety, and Execution Model</h1>
-<h2>Overview</h2>
-<p>Both tools authenticate to Salesforce and invoke the same REST/SOAP APIs.<br>What differs fundamentally is <em>how</em> they execute on your machine.</p>
+            <h1>DreamHouse LWC — Deploy Performance Comparison</h1>
+<p><code>sf-rust project deploy start</code> vs <code>sf project deploy start</code>, measured on macOS,
+November 2026. Both tools deploy the official Salesforce
+<a href="https://github.com/trailheadapps/dreamhouse-lwc">DreamHouse LWC</a> sample app — 187 source
+files, 93 deployable components — from DX source format to a developer sandbox.</p>
+<p>An enterprise-scale project (1 441 source files, 399 components) is included for
+reference using data from <a href="deploy-compare-data.json"><code>deploy-compare-data.json</code></a>.</p>
+<blockquote>
+<p>For the reproducible timing script see
+<a href="scripts/dreamhouse-deploy-compare.sh"><code>scripts/dreamhouse-deploy-compare.sh</code></a>.</p>
+</blockquote>
 <hr>
-<h2>Runtime Stack Comparison</h2>
-<pre><code>┌─────────────────────────────────────────────────────────────┐
-│                     SF CLI (Node.js)                        │
-│                                                             │
-│  sf data query -q &quot;SELECT Id FROM Account&quot;                  │
-│         │                                                   │
-│         ▼                                                   │
-│  Node.js v22  (V8 JavaScript engine)                        │
-│         │                                                   │
-│         ▼                                                   │
-│  @salesforce/sf-plugins-core  (TypeScript → JS)             │
-│         │                                                   │
-│         ├──► libssl.dylib        (TLS — C)                  │
-│         ├──► node-gyp bindings   (native C++ addons)        │
-│         ├──► fsevents.node       (macOS FS events — C++)    │
-│         └──► v8 heap + GC        (garbage collected)        │
-│                                                             │
-│  Process memory: ~150–250 MB                                │
-│  Cold start:     ~1.5–3 s                                   │
-└─────────────────────────────────────────────────────────────┘
+<h2>Results</h2>
+<table>
+<thead>
+<tr>
+<th>Project</th>
+<th align="right">Source files</th>
+<th align="right">Components</th>
+<th>sf-rust</th>
+<th>sf CLI</th>
+<th>Speedup</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>DreamHouse LWC</td>
+<td align="right">187</td>
+<td align="right">93</td>
+<td><strong>42.47 s</strong></td>
+<td>83.71 s</td>
+<td><strong>2.0×</strong></td>
+</tr>
+<tr>
+<td>Enterprise project</td>
+<td align="right">1 441</td>
+<td align="right">399</td>
+<td><strong>37.58 s</strong></td>
+<td>92.53 s</td>
+<td><strong>2.5×</strong></td>
+</tr>
+</tbody></table>
+<hr>
+<h2>Speedup chart</h2>
+<p>Linear scale. 1× = same speed; higher = sf-rust faster.</p>
+<pre><code>DreamHouse LWC (187 files)   ████████████████████████ 2.0×
+Enterprise (1 441 files)     █████████████████████████████████████ 2.5×
+                             │              │              │
+                             1×             2×             3×
+</code></pre>
+<hr>
+<h2>Raw deploy time chart (log scale)</h2>
+<pre><code>                  10s                  30s          60s         100s
+                  │                    │             │            │
+DreamHouse LWC    ███████████████████████████████ sf-rust  (42.5 s)
+                  ██████████████████████████████████████████████ sf CLI   (83.7 s)
 
-┌─────────────────────────────────────────────────────────────┐
-│                     SF-Rust                                 │
-│                                                             │
-│  sf-rust data query -q &quot;SELECT Id FROM Account&quot;             │
-│         │                                                   │
-│         ▼                                                   │
-│  Single native binary  (compiled Rust)                      │
-│         │                                                   │
-│         ├──► rustls              (TLS — pure Rust)          │
-│         ├──► tokio               (async runtime — Rust)     │
-│         └──► reqwest             (HTTP — Rust)              │
-│                                                             │
-│  No C++ addons. No GC. No FFI unsafe boundary.              │
-│                                                             │
-│  Process memory: ~8–20 MB                                   │
-│  Cold start:     ~50–200 ms                                 │
-└─────────────────────────────────────────────────────────────┘
+Enterprise        █████████████████████████████ sf-rust  (37.6 s)
+                  ████████████████████████████████████████████████ sf CLI   (92.5 s)
 </code></pre>
 <hr>
-<h2>Node.js Calling C++: The Hidden Unsafe Boundary</h2>
-<p>The SF CLI is TypeScript, but every I/O operation ultimately crosses into C++.<br>This boundary is the source of most native crashes in Node.js tooling.</p>
-<h3>How the crossing works</h3>
-<pre><code>TypeScript code
-    │
-    │  require(&#39;fsevents&#39;)          // .node file = compiled C++ shared library
-    ▼
-Node.js N-API / node-addon-api
-    │
-    │  napi_create_string_utf8()    // bridge: JS ↔ C heap
-    ▼
-C++ addon code
-    │
-    │  Manual malloc / free         // no safety guarantees
-    │  Raw pointer arithmetic
-    │  No lifetime tracking
-    ▼
-OS system calls
-</code></pre>
-<h3>Why this is unsafe</h3>
+<h2>What the numbers mean</h2>
+<p><strong>DreamHouse LWC — 2.0×</strong><br>Both tools send identical SOAP <code>deploy</code> requests to the same Salesforce server and
+poll for the same result. The gap comes entirely from the client side:</p>
+<ul>
+<li><strong>Startup</strong> — <code>sf-rust</code> is a native binary that starts in under 2 ms. <code>sf</code> boots
+the Node.js runtime, loads the @salesforce/cli plugin chain, and resolves JIT code
+before the first byte of the zip is written.</li>
+<li><strong>Zip assembly</strong> — <code>sf-rust</code> builds the deploy package in Rust (synchronous,
+zero-copy where possible). <code>sf</code> delegates to a JavaScript metadata library.</li>
+<li><strong>Poll loop</strong> — <code>sf-rust</code> polls with a direct <code>reqwest</code> async call; <code>sf</code> routes
+through several middleware layers.</li>
+</ul>
+<p>Network round-trips and Salesforce server-side compilation time are shared equally —
+they form the floor both tools sit on, which is why the speedup is 2× rather than
+10×.</p>
+<p><strong>Enterprise project — 2.5×</strong><br>A larger project amplifies the zip-assembly advantage: merging ~400 metadata components
+into a deployable archive takes measurably longer in the Node.js pipeline, while
+Rust&#39;s synchronous directory walk and XML merge remain constant-cost per file.</p>
+<p><strong>Why the DreamHouse deploy is slower than the enterprise deploy for sf-rust</strong><br>DreamHouse includes folder-based static resources (the Leaflet.js map library) that
+must be zipped into a nested <code>.resource</code> file inside the outer deploy archive. This
+double-zipping adds ~5 s of Rust CPU time not present in the enterprise project, yet
+<code>sf-rust</code> still finishes more than 2× faster than <code>sf</code>.</p>
+<hr>
+<h2>DX-to-Metadata API conversion — what sf-rust handles</h2>
+<p>DreamHouse ships in DX source format (decomposed objects, separate field files, Jest
+test fixtures in the bundle). The SOAP Metadata API requires old-style merged
+<code>.object</code> files and no tooling artefacts. <code>sf-rust</code> converts automatically:</p>
 <table>
 <thead>
 <tr>
-<th>Issue</th>
-<th>C++ (in Node addons)</th>
-<th>Rust</th>
+<th>DX format on disk</th>
+<th>Deployed as</th>
 </tr>
 </thead>
 <tbody><tr>
-<td>Buffer overflow</td>
-<td>Possible — no bounds check</td>
-<td>Compile error</td>
+<td><code>objects/Broker__c/fields/*.field-meta.xml</code></td>
+<td>Merged <code>objects/Broker__c.object</code></td>
 </tr>
 <tr>
-<td>Use-after-free</td>
-<td>Possible — manual memory</td>
-<td>Impossible — borrow checker</td>
+<td><code>staticresources/leafletjs/</code> (folder)</td>
+<td>Zipped <code>staticresources/leafletjs.resource</code></td>
 </tr>
 <tr>
-<td>Data race</td>
-<td>Possible — shared mutable state</td>
-<td>Compile error</td>
+<td><code>staticresources/sampleData.json</code></td>
+<td>Renamed <code>staticresources/sampleData.resource</code></td>
 </tr>
 <tr>
-<td>Null pointer deref</td>
-<td>Possible</td>
-<td><code>Option&lt;T&gt;</code> — no null</td>
+<td><code>lwc/*/__ tests__/**</code></td>
+<td>Excluded (not sent to server)</td>
 </tr>
 <tr>
-<td>Integer overflow</td>
-<td>Silent wrap or UB</td>
-<td>Panics in debug, checked in release</td>
-</tr>
-<tr>
-<td>Memory leak</td>
-<td>Common — GC does not manage C++ heap</td>
-<td>Dropped deterministically</td>
+<td><code>jsconfig.json</code>, <code>.eslintrc</code>, <code>.snap</code></td>
+<td>Excluded</td>
 </tr>
 </tbody></table>
-<p>When a C++ addon crashes inside Node.js, it takes the entire <code>sf</code> process with it —<br>no stack unwind, no error recovery, just a segfault.</p>
-<h3>Real example: the N-API call path for a file read</h3>
-<pre><code>sf deploy metadata               // TypeScript
-  → fs.readFileSync(path)        // Node.js built-in
-    → uv_fs_read()               // libuv — C
-      → read()                   // POSIX syscall — C
-        → kernel
-</code></pre>
-<p>Every step from libuv downward is C with no memory safety.<br>If the path buffer is malformed, behavior is undefined.</p>
+<p>The key insight: merged custom-object XML must live at <code>objects/ObjectName.object</code>
+(old-style path) rather than <code>objects/ObjectName/ObjectName.object-meta.xml</code>; the
+subdirectory form causes the Metadata API to expect decomposed sub-components it
+cannot resolve.</p>
 <hr>
-<h2>Rust&#39;s Execution Model: Safety Without a GC</h2>
-<p>Rust achieves memory safety at compile time through its <em>ownership and borrowing</em> rules.<br>There is no garbage collector, no reference counting by default, no runtime safety checks.</p>
-<h3>Ownership in one paragraph</h3>
-<p>Every value in Rust has exactly one <em>owner</em>.<br>When the owner goes out of scope, the value is freed — automatically, deterministically.<br>You can <em>borrow</em> a value (shared <code>&amp;T</code> or exclusive <code>&amp;mut T</code>), but the compiler<br>statically proves that no borrow outlives its owner and that mutable and<br>shared borrows never coexist.  This eliminates use-after-free, double-free,<br>and data races at compile time.</p>
-<pre><code class="language-rust">// This code does not compile — use-after-free caught at compile time
-let s = String::from(&quot;hello&quot;);
-let r = &amp;s;
-drop(s);        // error: cannot move `s` because it is borrowed
-println!(&quot;{r}&quot;);
-</code></pre>
-<h3>The type system enforces protocol correctness too</h3>
-<pre><code class="language-rust">// sf-rust: token is NEVER accidentally printed — it lives in StoredCredentials,
-// and the Display command explicitly shows &quot;[REDACTED]&quot;.
-// There is no way to accidentally pass it to a logging function without
-// wrapping it in a type that opts in.
-</code></pre>
-<hr>
-<h2>TLS: OpenSSL (C) vs rustls (Rust)</h2>
-<p>SF CLI uses Node.js&#39;s built-in TLS which links against <strong>OpenSSL</strong> — a C library<br>with a long history of critical CVEs (Heartbleed, POODLE, DROWN).</p>
-<p>SF-Rust uses <strong>rustls</strong> — a TLS implementation written entirely in Rust:</p>
-<table>
-<thead>
-<tr>
-<th>Property</th>
-<th>OpenSSL (SF CLI)</th>
-<th>rustls (SF-Rust)</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>Language</td>
-<td>C</td>
-<td>Rust</td>
-</tr>
-<tr>
-<td>Memory safety</td>
-<td>Manual</td>
-<td>Compile-time guaranteed</td>
-</tr>
-<tr>
-<td>Notable CVEs</td>
-<td>Heartbleed (2014), DROWN (2016), …</td>
-<td>None to date</td>
-</tr>
-<tr>
-<td>Linking</td>
-<td>Dynamic <code>.dylib</code> / <code>.so</code></td>
-<td>Statically compiled in</td>
-</tr>
-<tr>
-<td>Distribution</td>
-<td>Depends on system OpenSSL version</td>
-<td>Self-contained</td>
-</tr>
-</tbody></table>
-<p>No dynamic linking means sf-rust produces a <strong>single binary</strong> that runs identically<br>on any macOS machine without worrying about which OpenSSL version is installed.</p>
-<hr>
-<h2>Startup Time: Why the Gap Is So Large</h2>
-<pre><code>SF CLI startup sequence (~2 s):
-  1. OS loads Node.js binary               ~30 ms
-  2. V8 initialises JIT compiler           ~100 ms
-  3. Node.js loads ~800 JS/TS modules      ~400 ms
-  4. oclif plugin framework initialises    ~200 ms
-  5. Plugin manifest scanned               ~300 ms
-  6. TypeScript → JS (already compiled,    ~200 ms
-     but still parsed by V8)
-  7. Your command runs                     ~remaining
+<h2>Commands used</h2>
+<pre><code class="language-bash"># sf-rust
+time sf-rust project deploy start -d force-app -o sf-rust-1
 
-SF-Rust startup sequence (~80 ms):
-  1. OS loads binary (already machine code)  ~5 ms
-  2. Tokio async runtime starts              ~2 ms
-  3. Config file parsed (TOML)              ~1 ms
-  4. Your command runs                      ~remaining
+# sf CLI
+time sf project deploy start --source-dir force-app --target-org sf-cli-1
 </code></pre>
-<p>The difference is structural: Node.js is a VM that interprets a program;<br>sf-rust <em>is</em> the program — compiled directly to ARM64 / x86-64 machine code.</p>
-<hr>
-<h2>Async I/O: Node.js Event Loop vs Tokio</h2>
-<p>Both tools do async I/O (non-blocking HTTP), but via different mechanisms.</p>
-<pre><code>Node.js (libuv):                    sf-rust (tokio):
-─────────────────────────           ──────────────────────────────
-Single-threaded event loop          Multi-threaded work-stealing scheduler
-Callbacks → Promises → async/await  Native async/await (zero-cost futures)
-libuv handles I/O (C)               epoll/kqueue directly (Rust)
-GC pauses can stall the loop        No GC — no pauses
-</code></pre>
-<p>For a CLI that makes a handful of HTTP calls, the difference is negligible.<br>For bulk operations (data import, parallel deploys) the Tokio model scales<br>without the GC pause risk.</p>
-<hr>
-<h2>Dependency Footprint</h2>
-<pre><code>SF CLI install:
-  ~2,500 npm packages
-  ~450 MB on disk
-  C++ addons compiled at install time (node-gyp)
-  Requires: Node.js runtime, npm, python3 (for node-gyp), Xcode CLT
-
-SF-Rust install:
-  1 binary (~12 MB stripped)
-  0 npm packages
-  0 C++ addons
-  Requires: nothing at runtime
-</code></pre>
-<p>Fewer dependencies = smaller attack surface, faster CI setup, no install-time compilation.</p>
-<hr>
-<h2>Credential Storage: Encryption at Rest</h2>
-<p>Both tools encrypt credentials at rest using AES-256-GCM.</p>
-<table>
-<thead>
-<tr>
-<th>Property</th>
-<th>SF CLI</th>
-<th>SF-Rust</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>Algorithm</td>
-<td>AES-256-GCM</td>
-<td>AES-256-GCM</td>
-</tr>
-<tr>
-<td>Format</td>
-<td><code>ciphertext:iv</code> (hex)</td>
-<td><code>nonce:ciphertext</code> (hex)</td>
-</tr>
-<tr>
-<td>Key storage</td>
-<td>OS Keychain (one entry, prompts once per binary rebuild)</td>
-<td><code>~/.sf-rust/.key</code> (chmod 600, never prompts)</td>
-</tr>
-<tr>
-<td>Token file</td>
-<td><code>~/.sfdx/&lt;username&gt;.json</code> (one per org)</td>
-<td><code>~/.sf-rust/credentials.json</code> (all orgs)</td>
-</tr>
-</tbody></table>
-<p>SF CLI stores the encryption key in the macOS Keychain. This triggers a password<br>prompt each time a new binary build is detected (ACL tied to the code signature).<br>SF-Rust stores the key in a <code>0600</code> file, avoiding all Keychain interaction.</p>
-<hr>
-<h2>Error Handling: Exceptions vs Result Types</h2>
-<pre><code class="language-typescript">// SF CLI (TypeScript) — errors are thrown exceptions
-try {
-  const result = await org.getConnection().query(soql);
-} catch (e) {
-  // e is `unknown` — could be anything
-  // compiler does not guarantee you handled it
-}
-</code></pre>
-<pre><code class="language-rust">// SF-Rust — errors are values, handling is enforced by the compiler
-let result = client.query(&amp;soql).await?;
-// The `?` propagates SfError up the call stack.
-// If you forget to handle it, the code does not compile.
-</code></pre>
-<p>Rust&#39;s <code>Result&lt;T, E&gt;</code> type makes every fallible operation explicit.<br>There are no uncaught exceptions, no silent failures.</p>
-<hr>
-<h2>Summary</h2>
-<table>
-<thead>
-<tr>
-<th>Dimension</th>
-<th>SF CLI</th>
-<th>SF-Rust</th>
-</tr>
-</thead>
-<tbody><tr>
-<td>Runtime</td>
-<td>Node.js v22 + V8 JIT</td>
-<td>Native binary (no VM)</td>
-</tr>
-<tr>
-<td>Native code</td>
-<td>C++ addons via N-API</td>
-<td>None (pure Rust)</td>
-</tr>
-<tr>
-<td>Memory model</td>
-<td>GC (V8 heap) + unmanaged C++ heap</td>
-<td>Ownership — no GC, no leaks</td>
-</tr>
-<tr>
-<td>TLS library</td>
-<td>OpenSSL (C, CVE history)</td>
-<td>rustls (Rust, no CVEs)</td>
-</tr>
-<tr>
-<td>Cold start</td>
-<td>1.5 – 3 s</td>
-<td>50 – 200 ms</td>
-</tr>
-<tr>
-<td>Memory use</td>
-<td>150 – 250 MB</td>
-<td>8 – 20 MB</td>
-</tr>
-<tr>
-<td>Install size</td>
-<td>~450 MB (2,500 packages)</td>
-<td>~12 MB (1 binary)</td>
-</tr>
-<tr>
-<td>Segfault possible?</td>
-<td>Yes (C++ addon crash)</td>
-<td>No</td>
-</tr>
-<tr>
-<td>Data race possible?</td>
-<td>Yes (C++ layer)</td>
-<td>No (compile-time enforced)</td>
-</tr>
-<tr>
-<td>Error handling</td>
-<td>Thrown exceptions (unchecked)</td>
-<td><code>Result&lt;T,E&gt;</code> (compiler-enforced)</td>
-</tr>
-<tr>
-<td>Node.js required</td>
-<td>Yes</td>
-<td>No</td>
-</tr>
-</tbody></table>
-<p>SF-Rust is not a rewrite for performance alone.<br>The safety properties are structural: the entire tool — from TLS to credential<br>storage to async I/O — is written in a language that proves memory and<br>thread safety before the binary is ever executed.</p>
+<p>See <a href="scripts/dreamhouse-deploy-compare.sh"><code>scripts/dreamhouse-deploy-compare.sh</code></a>
+for the full reproducible timing harness and
+<a href="deploy-compare-data.json"><code>deploy-compare-data.json</code></a> for raw benchmark data.</p>
 
         </div>
     </main>
