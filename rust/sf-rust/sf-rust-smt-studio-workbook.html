@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sf-rust smt-studio Workbook</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3450;
+    --accent: #4f8ef7;
+    --accent2: #7c5cbf;
+    --green: #3ecf8e;
+    --yellow: #f5a623;
+    --red: #e05252;
+    --text: #e4e8f0;
+    --muted: #8892a4;
+    --code-bg: #141720;
+    --tag-plan: #1e3a5f;
+    --tag-plan-fg: #7eb8f7;
+    --tag-gen: #1e3f2a;
+    --tag-gen-fg: #5ecf8e;
+    --tag-migrate: #3f2a1e;
+    --tag-migrate-fg: #f5a063;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f4f6fb;
+      --surface: #ffffff;
+      --surface2: #eef1f8;
+      --border: #d0d7e8;
+      --accent: #2563eb;
+      --accent2: #6d3bbf;
+      --green: #16a34a;
+      --yellow: #b45309;
+      --red: #dc2626;
+      --text: #1e2333;
+      --muted: #6b7280;
+      --code-bg: #1e2333;
+      --tag-plan: #dbeafe;
+      --tag-plan-fg: #1d4ed8;
+      --tag-gen: #dcfce7;
+      --tag-gen-fg: #15803d;
+      --tag-migrate: #fef3c7;
+      --tag-migrate-fg: #92400e;
+    }
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  /* ── layout ── */
+  .header {
+    background: linear-gradient(135deg, #1a1d27 0%, #1e2340 60%, #1a2040 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 2.5rem 2rem 2rem;
+  }
+  .header h1 { font-size: 1.75rem; font-weight: 700; color: var(--accent); letter-spacing: -0.02em; }
+  .header .subtitle { color: var(--muted); margin-top: .3rem; font-size: .95rem; }
+  .header .meta { display: flex; gap: 1.5rem; margin-top: 1rem; flex-wrap: wrap; }
+  .header .meta span { font-size: .8rem; color: var(--muted); }
+  .header .meta strong { color: var(--text); }
+
+  nav {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: .6rem 2rem;
+    display: flex; gap: 1.5rem; flex-wrap: wrap;
+    position: sticky; top: 0; z-index: 100;
+  }
+  nav a { color: var(--muted); text-decoration: none; font-size: .85rem; font-weight: 500; }
+  nav a:hover { color: var(--accent); }
+
+  main { max-width: 1040px; margin: 0 auto; padding: 2.5rem 2rem 4rem; }
+
+  /* ── sections ── */
+  section { margin-bottom: 3.5rem; }
+  h2 {
+    font-size: 1.25rem; font-weight: 700; color: var(--text);
+    border-bottom: 2px solid var(--border);
+    padding-bottom: .5rem; margin-bottom: 1.5rem;
+  }
+  h2 .section-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.7rem; height: 1.7rem; border-radius: 50%;
+    background: var(--accent); color: #fff; font-size: .8rem;
+    margin-right: .6rem; flex-shrink: 0;
+  }
+  h3 { font-size: 1rem; font-weight: 600; color: var(--text); margin: 1.4rem 0 .6rem; }
+
+  p { color: var(--muted); margin-bottom: .8rem; font-size: .9rem; }
+  p strong { color: var(--text); }
+
+  /* ── code blocks ── */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.1rem 1.3rem;
+    overflow-x: auto;
+    font-family: "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
+    font-size: .82rem;
+    line-height: 1.6;
+    color: #c9d1d9;
+    margin-bottom: 1rem;
+    position: relative;
+  }
+  pre .prompt { color: var(--green); user-select: none; }
+  pre .cmd    { color: #79c0ff; }
+  pre .flag   { color: #ffb347; }
+  pre .arg    { color: #d2a8ff; }
+  pre .comment { color: #6a7384; font-style: italic; }
+  pre .out    { color: #8892a4; }
+  pre .hi     { color: var(--green); font-weight: 600; }
+  pre .err    { color: var(--red); }
+
+  .copy-btn {
+    position: absolute; top: .6rem; right: .7rem;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--muted); border-radius: 5px; padding: .2rem .6rem;
+    font-size: .72rem; cursor: pointer; font-family: inherit;
+  }
+  .copy-btn:hover { color: var(--text); border-color: var(--accent); }
+
+  /* ── callout boxes ── */
+  .callout {
+    border-radius: 8px; padding: 1rem 1.2rem;
+    margin-bottom: 1rem; font-size: .88rem;
+    border-left: 4px solid;
+  }
+  .callout.info  { background: rgba(79,142,247,.08); border-color: var(--accent); }
+  .callout.tip   { background: rgba(62,207,142,.08); border-color: var(--green); }
+  .callout.warn  { background: rgba(245,166,35,.08); border-color: var(--yellow); }
+  .callout p { margin: 0; color: var(--text); }
+  .callout .label { font-weight: 700; margin-right: .4rem; }
+  .callout.info  .label { color: var(--accent); }
+  .callout.tip   .label { color: var(--green); }
+  .callout.warn  .label { color: var(--yellow); }
+
+  /* ── tags ── */
+  .tag {
+    display: inline-block; border-radius: 4px; padding: .15rem .5rem;
+    font-size: .72rem; font-weight: 700; letter-spacing: .04em;
+    text-transform: uppercase; margin-right: .4rem;
+  }
+  .tag.plan    { background: var(--tag-plan);    color: var(--tag-plan-fg); }
+  .tag.gen     { background: var(--tag-gen);     color: var(--tag-gen-fg); }
+  .tag.migrate { background: var(--tag-migrate); color: var(--tag-migrate-fg); }
+
+  /* ── org table ── */
+  .org-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin-bottom: 1.2rem; }
+  .org-table th {
+    background: var(--surface2); color: var(--muted); font-weight: 600;
+    text-align: left; padding: .6rem .9rem; border-bottom: 1px solid var(--border);
+    font-size: .78rem; text-transform: uppercase; letter-spacing: .06em;
+  }
+  .org-table td {
+    padding: .6rem .9rem; border-bottom: 1px solid var(--border); vertical-align: top;
+  }
+  .org-table tr:hover td { background: var(--surface2); }
+  .org-alias { font-family: ui-monospace, monospace; font-weight: 700; color: var(--accent); font-size: .85rem; }
+  .org-default { color: var(--green); font-size: .78rem; font-weight: 600; }
+  .org-url { color: var(--muted); font-size: .78rem; font-family: ui-monospace, monospace; }
+
+  /* ── pipeline steps ── */
+  .pipeline {
+    display: flex; gap: 0; margin: 1.5rem 0;
+    border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+  }
+  .pipeline-step {
+    flex: 1; padding: 1rem; text-align: center;
+    border-right: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .pipeline-step:last-child { border-right: none; }
+  .pipeline-step .step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 1.5rem; height: 1.5rem; border-radius: 50%;
+    background: var(--surface2); border: 2px solid var(--border);
+    font-size: .72rem; font-weight: 700; margin-bottom: .4rem; color: var(--muted);
+  }
+  .pipeline-step.active .step-num { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .pipeline-step .step-label { font-size: .78rem; font-weight: 600; color: var(--text); }
+  .pipeline-step .step-cmd   { font-size: .7rem; color: var(--muted); font-family: ui-monospace, monospace; margin-top: .2rem; }
+
+  /* ── field mapping table ── */
+  .map-table { width: 100%; border-collapse: collapse; font-size: .82rem; margin-bottom: 1rem; }
+  .map-table th {
+    background: var(--surface2); color: var(--muted); font-size: .75rem;
+    text-transform: uppercase; letter-spacing: .06em;
+    padding: .5rem .8rem; border-bottom: 1px solid var(--border); text-align: left;
+  }
+  .map-table td { padding: .5rem .8rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .map-table tr:hover td { background: var(--surface2); }
+  .map-field { font-family: ui-monospace, monospace; color: var(--text); font-size: .82rem; }
+  .map-mode-direct   { color: var(--green);  font-size: .72rem; font-weight: 700; }
+  .map-mode-lookup   { color: var(--yellow); font-size: .72rem; font-weight: 700; }
+  .map-mode-traverse { color: var(--accent); font-size: .72rem; font-weight: 700; }
+  .map-detail { color: var(--muted); font-size: .75rem; font-family: ui-monospace, monospace; }
+
+  /* ── stats bar ── */
+  .stats-bar {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+    background: var(--border); border-radius: 8px; overflow: hidden;
+    margin-bottom: 1.5rem;
+  }
+  .stat-cell {
+    background: var(--surface); padding: 1rem; text-align: center;
+  }
+  .stat-val { font-size: 1.8rem; font-weight: 800; line-height: 1; }
+  .stat-val.green  { color: var(--green); }
+  .stat-val.yellow { color: var(--yellow); }
+  .stat-val.blue   { color: var(--accent); }
+  .stat-val.muted  { color: var(--muted); }
+  .stat-label { font-size: .72rem; color: var(--muted); margin-top: .3rem; text-transform: uppercase; letter-spacing: .06em; }
+
+  /* ── bulk job timeline ── */
+  .job-timeline {
+    display: flex; align-items: center; gap: 0;
+    margin: 1rem 0; font-size: .78rem;
+  }
+  .job-state {
+    display: flex; flex-direction: column; align-items: center; gap: .25rem;
+    flex: 1;
+  }
+  .job-dot {
+    width: 1rem; height: 1rem; border-radius: 50%;
+    border: 2px solid var(--border); background: var(--surface2);
+  }
+  .job-dot.done { background: var(--green); border-color: var(--green); }
+  .job-dot.active { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,142,247,.2); }
+  .job-dot.fail { background: var(--red); border-color: var(--red); }
+  .job-line { flex: 1; height: 2px; background: var(--border); }
+  .job-line.done { background: var(--green); }
+  .job-name { font-size: .7rem; color: var(--muted); }
+
+  /* ── summary output block ── */
+  .summary-block {
+    background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 1.2rem 1.4rem; font-family: ui-monospace, monospace; font-size: .82rem;
+    line-height: 1.8; margin-bottom: 1rem;
+  }
+  .sb-section { color: var(--accent); font-weight: 700; }
+  .sb-key     { color: #79c0ff; }
+  .sb-val     { color: var(--green); }
+  .sb-num     { color: var(--yellow); font-weight: 700; }
+  .sb-muted   { color: var(--muted); }
+
+  /* ── toggle dark/light ── */
+  .theme-toggle {
+    position: fixed; bottom: 1.5rem; right: 1.5rem;
+    background: var(--surface); border: 1px solid var(--border);
+    color: var(--muted); border-radius: 50%; width: 2.4rem; height: 2.4rem;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 1.1rem; z-index: 200; box-shadow: 0 2px 8px rgba(0,0,0,.3);
+  }
+  .theme-toggle:hover { color: var(--text); border-color: var(--accent); }
+
+  /* ── toc sidebar (optional) ── */
+  @media (min-width: 1300px) {
+    .layout { display: grid; grid-template-columns: 1fr 220px; gap: 2rem; align-items: start; }
+    .toc {
+      position: sticky; top: 4rem; background: var(--surface); border: 1px solid var(--border);
+      border-radius: 8px; padding: 1rem; font-size: .8rem;
+    }
+    .toc h4 { color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; margin-bottom: .8rem; }
+    .toc a { display: block; color: var(--muted); text-decoration: none; padding: .25rem 0; border-bottom: 1px solid var(--border); }
+    .toc a:last-child { border-bottom: none; }
+    .toc a:hover { color: var(--accent); }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>sf-rust smt-studio Workbook</h1>
+  <p class="subtitle">Org-to-org data migration with a single statically-linked Rust binary</p>
+  <div class="meta">
+    <span><strong>Author:</strong> Mohan Chinnappan</span>
+    <span><strong>Binary:</strong> <code>~/.local/bin/sf-rust</code></span>
+    <span><strong>Source:</strong> af102 → <strong>Target:</strong> af200</span>
+    <span><strong>Object:</strong> Vehicle__c (7 records)</span>
+  </div>
+</div>
+
+<nav>
+  <a href="#orgs">Orgs</a>
+  <a href="#pipeline">Pipeline</a>
+  <a href="#generate">1 · Generate Plan</a>
+  <a href="#plan-anatomy">2 · Plan Anatomy</a>
+  <a href="#gencvs">3 · Gen CSV</a>
+  <a href="#migrate">4 · Migrate</a>
+  <a href="#results">5 · Results &amp; Export</a>
+  <a href="#bulk-api">Bulk API States</a>
+  <a href="#reference">Reference</a>
+</nav>
+
+<main>
+
+<!-- ── Orgs ─────────────────────────────────────────────────────────────────── -->
+<section id="orgs">
+  <h2><span class="section-num">0</span>Registered Orgs</h2>
+  <p>Orgs registered in <strong>~/.sf-rust/config.toml</strong>.
+     The migration in this workbook moves <strong>Vehicle__c</strong> records from
+     <strong>af102</strong> (source) to <strong>af200</strong> (target).</p>
+  <table class="org-table">
+    <thead>
+      <tr>
+        <th>Alias</th>
+        <th>Username</th>
+        <th>Instance URL</th>
+        <th>Role</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="org-alias">sf-rust-1</span></td>
+        <td>trailsignup.2cd6e3b4cbaa49@salesforce.com</td>
+        <td class="org-url">https://trailsignup-2cd6e3b4cbaa49.my.salesforce.com</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><span class="org-alias">sf-cli-1</span></td>
+        <td>trailsignup.32a13e5eb16875@salesforce.com</td>
+        <td class="org-url">https://trailsignup-32a13e5eb16875.my.salesforce.com</td>
+        <td>—</td>
+      </tr>
+      <tr style="background:rgba(79,142,247,.04)">
+        <td><span class="org-alias">af102</span></td>
+        <td>mchinnappan@salesforce.com.af102</td>
+        <td class="org-url">https://dg8000003p54peas-dev-ed.develop.my.salesforce.com</td>
+        <td><span class="tag gen">Source</span></td>
+      </tr>
+      <tr>
+        <td><span class="org-alias">dev1</span> <span class="org-default">✓ default</span></td>
+        <td>mohan.chinnappan.n5.1001a914df2c@agentforce.com</td>
+        <td class="org-url">https://orgfarm-caca07f3b9-dev-ed.develop.my.salesforce.com</td>
+        <td>—</td>
+      </tr>
+      <tr style="background:rgba(62,207,142,.04)">
+        <td><span class="org-alias">af200</span></td>
+        <td>mohan.chinnappan.n5.b3a2393cf971@agentforce.com</td>
+        <td class="org-url">https://orgfarm-af4a9ce631-dev-ed.develop.my.salesforce.com</td>
+        <td><span class="tag migrate">Target</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <p><span class="label">Command</span>
+      <code>sf-rust org list</code> — shows all orgs from <code>~/.sf-rust/config.toml</code>.
+      Use <code>sf-rust org login web -o &lt;alias&gt;</code> to authenticate a new org.</p>
+  </div>
+</section>
+
+<!-- ── Pipeline ──────────────────────────────────────────────────────────────── -->
+<section id="pipeline">
+  <h2><span class="section-num">→</span>Migration Pipeline</h2>
+  <div class="pipeline">
+    <div class="pipeline-step active">
+      <div class="step-num">1</div>
+      <div class="step-label">Generate Plan</div>
+      <div class="step-cmd">smt plan generate</div>
+    </div>
+    <div class="pipeline-step active">
+      <div class="step-num">2</div>
+      <div class="step-label">Review Plan</div>
+      <div class="step-cmd">edit JSON</div>
+    </div>
+    <div class="pipeline-step active">
+      <div class="step-num">3</div>
+      <div class="step-label">Gen CSV</div>
+      <div class="step-cmd">smt gen-csv</div>
+    </div>
+    <div class="pipeline-step active">
+      <div class="step-num">4</div>
+      <div class="step-label">Migrate</div>
+      <div class="step-cmd">smt migrate</div>
+    </div>
+    <div class="pipeline-step active">
+      <div class="step-num">5</div>
+      <div class="step-label">Verify</div>
+      <div class="step-cmd">smt compare</div>
+    </div>
+  </div>
+
+  <div class="callout tip">
+    <p><span class="label">Tip</span>
+      Always run <strong>gen-csv</strong> and inspect the CSVs before <strong>migrate</strong>.
+      No data is written to the target org until <code>migrate</code> is called.</p>
+  </div>
+</section>
+
+<!-- ── Step 1: Generate ──────────────────────────────────────────────────────── -->
+<section id="generate">
+  <h2><span class="section-num">1</span>Generate Load Plan</h2>
+  <p>
+    <span class="tag plan">plan generate</span>
+    Calls the Salesforce Describe API on the <strong>source org</strong> (af102),
+    filters to writable fields, picks composite keys, and generates a
+    <code>Vehicle__c-plan.json</code> ready for migration.
+  </p>
+
+  <pre><button class="copy-btn" onclick="copyPre(this)">copy</button><span class="prompt">$</span> <span class="cmd">sf-rust smt plan generate</span> \
+    <span class="flag">-o</span> <span class="arg">af102</span> \
+    <span class="flag">--object</span> <span class="arg">Vehicle__c</span>
+
+<span class="hi">Plan written to: Vehicle__c-plan.json</span>
+<span class="out">Generated plan for Vehicle__c (5 writable fields, composite keys: ["Global_Key__c"])</span>
+<span class="out">Time: 1.08s</span></pre>
+
+  <h3>What the generator does</h3>
+  <table class="map-table">
+    <thead><tr><th>Step</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>GET <code>/sobjects/Vehicle__c/describe/</code> on af102</td></tr>
+      <tr><td>2</td><td>Filter to <code>createable = true</code>, exclude system fields (<code>Id</code>, <code>OwnerId</code>, <code>CreatedDate</code>, …)</td></tr>
+      <tr><td>3</td><td>Pick composite key: <code>Global_Key__c</code> (first found in priority list)</td></tr>
+      <tr><td>4</td><td>Emit composite key field first in SELECT and fieldMappings</td></tr>
+      <tr><td>5</td><td>Custom <code>__c</code> reference fields → relationship traversal (<code>Manufacturer__r.Global_Key__c</code>)</td></tr>
+      <tr><td>6</td><td>Generate fallback <code>query_v1</code> and <code>compositeKeys_v1</code> for orgs without <code>Global_Key__c</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Composite key priority order</h3>
+  <pre><span class="comment">// checked in this order; first field found on the object wins</span>
+Global_Key__c  →  Name  →  Email  →  ProductCode  →  DeveloperName</pre>
+</section>
+
+<!-- ── Step 2: Plan Anatomy ──────────────────────────────────────────────────── -->
+<section id="plan-anatomy">
+  <h2><span class="section-num">2</span>Load Plan Anatomy</h2>
+  <p>The generated <code>Vehicle__c-plan.json</code> — flat format, compatible with smt-studio.</p>
+
+  <pre><button class="copy-btn" onclick="copyPre(this)">copy</button>[
+  {
+    <span class="hi">"object"</span>: "Vehicle__c",
+
+    <span class="comment">// composite key used to match source ↔ target records</span>
+    <span class="hi">"compositeKeys"</span>: [ "Global_Key__c" ],
+
+    <span class="comment">// fallback for orgs that don't have Global_Key__c</span>
+    <span class="hi">"compositeKeys_v1"</span>: [ "Name" ],
+
+    <span class="comment">// SOQL run on the source org  (no Id in SELECT)</span>
+    <span class="hi">"query"</span>: "SELECT Global_Key__c, Name, Model__c,
+               Manufacturer__r.Global_Key__c,
+               VehicleCustomer__r.Global_Key__c
+             FROM Vehicle__c",
+
+    <span class="comment">// fallback query for orgs without Global_Key__c</span>
+    <span class="hi">"query_v1"</span>: "SELECT Name, Model__c,
+                 Manufacturer__r.Name,
+                 VehicleCustomer__r.Name
+               FROM Vehicle__c",
+
+    <span class="hi">"fieldMappings"</span>: {
+      <span class="comment">// Direct — same field name on both orgs</span>
+      "Global_Key__c": "Global_Key__c",
+      "Name":          "Name",
+      "Model__c":      "Model__c",
+
+      <span class="comment">// Lookup — custom __c reference; engine reads traversal path,</span>
+      <span class="comment">// resolves via Global_Key__c → Id map on target</span>
+      "Manufacturer__c": {
+        "lookup": {
+          "object": "Manufacturer__c",
+          "key":    "Global_Key__c",
+          "field":  "Manufacturer__r.Global_Key__c"   <span class="comment">// where to read the key value</span>
+        }
+      },
+      "VehicleCustomer__c": {
+        "lookup": {
+          "object": "VehicleCustomer__c",
+          "key":    "Global_Key__c",
+          "field":  "VehicleCustomer__r.Global_Key__c"
+        }
+      }
+    }
+  }
+]</pre>
+
+  <h3>Field mapping modes</h3>
+  <table class="map-table">
+    <thead>
+      <tr><th>Field</th><th>Mode</th><th>JSON form</th><th>Engine action</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="map-field">Global_Key__c</td>
+        <td><span class="map-mode-direct">Direct</span></td>
+        <td class="map-detail">"Global_Key__c": "Global_Key__c"</td>
+        <td>Copy value as-is</td>
+      </tr>
+      <tr>
+        <td class="map-field">Name</td>
+        <td><span class="map-mode-direct">Direct</span></td>
+        <td class="map-detail">"Name": "Name"</td>
+        <td>Copy value as-is</td>
+      </tr>
+      <tr>
+        <td class="map-field">Model__c</td>
+        <td><span class="map-mode-direct">Direct</span></td>
+        <td class="map-detail">"Model__c": "Model__c"</td>
+        <td>Copy value as-is</td>
+      </tr>
+      <tr>
+        <td class="map-field">Manufacturer__c</td>
+        <td><span class="map-mode-traverse">Lookup + Traversal</span></td>
+        <td class="map-detail">lookup { object, key, field }</td>
+        <td>Read <code>Manufacturer__r.Global_Key__c</code> from source row;
+            query <code>SELECT Id, Global_Key__c FROM Manufacturer__c</code> on target;
+            resolve to target Id</td>
+      </tr>
+      <tr>
+        <td class="map-field">VehicleCustomer__c</td>
+        <td><span class="map-mode-traverse">Lookup + Traversal</span></td>
+        <td class="map-detail">lookup { object, key, field }</td>
+        <td>Same pattern for VehicleCustomer__c</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <p><span class="label">Important</span>
+      The <strong><code>field</code></strong> property tells the engine which path in the SOQL result
+      contains the lookup key. Without it, the engine would read the raw Salesforce ID
+      (<code>Manufacturer__c</code>) instead of the traversed <code>Global_Key__c</code> value.</p>
+  </div>
+</section>
+
+<!-- ── Step 3: Gen CSV ───────────────────────────────────────────────────────── -->
+<section id="gencvs">
+  <h2><span class="section-num">3</span>Generate CSVs (dry run)</h2>
+  <p>
+    <span class="tag gen">gen-csv</span>
+    Runs the full migration engine without touching the target org.
+    Writes <code>*_insert.csv</code> and <code>*_update.csv</code> for inspection.
+  </p>
+
+  <pre><button class="copy-btn" onclick="copyPre(this)">copy</button><span class="prompt">$</span> <span class="cmd">sf-rust smt gen-csv</span> \
+    <span class="flag">-l</span> <span class="arg">Vehicle__c-plan.json</span> \
+    <span class="flag">-s</span> <span class="arg">af102</span> \
+    <span class="flag">-t</span> <span class="arg">af200</span> \
+    <span class="flag">--output</span> <span class="arg">./csvs</span>
+
+<span class="out">── Object: Vehicle__c ──</span>
+<span class="out">  Source: 7 records</span>
+<span class="out">  Target: 4 existing records indexed</span>
+<span class="hi">  Insert: 3, Update: 1, Skip: 3</span>
+<span class="out">  Written: ./csvs/Vehicle__c_insert.csv, ./csvs/Vehicle__c_update.csv</span></pre>
+
+  <h3>What gen-csv writes</h3>
+  <table class="map-table">
+    <thead><tr><th>File</th><th>Contents</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="map-field">Vehicle__c_insert.csv</td>
+        <td>Records in source but <em>not</em> in target (by composite key).
+            Submitted as a Bulk API <code>insert</code> job.</td>
+      </tr>
+      <tr>
+        <td class="map-field">Vehicle__c_update.csv</td>
+        <td>Records in both orgs where at least one field value differs.
+            Includes <code>Id</code> column for the target record.
+            Submitted as a Bulk API <code>update</code> job.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <p><span class="label">Null handling</span>
+      Salesforce Bulk API v2 uses <strong><code>#N/A</code></strong> (unquoted) to clear a field.
+      sf-rust writes <code>#N/A</code> for both <code>null</code> source values and
+      unresolved lookup references.</p>
+  </div>
+
+  <h3>Inspect before loading</h3>
+  <pre><span class="prompt">$</span> head -5 ./csvs/Vehicle__c_insert.csv
+<span class="out">Global_Key__c,Name,Model__c,Manufacturer__c,VehicleCustomer__c</span>
+<span class="out">GK-V-005,Truck-5,Titan,0013a00002XYZaa,#N/A</span>
+<span class="out">GK-V-006,Truck-6,Ranger,0013a00002XYZbb,0013a00002XYZcc</span>
+<span class="out">GK-V-007,SUV-7,Explorer,0013a00002XYZdd,0013a00002XYZee</span>
+
+<span class="prompt">$</span> head -5 ./csvs/Vehicle__c_update.csv
+<span class="out">Id,Global_Key__c,Name,Model__c,Manufacturer__c,VehicleCustomer__c</span>
+<span class="out">a003a00002ABCff,GK-V-002,Truck-2,Maverick,0013a00002XYZgg,#N/A</span></pre>
+</section>
+
+<!-- ── Step 4: Migrate ───────────────────────────────────────────────────────── -->
+<section id="migrate">
+  <h2><span class="section-num">4</span>Migrate</h2>
+  <p>
+    <span class="tag migrate">migrate</span>
+    Runs the full pipeline end-to-end: SOQL → composite-key match →
+    field resolution → CSVs → Bulk API v2 load.
+  </p>
+
+  <pre><button class="copy-btn" onclick="copyPre(this)">copy</button><span class="prompt">$</span> <span class="cmd">sf-rust smt migrate</span> \
+    <span class="flag">-l</span> <span class="arg">Vehicle__c-plan.json</span> \
+    <span class="flag">-s</span> <span class="arg">af102</span> \
+    <span class="flag">-t</span> <span class="arg">af200</span>
+
+<span class="sb-section">── Object: Vehicle__c ──</span>
+  <span class="sb-key">Query:</span> <span class="out">SELECT Global_Key__c, Name, Model__c,
+          Manufacturer__r.Global_Key__c, VehicleCustomer__r.Global_Key__c
+          FROM Vehicle__c</span>
+  <span class="sb-key">Source:</span> <span class="sb-num">7</span> <span class="out">records</span>
+  <span class="sb-key">Target:</span> <span class="sb-num">4</span> <span class="out">existing records indexed</span>
+  <span class="hi">Insert: 3, Update: 1, Skip: 3</span>
+  <span class="out">Written: ./Vehicle__c_insert.csv, ./Vehicle__c_update.csv</span>
+  <span class="out">Loading inserts...</span>
+  <span class="sb-key">Bulk job created:</span> <span class="out">750dL000016rdtnQAA</span>
+  <span class="out">CSV uploaded (212 bytes)</span>
+  <span class="out">Job closed, polling...</span>
+  <span class="out">State: InProgress (attempt 1/120)</span>
+  <span class="hi">Job JobComplete: 3 processed, 0 failed</span>
+  <span class="out">Loading updates...</span>
+  <span class="sb-key">Bulk job created:</span> <span class="out">750dL000016sEjZQAU</span>
+  <span class="out">CSV uploaded (158 bytes)</span>
+  <span class="out">Job closed, polling...</span>
+  <span class="out">State: InProgress (attempt 1/120)</span>
+  <span class="hi">Job JobComplete: 1 processed, 0 failed</span>
+
+<span class="sb-section">── Migration Summary ──</span>
+  <span class="hi">"Vehicle__c" → insert: 3 (JobComplete), update: 1 (JobComplete), skip: 3</span>
+<span class="out">Time: 34.14s</span></pre>
+
+  <h3>CI-safe mode (no stdin reads)</h3>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copy</button><span class="prompt">$</span> <span class="cmd">sf-rust smt migrate</span> \
+    <span class="flag">-l</span> <span class="arg">Vehicle__c-plan.json</span> \
+    <span class="flag">-s</span> <span class="arg">af102</span> \
+    <span class="flag">-t</span> <span class="arg">af200</span> \
+    <span class="flag">--no-pause</span></pre>
+</section>
+
+<!-- ── Step 5: Results ───────────────────────────────────────────────────────── -->
+<section id="results">
+  <h2><span class="section-num">5</span>Migration Results</h2>
+
+  <div class="stats-bar">
+    <div class="stat-cell">
+      <div class="stat-val blue">7</div>
+      <div class="stat-label">Source records</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val green">3</div>
+      <div class="stat-label">Inserted</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val yellow">1</div>
+      <div class="stat-label">Updated</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-val muted">3</div>
+      <div class="stat-label">Skipped (identical)</div>
+    </div>
+  </div>
+
+  <h3>Verify with compare</h3>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copy</button><span class="prompt">$</span> <span class="cmd">sf-rust smt compare</span> \
+    <span class="flag">-l</span> <span class="arg">Vehicle__c-plan.json</span> \
+    <span class="flag">-s</span> <span class="arg">af102</span> \
+    <span class="flag">-t</span> <span class="arg">af200</span>
+
+<span class="out">╔═════════════╦════════════════╦═════════╦════════════════╗</span>
+<span class="out">║ Object      ║ Only In Source ║ Matched ║ Only In Target ║</span>
+<span class="out">╠═════════════╬════════════════╬═════════╬════════════════╣</span>
+<span class="out">║ Vehicle__c  ║ </span><span class="hi">0</span><span class="out">             ║ </span><span class="hi">7</span><span class="out">       ║ 0              ║</span>
+<span class="out">╚═════════════╩════════════════╩═════════╩════════════════╝</span></pre>
+
+  <div class="callout tip">
+    <p><span class="label">Success</span>
+      After migration, <strong>Only In Source = 0</strong> and <strong>Matched = 7</strong>
+      confirms all records synced correctly. Run <code>smt export</code> to snapshot both orgs
+      as a ZIP for audit purposes.</p>
+  </div>
+
+  <h3>Export snapshot</h3>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copy</button><span class="prompt">$</span> <span class="cmd">sf-rust smt export</span> \
+    <span class="flag">-l</span> <span class="arg">Vehicle__c-plan.json</span> \
+    <span class="flag">-s</span> <span class="arg">af102</span> \
+    <span class="flag">-t</span> <span class="arg">af200</span> \
+    <span class="flag">--output</span> <span class="arg">./audit</span>
+
+<span class="out">Export written to: ./audit/smt-export-20261112_143022.zip</span></pre>
+
+  <h3>ZIP contents</h3>
+  <table class="map-table">
+    <thead><tr><th>File</th><th>Format</th><th>Contents</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="map-field">Vehicle__c_source.json</td>
+        <td><span class="tag plan">JSON</span></td>
+        <td>All source records as returned by <code>query_all(plan.query)</code> on af102</td>
+      </tr>
+      <tr>
+        <td class="map-field">Vehicle__c_target.json</td>
+        <td><span class="tag plan">JSON</span></td>
+        <td>All target records as returned by <code>query_all(plan.query)</code> on af200</td>
+      </tr>
+      <tr>
+        <td class="map-field">Vehicle__c_source.csv</td>
+        <td><span class="tag gen">CSV</span></td>
+        <td>Source records flattened to columns — nested relationship objects become
+            dot-notation headers (<code>Manufacturer__r.Global_Key__c</code>)</td>
+      </tr>
+      <tr>
+        <td class="map-field">Vehicle__c_target.csv</td>
+        <td><span class="tag gen">CSV</span></td>
+        <td>Target records, same flattening. Compare directly with the source CSV.</td>
+      </tr>
+      <tr>
+        <td class="map-field">summary.json</td>
+        <td><span class="tag plan">JSON</span></td>
+        <td>Record counts per object: <code>sourceCount</code>, <code>targetCount</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>CSV column layout</h3>
+  <p>Nested Salesforce relationship objects are flattened one level deep using dot-notation.
+     The <code>attributes</code> key (metadata injected by the REST API) is always stripped.</p>
+  <pre><span class="comment"># Vehicle__c_source.csv — after migrating 7 records from af102</span>
+<span class="out">Global_Key__c,Name,Model__c,Manufacturer__r.Global_Key__c,VehicleCustomer__r.Global_Key__c</span>
+<span class="out">GK-V-001,Truck-1,Titan,GK-M-001,GK-C-001</span>
+<span class="out">GK-V-002,Truck-2,Maverick,GK-M-001,</span>
+<span class="out">GK-V-003,SUV-3,Explorer,GK-M-002,GK-C-002</span>
+<span class="out">...</span>
+
+<span class="comment"># Vehicle__c_target.csv — af200 after migration (should match source)</span>
+<span class="out">Global_Key__c,Name,Model__c,Manufacturer__r.Global_Key__c,VehicleCustomer__r.Global_Key__c</span>
+<span class="out">GK-V-001,Truck-1,Titan,GK-M-001,GK-C-001</span>
+<span class="out">GK-V-002,Truck-2,Maverick,GK-M-001,</span>
+<span class="out">GK-V-003,SUV-3,Explorer,GK-M-002,GK-C-002</span>
+<span class="out">...</span></pre>
+
+  <div class="callout tip">
+    <p><span class="label">Diff tip</span>
+      After unzipping, run <code>diff Vehicle__c_source.csv Vehicle__c_target.csv</code>
+      to spot any field-value discrepancies between the two orgs at a glance.</p>
+  </div>
+</section>
+
+<!-- ── Bulk API States ────────────────────────────────────────────────────────── -->
+<section id="bulk-api">
+  <h2><span class="section-num">↻</span>Bulk API v2 Job States</h2>
+  <p>sf-rust polls every <strong>3 seconds</strong>, up to <strong>120 attempts</strong> (6 minutes max per job).
+     Two jobs ran in this migration — both reached <code>JobComplete</code>.</p>
+
+  <h3>Insert job — 750dL000016rdtnQAA (3 records)</h3>
+  <div class="job-timeline">
+    <div class="job-state">
+      <div class="job-dot done"></div>
+      <div class="job-name">Open</div>
+    </div>
+    <div class="job-line done"></div>
+    <div class="job-state">
+      <div class="job-dot done"></div>
+      <div class="job-name">UploadComplete</div>
+    </div>
+    <div class="job-line done"></div>
+    <div class="job-state">
+      <div class="job-dot done"></div>
+      <div class="job-name">InProgress</div>
+    </div>
+    <div class="job-line done"></div>
+    <div class="job-state">
+      <div class="job-dot done"></div>
+      <div class="job-name">JobComplete ✓</div>
+    </div>
+    <div class="job-line"></div>
+    <div class="job-state">
+      <div class="job-dot"></div>
+      <div class="job-name">Failed</div>
+    </div>
+    <div class="job-line"></div>
+    <div class="job-state">
+      <div class="job-dot"></div>
+      <div class="job-name">Aborted</div>
+    </div>
+  </div>
+
+  <h3>Update job — 750dL000016sEjZQAU (1 record)</h3>
+  <div class="job-timeline">
+    <div class="job-state">
+      <div class="job-dot done"></div>
+      <div class="job-name">Open</div>
+    </div>
+    <div class="job-line done"></div>
+    <div class="job-state">
+      <div class="job-dot done"></div>
+      <div class="job-name">UploadComplete</div>
+    </div>
+    <div class="job-line done"></div>
+    <div class="job-state">
+      <div class="job-dot done"></div>
+      <div class="job-name">InProgress</div>
+    </div>
+    <div class="job-line done"></div>
+    <div class="job-state">
+      <div class="job-dot done"></div>
+      <div class="job-name">JobComplete ✓</div>
+    </div>
+    <div class="job-line"></div>
+    <div class="job-state">
+      <div class="job-dot"></div>
+      <div class="job-name">Failed</div>
+    </div>
+    <div class="job-line"></div>
+    <div class="job-state">
+      <div class="job-dot"></div>
+      <div class="job-name">Aborted</div>
+    </div>
+  </div>
+
+  <table class="map-table" style="margin-top:1.2rem">
+    <thead><tr><th>State</th><th>Meaning</th><th>sf-rust action</th></tr></thead>
+    <tbody>
+      <tr><td class="map-field">Open</td><td>Job created</td><td>Upload CSV via PUT</td></tr>
+      <tr><td class="map-field">UploadComplete</td><td>CSV received</td><td>PATCH <code>{state: "UploadComplete"}</code></td></tr>
+      <tr><td class="map-field">InProgress</td><td>Salesforce processing</td><td>Poll every 3s</td></tr>
+      <tr><td class="map-field" style="color:var(--green)">JobComplete</td><td>All rows processed</td><td>Report counts, exit 0</td></tr>
+      <tr><td class="map-field" style="color:var(--red)">Failed</td><td>Job-level error</td><td>Fetch <code>failedResults</code>, print each, exit 1</td></tr>
+      <tr><td class="map-field" style="color:var(--red)">Aborted</td><td>Salesforce aborted (lock, etc.)</td><td>Print warning, exit 1</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ── Reference ─────────────────────────────────────────────────────────────── -->
+<section id="reference">
+  <h2><span class="section-num">⌘</span>Quick Reference</h2>
+
+  <h3>All smt commands</h3>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copy</button><span class="comment"># Generate plan from source org describe</span>
+<span class="prompt">$</span> <span class="cmd">sf-rust smt plan generate</span> <span class="flag">-o</span> <span class="arg">af102</span> <span class="flag">--object</span> <span class="arg">Vehicle__c</span>
+<span class="prompt">$</span> <span class="cmd">sf-rust smt plan generate</span> <span class="flag">-o</span> <span class="arg">af102</span> <span class="flag">--object</span> <span class="arg">Account</span> <span class="flag">-f</span> <span class="arg">account-plan.json</span>
+
+<span class="comment"># Validate plan against both orgs (no data moved)</span>
+<span class="prompt">$</span> <span class="cmd">sf-rust smt plan validate</span> <span class="flag">-l</span> <span class="arg">Vehicle__c-plan.json</span> <span class="flag">-s</span> <span class="arg">af102</span> <span class="flag">-t</span> <span class="arg">af200</span>
+
+<span class="comment"># Dry-run: write CSVs only, don't load</span>
+<span class="prompt">$</span> <span class="cmd">sf-rust smt gen-csv</span>  <span class="flag">-l</span> <span class="arg">Vehicle__c-plan.json</span> <span class="flag">-s</span> <span class="arg">af102</span> <span class="flag">-t</span> <span class="arg">af200</span> <span class="flag">--output</span> <span class="arg">./csvs</span>
+
+<span class="comment"># Full migration (interactive — press Enter between objects)</span>
+<span class="prompt">$</span> <span class="cmd">sf-rust smt migrate</span>  <span class="flag">-l</span> <span class="arg">Vehicle__c-plan.json</span> <span class="flag">-s</span> <span class="arg">af102</span> <span class="flag">-t</span> <span class="arg">af200</span>
+
+<span class="comment"># CI-safe migration (no stdin reads)</span>
+<span class="prompt">$</span> <span class="cmd">sf-rust smt migrate</span>  <span class="flag">-l</span> <span class="arg">plan.json</span> <span class="flag">-s</span> <span class="arg">af102</span> <span class="flag">-t</span> <span class="arg">af200</span> <span class="flag">--no-pause</span>
+
+<span class="comment"># Compare source vs target (count diff by composite key)</span>
+<span class="prompt">$</span> <span class="cmd">sf-rust smt compare</span>  <span class="flag">-l</span> <span class="arg">Vehicle__c-plan.json</span> <span class="flag">-s</span> <span class="arg">af102</span> <span class="flag">-t</span> <span class="arg">af200</span>
+<span class="prompt">$</span> <span class="cmd">sf-rust smt compare</span>  <span class="flag">-l</span> <span class="arg">Vehicle__c-plan.json</span> <span class="flag">-s</span> <span class="arg">af102</span> <span class="flag">-t</span> <span class="arg">af200</span> <span class="flag">--json</span>
+
+<span class="comment"># Export snapshot ZIP (source + target JSONs)</span>
+<span class="prompt">$</span> <span class="cmd">sf-rust smt export</span>   <span class="flag">-l</span> <span class="arg">Vehicle__c-plan.json</span> <span class="flag">-s</span> <span class="arg">af102</span> <span class="flag">-t</span> <span class="arg">af200</span> <span class="flag">--output</span> <span class="arg">./audit</span>
+
+<span class="comment"># Bulk delete from target (always dry-run first!)</span>
+<span class="prompt">$</span> <span class="cmd">sf-rust smt delete</span>   <span class="flag">-l</span> <span class="arg">Vehicle__c-plan.json</span> <span class="flag">-t</span> <span class="arg">af200</span> <span class="flag">--dry-run</span>
+<span class="prompt">$</span> <span class="cmd">sf-rust smt delete</span>   <span class="flag">-l</span> <span class="arg">Vehicle__c-plan.json</span> <span class="flag">-t</span> <span class="arg">af200</span>
+
+<span class="comment"># Man pages</span>
+<span class="prompt">$</span> man sf-rust-smt
+<span class="prompt">$</span> man sf-rust-smt-migrate
+<span class="prompt">$</span> man sf-rust-smt-plan-generate</pre>
+
+  <h3>Multi-object plan example</h3>
+  <pre><button class="copy-btn" onclick="copyPre(this)">copy</button><span class="comment"># Manufacturer__c must come before Vehicle__c (dependency order)</span>
+<span class="prompt">$</span> <span class="cmd">sf-rust smt plan generate</span> <span class="flag">-o</span> <span class="arg">af102</span> <span class="flag">--object</span> <span class="arg">Manufacturer__c</span>
+<span class="prompt">$</span> <span class="cmd">sf-rust smt plan generate</span> <span class="flag">-o</span> <span class="arg">af102</span> <span class="flag">--object</span> <span class="arg">Vehicle__c</span>
+
+<span class="comment"># Combine into one file</span>
+<span class="prompt">$</span> jq -s '.[0] + .[1]' Manufacturer__c-plan.json Vehicle__c-plan.json &gt; full-plan.json
+
+<span class="prompt">$</span> <span class="cmd">sf-rust smt migrate</span> <span class="flag">-l</span> <span class="arg">full-plan.json</span> <span class="flag">-s</span> <span class="arg">af102</span> <span class="flag">-t</span> <span class="arg">af200</span></pre>
+
+  <h3>Exit codes</h3>
+  <table class="map-table">
+    <thead><tr><th>Code</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td class="map-field" style="color:var(--green)">0</td><td>All Bulk API jobs reached <code>JobComplete</code></td></tr>
+      <tr><td class="map-field" style="color:var(--red)">1</td><td>One or more jobs reached <code>Failed</code> or <code>Aborted</code>, or a network/auth error occurred</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</main><!-- /layout -->
+
+<button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode">☀︎</button>
+
+<script>
+  /* copy button */
+  function copyPre(btn) {
+    const pre = btn.parentElement;
+    const text = Array.from(pre.childNodes)
+      .filter(n => n.nodeType === Node.TEXT_NODE || (n.nodeType === Node.ELEMENT_NODE && n.tagName !== 'BUTTON'))
+      .map(n => n.textContent).join('').trim();
+    navigator.clipboard.writeText(text).then(() => {
+      btn.textContent = 'copied!';
+      setTimeout(() => btn.textContent = 'copy', 1500);
+    });
+  }
+
+  /* smooth scroll for nav */
+  document.querySelectorAll('nav a').forEach(a => {
+    a.addEventListener('click', e => {
+      const target = document.querySelector(a.getAttribute('href'));
+      if (target) { e.preventDefault(); target.scrollIntoView({ behavior: 'smooth' }); }
+    });
+  });
+
+  /* dark/light toggle */
+  let forced = null;
+  function toggleTheme() {
+    const root = document.documentElement;
+    forced = forced === 'dark' ? 'light' : 'dark';
+    root.style.setProperty('color-scheme', forced);
+    if (forced === 'dark') {
+      root.style.cssText = darkVars + lightOverride('dark');
+    } else {
+      root.style.cssText = lightVars + lightOverride('light');
+    }
+  }
+  const darkVars = `
+    --bg:#0f1117;--surface:#1a1d27;--surface2:#22263a;--border:#2e3450;
+    --accent:#4f8ef7;--green:#3ecf8e;--yellow:#f5a623;--red:#e05252;
+    --text:#e4e8f0;--muted:#8892a4;--code-bg:#141720;
+    --tag-plan:#1e3a5f;--tag-plan-fg:#7eb8f7;
+    --tag-gen:#1e3f2a;--tag-gen-fg:#5ecf8e;
+    --tag-migrate:#3f2a1e;--tag-migrate-fg:#f5a063;`;
+  const lightVars = `
+    --bg:#f4f6fb;--surface:#ffffff;--surface2:#eef1f8;--border:#d0d7e8;
+    --accent:#2563eb;--green:#16a34a;--yellow:#b45309;--red:#dc2626;
+    --text:#1e2333;--muted:#6b7280;--code-bg:#1e2333;
+    --tag-plan:#dbeafe;--tag-plan-fg:#1d4ed8;
+    --tag-gen:#dcfce7;--tag-gen-fg:#15803d;
+    --tag-migrate:#fef3c7;--tag-migrate-fg:#92400e;`;
+  function lightOverride(m) { return m === 'dark' ? 'color-scheme:dark' : 'color-scheme:light'; }
+</script>
+</body>
+</html>
