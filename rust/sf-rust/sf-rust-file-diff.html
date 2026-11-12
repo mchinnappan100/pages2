@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sf-rust file diff — Format-Aware File & Directory Diffing</title>
+<style>
+:root {
+  --bg:      #0d1117; --bg2: #161b22; --bg3: #21262d;
+  --border:  #30363d; --text: #e6edf3; --muted: #8b949e;
+  --accent:  #58a6ff; --green: #3fb950; --red: #f85149;
+  --yellow:  #d29922; --purple: #bc8cff;
+  --add: #1a4a1a; --add-b: #3fb950;
+  --del: #4a1a1a; --del-b: #f85149;
+  --chg: #3a2e00; --chg-b: #d29922;
+  --code-bg: #161b22; --code-border: #30363d;
+  --card: #161b22; --card-border: #30363d;
+}
+.light {
+  --bg:      #ffffff; --bg2: #f6f8fa; --bg3: #eaeef2;
+  --border:  #d0d7de; --text: #1f2328; --muted: #656d76;
+  --accent:  #0969da; --green: #1a7f37; --red: #cf222e;
+  --yellow:  #9a6700; --purple: #8250df;
+  --add: #dafbe1; --add-b: #1a7f37;
+  --del: #ffebe9; --del-b: #cf222e;
+  --chg: #fff8c5; --chg-b: #9a6700;
+  --code-bg: #f6f8fa; --code-border: #d0d7de;
+  --card: #ffffff; --card-border: #d0d7de;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px; line-height: 1.65;
+  transition: background .2s, color .2s;
+}
+
+/* ── layout ── */
+.page { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0; overflow-x: auto;
+  padding: 0 1.5rem;
+}
+nav a {
+  color: var(--muted); text-decoration: none; font-size: .8rem;
+  padding: .7rem .8rem; white-space: nowrap; border-bottom: 2px solid transparent;
+}
+nav a:hover { color: var(--text); }
+nav .nav-logo { font-weight: 700; color: var(--accent); margin-right: .5rem; font-size: .85rem; }
+nav .nav-right { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
+.theme-btn {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+  border-radius: 6px; padding: .25rem .6rem; font-size: .75rem; cursor: pointer;
+}
+.theme-btn:hover { background: var(--border); }
+
+/* ── typography ── */
+h1 { font-size: 2rem; font-weight: 700; margin-bottom: .4rem; }
+h2 { font-size: 1.35rem; font-weight: 600; margin: 2.5rem 0 1rem;
+     padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1rem; font-weight: 600; margin: 1.5rem 0 .6rem; color: var(--accent); }
+p  { margin-bottom: .8rem; color: var(--text); }
+a  { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.subtitle { color: var(--muted); font-size: 1rem; margin-bottom: 1.5rem; }
+
+/* ── hero ── */
+.hero {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 1.8rem 2rem; margin: 1.5rem 0 2.5rem;
+  display: flex; flex-wrap: wrap; gap: 1.5rem;
+}
+.hero-stat { text-align: center; }
+.hero-stat .num { font-size: 2rem; font-weight: 700; color: var(--accent); }
+.hero-stat .lbl { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+/* ── tables ── */
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .9rem; }
+th { background: var(--bg3); color: var(--muted); font-size: .75rem;
+     text-transform: uppercase; letter-spacing: .05em; text-align: left;
+     padding: .5rem .75rem; border-bottom: 1px solid var(--border); }
+td { padding: .5rem .75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg3); }
+code { font-family: "JetBrains Mono", "SF Mono", monospace; font-size: .85em;
+       background: var(--code-bg); border: 1px solid var(--code-border);
+       border-radius: 4px; padding: .1em .4em; color: var(--purple); }
+
+/* ── code blocks ── */
+.code-block {
+  position: relative; background: var(--code-bg); border: 1px solid var(--code-border);
+  border-radius: 8px; margin: 1rem 0; overflow: hidden;
+}
+.code-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: .4rem .8rem; background: var(--bg3); border-bottom: 1px solid var(--code-border);
+  font-size: .72rem; color: var(--muted);
+}
+.copy-btn {
+  background: var(--bg3); border: 1px solid var(--border); color: var(--muted);
+  border-radius: 4px; padding: .15rem .5rem; font-size: .7rem; cursor: pointer;
+}
+.copy-btn:hover { color: var(--text); }
+.copy-btn.copied { color: var(--green); border-color: var(--green); }
+pre {
+  padding: 1rem 1.1rem; overflow-x: auto; font-size: .82rem; line-height: 1.55;
+  font-family: "JetBrains Mono", "SF Mono", monospace;
+}
+pre .add { color: var(--green); } pre .del { color: var(--red); }
+pre .chg { color: var(--yellow); } pre .dim { color: var(--muted); }
+pre .kw  { color: var(--accent); } pre .str { color: #a5d6ff; }
+
+/* ── format cards ── */
+.format-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px,1fr)); gap: 1rem; margin: 1.5rem 0; }
+.format-card {
+  background: var(--card); border: 1px solid var(--card-border); border-radius: 8px;
+  padding: 1rem 1.2rem;
+}
+.format-card .icon { font-size: 1.4rem; margin-bottom: .4rem; }
+.format-card .name { font-weight: 600; font-size: .9rem; margin-bottom: .25rem; }
+.format-card .desc { font-size: .8rem; color: var(--muted); }
+
+/* ── diff output preview ── */
+.diff-preview {
+  font-family: "JetBrains Mono", "SF Mono", monospace; font-size: .82rem;
+  line-height: 1.6; background: var(--code-bg); border: 1px solid var(--code-border);
+  border-radius: 8px; padding: .8rem 1rem; margin: 1rem 0; overflow-x: auto;
+}
+.diff-preview .add { color: var(--green); }
+.diff-preview .del { color: var(--red); }
+.diff-preview .chg { color: var(--yellow); }
+.diff-preview .dim { color: var(--muted); }
+
+/* ── exit code pills ── */
+.exit-codes { display: flex; gap: .75rem; margin: 1rem 0; flex-wrap: wrap; }
+.exit-pill {
+  display: flex; align-items: center; gap: .5rem;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 20px;
+  padding: .3rem .9rem; font-size: .82rem;
+}
+.exit-pill .code { font-family: monospace; font-weight: 700; font-size: 1rem; }
+.exit-pill .code.ok  { color: var(--green); }
+.exit-pill .code.err { color: var(--red); }
+.exit-pill .code.wrn { color: var(--yellow); }
+
+/* ── viz diagram ── */
+.viz-box {
+  background: #1e1e1e; border-radius: 8px; border: 1px solid #444;
+  overflow: hidden; margin: 1rem 0;
+}
+.viz-toolbar {
+  background: #2d2d2d; border-bottom: 1px solid #444;
+  padding: .4rem .9rem; display: flex; align-items: center; gap: .75rem; font-size: .75rem;
+}
+.viz-toolbar .logo { color: #569cd6; font-weight: 700; }
+.viz-toolbar .f1   { color: #f14c4c; }
+.viz-toolbar .f2   { color: #4ec9b0; }
+.viz-toolbar .sep  { color: #555; }
+.viz-toolbar .ml   { margin-left: auto; display:flex; gap:.5rem; }
+.viz-btn { background:#3a3a3a; border:1px solid #555; color:#ccc;
+           border-radius:4px; padding:.15rem .5rem; font-size:.68rem; }
+.viz-btn.act { background:#0e639c; border-color:#0e639c; color:#fff; }
+.viz-body { display: flex; min-height: 100px; }
+.viz-sidebar { width: 160px; background: #252526; border-right: 1px solid #3c3c3c;
+               padding: .4rem 0; font-size: .72rem; }
+.viz-item { padding: .25rem .6rem; display:flex; gap:.4rem; color:#ccc; }
+.viz-item.add { color: #4ec9b0; } .viz-item.del { color: #f14c4c; } .viz-item.chg { color: #dcdcaa; }
+.viz-item.sel { background: #094771; }
+.viz-editor { flex:1; background:#1e1e1e; padding:.6rem; }
+.viz-line { font-family:monospace; font-size:.75rem; line-height:1.6; }
+.viz-line.add { background:#1a4a1a; color:#4ec9b0; }
+.viz-line.del { background:#4a1a1a; color:#f14c4c; }
+.viz-line.unch { color: #666; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-logo">sf-rust</span>
+  <a href="#overview">Overview</a>
+  <a href="#text">Text</a>
+  <a href="#json">JSON</a>
+  <a href="#xml">XML</a>
+  <a href="#csv">CSV</a>
+  <a href="#directory">Directory</a>
+  <a href="#viz">Viz</a>
+  <a href="#reference">Reference</a>
+  <span class="nav-right">
+    <button class="theme-btn" onclick="toggleTheme()">☀ / ☾</button>
+  </span>
+</nav>
+
+<div class="page">
+
+  <h1>sf-rust file diff</h1>
+  <p class="subtitle">Format-aware file and directory diffing — text, JSON, XML, CSV, and whole directories.</p>
+
+  <div class="hero">
+    <div class="hero-stat"><div class="num">5</div><div class="lbl">Formats</div></div>
+    <div class="hero-stat"><div class="num">4</div><div class="lbl">Output modes</div></div>
+    <div class="hero-stat"><div class="num">0</div><div class="lbl">Config needed</div></div>
+    <div class="hero-stat" style="flex:1;text-align:left;align-self:center">
+      <p style="font-size:.88rem;color:var(--muted);margin:0">
+        Auto-detects format from the file extension.<br>
+        One command. Right engine. Every time.
+      </p>
+    </div>
+  </div>
+
+  <!-- ── Format routing ── -->
+  <h2 id="overview">Format routing</h2>
+  <p>The engine is chosen automatically — no flags needed for format selection.</p>
+
+  <div class="format-grid">
+    <div class="format-card">
+      <div class="icon">📄</div>
+      <div class="name">Text</div>
+      <div class="desc">.cls, .sh, .md, and any unrecognized extension — unified diff with ANSI color</div>
+    </div>
+    <div class="format-card">
+      <div class="icon">🔵</div>
+      <div class="name">JSON</div>
+      <div class="desc">.json + <code>--semantic</code> — key-order independent, dot-notation paths</div>
+    </div>
+    <div class="format-card">
+      <div class="icon">🌿</div>
+      <div class="name">XML</div>
+      <div class="desc">.xml — structural, whitespace-normalized, attribute-order independent</div>
+    </div>
+    <div class="format-card">
+      <div class="icon">📊</div>
+      <div class="name">CSV</div>
+      <div class="desc">.csv — column-order independent, optional <code>--key</code> row alignment</div>
+    </div>
+    <div class="format-card">
+      <div class="icon">📁</div>
+      <div class="name">Directory</div>
+      <div class="desc">Either arg is a directory — recursive walk, per-file engine dispatch</div>
+    </div>
+  </div>
+
+  <table>
+    <tr><th>Extension</th><th>Engine</th><th>Auto?</th></tr>
+    <tr><td><code>.json</code></td><td>JSON semantic</td><td>Requires <code>--semantic</code></td></tr>
+    <tr><td><code>.xml</code></td><td>XML structural</td><td>Yes</td></tr>
+    <tr><td><code>.csv</code></td><td>CSV column-aware</td><td>Yes</td></tr>
+    <tr><td>Directory</td><td>Directory + per-file</td><td>Yes</td></tr>
+    <tr><td>Anything else</td><td>Unified text</td><td>Yes</td></tr>
+  </table>
+
+  <h3>Exit codes</h3>
+  <div class="exit-codes">
+    <div class="exit-pill"><span class="code ok">0</span> Identical</div>
+    <div class="exit-pill"><span class="code err">1</span> Differences found</div>
+    <div class="exit-pill"><span class="code wrn">2</span> Error</div>
+  </div>
+
+  <!-- ── Text ── -->
+  <h2 id="text">Text diff</h2>
+  <p>Unified diff with ANSI color output. Used for <code>.cls</code>, <code>.sh</code>, <code>.md</code>, and any extension not otherwise recognized. Context window is 3 lines.</p>
+
+  <div class="code-block">
+    <div class="code-header"><span>bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre>sf-rust file diff old.cls new.cls
+sf-rust file diff --stat old.cls new.cls
+sf-rust file diff --viz  old.cls new.cls</pre>
+  </div>
+
+  <div class="diff-preview">
+<div class="dim">@@ diff @@</div>
+<div>     public static List&lt;Vehicle__c&gt; getActiveVehicles() {</div>
+<div>         return [</div>
+<div class="del">-            SELECT Id, Name, Make__c, Status__c</div>
+<div class="add">+            SELECT Id, Name, Make__c, Model__c, Status__c, Color__c</div>
+<div>             FROM Vehicle__c</div>
+<div>             WHERE Status__c = 'Active'</div>
+<div class="del">-            ORDER BY Name</div>
+<div class="add">+            ORDER BY Make__c, Name</div>
+<div>         ];</div>
+<div style="margin-top:.5rem;color:var(--muted)">+1 lines added  -1 lines removed</div>
+  </div>
+
+  <!-- ── JSON ── -->
+  <h2 id="json">JSON semantic diff</h2>
+  <p>Key-order independent comparison. <code>{"a":1,"b":2}</code> and <code>{"b":2,"a":1}</code> are identical. Changes are reported as dot-notation paths starting from <code>$</code>.</p>
+
+  <div class="code-block">
+    <div class="code-header"><span>bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre>sf-rust file diff --semantic a.json b.json
+sf-rust file diff --semantic --stat a.json b.json
+sf-rust file diff --semantic --json a.json b.json
+sf-rust file diff --semantic --viz  a.json b.json</pre>
+  </div>
+
+  <div class="diff-preview">
+<div class="chg">~ $.sharingModel: "ReadWrite" → "Private"</div>
+<div class="add">+ $.enableActivities: true</div>
+<div class="del">- $.legacyField: "old value"</div>
+<div style="margin-top:.5rem;color:var(--muted)">+1 added  -1 removed  ~1 changed</div>
+  </div>
+
+  <h3>JSON output (<code>--json</code>)</h3>
+  <div class="code-block">
+    <div class="code-header"><span>json</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre>[
+  { "op": "change", "path": "$.sharingModel", "from": "ReadWrite", "to": "Private" },
+  { "op": "add",    "path": "$.enableActivities", "value": true },
+  { "op": "remove", "path": "$.legacyField", "value": "old value" }
+]</pre>
+  </div>
+
+  <!-- ── XML ── -->
+  <h2 id="xml">XML structural diff</h2>
+  <p>Auto-detected for <code>.xml</code> files. No flag needed.</p>
+  <ul style="margin:.5rem 0 1rem 1.5rem;color:var(--muted);font-size:.9rem">
+    <li>Insignificant whitespace between elements is ignored</li>
+    <li>Attribute order is irrelevant — <code>a="1" b="2"</code> equals <code>b="2" a="1"</code></li>
+    <li>Changes reported as XPath-like paths: <code>CustomObject/fields[0]/length</code></li>
+    <li>Attribute changes: <code>Root[@version]</code></li>
+  </ul>
+
+  <div class="code-block">
+    <div class="code-header"><span>bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre>sf-rust file diff Vehicle__c-v1.xml Vehicle__c-v2.xml
+sf-rust file diff --stat Vehicle__c-v1.xml Vehicle__c-v2.xml
+sf-rust file diff --json Vehicle__c-v1.xml Vehicle__c-v2.xml
+sf-rust file diff --viz  Vehicle__c-v1.xml Vehicle__c-v2.xml</pre>
+  </div>
+
+  <div class="diff-preview">
+<div class="chg">~ CustomObject/fields[0]/length text: "100" → "255"</div>
+<div class="chg">~ CustomObject/sharingModel text: "ReadWrite" → "Private"</div>
+<div class="add">+ CustomObject/fields[4]</div>
+<div style="margin-top:.5rem;color:var(--muted)">+1 added  -0 removed  ~2 changed</div>
+  </div>
+
+  <h3>Salesforce metadata types</h3>
+  <p>Tested against: CustomObject, CustomField, Layout, Profile, PermissionSet, ApexClass meta, CustomLabels, Workflow, FlexiPage, and any well-formed XML.</p>
+
+  <!-- ── CSV ── -->
+  <h2 id="csv">CSV diff</h2>
+  <p>Auto-detected for <code>.csv</code> files. Column-order independent — the same data in a different column order is treated as identical. By default rows are matched positionally; use <code>--key</code> for field-based alignment.</p>
+
+  <div class="code-block">
+    <div class="code-header"><span>bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre># Positional (default)
+sf-rust file diff before.csv after.csv
+
+# Key-field row alignment
+sf-rust file diff --key Id before.csv after.csv
+
+# Counts only
+sf-rust file diff --key Id --stat before.csv after.csv
+
+# Monaco visual diff
+sf-rust file diff --viz before.csv after.csv</pre>
+  </div>
+
+  <div class="diff-preview">
+<div class="add">+ row: Id=4, Name=Dave, Score=95</div>
+<div class="chg">~ 2</div>
+<div class="chg">  Score: "75" → "80"</div>
+<div style="margin-top:.5rem;color:var(--muted)">+0 cols  -0 cols  +1 rows  -0 rows  ~1 rows</div>
+  </div>
+
+  <h3>JSON output (<code>--json</code>)</h3>
+  <div class="code-block">
+    <div class="code-header"><span>json</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre>{
+  "schema": [],
+  "rows": [
+    { "op": "add",    "row": { "Id": "4", "Name": "Dave", "Score": "95" } },
+    { "op": "change", "key": "2",
+      "fields": [{ "column": "Score", "from": "75", "to": "80" }] }
+  ]
+}</pre>
+  </div>
+
+  <!-- ── Directory ── -->
+  <h2 id="directory">Directory diff</h2>
+  <p>Auto-detected when either argument is a directory. Walks both trees recursively, matches files by relative path, and dispatches each changed file to the right per-file engine.</p>
+
+  <div class="code-block">
+    <div class="code-header"><span>bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre># File list (default)
+sf-rust file diff force-app-v1/ force-app-v2/
+
+# Inline per-file diff bodies
+sf-rust file diff --expand force-app-v1/ force-app-v2/
+
+# Counts only
+sf-rust file diff --stat force-app-v1/ force-app-v2/
+
+# Machine-readable
+sf-rust file diff --json force-app-v1/ force-app-v2/
+
+# Browser sidebar + Monaco
+sf-rust file diff --viz force-app-v1/ force-app-v2/</pre>
+  </div>
+
+  <div class="diff-preview">
+<div class="del">- main/default/classes/LegacyMigrationHelper.cls</div>
+<div class="add">+ main/default/classes/VehicleRetireController.cls</div>
+<div class="chg">~ main/default/classes/VehicleService.cls</div>
+<div class="chg">~ main/default/classes/VehicleService.cls-meta.xml</div>
+<div class="chg">~ main/default/objects/Vehicle__c/Vehicle__c.object-meta.xml</div>
+<div class="chg">~ main/default/permissionsets/Vehicle_Manager.permissionset-meta.xml</div>
+<div style="margin-top:.5rem;color:var(--muted)">+2 added  -2 removed  ~8 changed  2 identical</div>
+  </div>
+
+  <h3>With <code>--expand</code></h3>
+  <p>Each changed file is followed by its diff body inline, using the correct engine per file type — XML structural for <code>.xml</code>, unified text for <code>.cls</code>, JSON semantic for <code>.json</code>.</p>
+
+  <div class="diff-preview">
+<div class="chg">~ main/default/classes/VehicleService.cls</div>
+<div class="dim">--- main/default/classes/VehicleService.cls ---</div>
+<div class="del">-            SELECT Id, Name, Make__c, Status__c</div>
+<div class="add">+            SELECT Id, Name, Make__c, Model__c, Status__c, Color__c</div>
+<div style="height:.4rem"></div>
+<div class="chg">~ main/default/classes/VehicleService.cls-meta.xml</div>
+<div class="dim">--- main/default/classes/VehicleService.cls-meta.xml ---</div>
+<div class="chg">~ ApexClass/apiVersion text: "59.0" → "62.0"</div>
+  </div>
+
+  <h3>JSON output</h3>
+  <div class="code-block">
+    <div class="code-header"><span>json</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre>{
+  "dir1":      "force-app-v1",
+  "dir2":      "force-app-v2",
+  "added":     ["main/default/classes/VehicleRetireController.cls"],
+  "removed":   ["main/default/classes/LegacyMigrationHelper.cls"],
+  "changed":   ["main/default/classes/VehicleService.cls", "..."],
+  "identical": 2
+}</pre>
+  </div>
+
+  <!-- ── Viz ── -->
+  <h2 id="viz">Visual diff (<code>--viz</code>)</h2>
+  <p>Works with all formats. Generates a self-contained HTML file in <code>/tmp/</code> and opens it in your default browser.</p>
+
+  <table>
+    <tr><th>Format</th><th>Monaco content</th></tr>
+    <tr><td>Text / CSV</td><td>Raw file content</td></tr>
+    <tr><td>JSON <code>--semantic</code></td><td>Key-sorted, pretty-printed JSON</td></tr>
+    <tr><td>XML</td><td>Whitespace-normalized, attribute-sorted XML</td></tr>
+    <tr><td>Directory</td><td>File browser sidebar + per-file Monaco diff on click</td></tr>
+  </table>
+
+  <!-- Mock-up of the dir viz -->
+  <div class="viz-box">
+    <div class="viz-toolbar">
+      <span class="logo">sf-rust dir-diff</span>
+      <span class="f1">force-app-v1</span>
+      <span class="sep">↔</span>
+      <span class="f2">force-app-v2</span>
+      <span class="ml">
+        <span style="color:#4ec9b0;font-size:.7rem">+2 added</span>
+        <span style="color:#f14c4c;font-size:.7rem">-2 removed</span>
+        <span style="color:#dcdcaa;font-size:.7rem">~8 changed</span>
+        <span class="viz-btn act">Side by side</span>
+        <span class="viz-btn">Inline</span>
+        <span class="viz-btn">☀ / ☾</span>
+      </span>
+    </div>
+    <div class="viz-body">
+      <div class="viz-sidebar">
+        <div style="padding:.3rem .6rem;font-size:.65rem;color:#555;text-transform:uppercase">Files</div>
+        <div class="viz-item chg sel">~ VehicleService.cls</div>
+        <div class="viz-item chg">~ VehicleService…xml</div>
+        <div class="viz-item chg">~ CustomLabels…xml</div>
+        <div class="viz-item chg">~ Vehicle__c.object…</div>
+        <div class="viz-item chg">~ Make__c.field…</div>
+        <div class="viz-item add">+ VehicleRetire…cls</div>
+        <div class="viz-item del">- LegacyMigration…cls</div>
+      </div>
+      <div class="viz-editor">
+        <div class="viz-line del">-        SELECT Id, Name, Make__c, Status__c</div>
+        <div class="viz-line add">+        SELECT Id, Name, Make__c, Model__c, Status__c, Color__c</div>
+        <div class="viz-line unch">         FROM Vehicle__c</div>
+        <div class="viz-line unch">         WHERE Status__c = 'Active'</div>
+        <div class="viz-line del">-        ORDER BY Name</div>
+        <div class="viz-line add">+        ORDER BY Make__c, Name</div>
+      </div>
+    </div>
+  </div>
+  <p style="font-size:.82rem;color:var(--muted);margin-top:.4rem">The directory viz includes Side-by-side / Inline toggle and Dark / Light theme toggle.</p>
+
+  <!-- ── Reference ── -->
+  <h2 id="reference">Quick reference</h2>
+
+  <table>
+    <tr><th>Flag</th><th>Applies to</th><th>Description</th></tr>
+    <tr><td><code>--semantic</code></td><td>JSON</td><td>Key-order independent comparison</td></tr>
+    <tr><td><code>--key &lt;COL&gt;</code></td><td>CSV</td><td>Align rows by this column instead of position</td></tr>
+    <tr><td><code>--expand</code></td><td>Directory</td><td>Inline per-file diff bodies under each changed file</td></tr>
+    <tr><td><code>--viz</code></td><td>All</td><td>Open Monaco visual diff in browser</td></tr>
+    <tr><td><code>--stat</code></td><td>All</td><td>Print counts only, no diff body</td></tr>
+    <tr><td><code>--json</code> / <code>-j</code></td><td>All</td><td>Machine-readable JSON output</td></tr>
+  </table>
+
+  <div class="code-block">
+    <div class="code-header"><span>Quick reference — all formats</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre># Text
+sf-rust file diff a.cls b.cls
+sf-rust file diff --viz a.cls b.cls
+
+# JSON semantic
+sf-rust file diff --semantic a.json b.json
+sf-rust file diff --semantic --viz a.json b.json
+
+# XML (Salesforce metadata, auto-detected)
+sf-rust file diff Vehicle__c-v1.xml Vehicle__c-v2.xml
+sf-rust file diff --viz Vehicle__c-v1.xml Vehicle__c-v2.xml
+
+# CSV
+sf-rust file diff before.csv after.csv
+sf-rust file diff --key Id before.csv after.csv
+sf-rust file diff --key Id --stat before.csv after.csv
+
+# Directory
+sf-rust file diff force-app-v1/ force-app-v2/
+sf-rust file diff --expand force-app-v1/ force-app-v2/
+sf-rust file diff --viz    force-app-v1/ force-app-v2/
+sf-rust file diff --stat   force-app-v1/ force-app-v2/
+sf-rust file diff --json   force-app-v1/ force-app-v2/</pre>
+  </div>
+
+  <p style="margin-top:3rem;color:var(--muted);font-size:.8rem;text-align:center">
+    sf-rust — Native Salesforce CLI · Built with Rust · Author: Mohan Chinnappan
+  </p>
+
+</div>
+
+<script>
+function toggleTheme() {
+  document.body.classList.toggle('light');
+}
+
+function copyCode(btn) {
+  const pre = btn.closest('.code-block').querySelector('pre');
+  navigator.clipboard.writeText(pre.innerText).then(() => {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1800);
+  });
+}
+
+// Highlight active nav section on scroll
+const sections = document.querySelectorAll('h2[id]');
+const links    = document.querySelectorAll('nav a[href^="#"]');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      links.forEach(l => l.style.borderBottomColor = '');
+      const active = document.querySelector(`nav a[href="#${e.target.id}"]`);
+      if (active) { active.style.borderBottomColor = 'var(--accent)'; active.style.color = 'var(--text)'; }
+    }
+  });
+}, { rootMargin: '-30% 0px -60% 0px' });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
