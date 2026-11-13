@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sf-rust devops — Native Salesforce DevOps Pipeline</title>
+<style>
+  :root {
+    --bg:     #1e1e1e;
+    --bg2:    #252526;
+    --bg3:    #2d2d2d;
+    --border: #3c3c3c;
+    --text:   #d4d4d4;
+    --muted:  #888;
+    --accent: #569cd6;
+    --green:  #4ec9b0;
+    --yellow: #dcdcaa;
+    --red:    #f14c4c;
+    --purple: #c586c0;
+    --orange: #ce9178;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+  }
+
+  /* ── nav ── */
+  nav {
+    position: sticky; top: 0; z-index: 20;
+    background: var(--bg3); border-bottom: 1px solid var(--border);
+    padding: .6rem 2rem; display: flex; align-items: center; gap: 1.5rem;
+    flex-wrap: wrap;
+  }
+  nav .brand { font-weight: 700; color: var(--accent); font-size: .95rem; text-decoration: none; }
+  nav a { color: var(--muted); text-decoration: none; font-size: .82rem; transition: color .15s; }
+  nav a:hover { color: var(--text); }
+  nav .badge {
+    margin-left: auto; font-size: .68rem; font-weight: 700; padding: .2rem .6rem;
+    border-radius: 10px; background: rgba(78,201,176,.12); color: var(--green);
+    border: 1px solid rgba(78,201,176,.3);
+  }
+
+  /* ── hero ── */
+  .hero {
+    padding: 4rem 2rem 3rem;
+    max-width: 900px; margin: 0 auto; text-align: center;
+  }
+  .hero .eyebrow {
+    font-size: .78rem; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: .75rem;
+  }
+  .hero h1 { font-size: 2.4rem; font-weight: 800; color: #fff; line-height: 1.2; }
+  .hero h1 span { color: var(--accent); }
+  .hero p {
+    margin-top: 1rem; font-size: 1.05rem; color: var(--muted); max-width: 640px;
+    margin-left: auto; margin-right: auto;
+  }
+  .hero .chips { display: flex; gap: .6rem; flex-wrap: wrap; justify-content: center; margin-top: 1.5rem; }
+  .chip {
+    font-size: .72rem; font-weight: 600; padding: .25rem .7rem; border-radius: 20px;
+    background: var(--bg3); border: 1px solid var(--border); color: var(--muted);
+  }
+
+  /* ── content layout ── */
+  .content { max-width: 960px; margin: 0 auto; padding: 0 2rem 4rem; }
+
+  /* ── section ── */
+  .section { margin-top: 3.5rem; }
+  .section-title {
+    font-size: 1.3rem; font-weight: 700; color: #fff;
+    padding-bottom: .5rem; border-bottom: 2px solid var(--accent);
+    display: inline-block; margin-bottom: 1.5rem;
+  }
+
+  /* ── pipeline diagram ── */
+  .pipeline-diagram {
+    display: flex; align-items: center; gap: 0;
+    overflow-x: auto; padding: 1.5rem 0;
+  }
+  .pd-stage {
+    min-width: 130px; background: var(--bg2);
+    border: 2px solid var(--border); border-radius: 10px;
+    padding: .9rem 1rem; text-align: center; flex-shrink: 0;
+    border-top: 3px solid var(--accent);
+  }
+  .pd-stage .s-name { font-weight: 700; font-size: .88rem; color: var(--accent); }
+  .pd-stage .s-org  { font-size: .68rem; color: var(--muted); margin-top: .2rem; }
+  .pd-arrow {
+    display: flex; flex-direction: column; align-items: center;
+    padding: 0 .4rem; flex-shrink: 0;
+  }
+  .pd-arrow .arr-line { width: 32px; height: 2px; background: var(--border); }
+  .pd-arrow .arr-head { font-size: .9rem; color: var(--border); margin: 0 2px; }
+  .pd-gate-stack {
+    display: flex; flex-direction: column; gap: .3rem; padding: 0 .2rem; flex-shrink: 0;
+  }
+  .pd-gate {
+    font-size: .6rem; font-weight: 700; padding: .18rem .5rem; border-radius: 10px;
+    background: rgba(86,156,214,.1); color: var(--accent);
+    border: 1px solid rgba(86,156,214,.3); white-space: nowrap;
+  }
+
+  /* ── command table ── */
+  .cmd-table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+  .cmd-table th {
+    text-align: left; padding: .6rem .9rem;
+    background: var(--bg3); color: var(--muted); font-weight: 600;
+    border-bottom: 2px solid var(--border);
+  }
+  .cmd-table td { padding: .55rem .9rem; border-bottom: 1px solid var(--bg3); vertical-align: top; }
+  .cmd-table tr:last-child td { border-bottom: none; }
+  .cmd-table td:first-child {
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    color: var(--yellow); white-space: nowrap; width: 42%;
+  }
+  .cmd-table td:last-child { color: var(--muted); }
+
+  /* ── code blocks ── */
+  pre {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 1rem 1.25rem; overflow-x: auto;
+    font-family: "JetBrains Mono", "SF Mono", Menlo, monospace;
+    font-size: .82rem; line-height: 1.65; margin: 1rem 0;
+  }
+  .c-comment { color: #6a9955; }
+  .c-cmd     { color: var(--yellow); }
+  .c-flag    { color: var(--accent); }
+  .c-val     { color: var(--orange); }
+  .c-out     { color: var(--muted); }
+
+  /* ── two-col ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+  @media (max-width: 680px) { .two-col { grid-template-columns: 1fr; } }
+
+  /* ── card ── */
+  .card {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1.25rem 1.5rem;
+  }
+  .card h3 { font-size: .9rem; font-weight: 700; color: var(--accent); margin-bottom: .6rem; }
+  .card ul  { padding-left: 1.1rem; color: var(--muted); font-size: .84rem; }
+  .card li  { margin-bottom: .3rem; }
+
+  /* ── kv block ── */
+  .kv-block { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .kv-row   { display: flex; border-bottom: 1px solid var(--bg3); font-size: .82rem; }
+  .kv-row:last-child { border-bottom: none; }
+  .kv-key   { width: 11rem; flex-shrink: 0; color: var(--muted); padding: .5rem .9rem; font-weight: 500; }
+  .kv-val   {
+    flex: 1; padding: .5rem .9rem;
+    font-family: "JetBrains Mono", "SF Mono", monospace; color: var(--text); word-break: break-all;
+  }
+
+  /* ── gate type cards ── */
+  .gate-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  @media (max-width: 600px) { .gate-grid { grid-template-columns: 1fr; } }
+  .gate-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 1rem 1.25rem;
+  }
+  .gate-card .gt-name  { font-weight: 700; color: var(--accent); font-size: .9rem; }
+  .gate-card .gt-badge {
+    display: inline-block; font-size: .62rem; font-weight: 700; padding: .1rem .4rem;
+    border-radius: 10px; margin-left: .4rem; vertical-align: middle;
+  }
+  .gt-live    { background: rgba(78,201,176,.12); color: var(--green); border: 1px solid rgba(78,201,176,.35); }
+  .gt-advisory{ background: rgba(220,220,170,.1); color: var(--yellow); border: 1px solid rgba(220,220,170,.35); }
+  .gate-card p { font-size: .8rem; color: var(--muted); margin-top: .4rem; }
+
+  /* ── footer ── */
+  footer {
+    border-top: 1px solid var(--border); padding: 1.5rem 2rem;
+    text-align: center; font-size: .75rem; color: #444;
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="sf-rust-portal.html" class="brand">sf-rust</a>
+  <a href="#commands">Commands</a>
+  <a href="#workflow">Workflow</a>
+  <a href="#gates">Gates</a>
+  <a href="#config">Config</a>
+  <a href="#rollback">Rollback</a>
+  <span class="badge">Phase 8 complete</span>
+</nav>
+
+<!-- ── hero ── -->
+<div class="hero">
+  <div class="eyebrow">sf-rust devops</div>
+  <h1>Native <span>Salesforce DevOps</span><br>Pipeline in Rust</h1>
+  <p>
+    Zero-dependency CI/CD for Salesforce metadata — deploy, promote through environments,
+    enforce gates, track changes, and roll back, all from a single statically-linked binary.
+  </p>
+  <div class="chips">
+    <span class="chip">deploy run / validate / status</span>
+    <span class="chip">pipeline create / run / show --viz</span>
+    <span class="chip">gate add / check (lint · manual)</span>
+    <span class="chip">changes list / stage / reset</span>
+    <span class="chip">rollback list / run</span>
+    <span class="chip">history list --viz</span>
+    <span class="chip">~/.sf-rust/devops.toml</span>
+    <span class="chip">NDJSON audit log</span>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ── pipeline diagram ── -->
+  <div class="section">
+    <div class="section-title">Pipeline flow</div>
+    <div class="pipeline-diagram">
+      <div class="pd-stage">
+        <div class="s-name">dev</div>
+        <div class="s-org">dev1 · develop</div>
+      </div>
+      <div class="pd-arrow">
+        <div class="arr-line"></div><span class="arr-head">▶</span>
+      </div>
+      <div class="pd-gate-stack">
+        <span class="pd-gate">coverage-80</span>
+        <span class="pd-gate">no-soql-in-loop</span>
+      </div>
+      <div class="pd-arrow">
+        <div class="arr-line"></div><span class="arr-head">▶</span>
+      </div>
+      <div class="pd-stage">
+        <div class="s-name">staging</div>
+        <div class="s-org">stage1 · main</div>
+      </div>
+      <div class="pd-arrow">
+        <div class="arr-line"></div><span class="arr-head">▶</span>
+      </div>
+      <div class="pd-gate-stack">
+        <span class="pd-gate">all-tests</span>
+        <span class="pd-gate">manual-prod</span>
+      </div>
+      <div class="pd-arrow">
+        <div class="arr-line"></div><span class="arr-head">▶</span>
+      </div>
+      <div class="pd-stage">
+        <div class="s-name">prod</div>
+        <div class="s-org">prod1 · release</div>
+      </div>
+    </div>
+    <p style="font-size:.8rem;color:var(--muted);margin-top:.5rem">
+      Run <code style="color:var(--yellow)">sf-rust devops pipeline show --name main --viz</code> to open an interactive version of this diagram.
+    </p>
+  </div>
+
+  <!-- ── command reference ── -->
+  <div class="section" id="commands">
+    <div class="section-title">Command reference</div>
+    <table class="cmd-table">
+      <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>devops env create -n dev -o dev1 --branch develop</td><td>Register a named deployment environment linked to an org alias</td></tr>
+        <tr><td>devops env list / show -e dev / delete -e dev</td><td>CRUD for the environment registry</td></tr>
+        <tr><td>devops deploy run -e staging -d force-app</td><td>Deploy metadata from source dir to a named environment</td></tr>
+        <tr><td>devops deploy validate -e staging -d force-app</td><td>Check-only deploy — validates without making changes</td></tr>
+        <tr><td>devops deploy status --job-id 0Af... -e staging</td><td>Poll an in-progress deploy job</td></tr>
+        <tr><td>devops history list / history list -e staging</td><td>View deploy history (newest first), optionally filtered to one env</td></tr>
+        <tr><td>devops history list --viz</td><td>Open interactive timeline with click-to-detail panel</td></tr>
+        <tr><td>devops history show --id d-20261112-...</td><td>Full detail for one deploy record</td></tr>
+        <tr><td>devops pipeline create --name main --stages dev,staging,prod</td><td>Define an ordered promotion pipeline</td></tr>
+        <tr><td>devops pipeline run --name main --from dev --to prod -d force-app</td><td>Promote metadata through all hops, enforcing gates</td></tr>
+        <tr><td>devops pipeline run ... --skip-gates</td><td>Bypass all gate checks (emergency override)</td></tr>
+        <tr><td>devops pipeline show --name main --viz</td><td>Open interactive DAG diagram showing stages and gates</td></tr>
+        <tr><td>devops changes list -e staging</td><td>Show files changed since last deploy to that env (uses git SHA)</td></tr>
+        <tr><td>devops changes stage -e dev path/to/file.cls</td><td>Mark paths as staged for the next deploy</td></tr>
+        <tr><td>devops changes reset -e dev</td><td>Clear staged set for one env (or all)</td></tr>
+        <tr><td>devops rollback list -e prod</td><td>List rollback candidates (successful deploys with git SHA)</td></tr>
+        <tr><td>devops rollback run -e prod --to d-20261112-...</td><td>Re-deploy exact state from that SHA via git worktree</td></tr>
+        <tr><td>devops gate add --name coverage-80 --type coverage --threshold 80</td><td>Define a coverage gate</td></tr>
+        <tr><td>devops gate add --name no-soql-in-loop --type lint --pattern "..." --include cls</td><td>Define a regex lint gate</td></tr>
+        <tr><td>devops gate add --name manual-prod --type manual --prompt "QA approved?"</td><td>Define a manual y/n approval gate</td></tr>
+        <tr><td>devops gate check --name coverage-80 -e staging</td><td>Run a gate interactively outside of a pipeline</td></tr>
+        <tr><td>devops gate list / show / delete</td><td>CRUD for the gate registry</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── quick-start workflow ── -->
+  <div class="section" id="workflow">
+    <div class="section-title">Quick-start workflow</div>
+<pre><span class="c-comment"># 1. Register environments</span>
+<span class="c-cmd">sf-rust devops env create</span> <span class="c-flag">-n</span> <span class="c-val">dev</span>     <span class="c-flag">-o</span> <span class="c-val">dev1</span>   <span class="c-flag">--branch</span> <span class="c-val">develop</span>
+<span class="c-cmd">sf-rust devops env create</span> <span class="c-flag">-n</span> <span class="c-val">staging</span> <span class="c-flag">-o</span> <span class="c-val">stage1</span> <span class="c-flag">--branch</span> <span class="c-val">main</span>
+<span class="c-cmd">sf-rust devops env create</span> <span class="c-flag">-n</span> <span class="c-val">prod</span>    <span class="c-flag">-o</span> <span class="c-val">prod1</span>  <span class="c-flag">--branch</span> <span class="c-val">release</span>
+
+<span class="c-comment"># 2. Create a pipeline</span>
+<span class="c-cmd">sf-rust devops pipeline create</span> <span class="c-flag">--name</span> <span class="c-val">main</span> <span class="c-flag">--stages</span> <span class="c-val">dev,staging,prod</span>
+
+<span class="c-comment"># 3. Define gates</span>
+<span class="c-cmd">sf-rust devops gate add</span> <span class="c-flag">--name</span> <span class="c-val">coverage-80</span>      <span class="c-flag">--type</span> <span class="c-val">coverage</span>  <span class="c-flag">--threshold</span> <span class="c-val">80</span>
+<span class="c-cmd">sf-rust devops gate add</span> <span class="c-flag">--name</span> <span class="c-val">no-soql-in-loop</span>  <span class="c-flag">--type</span> <span class="c-val">lint</span>      <span class="c-flag">--pattern</span> <span class="c-val">"for\s*\(.*\).*query"</span> <span class="c-flag">--include</span> <span class="c-val">cls</span>
+<span class="c-cmd">sf-rust devops gate add</span> <span class="c-flag">--name</span> <span class="c-val">manual-prod</span>      <span class="c-flag">--type</span> <span class="c-val">manual</span>    <span class="c-flag">--prompt</span> <span class="c-val">"QA signed off? [y/N]"</span>
+
+<span class="c-comment"># 4. Assign gates to pipeline transitions (edit ~/.sf-rust/devops.toml)
+#    [pipelines.main.gates]
+#    "dev-to-staging" = ["coverage-80", "no-soql-in-loop"]
+#    "staging-to-prod" = ["manual-prod"]</span>
+
+<span class="c-comment"># 5. Deploy to dev (single-hop)</span>
+<span class="c-cmd">sf-rust devops deploy run</span> <span class="c-flag">-e</span> <span class="c-val">dev</span> <span class="c-flag">-d</span> <span class="c-val">force-app</span>
+
+<span class="c-comment"># 6. Promote dev → prod through the pipeline (runs gates per hop)</span>
+<span class="c-cmd">sf-rust devops pipeline run</span> <span class="c-flag">--name</span> <span class="c-val">main</span> <span class="c-flag">--from</span> <span class="c-val">dev</span> <span class="c-flag">--to</span> <span class="c-val">prod</span> <span class="c-flag">-d</span> <span class="c-val">force-app</span>
+
+<span class="c-comment"># 7. View history + rollback if needed</span>
+<span class="c-cmd">sf-rust devops history list</span> <span class="c-flag">-e</span> <span class="c-val">prod</span> <span class="c-flag">--viz</span>
+<span class="c-cmd">sf-rust devops rollback list</span> <span class="c-flag">-e</span> <span class="c-val">prod</span>
+<span class="c-cmd">sf-rust devops rollback run</span>  <span class="c-flag">-e</span> <span class="c-val">prod</span> <span class="c-flag">--to</span> <span class="c-val">d-20261112-091500-0Af00005</span></pre>
+  </div>
+
+  <!-- ── gates ── -->
+  <div class="section" id="gates">
+    <div class="section-title">Gate types</div>
+    <div class="gate-grid">
+      <div class="gate-card">
+        <div class="gt-name">lint <span class="gt-badge gt-live">live</span></div>
+        <p>Walks source files with <code>walkdir</code>, scans each line with a <code>regex</code> pattern.
+        Default mode fails when the pattern <em>is found</em> (violation detection).
+        <code>--must-match</code> flips it: fail when pattern is <em>not found</em> (required pattern enforcement).</p>
+      </div>
+      <div class="gate-card">
+        <div class="gt-name">manual <span class="gt-badge gt-live">live</span></div>
+        <p>Reads a y/n answer from stdin at deploy time. Configure a custom prompt with <code>--prompt</code>.
+        Ideal for prod sign-off gates that require human confirmation.</p>
+      </div>
+      <div class="gate-card">
+        <div class="gt-name">apex-tests <span class="gt-badge gt-advisory">advisory</span></div>
+        <p>Triggers all Apex tests in the target org. Advisory pass in the current release —
+        run <code>sf-rust apex test run</code> manually while the org-API integration is finalized.</p>
+      </div>
+      <div class="gate-card">
+        <div class="gt-name">coverage <span class="gt-badge gt-advisory">advisory</span></div>
+        <p>Verifies code coverage is at or above <code>--threshold</code> (1–100%). Advisory pass in the current
+        release — full support arrives with the apex-test API integration.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── rollback ── -->
+  <div class="section" id="rollback">
+    <div class="section-title">Rollback strategy</div>
+    <div class="two-col">
+      <div>
+        <p style="font-size:.88rem;color:var(--muted);margin-bottom:1rem">
+          Every successful deploy records its <strong>git SHA</strong> in
+          <code style="color:var(--yellow)">~/.sf-rust/deploy-history.ndjson</code>.
+          Rollback uses <code>git worktree add --detach &lt;tmp&gt; &lt;sha&gt;</code>
+          to check out that exact state and re-deploy it.
+          The worktree is always cleaned up, even on failure.
+        </p>
+<pre style="font-size:.78rem"><span class="c-comment"># List candidates</span>
+<span class="c-cmd">sf-rust devops rollback list</span> <span class="c-flag">-e</span> <span class="c-val">prod</span>
+
+<span class="c-comment"># Dry run first</span>
+<span class="c-cmd">sf-rust devops rollback run</span> \
+  <span class="c-flag">-e</span> <span class="c-val">prod</span> <span class="c-flag">--to</span> <span class="c-val">d-20261109-...</span> \
+  <span class="c-flag">--dry-run</span>
+
+<span class="c-comment"># Validate before deploying</span>
+<span class="c-cmd">sf-rust devops rollback run</span> \
+  <span class="c-flag">-e</span> <span class="c-val">prod</span> <span class="c-flag">--to</span> <span class="c-val">d-20261109-...</span> \
+  <span class="c-flag">--check-only</span></pre>
+      </div>
+      <div>
+        <div class="card">
+          <h3>Rollback guards</h3>
+          <ul>
+            <li>Record must exist in history</li>
+            <li>Record must belong to the target <code>--env</code></li>
+            <li>Must have a recorded git SHA</li>
+            <li>Must be a non-check-only deploy</li>
+            <li>Must have <code>result = "Succeeded"</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── config reference ── -->
+  <div class="section" id="config">
+    <div class="section-title">devops.toml structure</div>
+<pre><span class="c-comment"># ~/.sf-rust/devops.toml</span>
+
+<span class="c-flag">[environments.dev]</span>
+<span class="c-val">org_alias</span>   = <span class="c-out">"dev1"</span>
+<span class="c-val">branch</span>      = <span class="c-out">"develop"</span>
+<span class="c-val">last_deploy</span> = <span class="c-out">"d-20261112-091500-0Af00005"</span>
+
+<span class="c-flag">[pipelines.main]</span>
+<span class="c-val">stages</span> = <span class="c-out">["dev", "staging", "prod"]</span>
+
+<span class="c-flag">[pipelines.main.gates]</span>
+<span class="c-out">"dev-to-staging"</span>  = <span class="c-out">["coverage-80", "no-soql-in-loop"]</span>
+<span class="c-out">"staging-to-prod"</span> = <span class="c-out">["manual-prod"]</span>
+
+<span class="c-flag">[gates.coverage-80]</span>
+<span class="c-val">type</span>      = <span class="c-out">"coverage"</span>
+<span class="c-val">threshold</span> = <span class="c-out">80</span>
+
+<span class="c-flag">[gates.no-soql-in-loop]</span>
+<span class="c-val">type</span>        = <span class="c-out">"lint"</span>
+<span class="c-val">description</span> = <span class="c-out">"No SOQL inside loops"</span>
+<span class="c-val">pattern</span>     = <span class="c-out">"for\\s*\\(.*\\).*query"</span>
+<span class="c-val">include</span>     = <span class="c-out">"cls"</span>
+
+<span class="c-flag">[gates.manual-prod]</span>
+<span class="c-val">type</span>   = <span class="c-out">"manual"</span>
+<span class="c-val">prompt</span> = <span class="c-out">"Has QA signed off on this release? [y/N]"</span></pre>
+
+    <p style="font-size:.82rem;color:var(--muted);margin-top:1rem">
+      Managed by <code style="color:var(--yellow)">sf-rust devops</code> commands.
+      Staged paths are also stored in this file under <code>[staged.&lt;env&gt;]</code>.
+      Deploy history lives in a separate append-only NDJSON file:
+      <code style="color:var(--yellow)">~/.sf-rust/deploy-history.ndjson</code>
+    </p>
+  </div>
+
+  <!-- ── runtime files ── -->
+  <div class="section">
+    <div class="section-title">Runtime files</div>
+    <div class="kv-block">
+      <div class="kv-row"><div class="kv-key">devops.toml</div><div class="kv-val">~/.sf-rust/devops.toml — environments, pipelines, gates, staged paths</div></div>
+      <div class="kv-row"><div class="kv-key">deploy history</div><div class="kv-val">~/.sf-rust/deploy-history.ndjson — append-only NDJSON audit log</div></div>
+      <div class="kv-row"><div class="kv-key">pipeline viz</div><div class="kv-val">/tmp/sf-rust-pipeline-&lt;name&gt;-&lt;ts&gt;.html — generated by --viz</div></div>
+      <div class="kv-row"><div class="kv-key">history viz</div><div class="kv-val">/tmp/sf-rust-deploy-history-&lt;ts&gt;.html — generated by history list --viz</div></div>
+      <div class="kv-row"><div class="kv-key">rollback worktree</div><div class="kv-val">/tmp/sf-rust-rollback-&lt;ts&gt;/ — temporary, always removed after deploy</div></div>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<footer>
+  sf-rust devops — Native Salesforce DevOps Pipeline &nbsp;·&nbsp; Mohan Chinnappan
+</footer>
+
+</body>
+</html>
