@@ -1,0 +1,1366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sf-rust data · SOQL — Salesforce data commands</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #1e1e1e;
+    --panel:   #252526;
+    --panel2:  #2d2d2d;
+    --border:  #3c3c3c;
+    --text:    #cccccc;
+    --muted:   #6a6a6a;
+    --blue:    #569cd6;
+    --green:   #4ec9b0;
+    --red:     #f14c4c;
+    --yellow:  #dcdcaa;
+    --purple:  #c586c0;
+    --orange:  #ce9178;
+    --cyan:    #9cdcfe;
+    --string:  #ce9178;
+    --comment: #6a9955;
+    --keyword: #c586c0;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* ── top bar ── */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    height: 48px;
+    background: #252526;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 1.5rem; gap: 1rem;
+  }
+  .topbar-logo { font-size: 1rem; font-weight: 700; color: var(--blue); letter-spacing: -.01em; }
+  .topbar-sep  { color: #444; }
+  .topbar-sub  { font-size: .9rem; color: #aaa; }
+  .topbar-badge {
+    margin-left: auto;
+    font-size: .7rem; color: var(--muted);
+    background: #333; border: 1px solid #444;
+    border-radius: 4px; padding: .18rem .6rem;
+  }
+
+  /* ── layout ── */
+  .layout {
+    display: flex;
+    flex: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 0 1rem;
+    gap: 2.5rem;
+  }
+
+  /* ── sidebar ── */
+  nav.sidebar {
+    width: 210px; flex-shrink: 0;
+    padding: 2rem 0;
+    position: sticky; top: 48px;
+    height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+  .nav-section-label {
+    font-size: .65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--muted);
+    padding: .9rem 0 .3rem;
+  }
+  .nav-section-label:first-child { padding-top: 0; }
+  nav a {
+    display: block;
+    font-size: .82rem; color: #999;
+    padding: .28rem .6rem;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: background .1s, color .1s;
+  }
+  nav a:hover  { background: #2a2a2a; color: var(--text); }
+  nav a.active { background: rgba(86,156,214,.12); color: var(--blue); }
+  nav a .cmd-badge {
+    display: inline-block; font-family: monospace;
+    font-size: .72rem; background: #333; border-radius: 3px;
+    padding: .05rem .3rem; margin-right: .3rem; color: var(--cyan);
+  }
+
+  /* ── main content ── */
+  main { flex: 1; padding: 2rem 0 4rem; min-width: 0; }
+
+  /* ── hero ── */
+  .hero {
+    padding: 2.5rem 2rem 2rem;
+    background: linear-gradient(135deg, #1e1e1e 60%, #1a2535);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 3rem;
+  }
+  .hero h1 { font-size: 2rem; font-weight: 700; color: var(--blue); letter-spacing: -.02em; margin-bottom: .4rem; }
+  .hero .tagline { font-size: 1.05rem; color: #aaa; margin-bottom: 1.5rem; }
+  .hero-features { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .feat-pill {
+    font-size: .72rem; padding: .22rem .7rem;
+    border-radius: 20px; font-weight: 600;
+  }
+  .feat-pill.blue   { background: rgba(86,156,214,.12); color: #569cd6; border: 1px solid rgba(86,156,214,.25); }
+  .feat-pill.green  { background: rgba(78,201,176,.12); color: #4ec9b0; border: 1px solid rgba(78,201,176,.25); }
+  .feat-pill.purple { background: rgba(197,134,192,.12); color: #c586c0; border: 1px solid rgba(197,134,192,.25); }
+  .feat-pill.orange { background: rgba(206,145,120,.12); color: #ce9178; border: 1px solid rgba(206,145,120,.25); }
+  .feat-pill.yellow { background: rgba(220,220,170,.12); color: #dcdcaa; border: 1px solid rgba(220,220,170,.25); }
+
+  /* ── section headings ── */
+  .cmd-section { margin-bottom: 3.5rem; scroll-margin-top: 60px; }
+  .cmd-section h2 {
+    font-size: 1.3rem; font-weight: 700;
+    color: var(--text);
+    display: flex; align-items: center; gap: .6rem;
+    margin-bottom: .3rem;
+  }
+  .cmd-section h2 code {
+    font-size: 1.1rem; color: var(--blue);
+    background: rgba(86,156,214,.08);
+    border: 1px solid rgba(86,156,214,.2);
+    border-radius: 5px; padding: .1rem .5rem;
+  }
+  .cmd-desc { color: #aaa; font-size: .92rem; margin-bottom: 1.2rem; }
+  .section-divider { height: 1px; background: var(--border); margin-bottom: 1.5rem; }
+
+  /* ── flags table ── */
+  .flags-table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: .85rem; }
+  .flags-table th {
+    text-align: left; font-size: .7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--muted);
+    padding: .4rem .7rem; border-bottom: 1px solid var(--border);
+  }
+  .flags-table td { padding: .45rem .7rem; border-bottom: 1px solid #2a2a2a; vertical-align: top; }
+  .flags-table tr:last-child td { border-bottom: none; }
+  .flags-table td:first-child { font-family: monospace; color: var(--cyan); white-space: nowrap; }
+  .flags-table td:last-child  { color: #aaa; }
+  .flag-default { font-size: .72rem; color: var(--muted); margin-top: .15rem; }
+
+  /* ── code blocks ── */
+  pre {
+    background: #1a1a1a;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", monospace;
+    font-size: .8rem;
+    line-height: 1.65;
+    margin-bottom: 1rem;
+    position: relative;
+  }
+  pre .label {
+    position: absolute; top: .5rem; right: .7rem;
+    font-size: .62rem; color: #555; font-family: sans-serif;
+  }
+  .c  { color: var(--comment); }
+  .k  { color: var(--keyword); }
+  .s  { color: var(--string); }
+  .g  { color: var(--green); }
+  .r  { color: var(--red); }
+  .b  { color: var(--blue); }
+  .y  { color: var(--yellow); }
+  .m  { color: var(--muted); }
+
+  /* ── inline code ── */
+  code { font-family: monospace; font-size: .85em; }
+  p code, li code, td code {
+    background: #2a2a2a; border: 1px solid #3a3a3a;
+    border-radius: 3px; padding: .08em .35em;
+    color: var(--cyan);
+  }
+
+  /* ── sub-headings ── */
+  h3 { font-size: .95rem; font-weight: 600; color: #ccc; margin: 1.5rem 0 .6rem; }
+  h4 { font-size: .82rem; font-weight: 600; color: var(--muted); margin: 1.2rem 0 .4rem; text-transform: uppercase; letter-spacing: .06em; }
+
+  /* ── callout boxes ── */
+  .callout {
+    display: flex; gap: .8rem; align-items: flex-start;
+    padding: .8rem 1rem; border-radius: 6px; margin-bottom: 1rem;
+    font-size: .85rem;
+  }
+  .callout.tip  { background: rgba(78,201,176,.07); border: 1px solid rgba(78,201,176,.2); }
+  .callout.note { background: rgba(86,156,214,.07); border: 1px solid rgba(86,156,214,.2); }
+  .callout.warn { background: rgba(220,220,170,.07); border: 1px solid rgba(220,220,170,.2); }
+  .callout-icon { font-size: 1rem; flex-shrink: 0; margin-top: .05rem; }
+  .callout.tip  .callout-icon { color: var(--green); }
+  .callout.note .callout-icon { color: var(--blue); }
+  .callout.warn .callout-icon { color: var(--yellow); }
+  .callout p { color: #bbb; }
+  .callout p strong { color: var(--text); }
+
+  /* ── two-column examples ── */
+  .example-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+  @media (max-width: 800px) { .example-grid { grid-template-columns: 1fr; } }
+
+  /* ── output sample box ── */
+  .output-sample {
+    background: #181818; border: 1px solid #333;
+    border-radius: 7px; padding: .9rem 1rem;
+    font-family: monospace; font-size: .78rem; line-height: 1.7;
+    overflow-x: auto; margin-bottom: 1rem;
+  }
+  .hl-g { color: var(--green); }
+  .hl-b { color: var(--blue); }
+  .hl-y { color: var(--yellow); }
+  .hl-r { color: var(--red); }
+  .hl-m { color: var(--muted); }
+  .hl-p { color: var(--purple); }
+  .hl-o { color: var(--orange); }
+
+  /* ── format pill grid ── */
+  .format-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: .5rem; margin-bottom: 1.2rem; }
+  .format-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: .6rem .8rem;
+    font-size: .78rem;
+  }
+  .format-card .fc-flag { font-family: monospace; color: var(--cyan); font-size: .82rem; display: block; margin-bottom: .2rem; }
+  .format-card .fc-desc { color: #888; font-size: .72rem; }
+
+  /* ── field type pills ── */
+  .type-pill {
+    display: inline-block; font-size: .68rem; padding: .15rem .5rem;
+    border-radius: 10px; font-weight: 600; margin: .1rem;
+  }
+  .tp-str    { background: rgba(206,145,120,.12); color: #ce9178; border: 1px solid rgba(206,145,120,.3); }
+  .tp-num    { background: rgba(78,201,176,.12);  color: #4ec9b0; border: 1px solid rgba(78,201,176,.3); }
+  .tp-bool   { background: rgba(86,156,214,.12);  color: #569cd6; border: 1px solid rgba(86,156,214,.3); }
+  .tp-ref    { background: rgba(197,134,192,.12); color: #c586c0; border: 1px solid rgba(197,134,192,.3); }
+  .tp-enum   { background: rgba(220,220,170,.12); color: #dcdcaa; border: 1px solid rgba(220,220,170,.3); }
+  .tp-other  { background: rgba(100,100,100,.12); color: #888;    border: 1px solid #3a3a3a; }
+
+  /* ── footer ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 1.2rem 1.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: .75rem; color: var(--muted);
+  }
+  footer a { color: #555; text-decoration: none; }
+  footer a:hover { color: #999; }
+</style>
+</head>
+<body>
+
+<!-- ── top bar ─────────────────────────────────────────────────────────────── -->
+<header class="topbar">
+  <span class="topbar-logo">sf-rust</span>
+  <span class="topbar-sep">/</span>
+  <span class="topbar-sub">data · soql</span>
+  <span class="topbar-badge">v0.2.0 · Data &amp; SOQL command suite</span>
+</header>
+
+<div class="layout">
+
+  <!-- ── sidebar ─────────────────────────────────────────────────────────── -->
+  <nav class="sidebar" id="sidebar-nav">
+    <div class="nav-section-label">Overview</div>
+    <a href="#overview">Introduction</a>
+    <a href="#output-formats">Output formats</a>
+    <a href="#pagination">Pagination</a>
+
+    <div class="nav-section-label">Query</div>
+    <a href="#query"><span class="cmd-badge">query</span>SOQL query</a>
+    <a href="#datatable"><span class="cmd-badge">datatable</span>Browser view</a>
+    <a href="#grep"><span class="cmd-badge">grep</span>Post-filter</a>
+
+    <div class="nav-section-label">File formats</div>
+    <a href="#parquet-arrow">Parquet / Arrow</a>
+    <a href="#excel">Excel</a>
+    <a href="#sqlite">SQLite</a>
+
+    <div class="nav-section-label">Schema &amp; Records</div>
+    <a href="#describe"><span class="cmd-badge">describe</span>SObject fields</a>
+    <a href="#record"><span class="cmd-badge">record</span>CRUD</a>
+    <a href="#soql-explain"><span class="cmd-badge">explain</span>Query plan</a>
+
+    <div class="nav-section-label">Bulk API v2</div>
+    <a href="#bulk"><span class="cmd-badge">bulk</span>DML &amp; query</a>
+
+    <div class="nav-section-label">Other commands</div>
+    <a href="#arrow-view"><span class="cmd-badge">arrow-view</span>File viewer</a>
+    <a href="#rsql"><span class="cmd-badge">rsql</span>SQL REPL</a>
+    <a href="#erd"><span class="cmd-badge">erd</span>ER diagram</a>
+
+    <div class="nav-section-label">Reference</div>
+    <a href="#examples">Quick examples</a>
+  </nav>
+
+  <!-- ── main ─────────────────────────────────────────────────────────────── -->
+  <main>
+
+    <!-- ── hero ── -->
+    <section class="hero" id="overview">
+      <h1>sf-rust data · SOQL</h1>
+      <p class="tagline">
+        Query, inspect, and manage Salesforce data from the terminal.
+        Every output format in one binary — no Node.js, no Python, no pandas.
+      </p>
+      <div class="hero-features">
+        <span class="feat-pill blue">SOQL with auto-pagination</span>
+        <span class="feat-pill green">Parquet · Arrow · Excel · SQLite</span>
+        <span class="feat-pill purple">Interactive datatable browser view</span>
+        <span class="feat-pill orange">SObject describe &amp; field metadata</span>
+        <span class="feat-pill yellow">Single-record CRUD · SOQL explain plan</span>
+      </div>
+    </section>
+
+    <!-- ── output formats overview ── -->
+    <section class="cmd-section" id="output-formats">
+      <h2>Output formats</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        <code>data query</code> supports ten output modes. All modes except the interactive pager
+        and <code>--datatable</code> are suitable for piping and automation.
+        Column order is always preserved — <code>serde_json</code> is built with
+        <code>preserve_order</code> so <code>SELECT Id, Name, Industry</code> always
+        renders in that exact sequence.
+      </p>
+
+      <div class="format-grid">
+        <div class="format-card">
+          <span class="fc-flag">(default)</span>
+          <span class="fc-desc">UTF8_FULL table, interactive pager when TTY</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">--json</span>
+          <span class="fc-desc">Pretty-printed JSON array</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">--csv</span>
+          <span class="fc-desc">RFC 4180 CSV with header row</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">--ndjson</span>
+          <span class="fc-desc">Newline-delimited JSON (one object per line)</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">--markdown</span>
+          <span class="fc-desc">GitHub-flavored Markdown table</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">--datatable</span>
+          <span class="fc-desc">Self-contained HTML page, opens in browser</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">--parquet FILE</span>
+          <span class="fc-desc">Apache Parquet (Snappy compression)</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">--arrow FILE</span>
+          <span class="fc-desc">Apache Arrow IPC file</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">--xlsx FILE</span>
+          <span class="fc-desc">Excel workbook (pure Rust, bold headers)</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">--sqlite FILE</span>
+          <span class="fc-desc">SQLite database (single transaction)</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── pagination ── -->
+    <section class="cmd-section" id="pagination">
+      <h2>Pagination</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Salesforce returns at most 2,000 records per REST batch.
+        <code>data query</code> handles this automatically depending on the mode and flags.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Mode</th><th>Pagination behaviour</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Table (TTY, no <code>--all</code>)</td>
+            <td>Interactive pager — <code>--page-size N</code> (default 50) rows per screen. Press Enter for next page, <code>q</code> to quit.</td>
+          </tr>
+          <tr>
+            <td>Table with <code>--all</code></td>
+            <td><code>query_all()</code> fetches every record via <code>nextRecordsUrl</code> before rendering. No pager.</td>
+          </tr>
+          <tr>
+            <td><code>--json</code> / <code>--csv</code> / <code>--ndjson</code> / <code>--markdown</code></td>
+            <td>Always calls <code>query_all()</code> — returns every record regardless of batch size.</td>
+          </tr>
+          <tr>
+            <td>Piped stdout (non-TTY)</td>
+            <td>Pager is skipped automatically; <code>query_all()</code> is used.</td>
+          </tr>
+          <tr>
+            <td>File formats (Parquet / Arrow / Excel / SQLite)</td>
+            <td>Always <code>query_all()</code> — no partial files.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout note">
+        <span class="callout-icon">◆</span>
+        <p><strong>Token refresh on 401.</strong> Every request retries once on HTTP 401 —
+        the refresh token is used to obtain a new access token and persist it to
+        <code>~/.sf-rust/credentials.json</code>. Long-running queries across many batches
+        never prompt for re-authentication.</p>
+      </div>
+    </section>
+
+    <!-- ── data query ── -->
+    <section class="cmd-section" id="query">
+      <h2><code>sf-rust data query</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Run a SOQL query and render the results. Accepts the query inline (<code>-q</code>)
+        or from a file (<code>-f</code>). Relationship fields are flattened to dot-notation
+        keys (<code>Account.Name</code>). Attributes are stripped from output.
+      </p>
+
+      <h3>Flags</h3>
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>-q, --query SOQL</code></td><td>SOQL query string</td></tr>
+          <tr><td><code>-f, --file PATH</code></td><td>Read SOQL from a file</td></tr>
+          <tr><td><code>-o, --target-org ALIAS</code></td><td>Org alias or username</td></tr>
+          <tr><td><code>-n, --page-size N</code></td><td>Rows per page in table mode (default: 50)</td></tr>
+          <tr><td><code>--all</code></td><td>Disable pager, fetch all records</td></tr>
+          <tr><td><code>--json</code></td><td>Output as JSON array</td></tr>
+          <tr><td><code>--csv</code></td><td>Output as CSV</td></tr>
+          <tr><td><code>--ndjson</code></td><td>Output as NDJSON (one record per line)</td></tr>
+          <tr><td><code>--markdown</code></td><td>Output as Markdown table</td></tr>
+          <tr><td><code>--datatable</code></td><td>Open interactive browser datatable</td></tr>
+          <tr><td><code>--parquet [FILE]</code></td><td>Write Parquet file (default: <code>/tmp/sf-rust-query-&lt;ts&gt;.parquet</code>)</td></tr>
+          <tr><td><code>--arrow [FILE]</code></td><td>Write Arrow IPC file</td></tr>
+          <tr><td><code>--xlsx [FILE]</code></td><td>Write Excel workbook</td></tr>
+          <tr><td><code>--sqlite [FILE]</code></td><td>Write SQLite database (default: <code>/tmp/sf-rust-query-&lt;ts&gt;.db</code>)</td></tr>
+          <tr><td><code>--sqlite-table NAME</code></td><td>Table name in the SQLite database (default: <code>records</code>)</td></tr>
+          <tr><td><code>--grep PATTERN</code></td><td>Post-filter: keep only rows where any field matches this regex</td></tr>
+          <tr><td><code>--grep-ignore-case</code></td><td>Case-insensitive <code>--grep</code> matching</td></tr>
+          <tr><td><code>--use-tooling-api</code></td><td>Use the Tooling API instead of the REST API</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c">── basic queries ──────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data query -f queries/accounts.soql -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --all</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --page-size 25</span>
+
+<span class="c">── relationship fields (auto-flattened to dot notation) ──────</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Account.Name FROM Contact" -o dev1</span>
+<span class="c"># → columns: Id, Account.Name</span>
+
+<span class="c">── text output formats ────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --json</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --csv</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --ndjson</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --markdown</span>
+
+<span class="c">── pipe to other tools ────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --csv > accounts.csv</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --json | jq '.[0]'</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Name FROM Account" -o dev1 --ndjson | wc -l</span></pre>
+
+      <h3>Sample table output</h3>
+      <div class="output-sample">
+<span class="hl-m">┌────────────────────┬──────────────────────────────┬─────────────┐</span>
+<span class="hl-m">│</span> Id                 <span class="hl-m">┆</span> Name                         <span class="hl-m">┆</span> Industry    <span class="hl-m">│</span>
+<span class="hl-m">╞════════════════════╪══════════════════════════════╪═════════════╡</span>
+<span class="hl-m">│</span> 001Dn00000NpXr1    <span class="hl-m">┆</span> <span class="hl-b">Acme Corp</span>                    <span class="hl-m">┆</span> Technology  <span class="hl-m">│</span>
+<span class="hl-m">│</span> 001Dn00000NpXr2    <span class="hl-m">┆</span> <span class="hl-b">Global Media Inc</span>             <span class="hl-m">┆</span> Media       <span class="hl-m">│</span>
+<span class="hl-m">│</span> 001Dn00000NpXr3    <span class="hl-m">┆</span> <span class="hl-b">SkyBridge Financial</span>          <span class="hl-m">┆</span> Finance     <span class="hl-m">│</span>
+<span class="hl-m">│</span> 001Dn00000NpXr4    <span class="hl-m">┆</span> <span class="hl-b">NovaBio Solutions</span>            <span class="hl-m">┆</span> Healthcare  <span class="hl-m">│</span>
+<span class="hl-m">│</span> 001Dn00000NpXr5    <span class="hl-m">┆</span> <span class="hl-b">Redwood Manufacturing</span>        <span class="hl-m">┆</span> Energy      <span class="hl-m">│</span>
+<span class="hl-m">└────────────────────┴──────────────────────────────┴─────────────┘</span>
+<span class="hl-m">5 record(s)   Page 1   --page-size 50   press Enter for next, q to quit</span>
+      </div>
+    </section>
+
+    <!-- ── datatable ── -->
+    <section class="cmd-section" id="datatable">
+      <h2><code>data query --datatable</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Fetches all records, flattens relationship fields to dot-notation keys, strips
+        <code>attributes</code>, and generates a self-contained HTML page at
+        <code>/tmp/sf-rust-query-&lt;ts&gt;.html</code>. Opens the file automatically with
+        the system <code>open</code> command.
+      </p>
+      <ul style="font-size:.88rem;color:#aaa;margin:0 0 1rem 1.4rem;line-height:2">
+        <li>Dark mode auto-follows <code>prefers-color-scheme</code>; manual toggle persisted in <code>localStorage</code></li>
+        <li>Sort by clicking any column header</li>
+        <li>Filter rows with the search box — applies instantly across all columns</li>
+        <li>Query text and generation timestamp appear in the footer</li>
+        <li>No external dependencies — works fully offline</li>
+      </ul>
+      <pre><span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Account.Name, Title FROM Contact" -o dev1 --datatable</span>
+<span class="c"># → generates /tmp/sf-rust-query-1731504000.html and opens it</span>
+
+<span class="c"># also works with --grep to pre-filter before the browser opens:</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --datatable --grep "Tech"</span></pre>
+    </section>
+
+    <!-- ── grep ── -->
+    <section class="cmd-section" id="grep">
+      <h2><code>data query --grep</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Post-filters results <em>after</em> all records are fetched. Keeps only rows where
+        at least one field value matches the regex. Applied to every output mode — table,
+        CSV, JSON, NDJSON, Markdown, Parquet, Arrow, Excel, SQLite, and datatable.
+      </p>
+      <pre><span class="c">── case-sensitive (default) ───────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name, Industry FROM Account" -o dev1 --grep "Tech"</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --grep "^Acme"</span>
+
+<span class="c">── case-insensitive ───────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --grep "tech" --grep-ignore-case</span>
+
+<span class="c">── combined with file format output ──────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name, Industry FROM Account" -o dev1 \
+    --csv --grep "Finance|Healthcare"</span>
+
+<span class="c">── also works with arrow-view ─────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet --grep "Technology"</span></pre>
+
+      <div class="callout tip">
+        <span class="callout-icon">◆</span>
+        <p><code>--grep</code> uses the <code>regex</code> crate — full Rust regex syntax including
+        <code>^</code>, <code>$</code>, <code>|</code>, character classes, lookaheads.
+        Anchors match against each individual field value, not the whole row string.</p>
+      </div>
+    </section>
+
+    <!-- ── parquet / arrow ── -->
+    <section class="cmd-section" id="parquet-arrow">
+      <h2>Parquet &amp; Arrow</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Uses the <code>arrow = "53"</code> and <code>parquet = "53"</code> crates.
+        Schema is inferred from the first non-null value per column.
+        Parquet uses Snappy compression. Arrow uses <code>FileWriter</code> (IPC format).
+        Both can be read back with <code>data arrow-view</code>.
+      </p>
+      <pre><span class="c">── write ──────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name, AnnualRevenue FROM Account" -o dev1 \
+    --parquet accounts.parquet</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --arrow accounts.arrow</span>
+
+<span class="c">── read back ──────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet --schema</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet --limit 10</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet --csv > accounts.csv</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet --xlsx accounts.xlsx</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet --grep "Technology"</span>
+
+<span class="c">── default paths (no FILE argument) ──────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id FROM Account" -o dev1 --parquet</span>
+<span class="c"># → /tmp/sf-rust-query-1731504000.parquet</span></pre>
+    </section>
+
+    <!-- ── excel ── -->
+    <section class="cmd-section" id="excel">
+      <h2>Excel</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Uses <code>rust_xlsxwriter = "0.80"</code> — pure Rust, no COM objects, no LibreOffice.
+        Writes a bold header row and uses correct numeric types for numeric columns.
+      </p>
+      <pre><span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name, AnnualRevenue FROM Account" -o dev1 \
+    --xlsx accounts.xlsx</span>
+
+<span class="c"># also from an existing Parquet file:</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet --xlsx accounts.xlsx</span>
+
+<span class="c"># default path if no FILE given:</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id FROM Account" -o dev1 --xlsx</span>
+<span class="c"># → /tmp/sf-rust-query-1731504000.xlsx</span></pre>
+    </section>
+
+    <!-- ── sqlite ── -->
+    <section class="cmd-section" id="sqlite">
+      <h2>SQLite</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Uses <code>rusqlite = "0.32"</code> with the <code>bundled</code> feature (statically linked
+        <code>libsqlite3</code>). Schema affinity is inferred from the data; all inserts are wrapped
+        in a single transaction for speed.
+      </p>
+      <pre><span class="c">── write to SQLite ────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name, Industry FROM Account" -o dev1 \
+    --sqlite accounts.db</span>
+<span class="c"># table name defaults to 'records'</span>
+
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name, Industry FROM Account" -o dev1 \
+    --sqlite sf.db --sqlite-table accounts</span>
+
+<span class="c">── query it afterwards ────────────────────────────────────────</span>
+<span class="b">$</span> sqlite3 sf.db "SELECT Industry, COUNT(*) FROM accounts GROUP BY Industry"
+<span class="b">$</span> <span class="s">sf-rust data rsql -o dev1 --load Account --db sf.db</span></pre>
+    </section>
+
+    <!-- ── describe ── -->
+    <section class="cmd-section" id="describe">
+      <h2><code>sf-rust data describe</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Fetches the full Salesforce describe metadata for one SObject and renders
+        a UTF8_FULL fields table: name, label, type, required, updateable, unique,
+        and length/precision. The same information as Setup → Object Manager → Fields,
+        instantly at the terminal.
+      </p>
+
+      <h3>Flags</h3>
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>SOBJECT</code></td><td>API name of the SObject — positional argument (e.g. <code>Account</code>, <code>Contact</code>)</td></tr>
+          <tr><td><code>-o, --target-org</code></td><td>Org alias or username</td></tr>
+          <tr><td><code>--json</code></td><td>Output the full raw describe JSON</td></tr>
+          <tr><td><code>--picklist</code></td><td>Show picklist values for each enum/picklist field in separate sub-tables</td></tr>
+          <tr><td><code>--relationships</code></td><td>Show only reference (lookup / master-detail) fields</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Field type legend</h3>
+      <div style="margin-bottom:1rem">
+        <span class="type-pill tp-str">string</span>
+        <span class="type-pill tp-str">textarea</span>
+        <span class="type-pill tp-str">email</span>
+        <span class="type-pill tp-str">phone</span>
+        <span class="type-pill tp-str">url</span>
+        <span class="type-pill tp-num">int</span>
+        <span class="type-pill tp-num">double</span>
+        <span class="type-pill tp-num">currency</span>
+        <span class="type-pill tp-num">percent</span>
+        <span class="type-pill tp-bool">boolean</span>
+        <span class="type-pill tp-ref">→ reference</span>
+        <span class="type-pill tp-enum">picklist</span>
+        <span class="type-pill tp-enum">multipicklist</span>
+        <span class="type-pill tp-other">date</span>
+        <span class="type-pill tp-other">datetime</span>
+        <span class="type-pill tp-other">base64</span>
+        <span class="type-pill tp-other">id</span>
+      </div>
+      <p style="font-size:.82rem;color:#888;margin-bottom:1rem">
+        Reference fields show the target object as <code>→ Account</code> or <code>→ User, Group</code>
+        (polymorphic). Len/Prec shows <code>max length</code> for text fields and
+        <code>precision,scale</code> for numeric fields.
+      </p>
+
+      <h3>Examples</h3>
+      <pre><span class="c">── basic describe ─────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data describe Account -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data describe Contact -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data describe Opportunity -o dev1</span>
+
+<span class="c">── show picklist values ───────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data describe Account -o dev1 --picklist</span>
+<span class="c"># → fields table, then per-enum sub-tables for Industry, Rating, etc.</span>
+
+<span class="c">── reference fields only ──────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data describe Contact -o dev1 --relationships</span>
+<span class="c"># → only fields of type 'reference' (AccountId → Account, OwnerId → User, etc.)</span>
+
+<span class="c">── raw JSON (pipe to jq) ──────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data describe Account -o dev1 --json | jq '.fields[] | .name'</span>
+<span class="b">$</span> <span class="s">sf-rust data describe Account -o dev1 --json | jq '[.fields[] | select(.type == "reference")]'</span></pre>
+
+      <h3>Sample output</h3>
+      <div class="output-sample">
+SObject: <span class="hl-b">Account</span>  (Account)
+Fields: <span class="hl-g">67</span>  |  Queryable: yes  |  Createable: yes  |  Updateable: yes  |  Deletable: yes
+
+<span class="hl-m">┌───────────────────┬──────────────────────────┬─────────────┬──────┬─────────┬────────┬──────────┐</span>
+<span class="hl-m">│</span> Name              <span class="hl-m">┆</span> Label                    <span class="hl-m">┆</span> Type        <span class="hl-m">┆</span> Req? <span class="hl-m">┆</span> Update? <span class="hl-m">┆</span> Unique <span class="hl-m">┆</span> Len/Prec <span class="hl-m">│</span>
+<span class="hl-m">╞═══════════════════╪══════════════════════════╪═════════════╪══════╪═════════╪════════╪══════════╡</span>
+<span class="hl-m">│</span> Id                <span class="hl-m">┆</span> Account ID               <span class="hl-m">┆</span> id          <span class="hl-m">┆</span>      <span class="hl-m">┆</span>         <span class="hl-m">┆</span>        <span class="hl-m">┆</span> 18       <span class="hl-m">│</span>
+<span class="hl-m">│</span> Name              <span class="hl-m">┆</span> Account Name             <span class="hl-m">┆</span> string      <span class="hl-m">┆</span> <span class="hl-g">✓</span>    <span class="hl-m">┆</span> <span class="hl-g">✓</span>       <span class="hl-m">┆</span>        <span class="hl-m">┆</span> 255      <span class="hl-m">│</span>
+<span class="hl-m">│</span> Industry          <span class="hl-m">┆</span> Industry                 <span class="hl-m">┆</span> picklist    <span class="hl-m">┆</span>      <span class="hl-m">┆</span> <span class="hl-g">✓</span>       <span class="hl-m">┆</span>        <span class="hl-m">┆</span>          <span class="hl-m">│</span>
+<span class="hl-m">│</span> AnnualRevenue     <span class="hl-m">┆</span> Annual Revenue           <span class="hl-m">┆</span> currency    <span class="hl-m">┆</span>      <span class="hl-m">┆</span> <span class="hl-g">✓</span>       <span class="hl-m">┆</span>        <span class="hl-m">┆</span> 18,0     <span class="hl-m">│</span>
+<span class="hl-m">│</span> OwnerId           <span class="hl-m">┆</span> Owner ID                 <span class="hl-m">┆</span> → User      <span class="hl-m">┆</span> <span class="hl-g">✓</span>    <span class="hl-m">┆</span> <span class="hl-g">✓</span>       <span class="hl-m">┆</span>        <span class="hl-m">┆</span> 18       <span class="hl-m">│</span>
+<span class="hl-m">│</span> ParentId          <span class="hl-m">┆</span> Parent Account ID        <span class="hl-m">┆</span> → Account   <span class="hl-m">┆</span>      <span class="hl-m">┆</span> <span class="hl-g">✓</span>       <span class="hl-m">┆</span>        <span class="hl-m">┆</span> 18       <span class="hl-m">│</span>
+<span class="hl-m">│</span> CreatedDate       <span class="hl-m">┆</span> Created Date             <span class="hl-m">┆</span> datetime    <span class="hl-m">┆</span>      <span class="hl-m">┆</span>         <span class="hl-m">┆</span>        <span class="hl-m">┆</span>          <span class="hl-m">│</span>
+<span class="hl-m">└───────────────────┴──────────────────────────┴─────────────┴──────┴─────────┴────────┴──────────┘</span>
+      </div>
+
+      <h4>Sample --picklist output</h4>
+      <div class="output-sample">
+Picklist values — <span class="hl-y">Industry</span>:
+
+<span class="hl-m">┌──────────────────────┬──────────────────────┬────────┬─────────┐</span>
+<span class="hl-m">│</span> Value                <span class="hl-m">┆</span> Label                <span class="hl-m">┆</span> Active <span class="hl-m">┆</span> Default <span class="hl-m">│</span>
+<span class="hl-m">╞══════════════════════╪══════════════════════╪════════╪═════════╡</span>
+<span class="hl-m">│</span> Agriculture          <span class="hl-m">┆</span> Agriculture          <span class="hl-m">┆</span> <span class="hl-g">✓</span>      <span class="hl-m">┆</span>         <span class="hl-m">│</span>
+<span class="hl-m">│</span> Finance              <span class="hl-m">┆</span> Finance              <span class="hl-m">┆</span> <span class="hl-g">✓</span>      <span class="hl-m">┆</span>         <span class="hl-m">│</span>
+<span class="hl-m">│</span> Healthcare           <span class="hl-m">┆</span> Healthcare           <span class="hl-m">┆</span> <span class="hl-g">✓</span>      <span class="hl-m">┆</span>         <span class="hl-m">│</span>
+<span class="hl-m">│</span> Technology           <span class="hl-m">┆</span> Technology           <span class="hl-m">┆</span> <span class="hl-g">✓</span>      <span class="hl-m">┆</span>         <span class="hl-m">│</span>
+<span class="hl-m">└──────────────────────┴──────────────────────┴────────┴─────────┘</span>
+      </div>
+    </section>
+
+    <!-- ── record ── -->
+    <section class="cmd-section" id="record">
+      <h2><code>sf-rust data record</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Single-record CRUD without writing SOQL. Uses the REST Composite SObject
+        endpoint (<code>/services/data/vXX.0/sobjects/&lt;Type&gt;/&lt;id&gt;</code>).
+        All four operations support <code>--json</code> for scripting.
+      </p>
+
+      <h3>Subcommands</h3>
+      <table class="flags-table">
+        <thead><tr><th>Subcommand</th><th>HTTP method</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>record get &lt;Type&gt; &lt;Id&gt;</code></td>
+            <td>GET</td>
+            <td>Fetch a single record by Id. Renders as a key/value table or <code>--json</code>. Use <code>--fields Name,Industry</code> to include only specific fields.</td>
+          </tr>
+          <tr>
+            <td><code>record create &lt;Type&gt; --values '...'</code></td>
+            <td>POST</td>
+            <td>Create a new record. Returns the new Id on success.</td>
+          </tr>
+          <tr>
+            <td><code>record update &lt;Type&gt; &lt;Id&gt; --values '...'</code></td>
+            <td>PATCH</td>
+            <td>Update field values on an existing record. Returns 204 — only the changed fields need to be in <code>--values</code>.</td>
+          </tr>
+          <tr>
+            <td><code>record delete &lt;Type&gt; &lt;Id&gt;</code></td>
+            <td>DELETE</td>
+            <td>Delete a record. Prompts for confirmation unless <code>--no-prompt</code> is passed.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>--values syntax</h3>
+      <p style="font-size:.88rem;color:#aaa;margin-bottom:.8rem">
+        <code>--values</code> accepts two forms — a JSON object (most flexible) or space-separated
+        <code>Key=Value</code> pairs (convenient for simple cases with no spaces in values):
+      </p>
+      <div class="example-grid">
+        <pre><span class="label">JSON object (recommended)</span><span class="b">$</span> <span class="s">sf-rust data record create Account -o dev1 \
+    --values '{"Name":"Acme","Industry":"Technology"}'</span>
+
+<span class="b">$</span> <span class="s">sf-rust data record update Account 001xxx -o dev1 \
+    --values '{"AnnualRevenue":5000000,"Rating":"Hot"}'</span></pre>
+        <pre><span class="label">Key=Value pairs</span><span class="b">$</span> <span class="s">sf-rust data record create Account -o dev1 \
+    --values "Name=Acme Industry=Technology"</span>
+
+<span class="b">$</span> <span class="s">sf-rust data record update Account 001xxx -o dev1 \
+    --values "Rating=Hot"</span></pre>
+      </div>
+
+      <h3>Examples</h3>
+      <pre><span class="c">── get ────────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data record get Account 001Dn00000NpXr1 -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data record get Account 001Dn00000NpXr1 -o dev1 --json</span>
+<span class="b">$</span> <span class="s">sf-rust data record get Account 001Dn00000NpXr1 -o dev1 --fields Name,Industry,AnnualRevenue</span>
+
+<span class="c">── create ─────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data record create Account -o dev1 --values '{"Name":"Acme Corp","Industry":"Technology"}'</span>
+<span class="c">Created Account record: 001Dn00000NpXr9</span>
+
+<span class="b">$</span> <span class="s">sf-rust data record create Account -o dev1 --values '{"Name":"Acme"}' --json</span>
+<span class="c">{"id":"001Dn00000NpXr9","success":true,"errors":[]}</span>
+
+<span class="c">── update ─────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data record update Account 001Dn00000NpXr9 -o dev1 --values '{"Industry":"Finance"}'</span>
+<span class="c">Updated Account 001Dn00000NpXr9</span>
+
+<span class="c">── delete ─────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data record delete Account 001Dn00000NpXr9 -o dev1</span>
+<span class="c">Delete Account 001Dn00000NpXr9? This cannot be undone. [y/N]</span>
+
+<span class="b">$</span> <span class="s">sf-rust data record delete Account 001Dn00000NpXr9 -o dev1 --no-prompt</span>
+<span class="c">Deleted Account 001Dn00000NpXr9</span>
+
+<span class="c">── scripting pattern: create + capture Id ────────────────────</span>
+<span class="b">$</span> ID=$(<span class="s">sf-rust data record create Account -o dev1 \
+    --values '{"Name":"Acme"}' --json | jq -r .id</span>)
+<span class="b">$</span> echo $ID
+<span class="c">001Dn00000NpXr9</span></pre>
+
+      <h3>Sample <code>record get</code> output</h3>
+      <div class="output-sample">
+<span class="hl-m">┌───────────────────┬──────────────────────────────────────────────┐</span>
+<span class="hl-m">│</span> Key               <span class="hl-m">┆</span> Value                                        <span class="hl-m">│</span>
+<span class="hl-m">╞═══════════════════╪══════════════════════════════════════════════╡</span>
+<span class="hl-m">│</span> Id                <span class="hl-m">┆</span> <span class="hl-b">001Dn00000NpXr1IAF</span>                           <span class="hl-m">│</span>
+<span class="hl-m">│</span> Name              <span class="hl-m">┆</span> <span class="hl-g">Acme Corp</span>                                    <span class="hl-m">│</span>
+<span class="hl-m">│</span> Industry          <span class="hl-m">┆</span> Technology                                   <span class="hl-m">│</span>
+<span class="hl-m">│</span> AnnualRevenue     <span class="hl-m">┆</span> 5000000.0                                    <span class="hl-m">│</span>
+<span class="hl-m">│</span> BillingCity       <span class="hl-m">┆</span> San Francisco                                <span class="hl-m">│</span>
+<span class="hl-m">│</span> OwnerId           <span class="hl-m">┆</span> 005Dn00000Abc123                             <span class="hl-m">│</span>
+<span class="hl-m">│</span> CreatedDate       <span class="hl-m">┆</span> 2024-03-15T10:22:11.000+0000                 <span class="hl-m">│</span>
+<span class="hl-m">└───────────────────┴──────────────────────────────────────────────┘</span>
+      </div>
+    </section>
+
+    <!-- ── soql-explain ── -->
+    <section class="cmd-section" id="soql-explain">
+      <h2><code>sf-rust data soql-explain</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Calls the Salesforce SOQL explain plan endpoint (<code>GET /query?explain=&lt;soql&gt;</code>)
+        and renders the query plans as a UTF8_FULL table. Catch full table scans and
+        missing indexes before they hit production.
+      </p>
+
+      <h3>Flags</h3>
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>-q, --query SOQL</code></td><td>SOQL query to explain</td></tr>
+          <tr><td><code>-o, --target-org ALIAS</code></td><td>Org alias or username</td></tr>
+          <tr><td><code>--json</code></td><td>Output the full raw explain plan JSON</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Output columns</h3>
+      <table class="flags-table">
+        <thead><tr><th>Column</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><code>Rel. Cost</code></td><td>Relative cost of this plan vs a full table scan at 1.0. Values below 1.0 indicate good index use. <strong>≥ 1.0 triggers a warning.</strong></td></tr>
+          <tr><td><code>Leading Op</code></td><td>The leading operation type: <code>Index</code>, <code>TableScan</code>, <code>Other</code></td></tr>
+          <tr><td><code>SObject</code></td><td>The object being scanned</td></tr>
+          <tr><td><code>Cardinality</code></td><td>Estimated number of rows returned</td></tr>
+          <tr><td><code>Obj. Rows</code></td><td>Total rows in the object (for context)</td></tr>
+          <tr><td><code>Fields</code></td><td>Fields used by this plan step</td></tr>
+          <tr><td><code>Notes</code></td><td>Human-readable hint from Salesforce (e.g. "Not Selective")</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c">── explain plan for a simple query ───────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data soql-explain -q "SELECT Id, Name FROM Account WHERE Industry = 'Technology'" -o dev1</span>
+
+<span class="c">── subquery / join ────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data soql-explain \
+    -q "SELECT Id FROM Opportunity WHERE AccountId IN (SELECT Id FROM Account WHERE Industry = 'Finance')" \
+    -o dev1</span>
+
+<span class="c">── raw JSON for scripting ─────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data soql-explain -q "SELECT Id FROM Account" -o dev1 --json | jq .plans</span>
+
+<span class="c">── pipe to grep for high-cost plans ─────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data soql-explain -q "SELECT Id FROM Account WHERE Name LIKE '%Corp%'" -o dev1</span>
+<span class="c"># ⚠  Relative cost ≥ 1.0 — this plan may perform a full table scan.</span></pre>
+
+      <h3>Sample output — good plan</h3>
+      <div class="output-sample">
+Query plan for: SELECT Id, Name FROM Account WHERE Industry = 'Technology'
+
+<span class="hl-m">┌───────────┬───────────┬─────────┬─────────────┬──────────┬──────────┬────────────────────────────────┐</span>
+<span class="hl-m">│</span> Rel. Cost <span class="hl-m">┆</span> Leading Op<span class="hl-m">┆</span> SObject <span class="hl-m">┆</span> Cardinality <span class="hl-m">┆</span> Obj. Rows<span class="hl-m">┆</span> Fields   <span class="hl-m">┆</span> Notes                          <span class="hl-m">│</span>
+<span class="hl-m">╞═══════════╪═══════════╪═════════╪═════════════╪══════════╪══════════╪════════════════════════════════╡</span>
+<span class="hl-m">│</span> <span class="hl-g">0.021</span>     <span class="hl-m">┆</span> Index     <span class="hl-m">┆</span> Account <span class="hl-m">┆</span> 342         <span class="hl-m">┆</span> 16200    <span class="hl-m">┆</span> Industry <span class="hl-m">┆</span> Index on Industry is selective <span class="hl-m">│</span>
+<span class="hl-m">└───────────┴───────────┴─────────┴─────────────┴──────────┴──────────┴────────────────────────────────┘</span>
+      </div>
+
+      <h3>Sample output — full table scan warning</h3>
+      <div class="output-sample">
+Query plan for: SELECT Id FROM Account WHERE Name LIKE '%Corp%'
+
+<span class="hl-m">┌───────────┬────────────┬─────────┬─────────────┬──────────┬────────┬───────────────────────────┐</span>
+<span class="hl-m">│</span> Rel. Cost <span class="hl-m">┆</span> Leading Op <span class="hl-m">┆</span> SObject <span class="hl-m">┆</span> Cardinality <span class="hl-m">┆</span> Obj. Rows<span class="hl-m">┆</span> Fields <span class="hl-m">┆</span> Notes                     <span class="hl-m">│</span>
+<span class="hl-m">╞═══════════╪════════════╪═════════╪═════════════╪══════════╪════════╪═══════════════════════════╡</span>
+<span class="hl-m">│</span> <span class="hl-r">1.200</span>     <span class="hl-m">┆</span> TableScan  <span class="hl-m">┆</span> Account <span class="hl-m">┆</span> 16200       <span class="hl-m">┆</span> 16200    <span class="hl-m">┆</span>        <span class="hl-m">┆</span> Not Selective             <span class="hl-m">│</span>
+<span class="hl-m">└───────────┴────────────┴─────────┴─────────────┴──────────┴────────┴───────────────────────────┘</span>
+
+  <span class="hl-r">⚠  Relative cost ≥ 1.0 — this plan may perform a full table scan.</span>
+     <span class="hl-m">Consider adding a selective filter or a custom index.</span>
+      </div>
+
+      <div class="callout warn">
+        <span class="callout-icon">◆</span>
+        <p><strong>Leading with <code>LIKE '%value%'</code> always causes a table scan.</strong>
+        Salesforce indexes do not support leading wildcards. If you need fuzzy name search,
+        consider SOSL (<code>FIND</code>) or a custom index on a different field that filters first.</p>
+      </div>
+    </section>
+
+    <!-- ── bulk ── -->
+    <section class="cmd-section" id="bulk">
+      <h2><code>sf-rust data bulk</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        High-volume data operations via the Salesforce <strong>Bulk API v2</strong>.
+        Processes millions of records asynchronously — Salesforce runs the job on its own infrastructure
+        and you poll for results. The underlying REST endpoints are
+        <code>/services/data/vXX.0/jobs/ingest</code> (DML) and
+        <code>/services/data/vXX.0/jobs/query</code> (bulk SOQL).
+      </p>
+
+      <div class="callout note">
+        <span class="callout-icon">◆</span>
+        <p><strong>When to use Bulk API vs REST query.</strong>
+        Use <code>data query</code> for ad-hoc SOQL (up to a few hundred thousand records).
+        Use <code>data bulk query</code> when you need to export millions of records reliably —
+        the Bulk API v2 query job is designed for large data sets and handles timeouts automatically.</p>
+      </div>
+
+      <h3>Subcommands</h3>
+      <table class="flags-table">
+        <thead><tr><th>Subcommand</th><th>Bulk API endpoint</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>bulk insert -f FILE -s Type</code></td>
+            <td>POST <code>/jobs/ingest</code></td>
+            <td>Insert records from CSV into a Salesforce object</td>
+          </tr>
+          <tr>
+            <td><code>bulk update -f FILE -s Type</code></td>
+            <td>POST <code>/jobs/ingest</code></td>
+            <td>Update existing records (Id column required in CSV)</td>
+          </tr>
+          <tr>
+            <td><code>bulk upsert -f FILE -s Type -e Field</code></td>
+            <td>POST <code>/jobs/ingest</code></td>
+            <td>Insert or update based on an external ID field</td>
+          </tr>
+          <tr>
+            <td><code>bulk delete -f FILE -s Type</code></td>
+            <td>POST <code>/jobs/ingest</code></td>
+            <td>Delete records by Id (Id column required in CSV)</td>
+          </tr>
+          <tr>
+            <td><code>bulk query -q SOQL</code></td>
+            <td>POST <code>/jobs/query</code></td>
+            <td>Run a SOQL query as a Bulk API v2 job and stream results</td>
+          </tr>
+          <tr>
+            <td><code>bulk status JOB_ID</code></td>
+            <td>GET <code>/jobs/ingest/{id}</code></td>
+            <td>Check the status of an ingest job</td>
+          </tr>
+          <tr>
+            <td><code>bulk results JOB_ID</code></td>
+            <td>GET <code>/jobs/ingest/{id}/{kind}Results</code></td>
+            <td>Download successful / failed / unprocessed results as CSV</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>DML flags (insert / update / delete)</h3>
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>-f, --file FILE</code></td><td>CSV file path (required)</td></tr>
+          <tr><td><code>-s, --sobject TYPE</code></td><td>SObject API name (required)</td></tr>
+          <tr><td><code>-o, --target-org</code></td><td>Org alias or username</td></tr>
+          <tr><td><code>--wait SECS</code></td><td>Polling interval in seconds (default: 5)</td></tr>
+          <tr><td><code>--no-wait</code></td><td>Submit job and return immediately with the job ID — no polling</td></tr>
+          <tr><td><code>-j, --json</code></td><td>Output final status as JSON</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Upsert additional flag</h3>
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>-e, --external-id FIELD</code></td><td>External ID field name used to match records (required)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Query flags</h3>
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>-q, --query SOQL</code></td><td>SOQL query to run (required)</td></tr>
+          <tr><td><code>--output FILE</code></td><td>Write CSV results to file (default: stdout)</td></tr>
+          <tr><td><code>-j, --json</code></td><td>Parse CSV and output as JSON array</td></tr>
+          <tr><td><code>--wait SECS</code></td><td>Polling interval in seconds (default: 5)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Results flags</h3>
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>JOB_ID</code></td><td>Bulk API v2 ingest job ID (positional)</td></tr>
+          <tr><td><code>--kind</code></td><td><code>successful</code> (default), <code>failed</code>, or <code>unprocessed</code></td></tr>
+          <tr><td><code>--output FILE</code></td><td>Write CSV to file (default: stdout)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Insert examples</h3>
+      <pre><span class="c">── insert from CSV ────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk insert -f accounts.csv -s Account -o dev1</span>
+<span class="c"># accounts.csv header: Name,Industry,AnnualRevenue,BillingCity</span>
+
+<span class="c">── insert with faster polling (1 second) ─────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk insert -f accounts.csv -s Account -o dev1 --wait 1</span>
+
+<span class="c">── insert and capture job ID for later (fire and forget) ─────</span>
+<span class="b">$</span> JOB=$(<span class="s">sf-rust data bulk insert -f big-file.csv -s Lead -o dev1 --no-wait --json | jq -r .jobId</span>)
+<span class="b">$</span> echo "Job submitted: $JOB"
+<span class="c"># ... do other work ...</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk status "$JOB" -o dev1</span>
+
+<span class="c">── insert and output JSON result (CI/scripting) ──────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk insert -f accounts.csv -s Account -o dev1 --json | jq .result</span>
+<span class="c"># → {"jobId":"...","state":"JobComplete","recordsProcessed":5000,...}</span>
+
+<span class="c">── insert with stricter error handling ────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk insert -f accounts.csv -s Account -o dev1 --json</span>
+<span class="b">$</span> if [ $? -ne 0 ]; then echo "Bulk insert failed"; exit 1; fi</pre>
+
+      <h3>Update examples</h3>
+      <pre><span class="c">── update records (Id column required) ───────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk update -f updates.csv -s Contact -o dev1</span>
+<span class="c"># updates.csv header: Id,Title,Department,Phone</span>
+
+<span class="c">── mass-update a field from query results ────────────────────</span>
+<span class="b">$</span> <span class="c"># Step 1: export current records</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk query -q "SELECT Id, Industry FROM Account WHERE Industry = 'Technology'" \
+    -o dev1 --output tech_accounts.csv</span>
+
+<span class="c"># Step 2: transform with awk / sed / Python, update Rating column</span>
+<span class="b">$</span> awk -F, 'NR==1{print $0",Rating"} NR>1{print $0",Hot"}' tech_accounts.csv > to_update.csv
+
+<span class="c"># Step 3: push back</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk update -f to_update.csv -s Account -o dev1</span></pre>
+
+      <h3>Upsert examples</h3>
+      <pre><span class="c">── upsert by external ID ──────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk upsert -f accounts.csv -s Account -e ExternalId__c -o dev1</span>
+<span class="c"># accounts.csv header: ExternalId__c,Name,Industry</span>
+<span class="c"># records matching ExternalId__c are updated; new ones are inserted</span>
+
+<span class="c">── upsert contacts by email (custom external ID) ──────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk upsert -f contacts.csv -s Contact -e Email__c -o dev1</span>
+
+<span class="c">── sync from an external system (nightly ETL) ────────────────</span>
+<span class="b">$</span> <span class="c"># export from ERP, then sync to Salesforce</span>
+<span class="b">$</span> erp_export.sh > /tmp/erp_accounts.csv
+<span class="b">$</span> <span class="s">sf-rust data bulk upsert -f /tmp/erp_accounts.csv -s Account -e ErpId__c -o prod \
+    --json | jq .result</span></pre>
+
+      <h3>Delete examples</h3>
+      <pre><span class="c">── delete a list of records ───────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk delete -f ids.csv -s Account -o dev1</span>
+<span class="c"># ids.csv contains a single column: Id</span>
+
+<span class="c">── query IDs to delete, then delete ──────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk query \
+    -q "SELECT Id FROM Account WHERE CreatedDate = THIS_YEAR AND IsDeleted = false AND Name = 'Test'" \
+    -o dev1 --output to_delete.csv</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk delete -f to_delete.csv -s Account -o dev1</span>
+
+<span class="c">── safe delete: check count first ────────────────────────────</span>
+<span class="b">$</span> COUNT=$(<span class="s">sf-rust data query -q "SELECT COUNT() FROM Account WHERE Name LIKE 'Test%'" \
+    -o dev1 --json | jq '.result.totalSize'</span>)
+<span class="b">$</span> echo "About to delete $COUNT records"
+<span class="b">$</span> read -p "Proceed? [y/N] " confirm
+<span class="b">$</span> [[ "$confirm" == "y" ]] && <span class="s">sf-rust data bulk delete -f test_ids.csv -s Account -o dev1</span></pre>
+
+      <h3>Bulk query examples</h3>
+      <pre><span class="c">── export large table to CSV ──────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk query -q "SELECT Id, Name, Industry, AnnualRevenue FROM Account" \
+    -o dev1 --output accounts_full.csv</span>
+
+<span class="c">── export and load into SQLite for analysis ──────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk query -q "SELECT Id, Name, Industry FROM Account" \
+    -o dev1 --output /tmp/accounts.csv</span>
+<span class="b">$</span> sqlite3 analysis.db ".mode csv" ".import /tmp/accounts.csv accounts"
+<span class="b">$</span> sqlite3 analysis.db "SELECT Industry, COUNT(*) FROM accounts GROUP BY 1 ORDER BY 2 DESC"
+
+<span class="c">── export and open as datatable ──────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk query -q "SELECT Id, Name, Title FROM Contact" \
+    -o dev1 --output /tmp/contacts.csv</span>
+<span class="b">$</span> <span class="c"># convert CSV to table view in browser:</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name, Title FROM Contact" -o dev1 --datatable</span>
+
+<span class="c">── count records returned ─────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk query -q "SELECT Id FROM Opportunity" -o dev1 --json | jq length</span>
+
+<span class="c">── export related fields (relationship query) ────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk query \
+    -q "SELECT Id, FirstName, LastName, Account.Name, Account.Industry FROM Contact" \
+    -o dev1 --output contacts_with_account.csv</span>
+
+<span class="c">── export all accounts in a specific state ────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk query \
+    -q "SELECT Id, Name, BillingState, AnnualRevenue FROM Account WHERE BillingState = 'CA'" \
+    -o dev1 --output ca_accounts.csv</span></pre>
+
+      <h3>Status &amp; results examples</h3>
+      <pre><span class="c">── check job status ───────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk status 7503x000000Xe1QAAS -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk status 7503x000000Xe1QAAS -o dev1 --json | jq .state</span>
+
+<span class="c">── download results after a no-wait job ──────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk results 7503x000000Xe1QAAS -o dev1</span>                     <span class="c"># successful (default)</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk results 7503x000000Xe1QAAS -o dev1 --kind failed</span>         <span class="c"># failed rows + error msg</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk results 7503x000000Xe1QAAS -o dev1 --kind unprocessed</span>    <span class="c"># rows not attempted</span>
+
+<span class="c">── save results to files ──────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk results 7503x000000Xe1QAAS -o dev1 --output success.csv</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk results 7503x000000Xe1QAAS -o dev1 --kind failed --output failed.csv</span>
+
+<span class="c">── automation pattern: submit + poll + save ──────────────────</span>
+<span class="b">$</span> JOB=$(<span class="s">sf-rust data bulk insert -f accounts.csv -s Account -o prod --no-wait --json \
+    | jq -r .jobId</span>)
+<span class="b">$</span> echo "[$JOB] job submitted"
+<span class="c"># ... later, in a separate step or cron job ...</span>
+<span class="b">$</span> STATE=$(<span class="s">sf-rust data bulk status "$JOB" -o prod --json | jq -r .state</span>)
+<span class="b">$</span> echo "[$JOB] state: $STATE"
+<span class="b">$</span> if [ "$STATE" = "JobComplete" ]; then
+    <span class="s">sf-rust data bulk results "$JOB" -o prod --kind failed --output "/logs/$JOB-failed.csv"</span>
+  fi</pre>
+
+      <h3>Sample progress output</h3>
+      <div class="output-sample">
+<span class="hl-b">⠋</span> [<span class="hl-g">████████████████████▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒</span>] 24500/50000 records  (state=InProgress  failed=0)
+      </div>
+
+      <h3>Sample <code>bulk status</code> output</h3>
+      <div class="output-sample">
+<span class="hl-m">┌───────────────────┬──────────────────────────────────────────────┐</span>
+<span class="hl-m">│</span> Key               <span class="hl-m">┆</span> Value                                        <span class="hl-m">│</span>
+<span class="hl-m">╞═══════════════════╪══════════════════════════════════════════════╡</span>
+<span class="hl-m">│</span> Job ID            <span class="hl-m">┆</span> <span class="hl-b">7503x000000Xe1QAAS</span>                           <span class="hl-m">│</span>
+<span class="hl-m">│</span> State             <span class="hl-m">┆</span> <span class="hl-g">JobComplete</span>                                  <span class="hl-m">│</span>
+<span class="hl-m">│</span> Object            <span class="hl-m">┆</span> Account                                      <span class="hl-m">│</span>
+<span class="hl-m">│</span> Operation         <span class="hl-m">┆</span> insert                                       <span class="hl-m">│</span>
+<span class="hl-m">│</span> Processed         <span class="hl-m">┆</span> 50000                                        <span class="hl-m">│</span>
+<span class="hl-m">│</span> Succeeded         <span class="hl-m">┆</span> 49987                                        <span class="hl-m">│</span>
+<span class="hl-m">│</span> Failed            <span class="hl-m">┆</span> 13                                           <span class="hl-m">│</span>
+<span class="hl-m">│</span> Created           <span class="hl-m">┆</span> 2026-11-13T10:22:11.000+0000                 <span class="hl-m">│</span>
+<span class="hl-m">└───────────────────┴──────────────────────────────────────────────┘</span>
+      </div>
+
+      <div class="callout tip">
+        <span class="callout-icon">◆</span>
+        <p><strong>CSV format for ingest.</strong> The CSV header row must contain Salesforce field API names.
+        For <code>update</code> and <code>delete</code> the <code>Id</code> column is required.
+        Line endings are auto-detected (LF or CRLF) — no need to convert files.</p>
+      </div>
+    </section>
+
+    <!-- ── arrow-view ── -->
+    <section class="cmd-section" id="arrow-view">
+      <h2><code>sf-rust data arrow-view</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Read and display Apache Arrow IPC (<code>.arrow</code>) or Parquet (<code>.parquet</code>)
+        files as a terminal table. Supports all output formats, schema inspection, row limits,
+        datatable browser view, Excel export, and <code>--grep</code> post-filtering.
+        No org connection required — works entirely offline on local files.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>FILE</code></td><td>Path to <code>.arrow</code> or <code>.parquet</code> file (positional)</td></tr>
+          <tr><td><code>--schema</code></td><td>Show column names and types only (no data rows)</td></tr>
+          <tr><td><code>--limit N</code></td><td>Output only the first N rows</td></tr>
+          <tr><td><code>--json</code></td><td>Output as JSON array</td></tr>
+          <tr><td><code>--csv</code></td><td>Output as CSV</td></tr>
+          <tr><td><code>--ndjson</code></td><td>Output as NDJSON</td></tr>
+          <tr><td><code>--markdown</code></td><td>Output as Markdown table</td></tr>
+          <tr><td><code>--datatable</code></td><td>Open interactive browser datatable</td></tr>
+          <tr><td><code>--xlsx [FILE]</code></td><td>Write as Excel workbook</td></tr>
+          <tr><td><code>--sqlite [FILE]</code></td><td>Write as SQLite database</td></tr>
+          <tr><td><code>--grep PATTERN</code></td><td>Post-filter rows by regex</td></tr>
+        </tbody>
+      </table>
+
+      <pre><span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet --schema</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet --limit 20</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet --csv > accounts.csv</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet --xlsx accounts.xlsx</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet --datatable</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.arrow --grep "Technology" --csv > tech_accounts.csv</span></pre>
+    </section>
+
+    <!-- ── rsql ── -->
+    <section class="cmd-section" id="rsql">
+      <h2><code>sf-rust data rsql</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Interactive SQL REPL over Salesforce data powered by
+        <a href="#" style="color:#569cd6">rsqlite</a> — a pure-Rust SQL engine.
+        Fetches one or more Salesforce objects, loads them into an in-memory (or on-disk)
+        SQLite database, then drops you into a readline prompt where you can run any SQL.
+        No org connection is needed after the initial <code>--load</code> phase.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--load OBJECT</code></td><td>Salesforce object to pre-load (repeatable: <code>--load Account --load Contact</code>)</td></tr>
+          <tr><td><code>--limit N</code></td><td>Max records per object (default: all)</td></tr>
+          <tr><td><code>--db FILE</code></td><td>Persist the SQLite database to a file (default: in-memory)</td></tr>
+          <tr><td><code>-o, --target-org</code></td><td>Org alias or username</td></tr>
+        </tbody>
+      </table>
+
+      <pre><span class="c">── load one object ────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data rsql -o dev1 --load Account</span>
+
+<span class="c">── load multiple objects ──────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data rsql -o dev1 --load Account --load Contact --load Opportunity</span>
+
+<span class="c">── persist to a file (survive REPL exit) ─────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data rsql -o dev1 --load Account --load Contact --db sf.db</span>
+
+<span class="c">── limit rows for quick exploration ─────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data rsql -o dev1 --load Account --limit 500</span></pre>
+
+      <h3>REPL commands</h3>
+      <div class="output-sample">
+<span class="hl-b">rsql&gt;</span> SELECT Industry, COUNT(*) FROM Account GROUP BY Industry ORDER BY 2 DESC;
+<span class="hl-b">rsql&gt;</span> SELECT a.Name, c.FirstName, c.LastName FROM Account a JOIN Contact c ON c.AccountId = a.Id;
+<span class="hl-b">rsql&gt;</span> .tables         <span class="hl-m">← list loaded tables</span>
+<span class="hl-b">rsql&gt;</span> .schema         <span class="hl-m">← show CREATE TABLE DDL for all loaded objects</span>
+<span class="hl-b">rsql&gt;</span> .quit           <span class="hl-m">← exit the REPL</span>
+      </div>
+
+      <div class="callout note">
+        <span class="callout-icon">◆</span>
+        <p>REPL history is saved to <code>~/.sf-rust/rsql_history</code> via <code>rustyline</code>.
+        Arrow keys and <kbd>Ctrl+R</kbd> history search work as expected.</p>
+      </div>
+    </section>
+
+    <!-- ── erd ── -->
+    <section class="cmd-section" id="erd">
+      <h2><code>sf-rust data erd</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Generates an ER diagram for one or more Salesforce objects, showing relationships
+        between them. Outputs Mermaid (default) or Graphviz DOT. Opens in the browser as
+        an interactive Mermaid diagram unless <code>--stdout</code> or <code>-f FILE</code>
+        is specified.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--objects A,B,C</code></td><td>Comma-separated list of SObject API names (required)</td></tr>
+          <tr><td><code>--dot</code></td><td>Output Graphviz DOT instead of Mermaid</td></tr>
+          <tr><td><code>--stdout</code></td><td>Print to stdout instead of opening browser</td></tr>
+          <tr><td><code>-f, --file PATH</code></td><td>Write to a file instead of opening browser</td></tr>
+          <tr><td><code>--simple</code></td><td>Show only PK and FK fields (Id + lookup fields) — cleaner diagram</td></tr>
+          <tr><td><code>-o, --target-org</code></td><td>Org alias or username</td></tr>
+        </tbody>
+      </table>
+
+      <pre><span class="b">$</span> <span class="s">sf-rust data erd --objects Account,Contact,Opportunity -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data erd --objects Account,Contact --simple -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data erd --objects Account,Contact,Opportunity -o dev1 --dot > schema.dot</span>
+<span class="b">$</span> <span class="s">sf-rust data erd --objects Account,Contact -o dev1 --stdout | pbcopy</span></pre>
+    </section>
+
+    <!-- ── quick examples ── -->
+    <section class="cmd-section" id="examples">
+      <h2>Quick examples</h2>
+      <div class="section-divider"></div>
+
+      <pre><span class="c">── query ───────────────────────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --all</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Account.Name FROM Contact" -o dev1 --datatable</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --csv > accounts.csv</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --json | jq length</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name, Industry FROM Account" -o dev1 --grep "Tech"</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --parquet accounts.parquet</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --xlsx accounts.xlsx</span>
+<span class="b">$</span> <span class="s">sf-rust data query -q "SELECT Id, Name FROM Account" -o dev1 --sqlite sf.db --sqlite-table accounts</span>
+
+<span class="c">── arrow-view ──────────────────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet --schema</span>
+<span class="b">$</span> <span class="s">sf-rust data arrow-view accounts.parquet --xlsx accounts.xlsx</span>
+
+<span class="c">── describe ────────────────────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data describe Account -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data describe Account -o dev1 --picklist</span>
+<span class="b">$</span> <span class="s">sf-rust data describe Contact -o dev1 --relationships</span>
+<span class="b">$</span> <span class="s">sf-rust data describe Account -o dev1 --json | jq '.fields[] | .name'</span>
+
+<span class="c">── record CRUD ─────────────────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data record get Account 001xxx -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data record get Account 001xxx -o dev1 --fields Name,Industry</span>
+<span class="b">$</span> <span class="s">sf-rust data record create Account -o dev1 --values '{"Name":"Acme"}'</span>
+<span class="b">$</span> <span class="s">sf-rust data record update Account 001xxx -o dev1 --values '{"Industry":"Finance"}'</span>
+<span class="b">$</span> <span class="s">sf-rust data record delete Account 001xxx -o dev1 --no-prompt</span>
+
+<span class="c">── soql-explain ────────────────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data soql-explain -q "SELECT Id FROM Account WHERE Industry = 'Tech'" -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data soql-explain -q "SELECT Id FROM Account" -o dev1 --json | jq .plans</span>
+
+<span class="c">── rsql ────────────────────────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data rsql -o dev1 --load Account --load Contact</span>
+<span class="b">$</span> <span class="s">sf-rust data rsql -o dev1 --load Account --db sf.db</span>
+
+<span class="c">── erd ─────────────────────────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data erd --objects Account,Contact,Opportunity -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data erd --objects Account,Contact -o dev1 --simple</span>
+
+<span class="c">── bulk API v2 ──────────────────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk insert -f accounts.csv -s Account -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk update -f updates.csv -s Contact -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk upsert -f accounts.csv -s Account -e ExternalId__c -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk delete -f ids.csv -s Account -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk insert -f big-file.csv -s Lead -o dev1 --no-wait</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk status 7503x000000Xe1QAAS -o dev1</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk results 7503x000000Xe1QAAS -o dev1 --kind failed > failed.csv</span>
+<span class="b">$</span> <span class="s">sf-rust data bulk query -q "SELECT Id, Name FROM Account" -o dev1 --output accounts.csv</span></pre>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <span>sf-rust · Data &amp; SOQL reference · v0.2.0 · 2026-11-13</span>
+  <span>Author: Mohan Chinnappan</span>
+</footer>
+
+<script>
+// Sidebar active-section highlighting via IntersectionObserver
+const sections = document.querySelectorAll('.cmd-section, .hero');
+const navLinks  = document.querySelectorAll('nav.sidebar a');
+
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = e.target.id;
+      navLinks.forEach(a => {
+        a.classList.toggle('active', a.getAttribute('href') === '#' + id);
+      });
+    }
+  });
+}, { rootMargin: '-48px 0px -60% 0px', threshold: 0 });
+
+sections.forEach(s => obs.observe(s));
+</script>
+</body>
+</html>
