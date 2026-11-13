@@ -1,0 +1,1137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sf-rust git — Salesforce-aware git utilities</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #1e1e1e;
+    --panel:   #252526;
+    --panel2:  #2d2d2d;
+    --border:  #3c3c3c;
+    --text:    #cccccc;
+    --muted:   #6a6a6a;
+    --blue:    #569cd6;
+    --green:   #4ec9b0;
+    --red:     #f14c4c;
+    --yellow:  #dcdcaa;
+    --purple:  #c586c0;
+    --orange:  #ce9178;
+    --cyan:    #9cdcfe;
+    --string:  #ce9178;
+    --comment: #6a9955;
+    --keyword: #c586c0;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* ── top bar ── */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    height: 48px;
+    background: #252526;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 1.5rem; gap: 1rem;
+  }
+  .topbar-logo { font-size: 1rem; font-weight: 700; color: var(--blue); letter-spacing: -.01em; }
+  .topbar-sep  { color: #444; }
+  .topbar-sub  { font-size: .9rem; color: #aaa; }
+  .topbar-badge {
+    margin-left: auto;
+    font-size: .7rem; color: var(--muted);
+    background: #333; border: 1px solid #444;
+    border-radius: 4px; padding: .18rem .6rem;
+  }
+
+  /* ── layout ── */
+  .layout {
+    display: flex;
+    flex: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 0 1rem;
+    gap: 2.5rem;
+  }
+
+  /* ── sidebar ── */
+  nav.sidebar {
+    width: 210px; flex-shrink: 0;
+    padding: 2rem 0;
+    position: sticky; top: 48px;
+    height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+  .nav-section-label {
+    font-size: .65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--muted);
+    padding: .9rem 0 .3rem;
+  }
+  .nav-section-label:first-child { padding-top: 0; }
+  nav a {
+    display: block;
+    font-size: .82rem; color: #999;
+    padding: .28rem .6rem;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: background .1s, color .1s;
+  }
+  nav a:hover  { background: #2a2a2a; color: var(--text); }
+  nav a.active { background: rgba(86,156,214,.12); color: var(--blue); }
+  nav a .cmd-badge {
+    display: inline-block; font-family: monospace;
+    font-size: .72rem; background: #333; border-radius: 3px;
+    padding: .05rem .3rem; margin-right: .3rem; color: var(--cyan);
+  }
+
+  /* ── main content ── */
+  main {
+    flex: 1; padding: 2rem 0 4rem;
+    min-width: 0;
+  }
+
+  /* ── hero ── */
+  .hero {
+    padding: 2.5rem 2rem 2rem;
+    background: linear-gradient(135deg, #1e1e1e 60%, #1a2535);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 3rem;
+  }
+  .hero h1 {
+    font-size: 2rem; font-weight: 700;
+    color: var(--blue); letter-spacing: -.02em;
+    margin-bottom: .4rem;
+  }
+  .hero .tagline { font-size: 1.05rem; color: #aaa; margin-bottom: 1.5rem; }
+  .hero-features {
+    display: flex; flex-wrap: wrap; gap: .5rem;
+  }
+  .feat-pill {
+    font-size: .72rem; padding: .22rem .7rem;
+    border-radius: 20px; font-weight: 600;
+  }
+  .feat-pill.blue   { background: rgba(86,156,214,.12); color: #569cd6; border: 1px solid rgba(86,156,214,.25); }
+  .feat-pill.green  { background: rgba(78,201,176,.12); color: #4ec9b0; border: 1px solid rgba(78,201,176,.25); }
+  .feat-pill.purple { background: rgba(197,134,192,.12); color: #c586c0; border: 1px solid rgba(197,134,192,.25); }
+  .feat-pill.orange { background: rgba(206,145,120,.12); color: #ce9178; border: 1px solid rgba(206,145,120,.25); }
+  .feat-pill.yellow { background: rgba(220,220,170,.12); color: #dcdcaa; border: 1px solid rgba(220,220,170,.25); }
+
+  /* ── section headings ── */
+  .cmd-section { margin-bottom: 3.5rem; scroll-margin-top: 60px; }
+  .cmd-section h2 {
+    font-size: 1.3rem; font-weight: 700;
+    color: var(--text);
+    display: flex; align-items: center; gap: .6rem;
+    margin-bottom: .3rem;
+  }
+  .cmd-section h2 code {
+    font-size: 1.1rem; color: var(--blue);
+    background: rgba(86,156,214,.08);
+    border: 1px solid rgba(86,156,214,.2);
+    border-radius: 5px; padding: .1rem .5rem;
+  }
+  .cmd-desc { color: #aaa; font-size: .92rem; margin-bottom: 1.2rem; }
+  .section-divider {
+    height: 1px; background: var(--border);
+    margin-bottom: 1.5rem;
+  }
+
+  /* ── flags table ── */
+  .flags-table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: .85rem; }
+  .flags-table th {
+    text-align: left; font-size: .7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--muted);
+    padding: .4rem .7rem; border-bottom: 1px solid var(--border);
+  }
+  .flags-table td { padding: .45rem .7rem; border-bottom: 1px solid #2a2a2a; vertical-align: top; }
+  .flags-table tr:last-child td { border-bottom: none; }
+  .flags-table td:first-child { font-family: monospace; color: var(--cyan); white-space: nowrap; }
+  .flags-table td:last-child  { color: #aaa; }
+  .flag-default { font-size: .72rem; color: var(--muted); margin-top: .15rem; }
+
+  /* ── code blocks ── */
+  pre {
+    background: #1a1a1a;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", monospace;
+    font-size: .8rem;
+    line-height: 1.65;
+    margin-bottom: 1rem;
+    position: relative;
+  }
+  pre .label {
+    position: absolute; top: .5rem; right: .7rem;
+    font-size: .62rem; color: #555; font-family: sans-serif;
+  }
+  .sh  { color: #cccccc; }
+  .c   { color: var(--comment); }  /* comment */
+  .p   { color: var(--cyan); }     /* prompt / path */
+  .k   { color: var(--keyword); }  /* keyword */
+  .s   { color: var(--string); }   /* string / flag */
+  .g   { color: var(--green); }    /* output: added */
+  .r   { color: var(--red); }      /* output: removed */
+  .b   { color: var(--blue); }     /* output: blue accent */
+  .y   { color: var(--yellow); }   /* output: yellow */
+  .m   { color: var(--muted); }    /* dim output */
+  .w   { color: #cccccc; }         /* plain white output */
+
+  /* ── inline code ── */
+  code { font-family: monospace; font-size: .85em; }
+  p code, li code {
+    background: #2a2a2a; border: 1px solid #3a3a3a;
+    border-radius: 3px; padding: .08em .35em;
+    color: var(--cyan);
+  }
+
+  /* ── sub-headings ── */
+  h3 { font-size: .95rem; font-weight: 600; color: #ccc; margin: 1.5rem 0 .6rem; }
+  h4 { font-size: .82rem; font-weight: 600; color: var(--muted); margin: 1.2rem 0 .4rem; text-transform: uppercase; letter-spacing: .06em; }
+
+  /* ── callout boxes ── */
+  .callout {
+    display: flex; gap: .8rem; align-items: flex-start;
+    padding: .8rem 1rem; border-radius: 6px; margin-bottom: 1rem;
+    font-size: .85rem;
+  }
+  .callout.tip  { background: rgba(78,201,176,.07); border: 1px solid rgba(78,201,176,.2); }
+  .callout.note { background: rgba(86,156,214,.07); border: 1px solid rgba(86,156,214,.2); }
+  .callout.warn { background: rgba(220,220,170,.07); border: 1px solid rgba(220,220,170,.2); }
+  .callout-icon { font-size: 1rem; flex-shrink: 0; margin-top: .05rem; }
+  .callout.tip  .callout-icon { color: var(--green); }
+  .callout.note .callout-icon { color: var(--blue); }
+  .callout.warn .callout-icon { color: var(--yellow); }
+  .callout p { color: #bbb; }
+  .callout p strong { color: var(--text); }
+
+  /* ── two-column examples ── */
+  .example-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+  @media (max-width: 800px) { .example-grid { grid-template-columns: 1fr; } }
+
+  /* ── output sample box ── */
+  .output-sample {
+    background: #181818; border: 1px solid #333;
+    border-radius: 7px; padding: .9rem 1rem;
+    font-family: monospace; font-size: .78rem; line-height: 1.7;
+    overflow-x: auto; margin-bottom: 1rem;
+  }
+  .output-sample .box-top  { color: #3a3a3a; }
+  .output-sample .box-row  { color: var(--text); }
+  .output-sample .box-sep  { color: #333; }
+  .output-sample .hl-g     { color: var(--green); }
+  .output-sample .hl-b     { color: var(--blue); }
+  .output-sample .hl-y     { color: var(--yellow); }
+  .output-sample .hl-r     { color: var(--red); }
+  .output-sample .hl-m     { color: var(--muted); }
+  .output-sample .hl-p     { color: var(--purple); }
+
+  /* ── hook kind pills ── */
+  .hook-row { display: flex; gap: .6rem; align-items: center; margin-bottom: .5rem; }
+  .hook-name { font-family: monospace; font-size: .85rem; color: var(--cyan); min-width: 110px; }
+  .hook-desc { font-size: .82rem; color: #aaa; }
+
+  /* ── component type legend ── */
+  .type-legend { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.2rem; }
+  .tl-pill {
+    font-size: .68rem; padding: .18rem .55rem; border-radius: 10px; font-weight: 600;
+  }
+  .tl-apex   { background: rgba(86,156,214,.12); color: #569cd6; border: 1px solid rgba(86,156,214,.3); }
+  .tl-lwc    { background: rgba(197,134,192,.12); color: #c586c0; border: 1px solid rgba(197,134,192,.3); }
+  .tl-obj    { background: rgba(220,220,170,.12); color: #dcdcaa; border: 1px solid rgba(220,220,170,.3); }
+  .tl-flow   { background: rgba(78,201,176,.12); color: #4ec9b0; border: 1px solid rgba(78,201,176,.3); }
+  .tl-perm   { background: rgba(206,145,120,.12); color: #ce9178; border: 1px solid rgba(206,145,120,.3); }
+  .tl-file   { background: rgba(100,100,100,.12); color: #888; border: 1px solid #3a3a3a; }
+
+  /* ── footer ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 1.2rem 1.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: .75rem; color: var(--muted);
+  }
+  footer a { color: #555; text-decoration: none; }
+  footer a:hover { color: #999; }
+</style>
+</head>
+<body>
+
+<!-- ── top bar ─────────────────────────────────────────────────────────────── -->
+<header class="topbar">
+  <span class="topbar-logo">sf-rust</span>
+  <span class="topbar-sep">/</span>
+  <span class="topbar-sub">git</span>
+  <span class="topbar-badge">Phase 1 – 5 · Salesforce-aware git utilities</span>
+</header>
+
+<div class="layout">
+
+  <!-- ── sidebar ─────────────────────────────────────────────────────────── -->
+  <nav class="sidebar">
+    <div class="nav-section-label">Overview</div>
+    <a href="#overview">Introduction</a>
+    <a href="#component-types">Component types</a>
+    <a href="#output-modes">Output modes</a>
+
+    <div class="nav-section-label">Commands</div>
+    <a href="#diff"><span class="cmd-badge">diff</span>Enriched diff</a>
+    <a href="#log"><span class="cmd-badge">log</span>Commit history</a>
+    <a href="#show"><span class="cmd-badge">show</span>Commit detail</a>
+    <a href="#status"><span class="cmd-badge">status</span>Working tree</a>
+    <a href="#hook"><span class="cmd-badge">hook</span>Git hooks</a>
+
+    <div class="nav-section-label">Reference</div>
+    <a href="#diff-engines">Diff engines</a>
+    <a href="#examples">Quick examples</a>
+  </nav>
+
+  <!-- ── main ─────────────────────────────────────────────────────────────── -->
+  <main>
+
+    <!-- hero -->
+    <section class="hero" id="overview">
+      <h1>sf-rust git</h1>
+      <p class="tagline">
+        Salesforce-aware git utilities — format-aware diffs, component classification,
+        interactive visualizations, and managed hooks. All in a single statically-linked binary.
+      </p>
+      <div class="hero-features">
+        <span class="feat-pill blue">Format-aware diff (XML · JSON · text)</span>
+        <span class="feat-pill green">Salesforce component classification</span>
+        <span class="feat-pill purple">Monaco side-by-side viz</span>
+        <span class="feat-pill orange">Interactive timeline &amp; status views</span>
+        <span class="feat-pill yellow">Managed pre-commit / pre-push hooks</span>
+      </div>
+    </section>
+
+    <!-- component types -->
+    <section class="cmd-section" id="component-types">
+      <h2>Component type classification</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Every file path in a Salesforce DX project is classified into a component type.
+        Classification is used in all five subcommands for grouping, filtering, and display.
+      </p>
+      <div class="type-legend">
+        <span class="tl-pill tl-apex">ApexClass</span>
+        <span class="tl-pill tl-apex">ApexTrigger</span>
+        <span class="tl-pill tl-lwc">LWC</span>
+        <span class="tl-pill tl-lwc">AuraComponent</span>
+        <span class="tl-pill tl-obj">CustomObject</span>
+        <span class="tl-pill tl-obj">CustomField</span>
+        <span class="tl-pill tl-obj">ValidationRule</span>
+        <span class="tl-pill tl-obj">RecordType</span>
+        <span class="tl-pill tl-flow">Flow</span>
+        <span class="tl-pill tl-flow">Layout</span>
+        <span class="tl-pill tl-perm">PermissionSet</span>
+        <span class="tl-pill tl-perm">Profile</span>
+        <span class="tl-pill tl-perm">StaticResource</span>
+        <span class="tl-pill tl-perm">VisualforcePage</span>
+        <span class="tl-pill tl-perm">EmailTemplate</span>
+        <span class="tl-pill tl-file">File</span>
+      </div>
+      <pre><span class="c"># Examples of path → component type mapping</span>
+<span class="p">force-app/main/default/classes/AccountService.cls</span>       <span class="m">→  ApexClass    AccountService</span>
+<span class="p">force-app/main/default/triggers/OpportunityTrigger.trigger</span> <span class="m">→  ApexTrigger  OpportunityTrigger</span>
+<span class="p">force-app/main/default/lwc/accountCard/accountCard.js</span>    <span class="m">→  LWC          accountCard</span>
+<span class="p">force-app/main/default/objects/Account/fields/Rating__c.field-meta.xml</span>  <span class="m">→  CustomField   Rating__c</span>
+<span class="p">force-app/main/default/flows/LeadAssignment.flow-meta.xml</span> <span class="m">→  Flow          LeadAssignment</span>
+<span class="p">force-app/main/default/permissionsets/Admin.permissionset-meta.xml</span>      <span class="m">→  PermissionSet Admin</span>
+</pre>
+    </section>
+
+    <!-- output modes -->
+    <section class="cmd-section" id="output-modes">
+      <h2>Output modes</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">Every subcommand supports three output modes in addition to the default terminal view.</p>
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Mode</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>(default)</td><td>Terminal</td><td>UTF8_FULL box-drawing tables, colored status glyphs, component type labels</td></tr>
+          <tr><td><code>--stat</code></td><td>Summary table</td><td>Compact St / Type / Name / Path / +/- table (diff, show)</td></tr>
+          <tr><td><code>--viz</code></td><td>Browser</td><td>Interactive HTML page opened with <code>open</code> — Monaco diff, timeline, or status view</td></tr>
+          <tr><td><code>--json</code> / <code>-j</code></td><td>JSON</td><td>Structured output for scripting and pipelines</td></tr>
+          <tr><td><code>--oneline</code></td><td>Compact</td><td>One line per commit: short-hash + subject (log only)</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── diff ── -->
+    <section class="cmd-section" id="diff">
+      <h2><code>sf-rust git diff</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Format-aware diff of changed files. Dispatches each file to the right diff engine
+        (XML → structural element-level diff, JSON → key-level diff, CSV → row-level diff,
+        text/Apex → unified line diff). Shows component type, name, and +/- counts.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>[BASE]</td><td>Commit, ref, or range: <code>HEAD~1</code>, <code>abc123</code>, <code>abc..def</code>. Omit for working-tree vs HEAD.</td></tr>
+          <tr><td>[PATH]...</td><td>Limit diff to specific paths</td></tr>
+          <tr><td><code>--staged</code></td><td>Diff staged (index) changes only. Alias: <code>--cached</code></td></tr>
+          <tr><td><code>--stat</code></td><td>Summary table: Type / Name / Path / +/-</td></tr>
+          <tr><td><code>--viz</code></td><td>Open Monaco side-by-side diff in browser</td></tr>
+          <tr><td><code>--json</code></td><td>JSON array of file diff entries</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <div class="example-grid">
+        <pre><span class="label">working tree</span><span class="b">$</span> <span class="s">sf-rust git diff</span>
+<span class="b">$</span> <span class="s">sf-rust git diff --stat</span>
+<span class="b">$</span> <span class="s">sf-rust git diff --viz</span></pre>
+        <pre><span class="label">commit range</span><span class="b">$</span> <span class="s">sf-rust git diff HEAD~1</span>
+<span class="b">$</span> <span class="s">sf-rust git diff HEAD~3..HEAD --stat</span>
+<span class="b">$</span> <span class="s">sf-rust git diff abc123..def456 --json</span></pre>
+        <pre><span class="label">staged changes</span><span class="b">$</span> <span class="s">sf-rust git diff --staged</span>
+<span class="b">$</span> <span class="s">sf-rust git diff --staged --stat</span>
+<span class="b">$</span> <span class="s">sf-rust git diff --staged --viz</span></pre>
+        <pre><span class="label">path filter</span><span class="b">$</span> <span class="s">sf-rust git diff HEAD~1 force-app/</span>
+<span class="b">$</span> <span class="s">sf-rust git diff HEAD~1 -- classes/ lwc/</span></pre>
+      </div>
+
+      <h3>Sample terminal output — <code>--stat</code></h3>
+      <div class="output-sample">
+<span class="hl-b">git diff  HEAD~1..HEAD</span>
+
+<span class="hl-m">┌────┬─────────────┬──────────────────────┬────────────────────────────────────────────────────────────┬───┬───┐</span>
+<span class="hl-m">│</span> St <span class="hl-m">┆</span> Type        <span class="hl-m">┆</span> Name                 <span class="hl-m">┆</span> Path                                                       <span class="hl-m">┆</span> + <span class="hl-m">┆</span> - <span class="hl-m">│</span>
+<span class="hl-m">╞════╪═════════════╪══════════════════════╪════════════════════════════════════════════════════════════╪═══╪═══╡</span>
+<span class="hl-m">│</span> <span class="hl-b">~</span>  <span class="hl-m">┆</span> ApexClass   <span class="hl-m">┆</span> AccountService       <span class="hl-m">┆</span> force-app/main/default/classes/AccountService.cls          <span class="hl-m">┆</span> <span class="hl-g">12</span> <span class="hl-m">┆</span> <span class="hl-r">3</span>  <span class="hl-m">│</span>
+<span class="hl-m">│</span> <span class="hl-b">~</span>  <span class="hl-m">┆</span> CustomField  <span class="hl-m">┆</span> Rating__c            <span class="hl-m">┆</span> force-app/.../Account/fields/Rating__c.field-meta.xml       <span class="hl-m">┆</span> <span class="hl-g">4</span>  <span class="hl-m">┆</span> <span class="hl-r">1</span>  <span class="hl-m">│</span>
+<span class="hl-m">│</span> <span class="hl-g">+</span>  <span class="hl-m">┆</span> Flow        <span class="hl-m">┆</span> LeadAssignment       <span class="hl-m">┆</span> force-app/main/default/flows/LeadAssignment.flow-meta.xml  <span class="hl-m">┆</span> <span class="hl-g">28</span> <span class="hl-m">┆</span> <span class="hl-r">0</span>  <span class="hl-m">│</span>
+<span class="hl-m">└────┴─────────────┴──────────────────────┴────────────────────────────────────────────────────────────┴───┴───┘</span>
+
+  3 file(s) changed  <span class="hl-g">+44</span>  <span class="hl-r">-4</span>
+      </div>
+
+      <div class="callout tip">
+        <span class="callout-icon">◆</span>
+        <p><strong>--viz</strong> opens a Monaco editor side-by-side diff with a file-picker sidebar.
+        Each file uses the correct language (XML, Apex, JSON) for syntax highlighting.
+        Files are pre-normalized by their diff engine so the diff focuses on semantic changes.</p>
+      </div>
+    </section>
+
+    <!-- ── log ── -->
+    <section class="cmd-section" id="log">
+      <h2><code>sf-rust git log</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Enriched commit history. For each commit, fetches the changed file list via
+        <code>git diff-tree</code>, classifies every file, and builds a component summary.
+        Supports author/date/path filters and an interactive timeline viz.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Description</th><th>Default</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>-n &lt;N&gt;</code></td>
+            <td>Number of commits to show</td>
+            <td><code>20</code></td>
+          </tr>
+          <tr><td><code>--author &lt;regex&gt;</code></td><td>Filter by author name (regex)</td><td></td></tr>
+          <tr><td><code>--since &lt;date&gt;</code></td><td>Commits newer than: <code>"2 weeks ago"</code>, <code>"2024-01-01"</code></td><td></td></tr>
+          <tr><td><code>--path &lt;path&gt;</code></td><td>Limit to commits touching this path</td><td></td></tr>
+          <tr><td><code>--all</code></td><td>Include commits from all branches</td><td></td></tr>
+          <tr><td><code>--oneline</code></td><td>Compact: short-hash + subject only</td><td></td></tr>
+          <tr><td><code>--viz</code></td><td>Open interactive timeline in browser</td><td></td></tr>
+          <tr><td><code>--json</code></td><td>JSON array of CommitInfo objects</td><td></td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="b">$</span> <span class="s">sf-rust git log</span>                              <span class="c"># last 20 commits with component tables</span>
+<span class="b">$</span> <span class="s">sf-rust git log -n 10 --oneline</span>              <span class="c"># compact 10-line view</span>
+<span class="b">$</span> <span class="s">sf-rust git log --since "1 week ago"</span>          <span class="c"># recent commits</span>
+<span class="b">$</span> <span class="s">sf-rust git log --author "mohan" -n 50</span>       <span class="c"># filter by author</span>
+<span class="b">$</span> <span class="s">sf-rust git log --path force-app/</span>             <span class="c"># commits touching force-app/</span>
+<span class="b">$</span> <span class="s">sf-rust git log --viz</span>                         <span class="c"># interactive timeline in browser</span>
+<span class="b">$</span> <span class="s">sf-rust git log --json | jq '.[].component_summary'</span></pre>
+
+      <h3>Interactive timeline viz</h3>
+      <div class="callout note">
+        <span class="callout-icon">◆</span>
+        <p>The <code>--viz</code> page shows expandable commit cards with component-type pills.
+        A filter bar lets you search by subject/author/hash, filter by component type (clickable pills),
+        and filter by author. The <strong>Expand all</strong> button shows file lists for every commit simultaneously.</p>
+      </div>
+    </section>
+
+    <!-- ── show ── -->
+    <section class="cmd-section" id="show">
+      <h2><code>sf-rust git show</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Full detail for a single commit: enriched header (hash, refs, author, date, subject, body),
+        component summary, and per-file enriched diff — the same format-aware engines used by
+        <code>git diff</code>.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>[COMMIT]</td><td>Hash, branch, tag, <code>HEAD~N</code>. Default: <code>HEAD</code></td></tr>
+          <tr><td><code>--stat</code></td><td>Summary table only — no diff content</td></tr>
+          <tr><td><code>--viz</code></td><td>Open Monaco side-by-side diff for this commit</td></tr>
+          <tr><td><code>--json</code></td><td>Structured JSON: meta + component_summary + files[]</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="b">$</span> <span class="s">sf-rust git show</span>              <span class="c"># full detail for HEAD</span>
+<span class="b">$</span> <span class="s">sf-rust git show HEAD~2</span>        <span class="c"># two commits back</span>
+<span class="b">$</span> <span class="s">sf-rust git show abc1234</span>       <span class="c"># by hash</span>
+<span class="b">$</span> <span class="s">sf-rust git show main --stat</span>   <span class="c"># tip of main, summary only</span>
+<span class="b">$</span> <span class="s">sf-rust git show HEAD --viz</span>    <span class="c"># Monaco diff in browser</span>
+<span class="b">$</span> <span class="s">sf-rust git show HEAD --json</span>   <span class="c"># full JSON including body and refs</span></pre>
+
+      <h3>Sample terminal output</h3>
+      <div class="output-sample">
+<span class="hl-b">══════════════════════════════════════════════════════════════════════</span>
+  commit  <span class="hl-b">abc1234</span>  <span class="hl-m">(HEAD → main, origin/main)</span>
+  Author: Mohan Chinnappan &lt;mohan@example.com&gt;
+  Date:   <span class="hl-m">3 minutes ago</span>  (2026-11-13T05:59:00+00:00)
+<span class="hl-m">──────────────────────────────────────────────────────────────────────</span>
+  sf-git: add enriched git status (Phase 4)
+<span class="hl-b">══════════════════════════════════════════════════════════════════════</span>
+
+<span class="hl-b">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+  <span class="hl-g">+</span>  File   status.rs   <span class="hl-m">(crates/sf-git/src/status.rs)</span>
+<span class="hl-b">━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</span>
+<span class="hl-g">+  use std::collections::BTreeMap;</span>
+<span class="hl-g">+  use std::process::Command;</span>
+<span class="hl-g">+  pub fn fetch_status() -&gt; SfResult&lt;WorkingTreeStatus&gt; {</span>
+      </div>
+    </section>
+
+    <!-- ── status ── -->
+    <section class="cmd-section" id="status">
+      <h2><code>sf-rust git status</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Working tree status with Salesforce component classification. Groups files into
+        staged / unstaged / untracked sections and shows branch + upstream tracking info
+        (ahead/behind counts).
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td><code>--staged</code></td><td>Show only staged changes</td></tr>
+          <tr><td><code>--unstaged</code></td><td>Show only unstaged + untracked changes</td></tr>
+          <tr><td><code>--viz</code></td><td>Open interactive status view in browser</td></tr>
+          <tr><td><code>--json</code></td><td>JSON: branch, upstream, ahead, behind, entries[]</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="b">$</span> <span class="s">sf-rust git status</span>             <span class="c"># full working tree status</span>
+<span class="b">$</span> <span class="s">sf-rust git status --staged</span>    <span class="c"># what's going into the next commit</span>
+<span class="b">$</span> <span class="s">sf-rust git status --unstaged</span>  <span class="c"># what's not yet staged</span>
+<span class="b">$</span> <span class="s">sf-rust git status --viz</span>       <span class="c"># interactive browser view</span>
+<span class="b">$</span> <span class="s">sf-rust git status --json | jq '.ahead'</span></pre>
+
+      <h3>Sample terminal output</h3>
+      <div class="output-sample">
+On branch  <span class="hl-b">main</span>  →  origin/main  <span class="hl-m">(ahead of remote by 4)</span>
+
+Changes staged for commit:
+
+<span class="hl-m">┌────┬─────────────┬──────────────────────┬────────────────────────────────────┐</span>
+<span class="hl-m">│</span> St <span class="hl-m">┆</span> Type        <span class="hl-m">┆</span> Name                 <span class="hl-m">┆</span> Path                               <span class="hl-m">│</span>
+<span class="hl-m">╞════╪═════════════╪══════════════════════╪════════════════════════════════════╡</span>
+<span class="hl-m">│</span> <span class="hl-g">A</span>  <span class="hl-m">┆</span> ApexClass   <span class="hl-m">┆</span> AccountService       <span class="hl-m">┆</span> force-app/…/classes/AccountService.cls <span class="hl-m">│</span>
+<span class="hl-m">│</span> <span class="hl-b">M</span>  <span class="hl-m">┆</span> CustomField  <span class="hl-m">┆</span> Rating__c            <span class="hl-m">┆</span> force-app/…/fields/Rating__c.xml   <span class="hl-m">│</span>
+<span class="hl-m">└────┴─────────────┴──────────────────────┴────────────────────────────────────┘</span>
+
+  Components: ApexClass  ·  CustomField
+  2 file(s)  ·  run with --viz for interactive view or --json for structured output
+      </div>
+
+      <h3>Interactive viz features</h3>
+      <div class="callout note">
+        <span class="callout-icon">◆</span>
+        <p>The <code>--viz</code> page shows a component-type pill summary bar (click a pill to filter),
+        a text filter for path/component name, an area filter (staged/unstaged/untracked),
+        and grouped file rows with status badges (<code>M</code> / <code>A</code> / <code>D</code> / <code>?</code>).</p>
+      </div>
+    </section>
+
+    <!-- ── hook ── -->
+    <section class="cmd-section" id="hook">
+      <h2><code>sf-rust git hook</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Install, remove, and list Salesforce-aware git hooks. Hooks are shell scripts written
+        to <code>.git/hooks/</code> and invoked automatically by git at key workflow moments —
+        before a commit, before a push, and when a commit message is saved.
+        Each hook calls back into <code>sf-rust</code> to show enriched Salesforce component context
+        exactly when you need it.
+      </p>
+
+      <!-- ── subcommands ── -->
+      <h3>Subcommands</h3>
+      <table class="flags-table">
+        <thead><tr><th>Subcommand</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>hook install [HOOK] [--block]</code></td>
+            <td>Write hook script(s) to <code>.git/hooks/</code>. Any pre-existing hook that is <em>not</em> sf-rust managed is backed up to <code>&lt;hook&gt;.pre-sf-rust</code> first. Idempotent — re-install at any time to change mode.</td>
+          </tr>
+          <tr>
+            <td><code>hook uninstall [HOOK]</code></td>
+            <td>Remove managed hook(s). Automatically restores the <code>.pre-sf-rust</code> backup if one exists. Refuses to remove hooks it did not write.</td>
+          </tr>
+          <tr>
+            <td><code>hook list</code></td>
+            <td>UTF8_FULL table showing each hook: Installed yes/no, Managed (sf-rust / external / —), Blocking (yes / —), and full path.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ── how it works ── -->
+      <h3 id="hook-how">How it works</h3>
+      <p style="font-size:.88rem;color:#aaa;margin-bottom:.8rem;">
+        Every generated hook script starts with a <code># managed-by: sf-rust</code> line.
+        This marker is what <code>hook uninstall</code> checks before touching a file —
+        it will never remove a hook that you wrote yourself or that another tool installed.
+        The <code>SF_RUST_HOOK_BLOCK</code> variable inside the script controls blocking mode;
+        re-installing with or without <code>--block</code> is the standard way to toggle it.
+      </p>
+      <pre><span class="c"># Structure of every sf-rust managed hook</span>
+<span class="k">#!/usr/bin/env bash</span>
+<span class="c"># managed-by: sf-rust          ← identity marker (never remove without this)</span>
+<span class="c"># sf-rust pre-commit: ...       ← human-readable description</span>
+<span class="s">SF_RUST_HOOK_BLOCK=0</span>           <span class="c"># 0 = informational only  |  1 = blocking</span>
+
+<span class="c"># Guard: if sf-rust isn't on PATH, do nothing (CI machines without the binary)</span>
+<span class="k">if</span> ! command -v sf-rust &amp;&gt;/dev/null; then
+    exit 0
+fi
+<span class="c"># ... hook body ...</span>
+exit 0</pre>
+
+      <!-- ── blocking vs non-blocking ── -->
+      <h3 id="hook-modes">Blocking vs non-blocking</h3>
+      <table class="flags-table">
+        <thead><tr><th>Mode</th><th>How to install</th><th>Exit code on violation</th><th>Best for</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><strong>Non-blocking</strong> (default)</td>
+            <td><code>sf-rust git hook install</code></td>
+            <td>Always <code>0</code> — git proceeds regardless</td>
+            <td>Onboarding, solo projects, teams getting started with the hooks</td>
+          </tr>
+          <tr>
+            <td><strong>Blocking</strong></td>
+            <td><code>sf-rust git hook install --block</code></td>
+            <td>Non-zero on violations — git operation is aborted</td>
+            <td>Mature teams with enforced commit standards; CI-adjacent local gates</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="callout warn">
+        <span class="callout-icon">◆</span>
+        <p><strong>Switching modes is safe.</strong> Re-running <code>hook install</code> (with or without
+        <code>--block</code>) overwrites the existing managed hook in place — no backup is taken for a
+        managed-to-managed update, and no git history is affected. Run <code>hook list</code> afterward
+        to confirm the Blocking column.</p>
+      </div>
+
+      <!-- ── pre-commit ── -->
+      <h3 id="hook-precommit">pre-commit hook</h3>
+      <p style="font-size:.88rem;color:#aaa;margin-bottom:.8rem;">
+        Fires <em>before</em> git opens the commit-message editor. Shows a Salesforce component
+        summary of exactly what is staged — the same output as <code>sf-rust git status --staged</code>
+        — so you can see at a glance whether you are committing an ApexClass, a Flow, a PermissionSet, etc.
+        In blocking mode it additionally refuses the commit if any staged file has an unresolved merge conflict.
+      </p>
+
+      <h4>Script (non-blocking)</h4>
+      <pre><span class="k">#!/usr/bin/env bash</span>
+<span class="c"># managed-by: sf-rust</span>
+<span class="s">SF_RUST_HOOK_BLOCK=0</span>
+
+<span class="k">if</span> ! command -v sf-rust &amp;&gt;/dev/null; then exit 0; fi
+
+echo <span class="s">""</span>
+echo <span class="s">"── sf-rust: staged changes ────────────────────────────────"</span>
+sf-rust --no-time git status --staged 2&gt;/dev/null || true
+echo <span class="s">"────────────────────────────────────────────────────────────"</span>
+echo <span class="s">""</span>
+exit 0</pre>
+
+      <h4>What you see in the terminal during <code>git commit</code></h4>
+      <div class="output-sample">
+<span class="hl-m">── sf-rust: staged changes ────────────────────────────────</span>
+On branch  <span class="hl-b">feature/rating-field</span>  →  origin/main  <span class="hl-m">(ahead by 1)</span>
+
+Changes staged for commit:
+
+<span class="hl-m">┌────┬─────────────┬──────────────────────┬─────────────────────────────────────────────────────┐</span>
+<span class="hl-m">│</span> St <span class="hl-m">┆</span> Type        <span class="hl-m">┆</span> Name                 <span class="hl-m">┆</span> Path                                                <span class="hl-m">│</span>
+<span class="hl-m">╞════╪═════════════╪══════════════════════╪═════════════════════════════════════════════════════╡</span>
+<span class="hl-m">│</span> <span class="hl-g">A</span>  <span class="hl-m">┆</span> CustomField  <span class="hl-m">┆</span> Rating__c            <span class="hl-m">┆</span> force-app/main/default/objects/Account/fields/Rating__c.field-meta.xml <span class="hl-m">│</span>
+<span class="hl-m">│</span> <span class="hl-b">M</span>  <span class="hl-m">┆</span> ApexClass    <span class="hl-m">┆</span> AccountService       <span class="hl-m">┆</span> force-app/main/default/classes/AccountService.cls   <span class="hl-m">│</span>
+<span class="hl-m">│</span> <span class="hl-b">M</span>  <span class="hl-m">┆</span> Flow         <span class="hl-m">┆</span> LeadAssignment       <span class="hl-m">┆</span> force-app/main/default/flows/LeadAssignment.flow-meta.xml <span class="hl-m">│</span>
+<span class="hl-m">└────┴─────────────┴──────────────────────┴─────────────────────────────────────────────────────┘</span>
+
+  Components: CustomField  ·  ApexClass  ·  Flow
+  3 file(s)
+<span class="hl-m">────────────────────────────────────────────────────────────</span>
+<span class="hl-m">[feature/rating-field abc1234] add Rating__c field + AccountService update + LeadAssignment flow</span>
+ <span class="hl-g">3 files changed, 44 insertions(+), 3 deletions(-)</span>
+      </div>
+
+      <h4>Blocking mode — unmerged file rejection</h4>
+      <div class="output-sample">
+<span class="hl-m">── sf-rust: staged changes ────────────────────────────────</span>
+<span class="hl-m">... (component table) ...</span>
+<span class="hl-m">────────────────────────────────────────────────────────────</span>
+
+<span class="hl-r">ERROR: unmerged files in staging area — resolve conflicts before committing.</span>
+<span class="hl-r">error: failed to run the 'pre-commit' hook</span>
+      </div>
+
+      <!-- ── pre-push ── -->
+      <h3 id="hook-prepush">pre-push hook</h3>
+      <p style="font-size:.88rem;color:#aaa;margin-bottom:.8rem;">
+        Fires <em>before</em> git sends objects to the remote. Receives the remote name and URL as
+        arguments, and reads <code>local_ref → remote_ref</code> pairs from stdin (one per ref being pushed).
+        For each ref it shows the enriched <code>sf-rust git log</code> of commits that are new to the remote —
+        giving you a last-chance review of what Salesforce metadata is about to land in the shared repo.
+      </p>
+
+      <h4>Script (non-blocking)</h4>
+      <pre><span class="k">#!/usr/bin/env bash</span>
+<span class="c"># managed-by: sf-rust</span>
+<span class="s">SF_RUST_HOOK_BLOCK=0</span>
+
+<span class="k">if</span> ! command -v sf-rust &amp;&gt;/dev/null; then exit 0; fi
+
+remote=<span class="s">"$1"</span>
+url=<span class="s">"$2"</span>
+
+<span class="k">while</span> read local_ref local_sha remote_ref remote_sha; do
+    <span class="k">if</span> [[ <span class="s">"$remote_sha"</span> == <span class="s">"0000000000000000000000000000000000000000"</span> ]]; then
+        range=<span class="s">"$local_sha"</span>           <span class="c"># new branch — show all commits</span>
+    else
+        range=<span class="s">"$remote_sha..$local_sha"</span>  <span class="c"># delta since last push</span>
+    fi
+
+    count=$(git log --oneline <span class="s">"$range"</span> 2&gt;/dev/null | wc -l | tr -d <span class="s">' '</span>)
+    [[ <span class="s">"$count"</span> -eq 0 ]] &amp;&amp; continue
+
+    echo <span class="s">""</span>
+    echo <span class="s">"── sf-rust: pushing $count commit(s) to $remote ($remote_ref) ──"</span>
+    sf-rust --no-time git log --since=<span class="s">"1 month ago"</span> 2&gt;/dev/null | head -60 || true
+    echo <span class="s">""</span>
+<span class="k">done</span>
+exit 0</pre>
+
+      <h4>What you see during <code>git push</code></h4>
+      <div class="output-sample">
+<span class="hl-m">── sf-rust: pushing 3 commit(s) to origin (refs/heads/feature/rating-field) ──</span>
+
+git log  <span class="hl-b">-n20</span>
+
+<span class="hl-m">──────────────────────────────────────────────────────────────────────</span>
+  <span class="hl-b">abc1234</span>  <span class="hl-m">3 minutes ago</span>  Mohan  add Rating__c field + AccountService update
+  Components: <span class="hl-g">CustomField</span>  ·  <span class="hl-b">ApexClass</span>  ·  <span class="hl-p">Flow</span>
+<span class="hl-m">┌────┬─────────────┬────────────────────┬──────────────────────────────────────┐</span>
+<span class="hl-m">│</span> St <span class="hl-m">┆</span> Type        <span class="hl-m">┆</span> Name               <span class="hl-m">┆</span> Path                                 <span class="hl-m">│</span>
+<span class="hl-m">╞════╪═════════════╪════════════════════╪══════════════════════════════════════╡</span>
+<span class="hl-m">│</span> <span class="hl-g">A</span>  <span class="hl-m">┆</span> CustomField  <span class="hl-m">┆</span> Rating__c          <span class="hl-m">┆</span> .../fields/Rating__c.field-meta.xml  <span class="hl-m">│</span>
+<span class="hl-m">│</span> <span class="hl-b">M</span>  <span class="hl-m">┆</span> ApexClass    <span class="hl-m">┆</span> AccountService     <span class="hl-m">┆</span> .../classes/AccountService.cls       <span class="hl-m">│</span>
+<span class="hl-m">│</span> <span class="hl-b">M</span>  <span class="hl-m">┆</span> Flow         <span class="hl-m">┆</span> LeadAssignment     <span class="hl-m">┆</span> .../flows/LeadAssignment.flow-meta.xml <span class="hl-m">│</span>
+<span class="hl-m">└────┴─────────────┴────────────────────┴──────────────────────────────────────┘</span>
+
+<span class="hl-m">... (more commits) ...</span>
+
+<span class="hl-m">Enumerating objects: 12, done.</span>
+<span class="hl-m">Writing objects: 100% (12/12), 2.41 KiB | 2.41 MiB/s, done.</span>
+<span class="hl-m">To https://github.com/acme/sf-project.git</span>
+   <span class="hl-b">def5678..abc1234  feature/rating-field → feature/rating-field</span>
+      </div>
+
+      <!-- ── commit-msg ── -->
+      <h3 id="hook-commitmsg">commit-msg hook</h3>
+      <p style="font-size:.88rem;color:#aaa;margin-bottom:.8rem;">
+        Receives the path to the commit-message file as <code>$1</code>. Strips comment lines
+        (lines beginning with <code>#</code>) and checks that the remaining body is non-empty.
+        In blocking mode it additionally warns when the subject line exceeds 72 characters,
+        and fails when a multi-paragraph message is missing the required blank line between
+        subject and body — the Git convention that makes <code>git log --oneline</code> and
+        email patches work correctly.
+      </p>
+
+      <h4>Script (blocking mode shown)</h4>
+      <pre><span class="k">#!/usr/bin/env bash</span>
+<span class="c"># managed-by: sf-rust</span>
+<span class="s">SF_RUST_HOOK_BLOCK=1</span>
+
+MSG_FILE=<span class="s">"$1"</span>
+
+<span class="c"># Strip comment lines, collapse blank-only lines</span>
+BODY=$(grep -v <span class="s">'^#'</span> <span class="s">"$MSG_FILE"</span> | sed <span class="s">'/^$/d'</span>)
+
+<span class="k">if</span> [[ -z <span class="s">"$BODY"</span> ]]; then
+    echo <span class="s">"ERROR: commit message is empty."</span> &gt;&amp;2
+    exit 1
+fi
+
+SUBJECT=$(echo <span class="s">"$BODY"</span> | head -1)
+LEN=${<span class="s">#SUBJECT</span>}
+
+<span class="k">if</span> [[ <span class="s">"$SF_RUST_HOOK_BLOCK"</span> == <span class="s">"1"</span> ]]; then
+    <span class="k">if</span> [[ $LEN -gt 72 ]]; then
+        echo <span class="s">"WARNING: subject is $LEN chars (recommended ≤ 72)."</span> &gt;&amp;2
+        <span class="c"># warning only — does not block</span>
+    fi
+    LINE2=$(echo <span class="s">"$BODY"</span> | sed -n <span class="s">'2p'</span>)
+    <span class="k">if</span> [[ $(echo <span class="s">"$BODY"</span> | wc -l | tr -d <span class="s">' '</span>) -gt 1 &amp;&amp; -n <span class="s">"$LINE2"</span> ]]; then
+        echo <span class="s">"ERROR: missing blank line between subject and body."</span> &gt;&amp;2
+        exit 1
+    fi
+fi
+exit 0</pre>
+
+      <h4>Commit message rules (blocking mode)</h4>
+      <table class="flags-table">
+        <thead><tr><th>Rule</th><th>Severity</th><th>Condition</th></tr></thead>
+        <tbody>
+          <tr><td>Non-empty message</td><td>Hard fail (exit 1)</td><td>Message is blank after stripping comment lines</td></tr>
+          <tr><td>Subject ≤ 72 chars</td><td>Warning only (exit 0)</td><td>Subject line exceeds 72 characters</td></tr>
+          <tr><td>Blank line after subject</td><td>Hard fail (exit 1)</td><td>Body present but no blank line separating it from the subject</td></tr>
+        </tbody>
+      </table>
+
+      <h4>Blocking rejection example</h4>
+      <div class="output-sample">
+<span class="hl-r">ERROR: missing blank line between subject and body.</span>
+<span class="hl-r">error: failed to run the 'commit-msg' hook</span>
+<span class="hl-r">hint: The commit-msg hook rejected your commit.</span>
+
+<span class="hl-m"># Fix: add a blank line</span>
+<span class="hl-b">fix: update AccountService validation logic</span>
+<span class="hl-m">                                              ← blank line required here</span>
+<span class="hl-m">Updated the validation to handle null BillingCity for international accounts.</span>
+      </div>
+
+      <!-- ── install / uninstall / list ── -->
+      <h3 id="hook-install">Installing hooks</h3>
+      <div class="example-grid">
+        <pre><span class="label">install all — info mode</span><span class="b">$</span> <span class="s">sf-rust git hook install</span>
+  installed  pre-commit  →  .git/hooks/pre-commit
+  installed  pre-push    →  .git/hooks/pre-push
+  installed  commit-msg  →  .git/hooks/commit-msg</pre>
+        <pre><span class="label">install all — blocking</span><span class="b">$</span> <span class="s">sf-rust git hook install --block</span>
+  installed  pre-commit  →  .git/hooks/pre-commit
+  installed  pre-push    →  .git/hooks/pre-push
+  installed  commit-msg  →  .git/hooks/commit-msg
+
+  Hooks installed in BLOCKING mode — violations
+  will abort the git operation.</pre>
+        <pre><span class="label">install one hook</span><span class="b">$</span> <span class="s">sf-rust git hook install pre-commit</span>
+  installed  pre-commit  →  .git/hooks/pre-commit
+
+<span class="b">$</span> <span class="s">sf-rust git hook install commit-msg --block</span>
+  installed  commit-msg  →  .git/hooks/commit-msg</pre>
+        <pre><span class="label">backup &amp; restore</span><span class="c"># existing hook backed up automatically</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install pre-commit</span>
+  Backed up existing pre-commit →
+    .git/hooks/pre-commit.pre-sf-rust
+  installed  pre-commit  →  .git/hooks/pre-commit
+
+<span class="c"># backup restored on uninstall</span>
+<span class="b">$</span> <span class="s">sf-rust git hook uninstall pre-commit</span>
+  pre-commit — removed (restored previous hook)</pre>
+      </div>
+
+      <h3 id="hook-toggle">Switching blocking mode</h3>
+      <p style="font-size:.88rem;color:#aaa;margin-bottom:.8rem;">
+        Re-install at any time — the script is overwritten in place, no backup is taken for
+        managed-to-managed updates, and <code>hook list</code> immediately reflects the new mode.
+      </p>
+      <pre><span class="c"># Start informational, switch to blocking when the team is ready</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install</span>           <span class="c"># non-blocking</span>
+<span class="b">$</span> <span class="s">sf-rust git hook list</span>              <span class="c"># Blocking column is empty</span>
+
+<span class="c"># Team agrees on enforcement — switch to blocking</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install --block</span>   <span class="c"># overwrites in place</span>
+<span class="b">$</span> <span class="s">sf-rust git hook list</span>              <span class="c"># Blocking column shows 'yes'</span>
+
+<span class="c"># Roll back to informational</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install</span>           <span class="c"># overwrites back to non-blocking</span></pre>
+
+      <!-- ── hook list ── -->
+      <h3 id="hook-list">hook list output</h3>
+      <div class="example-grid">
+        <div>
+          <h4>All installed, mixed modes</h4>
+          <div class="output-sample">
+<span class="hl-m">┌────────────┬───────────┬──────────┬──────────┬───────────────────────┐</span>
+<span class="hl-m">│</span> Hook       <span class="hl-m">┆</span> Installed <span class="hl-m">┆</span> Managed  <span class="hl-m">┆</span> Blocking <span class="hl-m">┆</span> Path                  <span class="hl-m">│</span>
+<span class="hl-m">╞════════════╪═══════════╪══════════╪══════════╪═══════════════════════╡</span>
+<span class="hl-m">│</span> pre-commit <span class="hl-m">┆</span> <span class="hl-g">yes</span>       <span class="hl-m">┆</span> sf-rust  <span class="hl-m">┆</span>          <span class="hl-m">┆</span> .git/hooks/pre-commit <span class="hl-m">│</span>
+<span class="hl-m">│</span> pre-push   <span class="hl-m">┆</span> <span class="hl-g">yes</span>       <span class="hl-m">┆</span> sf-rust  <span class="hl-m">┆</span>          <span class="hl-m">┆</span> .git/hooks/pre-push   <span class="hl-m">│</span>
+<span class="hl-m">│</span> commit-msg <span class="hl-m">┆</span> <span class="hl-g">yes</span>       <span class="hl-m">┆</span> sf-rust  <span class="hl-m">┆</span> <span class="hl-y">yes</span>      <span class="hl-m">┆</span> .git/hooks/commit-msg <span class="hl-m">│</span>
+<span class="hl-m">└────────────┴───────────┴──────────┴──────────┴───────────────────────┘</span>
+          </div>
+        </div>
+        <div>
+          <h4>External hook detected</h4>
+          <div class="output-sample">
+<span class="hl-m">┌────────────┬───────────┬──────────┬──────────┬───────────────────────┐</span>
+<span class="hl-m">│</span> Hook       <span class="hl-m">┆</span> Installed <span class="hl-m">┆</span> Managed  <span class="hl-m">┆</span> Blocking <span class="hl-m">┆</span> Path                  <span class="hl-m">│</span>
+<span class="hl-m">╞════════════╪═══════════╪══════════╪══════════╪═══════════════════════╡</span>
+<span class="hl-m">│</span> pre-commit <span class="hl-m">┆</span> <span class="hl-g">yes</span>       <span class="hl-m">┆</span> <span class="hl-y">external</span> <span class="hl-m">┆</span>          <span class="hl-m">┆</span> .git/hooks/pre-commit <span class="hl-m">│</span>
+<span class="hl-m">│</span> pre-push   <span class="hl-m">┆</span> no        <span class="hl-m">┆</span>          <span class="hl-m">┆</span>          <span class="hl-m">┆</span> .git/hooks/pre-push   <span class="hl-m">│</span>
+<span class="hl-m">│</span> commit-msg <span class="hl-m">┆</span> no        <span class="hl-m">┆</span>          <span class="hl-m">┆</span>          <span class="hl-m">┆</span> .git/hooks/commit-msg <span class="hl-m">│</span>
+<span class="hl-m">└────────────┴───────────┴──────────┴──────────┴───────────────────────┘</span>
+<span class="hl-m"># sf-rust will back up 'external' pre-commit on install</span>
+<span class="hl-m"># and restore it on uninstall</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── team workflow ── -->
+      <h3 id="hook-team">Team onboarding workflow</h3>
+      <div class="callout note">
+        <span class="callout-icon">◆</span>
+        <p>Git hooks live in <code>.git/hooks/</code> which is <strong>not</strong> tracked by git.
+        Each developer runs <code>hook install</code> once after cloning. Add it to your
+        project's <code>CONTRIBUTING.md</code> or <code>Makefile</code> so new team members
+        set it up automatically.</p>
+      </div>
+      <pre><span class="c"># CONTRIBUTING.md — recommend to new team members</span>
+<span class="c"># After cloning:</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install</span>        <span class="c"># informational hooks</span>
+<span class="c"># or, if the team enforces blocking:</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install --block</span></pre>
+
+      <pre><span class="c"># Makefile target — run once after clone</span>
+<span class="s">hooks:</span>
+	sf-rust git hook install --block
+	sf-rust git hook list</pre>
+
+      <!-- ── CI note ── -->
+      <h3 id="hook-ci">CI / automation notes</h3>
+      <p style="font-size:.88rem;color:#aaa;margin-bottom:.8rem;">
+        Every generated hook script begins by checking whether <code>sf-rust</code> is on
+        <code>PATH</code>. If the binary is not found the hook exits <code>0</code> silently —
+        so CI runners that don't have sf-rust installed will never be blocked or fail.
+        This makes the hooks safe to install in shared repositories used by both
+        developer machines and CI pipelines.
+      </p>
+      <pre><span class="c"># CI pipeline does not need sf-rust — hooks are no-ops</span>
+<span class="c"># Developer machine with sf-rust — hooks show enriched output</span>
+
+<span class="c"># To explicitly skip hooks in CI (e.g. automated release commits):</span>
+<span class="b">$</span> <span class="s">git commit --no-verify -m "chore: bump version"</span>  <span class="c"># bypasses all hooks</span></pre>
+
+      <!-- ── troubleshooting ── -->
+      <h3 id="hook-troubleshoot">Troubleshooting</h3>
+      <table class="flags-table">
+        <thead><tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><code>hook uninstall</code> says "not managed by sf-rust"</td>
+            <td>The hook was written by another tool (Husky, Lefthook, etc.) and lacks the <code># managed-by: sf-rust</code> marker</td>
+            <td>Install sf-rust hook first (<code>hook install</code>) — it backs up the existing one, then uninstall restores it</td>
+          </tr>
+          <tr>
+            <td>Hook fires but <code>sf-rust</code> command not found</td>
+            <td>Shell PATH at hook time differs from interactive PATH (common on macOS with GUI git clients)</td>
+            <td>Add <code>export PATH="$HOME/.local/bin:$PATH"</code> near the top of the hook script, after the managed-by marker</td>
+          </tr>
+          <tr>
+            <td>Hook fires but shows no component table</td>
+            <td>No files are staged (<code>git commit --allow-empty</code> or staging area is empty)</td>
+            <td>Expected — <code>sf-rust git status --staged</code> prints "nothing to commit" when the index is clean</td>
+          </tr>
+          <tr>
+            <td>pre-commit blocks a commit unexpectedly in blocking mode</td>
+            <td>Staged file has merge conflict markers (<code>&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>)</td>
+            <td>Resolve the conflict and re-stage the file, or use <code>git commit --no-verify</code> to bypass for a known-good emergency commit</td>
+          </tr>
+          <tr>
+            <td>Want to disable hooks temporarily without uninstalling</td>
+            <td>Need to bypass for one operation</td>
+            <td><code>git commit --no-verify</code> or <code>HUSKY=0 git commit</code> (if Husky co-exists) — both skip all hooks</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- ── all examples ── -->
+      <h3 id="hook-examples">All examples</h3>
+      <pre><span class="c">── List &amp; inspect ─────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust git hook list</span>                       <span class="c"># full status table</span>
+<span class="b">$</span> cat .git/hooks/pre-commit                    <span class="c"># inspect the script directly</span>
+
+<span class="c">── Install ─────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install</span>                    <span class="c"># all three, non-blocking</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install --block</span>            <span class="c"># all three, blocking</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install pre-commit</span>         <span class="c"># just pre-commit, non-blocking</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install pre-commit --block</span> <span class="c"># just pre-commit, blocking</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install pre-push</span>           <span class="c"># just pre-push</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install commit-msg --block</span> <span class="c"># commit-msg validation, blocking</span>
+
+<span class="c">── Switch modes (re-install in place) ──────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install --block</span>            <span class="c"># upgrade to blocking</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install</span>                    <span class="c"># downgrade to informational</span>
+
+<span class="c">── Uninstall ────────────────────────────────────────────────────</span>
+<span class="b">$</span> <span class="s">sf-rust git hook uninstall pre-commit</span>       <span class="c"># remove one, restore backup if any</span>
+<span class="b">$</span> <span class="s">sf-rust git hook uninstall pre-push</span>
+<span class="b">$</span> <span class="s">sf-rust git hook uninstall commit-msg</span>
+<span class="b">$</span> <span class="s">sf-rust git hook uninstall</span>                  <span class="c"># remove all managed hooks</span>
+
+<span class="c">── Bypass for one operation ─────────────────────────────────────</span>
+<span class="b">$</span> git commit --no-verify -m <span class="s">"wip"</span>             <span class="c"># skip all hooks</span>
+<span class="b">$</span> git push  --no-verify                        <span class="c"># skip pre-push</span></pre>
+
+    </section>
+
+    <!-- ── diff engines ── -->
+    <section class="cmd-section" id="diff-engines">
+      <h2>Diff engines</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        File diffs are routed by extension to a format-aware engine. Each engine returns
+        normalized content (used by Monaco for clean visual diffs) and a structured change
+        list (used by <code>--stat</code> and terminal output).
+      </p>
+      <table class="flags-table">
+        <thead><tr><th>Extension</th><th>Engine</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>.xml</code> <code>.field-meta.xml</code> <code>-meta.xml</code></td><td><code>diff_xml()</code></td><td>Structural XML diff — element-level changes, ignoring whitespace and attribute order</td></tr>
+          <tr><td><code>.json</code></td><td><code>diff_json()</code></td><td>Key-level JSON diff — detects added/removed/changed keys recursively</td></tr>
+          <tr><td><code>.csv</code></td><td><code>diff_csv()</code></td><td>Row-level CSV diff — added/removed/changed rows, header-aware</td></tr>
+          <tr><td><em>all others</em></td><td><code>diff_text()</code></td><td>Unified line diff — Apex, JS, HTML, YAML, etc.</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout tip">
+        <span class="callout-icon">◆</span>
+        <p>The normalized content fed to Monaco is the same content that the diff engine compared,
+        so the visual diff always matches the terminal diff — no surprises from byte-order marks,
+        inconsistent line endings, or attribute-ordering noise.</p>
+      </div>
+    </section>
+
+    <!-- ── quick examples ── -->
+    <section class="cmd-section" id="examples">
+      <h2>Quick examples</h2>
+      <div class="section-divider"></div>
+
+      <h3>Daily workflow</h3>
+      <pre><span class="c"># See what's in the working tree before staging</span>
+<span class="b">$</span> <span class="s">sf-rust git status</span>
+
+<span class="c"># Review what you're about to commit</span>
+<span class="b">$</span> <span class="s">sf-rust git status --staged</span>
+<span class="b">$</span> <span class="s">sf-rust git diff --staged --stat</span>
+
+<span class="c"># Open a Monaco diff before committing</span>
+<span class="b">$</span> <span class="s">sf-rust git diff --staged --viz</span>
+
+<span class="c"># Inspect the last commit</span>
+<span class="b">$</span> <span class="s">sf-rust git show --stat</span></pre>
+
+      <h3>Code review</h3>
+      <pre><span class="c"># See all changes in a feature branch vs main</span>
+<span class="b">$</span> <span class="s">sf-rust git diff main..feature/my-branch --stat</span>
+
+<span class="c"># Open Monaco for the whole diff</span>
+<span class="b">$</span> <span class="s">sf-rust git diff main..feature/my-branch --viz</span>
+
+<span class="c"># Show commit-by-commit history of the branch</span>
+<span class="b">$</span> <span class="s">sf-rust git log --since "2 weeks ago" --viz</span>
+
+<span class="c"># Deep-dive a specific commit</span>
+<span class="b">$</span> <span class="s">sf-rust git show abc1234 --viz</span></pre>
+
+      <h3>CI / scripting</h3>
+      <pre><span class="c"># Get changed component types as JSON</span>
+<span class="b">$</span> <span class="s">sf-rust git diff HEAD~1 --json | jq '[.[].component_type] | unique'</span>
+
+<span class="c"># Check if any PermissionSet changed</span>
+<span class="b">$</span> <span class="s">sf-rust git diff HEAD~1 --json | jq 'any(.[]; .component_type == "PermissionSet")'</span>
+
+<span class="c"># Full commit detail for the last merge</span>
+<span class="b">$</span> <span class="s">sf-rust git show HEAD --json | jq '.component_summary'</span>
+
+<span class="c"># All commits touching Apex in the past month</span>
+<span class="b">$</span> <span class="s">sf-rust git log --since "1 month ago" --json \</span>
+<span class="b">    |</span> <span class="s">jq '[.[] | select(.component_summary.ApexClass != null)]'</span></pre>
+
+      <h3>Set up hooks in a new project</h3>
+      <pre><span class="c"># Non-blocking: informational only</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install</span>
+
+<span class="c"># Blocking: enforce commit quality</span>
+<span class="b">$</span> <span class="s">sf-rust git hook install --block</span>
+
+<span class="c"># Check what's installed</span>
+<span class="b">$</span> <span class="s">sf-rust git hook list</span>
+
+<span class="c"># Remove everything and restore backups</span>
+<span class="b">$</span> <span class="s">sf-rust git hook uninstall</span></pre>
+    </section>
+
+  </main>
+</div>
+
+<!-- ── footer ── -->
+<footer>
+  <span>sf-rust · git utilities · Phases 1–5 · Author: Mohan Chinnappan</span>
+  <span>
+    <a href="https://github.com">GitHub</a> ·
+    <span>107 man pages</span> ·
+    <span>98 smoke tests</span>
+  </span>
+</footer>
+
+<script>
+  // Active nav link tracking
+  const sections = document.querySelectorAll('.cmd-section, .hero');
+  const navLinks  = document.querySelectorAll('nav a');
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        navLinks.forEach(a => {
+          a.classList.toggle('active', a.getAttribute('href') === '#' + e.target.id);
+        });
+      }
+    });
+  }, { rootMargin: '-48px 0px -60% 0px', threshold: 0 });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
