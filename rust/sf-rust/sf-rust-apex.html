@@ -1,0 +1,1093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sf-rust apex — Apex command suite</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #1e1e1e;
+    --panel:   #252526;
+    --panel2:  #2d2d2d;
+    --border:  #3c3c3c;
+    --text:    #cccccc;
+    --muted:   #6a6a6a;
+    --blue:    #569cd6;
+    --green:   #4ec9b0;
+    --red:     #f14c4c;
+    --yellow:  #dcdcaa;
+    --purple:  #c586c0;
+    --orange:  #ce9178;
+    --cyan:    #9cdcfe;
+    --string:  #ce9178;
+    --comment: #6a9955;
+    --keyword: #c586c0;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* ── top bar ── */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    height: 48px;
+    background: #252526;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 1.5rem; gap: 1rem;
+  }
+  .topbar-logo { font-size: 1rem; font-weight: 700; color: var(--blue); letter-spacing: -.01em; }
+  .topbar-sep  { color: #444; }
+  .topbar-sub  { font-size: .9rem; color: #aaa; }
+  .topbar-badge {
+    margin-left: auto;
+    font-size: .7rem; color: var(--muted);
+    background: #333; border: 1px solid #444;
+    border-radius: 4px; padding: .18rem .6rem;
+  }
+
+  /* ── layout ── */
+  .layout {
+    display: flex;
+    flex: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 0 1rem;
+    gap: 2.5rem;
+  }
+
+  /* ── sidebar ── */
+  nav.sidebar {
+    width: 210px; flex-shrink: 0;
+    padding: 2rem 0;
+    position: sticky; top: 48px;
+    height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+  .nav-section-label {
+    font-size: .65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--muted);
+    padding: .9rem 0 .3rem;
+  }
+  .nav-section-label:first-child { padding-top: 0; }
+  nav a {
+    display: block;
+    font-size: .82rem; color: #999;
+    padding: .28rem .6rem;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: background .1s, color .1s;
+  }
+  nav a:hover  { background: #2a2a2a; color: var(--text); }
+  nav a.active { background: rgba(86,156,214,.12); color: var(--blue); }
+  nav a .cmd-badge {
+    display: inline-block; font-family: monospace;
+    font-size: .72rem; background: #333; border-radius: 3px;
+    padding: .05rem .3rem; margin-right: .3rem; color: var(--cyan);
+  }
+  nav a .new-badge {
+    display: inline-block; font-size: .6rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em;
+    background: rgba(78,201,176,.15); color: var(--green);
+    border: 1px solid rgba(78,201,176,.3);
+    border-radius: 3px; padding: .05rem .28rem; margin-left: .25rem;
+    vertical-align: middle;
+  }
+
+  /* ── main content ── */
+  main { flex: 1; padding: 2rem 0 4rem; min-width: 0; }
+
+  /* ── hero ── */
+  .hero {
+    padding: 2.5rem 2rem 2rem;
+    background: linear-gradient(135deg, #1e1e1e 60%, #1a2535);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 3rem;
+  }
+  .hero h1 { font-size: 2rem; font-weight: 700; color: var(--blue); letter-spacing: -.02em; margin-bottom: .4rem; }
+  .hero .tagline { font-size: 1.05rem; color: #aaa; margin-bottom: 1.5rem; }
+  .hero-features { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .feat-pill {
+    font-size: .72rem; padding: .22rem .7rem;
+    border-radius: 20px; font-weight: 600;
+  }
+  .feat-pill.blue   { background: rgba(86,156,214,.12); color: #569cd6; border: 1px solid rgba(86,156,214,.25); }
+  .feat-pill.green  { background: rgba(78,201,176,.12); color: #4ec9b0; border: 1px solid rgba(78,201,176,.25); }
+  .feat-pill.purple { background: rgba(197,134,192,.12); color: #c586c0; border: 1px solid rgba(197,134,192,.25); }
+  .feat-pill.orange { background: rgba(206,145,120,.12); color: #ce9178; border: 1px solid rgba(206,145,120,.25); }
+  .feat-pill.yellow { background: rgba(220,220,170,.12); color: #dcdcaa; border: 1px solid rgba(220,220,170,.25); }
+
+  /* ── section headings ── */
+  .cmd-section { margin-bottom: 3.5rem; scroll-margin-top: 60px; }
+  .cmd-section h2 {
+    font-size: 1.3rem; font-weight: 700;
+    color: var(--text);
+    display: flex; align-items: center; gap: .6rem;
+    margin-bottom: .3rem;
+  }
+  .cmd-section h2 code {
+    font-size: 1.1rem; color: var(--blue);
+    background: rgba(86,156,214,.08);
+    border: 1px solid rgba(86,156,214,.2);
+    border-radius: 5px; padding: .1rem .5rem;
+  }
+  .cmd-section h2 .new-label {
+    font-size: .65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--green);
+    background: rgba(78,201,176,.1); border: 1px solid rgba(78,201,176,.3);
+    border-radius: 4px; padding: .15rem .45rem;
+  }
+  .cmd-desc { color: #aaa; font-size: .92rem; margin-bottom: 1.2rem; }
+  .section-divider { height: 1px; background: var(--border); margin-bottom: 1.5rem; }
+
+  /* ── flags table ── */
+  .flags-table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: .85rem; }
+  .flags-table th {
+    text-align: left; font-size: .7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--muted);
+    padding: .4rem .7rem; border-bottom: 1px solid var(--border);
+  }
+  .flags-table td { padding: .45rem .7rem; border-bottom: 1px solid #2a2a2a; vertical-align: top; }
+  .flags-table tr:last-child td { border-bottom: none; }
+  .flags-table td:first-child { font-family: monospace; color: var(--cyan); white-space: nowrap; }
+  .flags-table td:last-child  { color: #aaa; }
+  .flag-default { font-size: .72rem; color: var(--muted); margin-top: .15rem; }
+
+  /* ── rules table ── */
+  .rules-table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: .84rem; }
+  .rules-table th {
+    text-align: left; font-size: .7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--muted);
+    padding: .4rem .8rem; border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  .rules-table td { padding: .5rem .8rem; border-bottom: 1px solid #2a2a2a; vertical-align: top; }
+  .rules-table tr:last-child td { border-bottom: none; }
+  .rules-table td:first-child { font-family: monospace; color: var(--cyan); }
+  .sev-critical { color: var(--red);    font-weight: 700; font-size: .78rem; }
+  .sev-high     { color: var(--orange); font-weight: 700; font-size: .78rem; }
+  .sev-medium   { color: var(--yellow); font-weight: 700; font-size: .78rem; }
+  .sev-low      { color: var(--muted);  font-weight: 700; font-size: .78rem; }
+
+  /* ── code blocks ── */
+  pre {
+    background: #1a1a1a;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", monospace;
+    font-size: .8rem;
+    line-height: 1.65;
+    margin-bottom: 1rem;
+    position: relative;
+  }
+  pre .label {
+    position: absolute; top: .5rem; right: .7rem;
+    font-size: .62rem; color: #555; font-family: sans-serif;
+  }
+  .c  { color: var(--comment); }
+  .k  { color: var(--keyword); }
+  .s  { color: var(--string); }
+  .g  { color: var(--green); }
+  .r  { color: var(--red); }
+  .b  { color: var(--blue); }
+  .y  { color: var(--yellow); }
+  .m  { color: var(--muted); }
+
+  /* ── inline code ── */
+  code { font-family: monospace; font-size: .85em; }
+  p code, li code, td code {
+    background: #2a2a2a; border: 1px solid #3a3a3a;
+    border-radius: 3px; padding: .08em .35em;
+    color: var(--cyan);
+  }
+
+  /* ── sub-headings ── */
+  h3 { font-size: .95rem; font-weight: 600; color: #ccc; margin: 1.5rem 0 .6rem; }
+  h4 { font-size: .82rem; font-weight: 600; color: var(--muted); margin: 1.2rem 0 .4rem; text-transform: uppercase; letter-spacing: .06em; }
+
+  /* ── callout boxes ── */
+  .callout {
+    display: flex; gap: .8rem; align-items: flex-start;
+    padding: .8rem 1rem; border-radius: 6px; margin-bottom: 1rem;
+    font-size: .85rem;
+  }
+  .callout.tip  { background: rgba(78,201,176,.07); border: 1px solid rgba(78,201,176,.2); }
+  .callout.note { background: rgba(86,156,214,.07); border: 1px solid rgba(86,156,214,.2); }
+  .callout.warn { background: rgba(220,220,170,.07); border: 1px solid rgba(220,220,170,.2); }
+  .callout-icon { font-size: 1rem; flex-shrink: 0; margin-top: .05rem; }
+  .callout.tip  .callout-icon { color: var(--green); }
+  .callout.note .callout-icon { color: var(--blue); }
+  .callout.warn .callout-icon { color: var(--yellow); }
+  .callout p { color: #bbb; }
+  .callout p strong { color: var(--text); }
+
+  /* ── two-column examples ── */
+  .example-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+  @media (max-width: 800px) { .example-grid { grid-template-columns: 1fr; } }
+
+  /* ── output sample box ── */
+  .output-sample {
+    background: #181818; border: 1px solid #333;
+    border-radius: 7px; padding: .9rem 1rem;
+    font-family: monospace; font-size: .78rem; line-height: 1.7;
+    overflow-x: auto; margin-bottom: 1rem;
+  }
+  .hl-g { color: var(--green); }
+  .hl-b { color: var(--blue); }
+  .hl-y { color: var(--yellow); }
+  .hl-r { color: var(--red); }
+  .hl-m { color: var(--muted); }
+  .hl-p { color: var(--purple); }
+  .hl-o { color: var(--orange); }
+  .hl-c { color: var(--cyan); }
+
+  /* ── footer ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 1.2rem 1.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: .75rem; color: var(--muted);
+  }
+  footer a { color: #555; text-decoration: none; }
+  footer a:hover { color: #999; }
+
+  /* ── format pill grid ── */
+  .format-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: .5rem; margin-bottom: 1.2rem; }
+  .format-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: .6rem .8rem;
+    font-size: .78rem;
+  }
+  .format-card .fc-flag { font-family: monospace; color: var(--cyan); font-size: .82rem; display: block; margin-bottom: .2rem; }
+  .format-card .fc-desc { color: #888; font-size: .72rem; }
+</style>
+</head>
+<body>
+
+<!-- ── top bar ── -->
+<header class="topbar">
+  <span class="topbar-logo">sf-rust</span>
+  <span class="topbar-sep">/</span>
+  <span class="topbar-sub">apex</span>
+  <span class="topbar-badge">v0.2.0 · Apex command suite</span>
+</header>
+
+<div class="layout">
+
+  <!-- ── sidebar ── -->
+  <nav class="sidebar" id="sidebar-nav">
+    <div class="nav-section-label">Overview</div>
+    <a href="#overview">Introduction</a>
+
+    <div class="nav-section-label">Anonymous Apex</div>
+    <a href="#execute"><span class="cmd-badge">execute</span>Execute Apex</a>
+
+    <div class="nav-section-label">Testing</div>
+    <a href="#test-run"><span class="cmd-badge">test run</span>Run tests</a>
+    <a href="#test-report"><span class="cmd-badge">test report</span>Report</a>
+
+    <div class="nav-section-label">Debug Logs</div>
+    <a href="#get-log"><span class="cmd-badge">get-log</span>Download log</a>
+    <a href="#log-parse"><span class="cmd-badge">log-parse</span>Parse log <span class="new-badge">NEW</span></a>
+
+    <div class="nav-section-label">Coverage</div>
+    <a href="#coverage"><span class="cmd-badge">coverage</span>Class coverage <span class="new-badge">NEW</span></a>
+
+    <div class="nav-section-label">Linting</div>
+    <a href="#lint"><span class="cmd-badge">lint</span>Static analysis <span class="new-badge">NEW</span></a>
+
+    <div class="nav-section-label">Class listing</div>
+    <a href="#list"><span class="cmd-badge">list</span>List classes</a>
+
+    <div class="nav-section-label">Reference</div>
+    <a href="#examples">Quick examples</a>
+  </nav>
+
+  <!-- ── main ── -->
+  <main>
+
+    <!-- ── hero ── -->
+    <section class="hero" id="overview">
+      <h1>sf-rust apex</h1>
+      <p class="tagline">
+        Execute, test, debug, and analyse Apex code — offline and live — from a single native binary.
+        No Node.js, no npm, no JVM required.
+      </p>
+      <div class="hero-features">
+        <span class="feat-pill blue">Execute Anonymous Apex</span>
+        <span class="feat-pill green">Async test run + report</span>
+        <span class="feat-pill purple">Debug log timeline</span>
+        <span class="feat-pill orange">Per-class coverage</span>
+        <span class="feat-pill yellow">Native lint rules + PMD</span>
+        <span class="feat-pill blue">No Node.js</span>
+      </div>
+    </section>
+
+    <!-- ── command overview ── -->
+    <section class="cmd-section" id="commands-overview">
+      <h2>Command overview</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">All <code>apex</code> subcommands at a glance. Three new commands were added in v0.2.0: <code>log-parse</code>, <code>coverage</code>, and <code>lint</code> — all work offline (no live org needed).</p>
+
+      <div class="format-grid">
+        <div class="format-card">
+          <span class="fc-flag">apex execute</span>
+          <span class="fc-desc">Execute anonymous Apex code from file or stdin</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">apex test run</span>
+          <span class="fc-desc">Start an async Apex test run</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">apex test report</span>
+          <span class="fc-desc">Retrieve results for a test run ID</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">apex get-log</span>
+          <span class="fc-desc">List or download Apex debug logs</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">apex log-parse ✦</span>
+          <span class="fc-desc">Parse a local .log file into a structured timeline</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">apex coverage ✦</span>
+          <span class="fc-desc">Per-class coverage table from last test run</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">apex lint ✦</span>
+          <span class="fc-desc">Native static analysis rules + optional PMD</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">apex list</span>
+          <span class="fc-desc">List all Apex classes in the org</span>
+        </div>
+      </div>
+      <p class="cmd-desc" style="font-size:.8rem;color:var(--muted);">✦ New in v0.2.0 — works offline (no org required).</p>
+    </section>
+
+    <!-- ── execute ── -->
+    <section class="cmd-section" id="execute">
+      <h2><code>apex execute</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Execute Anonymous Apex against a live org via the SOAP <code>/services/Soap/s/{version}</code> endpoint.
+        Reads Apex code from a file (<code>-f</code>) or from stdin. Prints compile errors, runtime exceptions,
+        and stack traces on failure; exits 0 on success.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--file &lt;FILE&gt;</td><td>-f</td><td>Path to <code>.apex</code> script file. If omitted, reads from stdin.</td></tr>
+          <tr><td>--target-org &lt;ALIAS&gt;</td><td>-o</td><td>Org alias or username. Defaults to the configured default org.</td></tr>
+          <tr><td>--json</td><td>-j</td><td>Output result as JSON (compiled, success, line, exceptionMessage, etc.).</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c"># Execute a script file</span>
+sf-rust apex execute <span class="k">-f</span> scripts/hello.apex <span class="k">-o</span> dev1
+
+<span class="c"># Execute and get JSON output for scripting</span>
+sf-rust apex execute <span class="k">-f</span> scripts/hello.apex <span class="k">-o</span> dev1 <span class="k">--json</span>
+
+<span class="c"># Pipe Apex code from stdin</span>
+<span class="b">echo</span> <span class="s">"System.debug('hello world');"</span> | sf-rust apex execute <span class="k">-o</span> dev1
+
+<span class="c"># Multi-line from shell heredoc</span>
+sf-rust apex execute <span class="k">-o</span> dev1 <span class="k">&lt;&lt;</span><span class="s">'APEX'</span>
+List&lt;Account&gt; accs = [SELECT Id, Name FROM Account LIMIT 5];
+System.debug('Found: ' + accs.size());
+<span class="s">APEX</span></pre>
+
+      <h4>Success output</h4>
+      <div class="output-sample">
+<span class="hl-g">Execute Anonymous: SUCCESS</span>
+<span class="hl-m">Time: 312ms</span></div>
+
+      <h4>JSON output</h4>
+      <div class="output-sample">
+{
+  <span class="hl-b">"status"</span>: <span class="hl-y">0</span>,
+  <span class="hl-b">"result"</span>: {
+    <span class="hl-b">"compiled"</span>:             <span class="hl-g">true</span>,
+    <span class="hl-b">"compileProblem"</span>:        <span class="hl-m">null</span>,
+    <span class="hl-b">"success"</span>:              <span class="hl-g">true</span>,
+    <span class="hl-b">"line"</span>:                 <span class="hl-y">-1</span>,
+    <span class="hl-b">"column"</span>:               <span class="hl-y">-1</span>,
+    <span class="hl-b">"exceptionMessage"</span>:     <span class="hl-m">null</span>,
+    <span class="hl-b">"exceptionStackTrace"</span>:  <span class="hl-m">null</span>
+  }
+}</div>
+
+      <h4>Compile error output</h4>
+      <div class="output-sample">
+<span class="hl-r">Compile error: Unexpected token 'selectt'. (line 1, col 15)</span>
+<span class="hl-m">Time: 89ms</span></div>
+
+      <div class="callout tip">
+        <span class="callout-icon">💡</span>
+        <p><strong>Tip:</strong> Use <code>--json</code> in CI pipelines to reliably detect failures. The exit code is 1 on runtime exception or compile error regardless of <code>--json</code>.</p>
+      </div>
+    </section>
+
+    <!-- ── test run ── -->
+    <section class="cmd-section" id="test-run">
+      <h2><code>apex test run</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Enqueue an async Apex test run. Returns a test run ID immediately. Use <code>apex test report</code>
+        to poll for results, or pass <code>--wait</code> to block until completion (polling every 5 seconds).
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--class-names &lt;NAMES&gt;</td><td>-n</td><td>Apex test class names. Repeatable or comma-separated: <code>-n MyTest -n OtherTest</code> or <code>-n "MyTest,OtherTest"</code>.</td></tr>
+          <tr><td>--suite-names &lt;NAMES&gt;</td><td>-s</td><td>ApexTestSuite names to run.</td></tr>
+          <tr><td>--test-level &lt;LEVEL&gt;</td><td></td><td><code>RunLocalTests</code>, <code>RunAllTestsInOrg</code>, or <code>RunSpecifiedTests</code>.</td></tr>
+          <tr><td>--target-org &lt;ALIAS&gt;</td><td>-o</td><td>Org alias or username.</td></tr>
+          <tr><td>--json</td><td>-j</td><td>Return test run ID as JSON.</td></tr>
+          <tr><td>--wait &lt;SECONDS&gt;</td><td></td><td>Block and poll for up to N seconds; print results on completion.</td></tr>
+          <tr><td>--output-dir &lt;DIR&gt;</td><td></td><td>Directory to write test result files (reserved for future use).</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c"># Run a single test class</span>
+sf-rust apex test run <span class="k">-n</span> MyApexTest <span class="k">-o</span> dev1
+
+<span class="c"># Run multiple classes</span>
+sf-rust apex test run <span class="k">-n</span> <span class="s">"AccountTriggerTest,ContactTriggerTest"</span> <span class="k">-o</span> dev1
+
+<span class="c"># Run all local tests and wait up to 2 minutes</span>
+sf-rust apex test run <span class="k">--test-level</span> RunLocalTests <span class="k">-o</span> dev1 <span class="k">--wait</span> 120
+
+<span class="c"># Get test run ID as JSON (for CI)</span>
+sf-rust apex test run <span class="k">-n</span> MyApexTest <span class="k">-o</span> dev1 <span class="k">--json</span></pre>
+
+      <div class="output-sample">
+Test run started: <span class="hl-c">7076g000003GnxRAAS</span>
+Status: <span class="hl-y">Queued</span>
+
+Run <span class="hl-b">'sf-rust apex test report --test-run-id 7076g000003GnxRAAS'</span> to check status
+<span class="hl-m">Time: 445ms</span></div>
+
+      <h4>JSON output</h4>
+      <div class="output-sample">
+{
+  <span class="hl-b">"status"</span>: <span class="hl-y">0</span>,
+  <span class="hl-b">"result"</span>: {
+    <span class="hl-b">"testRunId"</span>: <span class="hl-o">"7076g000003GnxRAAS"</span>,
+    <span class="hl-b">"status"</span>:    <span class="hl-o">"Queued"</span>
+  }
+}</div>
+
+      <div class="callout note">
+        <span class="callout-icon">ℹ</span>
+        <p><strong>Test levels:</strong> <code>RunSpecifiedTests</code> requires <code>-n</code> or <code>-s</code>. <code>RunLocalTests</code> and <code>RunAllTestsInOrg</code> ignore class/suite filters and run everything in scope.</p>
+      </div>
+    </section>
+
+    <!-- ── test report ── -->
+    <section class="cmd-section" id="test-report">
+      <h2><code>apex test report</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Retrieve and display results for a previously started test run by its ID.
+        Shows passed/failed counts and details of any failing methods.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--test-run-id &lt;ID&gt;</td><td>-i</td><td>The test run ID returned by <code>apex test run</code>.</td></tr>
+          <tr><td>--target-org &lt;ALIAS&gt;</td><td>-o</td><td>Org alias or username.</td></tr>
+          <tr><td>--json</td><td>-j</td><td>Return full results as JSON.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c"># Check results for a test run</span>
+sf-rust apex test report <span class="k">-i</span> 7076g000003GnxRAAS <span class="k">-o</span> dev1
+
+<span class="c"># Get results as JSON for downstream processing</span>
+sf-rust apex test report <span class="k">-i</span> 7076g000003GnxRAAS <span class="k">-o</span> dev1 <span class="k">--json</span>
+
+<span class="c"># Extract only failing tests with jq</span>
+sf-rust apex test report <span class="k">-i</span> 7076g000003GnxRAAS <span class="k">-o</span> dev1 <span class="k">--json</span> \
+  | jq <span class="s">'[.result.tests[] | select(.outcome == "Fail")]'</span></pre>
+
+      <div class="output-sample">
+<span class="hl-b">Test Results:</span>
+  Passed: <span class="hl-g">14</span>
+  Failed: <span class="hl-r">1</span>
+  Total:  <span class="hl-y">15</span>
+
+<span class="hl-r">Failures:</span>
+  <span class="hl-r">AccountTriggerTest.testBulkInsert</span> - System.AssertException: Assertion failed
+<span class="hl-m">Time: 892ms</span></div>
+    </section>
+
+    <!-- ── get-log ── -->
+    <section class="cmd-section" id="get-log">
+      <h2><code>apex get-log</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        List recent Apex debug logs or download the body of a specific log by ID.
+        Uses the Tooling API (<code>ApexLog</code> SObject). Without <code>-i</code>,
+        returns a JSON list of recent logs ordered by <code>StartTime DESC</code>.
+        With <code>-i</code>, streams the raw log body to stdout — pipe to a file and
+        then parse offline with <code>apex log-parse</code>.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--log-id &lt;ID&gt;</td><td>-i</td><td>Log ID. If set, streams the raw log body. If omitted, lists recent logs.</td></tr>
+          <tr><td>--number &lt;N&gt;</td><td>-n</td><td>How many logs to list (default: 10). Ignored when <code>-i</code> is set.</td></tr>
+          <tr><td>--target-org &lt;ALIAS&gt;</td><td>-o</td><td>Org alias or username.</td></tr>
+          <tr><td>--json</td><td>-j</td><td>Return log list as JSON. Ignored when streaming body.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c"># List the 10 most recent logs</span>
+sf-rust apex get-log <span class="k">-o</span> dev1
+
+<span class="c"># List the 25 most recent logs as JSON</span>
+sf-rust apex get-log <span class="k">-n</span> 25 <span class="k">-o</span> dev1 <span class="k">--json</span>
+
+<span class="c"># Download a specific log body to a file</span>
+sf-rust apex get-log <span class="k">-i</span> 07L6g000006lLy2EAE <span class="k">-o</span> dev1 &gt; debug.log
+
+<span class="c"># Download and immediately parse</span>
+sf-rust apex get-log <span class="k">-i</span> 07L6g000006lLy2EAE <span class="k">-o</span> dev1 &gt; debug.log \
+  &amp;&amp; sf-rust apex log-parse debug.log</pre>
+
+      <h4>Log list output (JSON)</h4>
+      <div class="output-sample">
+{
+  <span class="hl-b">"status"</span>: <span class="hl-y">0</span>,
+  <span class="hl-b">"result"</span>: {
+    <span class="hl-b">"records"</span>: [
+      {
+        <span class="hl-b">"Id"</span>:                   <span class="hl-o">"07L6g000006lLy2EAE"</span>,
+        <span class="hl-b">"Application"</span>:         <span class="hl-o">"Unknown"</span>,
+        <span class="hl-b">"DurationMilliseconds"</span>: <span class="hl-y">312</span>,
+        <span class="hl-b">"LogLength"</span>:            <span class="hl-y">48291</span>,
+        <span class="hl-b">"Operation"</span>:           <span class="hl-o">"Execute"</span>,
+        <span class="hl-b">"StartTime"</span>:           <span class="hl-o">"2026-11-13T17:52:04.000+0000"</span>,
+        <span class="hl-b">"Status"</span>:              <span class="hl-o">"Success"</span>
+      }
+    ]
+  }
+}</div>
+
+      <div class="callout tip">
+        <span class="callout-icon">💡</span>
+        <p><strong>Workflow:</strong> Enable debug logging in Setup → Debug Log, reproduce the issue, then <code>get-log -i &lt;ID&gt; -o dev1 &gt; trace.log</code> and analyse with <code>apex log-parse trace.log --datatable</code>.</p>
+      </div>
+    </section>
+
+    <!-- ── log-parse ── -->
+    <section class="cmd-section" id="log-parse">
+      <h2><code>apex log-parse</code> <span class="new-label">NEW in v0.2.0</span></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Offline structured viewer for Salesforce Apex debug log files. Parses the raw
+        <code>HH:MM:SS.mmm (nanos)|EVENT_TYPE|...</code> format into a human-readable
+        summary + timeline table. No org connection required.
+      </p>
+
+      <div class="callout note">
+        <span class="callout-icon">ℹ</span>
+        <p><strong>Offline command.</strong> Download logs first with <code>apex get-log -i &lt;ID&gt; -o dev1 &gt; trace.log</code>, then parse locally at any time. The log file never leaves your machine.</p>
+      </div>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>&lt;LOG_FILE&gt;</td><td></td><td>Path to the Apex debug log file (positional argument).</td></tr>
+          <tr><td>--datatable</td><td></td><td>Generate a self-contained dark HTML page and open it in the browser. Sortable, filterable, with event-type dropdown.</td></tr>
+          <tr><td>--filter &lt;KEYWORD&gt;</td><td></td><td>Show only events whose type or details contain the keyword (case-insensitive).</td></tr>
+          <tr><td>--json</td><td>-j</td><td>Output <code>{"summary": {...}, "events": [...]}</code> as JSON for scripting.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Events parsed</h3>
+      <p class="cmd-desc">The parser extracts and pairs begin/end events to compute durations:</p>
+      <table class="flags-table">
+        <thead><tr><th>Event pair</th><th>Details extracted</th></tr></thead>
+        <tbody>
+          <tr><td>EXECUTION_STARTED / FINISHED</td><td>Total execution time baseline</td></tr>
+          <tr><td>METHOD_ENTRY / METHOD_EXIT</td><td>Class.method name, duration (ms)</td></tr>
+          <tr><td>SOQL_EXECUTE_BEGIN / END</td><td>SOQL query text, row count, duration</td></tr>
+          <tr><td>DML_BEGIN / DML_END</td><td>Op (Insert/Update/Delete), SObject type, row count, duration</td></tr>
+          <tr><td>USER_DEBUG</td><td>Log level (DEBUG/INFO/WARN), message text</td></tr>
+          <tr><td>EXCEPTION_THROWN</td><td>Exception type and message</td></tr>
+          <tr><td>HEAP_ALLOCATE</td><td>Bytes allocated (cumulative)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c"># Download then parse</span>
+sf-rust apex get-log <span class="k">-i</span> 07L6g000006lLy2EAE <span class="k">-o</span> dev1 &gt; my.log
+sf-rust apex log-parse my.log
+
+<span class="c"># Show only SOQL events</span>
+sf-rust apex log-parse my.log <span class="k">--filter</span> SOQL
+
+<span class="c"># Show only events related to a specific class</span>
+sf-rust apex log-parse my.log <span class="k">--filter</span> AccountService
+
+<span class="c"># Open interactive browser datatable</span>
+sf-rust apex log-parse my.log <span class="k">--datatable</span>
+
+<span class="c"># Full JSON output</span>
+sf-rust apex log-parse my.log <span class="k">--json</span>
+
+<span class="c"># Extract just the summary</span>
+sf-rust apex log-parse my.log <span class="k">--json</span> | jq <span class="s">'.summary'</span>
+
+<span class="c"># All SOQL statements with their durations</span>
+sf-rust apex log-parse my.log <span class="k">--json</span> \
+  | jq <span class="s">'[.events[] | select(.event == "SOQL_EXECUTE_BEGIN")]'</span>
+
+<span class="c"># Find the slowest method call</span>
+sf-rust apex log-parse my.log <span class="k">--json</span> \
+  | jq <span class="s">'[.events[] | select(.event == "METHOD_EXIT" and .duration_ms != null)]
+    | sort_by(.duration_ms) | reverse | .[0]'</span></pre>
+
+      <h4>Summary output</h4>
+      <div class="output-sample">
+<span class="hl-b">Apex Log Summary</span>
+┌─────────────────┬──────────────────────────────┐
+│ <span class="hl-c">Key</span>             │ <span class="hl-c">Value</span>                        │
+├─────────────────┼──────────────────────────────┤
+│ File            │ debug.log                    │
+│ Log lines       │ <span class="hl-y">3 847</span>                        │
+│ Total time (ms) │ <span class="hl-y">1 243.871</span>                    │
+│ CPU time (ms)   │ <span class="hl-y">820</span>                          │
+│ Heap allocated  │ <span class="hl-y">28 160 B</span>                     │
+│ SOQL statements │ <span class="hl-g">12</span>                           │
+│ DML statements  │ <span class="hl-g">3</span>                            │
+│ Method entries  │ <span class="hl-g">47</span>                           │
+│ USER_DEBUG      │ <span class="hl-y">8</span>                            │
+│ Exceptions      │ <span class="hl-r">1</span>                            │
+└─────────────────┴──────────────────────────────┘</div>
+
+      <h4>Timeline output</h4>
+      <div class="output-sample">
+┌────┬───────────┬──────────┬────────────────────┬─────────────────────────────────────────────────────┐
+│ <span class="hl-c">#</span>  │ <span class="hl-c">Time (ms)</span> │ <span class="hl-c">Dur (ms)</span> │ <span class="hl-c">Event</span>              │ <span class="hl-c">Details</span>                                             │
+├────┼───────────┼──────────┼────────────────────┼─────────────────────────────────────────────────────┤
+│  0 │ 0.000     │          │ EXECUTION_STARTED  │                                                     │
+│  1 │ 2.403     │          │ METHOD_ENTRY       │ <span class="hl-p">AccountService.getAccounts</span>                          │
+│  2 │ 5.812     │          │ SOQL_EXECUTE_BEGIN │ <span class="hl-b">SELECT Id, Name FROM Account WHERE Industry = 'Tech'</span>│
+│  3 │ 7.203     │ <span class="hl-y">1.391</span>    │ SOQL_EXECUTE_END   │ Rows:3                                              │
+│  4 │ 7.771     │          │ DML_BEGIN          │ Op:Insert Type:Contact Rows:1                       │
+│  5 │ 8.871     │ <span class="hl-y">1.100</span>    │ DML_END            │                                                     │
+│  6 │ 9.671     │          │ USER_DEBUG         │ Processing complete                                  │
+│  7 │ 10.771    │          │ EXCEPTION_THROWN   │ <span class="hl-r">System.NullPointerException:Attempt to de-reference</span>  │
+│  8 │ 12.971    │ <span class="hl-y">10.568</span>   │ METHOD_EXIT        │ <span class="hl-p">AccountService.getAccounts</span>                          │
+│  9 │ 15.671    │          │ EXECUTION_FINISHED │                                                     │
+└────┴───────────┴──────────┴────────────────────┴─────────────────────────────────────────────────────┘</div>
+
+      <div class="callout tip">
+        <span class="callout-icon">💡</span>
+        <p><strong>Datatable mode</strong> (<code>--datatable</code>) generates a self-contained HTML page at <code>/tmp/sf-rust-apex-log-{ts}.html</code> and opens it automatically. The page has a live search box, event-type filter dropdown, and sortable columns — ideal for debugging complex transactions with hundreds of events.</p>
+      </div>
+    </section>
+
+    <!-- ── coverage ── -->
+    <section class="cmd-section" id="coverage">
+      <h2><code>apex coverage</code> <span class="new-label">NEW in v0.2.0</span></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Retrieve per-class Apex code coverage from the Tooling API
+        (<code>ApexCodeCoverageAggregate</code>) after a test run.
+        Shows a coverage bar, percentage, and 75% pass/fail marker for every class and trigger.
+      </p>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠</span>
+        <p><strong>75% rule:</strong> Salesforce requires at least 75% aggregate coverage to deploy to production. Classes below this threshold are marked <strong>✗</strong>. Use <code>--below 75</code> to show only failing classes.</p>
+      </div>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--target-org &lt;ALIAS&gt;</td><td>-o</td><td>Org alias or username. Required (live org connection needed).</td></tr>
+          <tr><td>--below &lt;PCT&gt;</td><td></td><td>Show only classes with coverage strictly below this percentage. E.g., <code>--below 75</code>.</td></tr>
+          <tr><td>--sort-asc</td><td></td><td>Sort by ascending coverage (lowest first). Default: true.</td></tr>
+          <tr><td>--json</td><td>-j</td><td>Output results as JSON array with <code>name</code>, <code>covered</code>, <code>uncovered</code>, <code>total</code>, <code>pct</code> fields.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c"># Show all class coverage, sorted ascending</span>
+sf-rust apex coverage <span class="k">-o</span> dev1
+
+<span class="c"># Show only classes below 75% (deployment blockers)</span>
+sf-rust apex coverage <span class="k">-o</span> dev1 <span class="k">--below</span> 75
+
+<span class="c"># Show all classes with less than 100% coverage</span>
+sf-rust apex coverage <span class="k">-o</span> dev1 <span class="k">--below</span> 100
+
+<span class="c"># JSON output for CI reporting</span>
+sf-rust apex coverage <span class="k">-o</span> dev1 <span class="k">--json</span>
+
+<span class="c"># Extract classes below 75% via jq</span>
+sf-rust apex coverage <span class="k">-o</span> dev1 <span class="k">--json</span> \
+  | jq <span class="s">'[.result[] | select((.pct | tonumber) &lt; 75)]'</span></pre>
+
+      <h4>Sample output</h4>
+      <div class="output-sample">
+┌───────────────────────────────┬─────────┬───────────┬───────┬────────────┬──────────────────────┬─────┐
+│ <span class="hl-c">Class / Trigger</span>               │ <span class="hl-c">Covered</span> │ <span class="hl-c">Uncovered</span> │ <span class="hl-c">Total</span> │ <span class="hl-c">Coverage %</span> │ <span class="hl-c">Bar</span>                  │ <span class="hl-c">75%</span>  │
+├───────────────────────────────┼─────────┼───────────┼───────┼────────────┼──────────────────────┼─────┤
+│ AccountService                │      42 │        18 │    60 │  <span class="hl-r">70.0%</span>     │ [██████████████░░░░░] │  <span class="hl-r">✗</span>  │
+│ ContactTrigger                │      89 │         3 │    92 │  <span class="hl-g">96.7%</span>     │ [████████████████████] │  <span class="hl-g">✓</span>  │
+│ LeadConversionHandler         │      31 │        31 │    62 │  <span class="hl-r">50.0%</span>     │ [██████████░░░░░░░░░░] │  <span class="hl-r">✗</span>  │
+│ OpportunityRollupBatch        │      74 │         2 │    76 │  <span class="hl-g">97.4%</span>     │ [████████████████████] │  <span class="hl-g">✓</span>  │
+└───────────────────────────────┴─────────┴───────────┴───────┴────────────┴──────────────────────┴─────┘
+
+  <span class="hl-g">2 classes ≥ 75%</span>   <span class="hl-r">2 classes &lt; 75%</span></div>
+
+      <h4>JSON output</h4>
+      <div class="output-sample">
+{
+  <span class="hl-b">"status"</span>: <span class="hl-y">0</span>,
+  <span class="hl-b">"result"</span>: [
+    { <span class="hl-b">"name"</span>: <span class="hl-o">"AccountService"</span>,   <span class="hl-b">"covered"</span>: <span class="hl-y">42</span>, <span class="hl-b">"uncovered"</span>: <span class="hl-y">18</span>, <span class="hl-b">"total"</span>: <span class="hl-y">60</span>,  <span class="hl-b">"pct"</span>: <span class="hl-o">"70.0"</span> },
+    { <span class="hl-b">"name"</span>: <span class="hl-o">"ContactTrigger"</span>,   <span class="hl-b">"covered"</span>: <span class="hl-y">89</span>, <span class="hl-b">"uncovered"</span>:  <span class="hl-y">3</span>, <span class="hl-b">"total"</span>: <span class="hl-y">92</span>,  <span class="hl-b">"pct"</span>: <span class="hl-o">"96.7"</span> }
+  ]
+}</div>
+    </section>
+
+    <!-- ── lint ── -->
+    <section class="cmd-section" id="lint">
+      <h2><code>apex lint</code> <span class="new-label">NEW in v0.2.0</span></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Static analysis for Apex <code>.cls</code> and <code>.trigger</code> files.
+        Runs fully offline — no org, no JVM, no PMD installation required by default.
+        Seven built-in rules cover the most critical Apex anti-patterns. Optionally
+        delegates to an installed PMD binary (<code>--pmd</code>) for the full Salesforce rule set.
+      </p>
+
+      <div class="callout note">
+        <span class="callout-icon">ℹ</span>
+        <p><strong>Offline command.</strong> <code>apex lint</code> reads <code>.cls</code> files from your local filesystem. No org connection needed. Accepts individual files, glob patterns, or directories (recursive).</p>
+      </div>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>&lt;PATHS&gt;...</td><td></td><td>One or more <code>.cls</code> files or directories to lint. Directories are scanned recursively for <code>*.cls</code> files.</td></tr>
+          <tr><td>--pmd</td><td></td><td>Delegate to the installed PMD binary on your PATH. Runs <code>category/apex/bestpractices.xml</code>, <code>errorprone.xml</code>, and <code>security.xml</code>.</td></tr>
+          <tr><td>--json</td><td>-j</td><td>Return findings as JSON: <code>{"findings": [{file, line, rule, severity, message}]}</code>.</td></tr>
+          <tr><td>--fail</td><td></td><td>Exit with code 1 if any findings are found. Use in CI pre-flight gates.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Built-in rules</h3>
+      <table class="rules-table">
+        <thead>
+          <tr><th>Rule</th><th>Severity</th><th>What it catches</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>ApexSQLInjection</td>
+            <td><span class="sev-critical">Critical</span></td>
+            <td><code>Database.query(</code> or <code>Database.queryWithBinds(</code> — possible SOQL injection via string concatenation</td>
+          </tr>
+          <tr>
+            <td>EmptyCatchBlock</td>
+            <td><span class="sev-high">High</span></td>
+            <td><code>catch (Exception e) { }</code> — swallows exceptions silently, hides bugs</td>
+          </tr>
+          <tr>
+            <td>MissingSharingDeclaration</td>
+            <td><span class="sev-high">High</span></td>
+            <td><code>public class Foo</code> without <code>with sharing</code> or <code>without sharing</code> — defaults to inherited sharing, may expose records</td>
+          </tr>
+          <tr>
+            <td>HardcodedId</td>
+            <td><span class="sev-high">High</span></td>
+            <td>15/18-character Salesforce ID literals — will break in sandboxes and orgs; use SOQL or custom metadata</td>
+          </tr>
+          <tr>
+            <td>SystemDebugInProduction</td>
+            <td><span class="sev-medium">Medium</span></td>
+            <td><code>System.debug(</code> calls left in production code — wastes governor limit and leaks info to debug logs</td>
+          </tr>
+          <tr>
+            <td>CRUDViolation</td>
+            <td><span class="sev-medium">Medium</span></td>
+            <td>DML (<code>insert</code>, <code>update</code>, <code>delete</code>, <code>upsert</code>, <code>merge</code>) without <code>isCreateable()</code>/<code>isUpdateable()</code> CRUD checks</td>
+          </tr>
+          <tr>
+            <td>NoNullCheck</td>
+            <td><span class="sev-low">Low</span></td>
+            <td><code>list.size() &gt; 0</code> — prefer <code>!list.isEmpty()</code> which short-circuits without counting</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c"># Lint a single class file</span>
+sf-rust apex lint MyClass.cls
+
+<span class="c"># Lint an entire classes directory recursively</span>
+sf-rust apex lint force-app/main/default/classes/
+
+<span class="c"># Lint and exit non-zero if anything found (CI gate)</span>
+sf-rust apex lint force-app/main/default/classes/ <span class="k">--fail</span>
+
+<span class="c"># JSON output for processing or dashboards</span>
+sf-rust apex lint MyClass.cls <span class="k">--json</span>
+
+<span class="c"># Delegate to PMD if installed</span>
+sf-rust apex lint MyClass.cls <span class="k">--pmd</span>
+
+<span class="c"># Group findings by rule with jq</span>
+sf-rust apex lint force-app/ <span class="k">--json</span> \
+  | jq <span class="s">'.findings | group_by(.rule)
+    | map({rule: .[0].rule, severity: .[0].severity, count: length})
+    | sort_by(.count) | reverse'</span>
+
+<span class="c"># Show only Critical and High findings</span>
+sf-rust apex lint force-app/ <span class="k">--json</span> \
+  | jq <span class="s">'[.findings[] | select(.severity == "Critical" or .severity == "High")]'</span></pre>
+
+      <h4>Sample output</h4>
+      <div class="output-sample">
+┌───────────────────────────────────────┬──────┬──────────┬───────────────────────────┬──────────────────────────────────────────────────────────────────┐
+│ <span class="hl-c">File</span>                                  │ <span class="hl-c">Line</span> │ <span class="hl-c">Severity</span> │ <span class="hl-c">Rule</span>                      │ <span class="hl-c">Message</span>                                                          │
+├───────────────────────────────────────┼──────┼──────────┼───────────────────────────┼──────────────────────────────────────────────────────────────────┤
+│ …/classes/AccountService.cls          │    3 │ <span class="hl-r">Critical</span> │ ApexSQLInjection          │ Possible SOQL injection — prefer static queries or bind variables │
+│ …/classes/AccountService.cls          │    8 │ <span class="hl-o">High</span>     │ EmptyCatchBlock           │ Empty catch block swallows exceptions silently                    │
+│ …/classes/AccountService.cls          │    1 │ <span class="hl-o">High</span>     │ MissingSharingDeclaration │ Class missing 'with sharing' or 'without sharing' declaration     │
+│ …/classes/LeadConversionHandler.cls   │   11 │ <span class="hl-y">Medium</span>   │ SystemDebugInProduction   │ System.debug() left in production code — consider removing        │
+└───────────────────────────────────────┴──────┴──────────┴───────────────────────────┴──────────────────────────────────────────────────────────────────┘
+
+  <span class="hl-y">4 finding(s) total</span></div>
+
+      <div class="callout tip">
+        <span class="callout-icon">💡</span>
+        <p><strong>PMD integration:</strong> If you have PMD installed (Java-based, full Salesforce rule set), pass <code>--pmd</code> to delegate entirely. sf-rust will locate the <code>pmd</code> binary on your PATH and pass it the category rule sets. Install PMD from <a href="#" style="color:var(--blue)">pmd.github.io</a>. Without <code>--pmd</code>, only the 7 built-in rules run — zero install required.</p>
+      </div>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠</span>
+        <p><strong>CI usage:</strong> Add <code>--fail</code> to your pre-commit or CI step so that any Critical/High finding blocks the pipeline. Combined with <code>--json</code>, downstream tools can parse and annotate PRs with per-finding comments.</p>
+      </div>
+    </section>
+
+    <!-- ── list ── -->
+    <section class="cmd-section" id="list">
+      <h2><code>apex list</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        List all Apex classes in the org ordered by name. Queries
+        <code>SELECT Id, Name, Status, ApiVersion, LastModifiedDate FROM ApexClass</code>
+        via the REST API and renders a UTF8_FULL table.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--target-org &lt;ALIAS&gt;</td><td>-o</td><td>Org alias or username.</td></tr>
+          <tr><td>--json</td><td>-j</td><td>Return full record array as JSON.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c"># List all Apex classes as a table</span>
+sf-rust apex list <span class="k">-o</span> dev1
+
+<span class="c"># Get list as JSON</span>
+sf-rust apex list <span class="k">-o</span> dev1 <span class="k">--json</span>
+
+<span class="c"># Count active classes</span>
+sf-rust apex list <span class="k">-o</span> dev1 <span class="k">--json</span> \
+  | jq <span class="s">'[.result.records[] | select(.Status == "Active")] | length'</span></pre>
+
+      <h4>Sample output</h4>
+      <div class="output-sample">
+┌──────────────────────────────┬────────┬────────────┬──────────────────────────────┐
+│ <span class="hl-c">Name</span>                         │ <span class="hl-c">Status</span> │ <span class="hl-c">ApiVersion</span> │ <span class="hl-c">LastModifiedDate</span>              │
+├──────────────────────────────┼────────┼────────────┼──────────────────────────────┤
+│ AccountService               │ <span class="hl-g">Active</span> │ 62.0       │ 2026-11-10T14:32:00.000+0000 │
+│ ContactTriggerHandler        │ <span class="hl-g">Active</span> │ 62.0       │ 2026-11-08T09:15:00.000+0000 │
+│ LeadConversionHandler        │ <span class="hl-g">Active</span> │ 61.0       │ 2026-10-22T16:04:00.000+0000 │
+│ OpportunityRollupBatch       │ <span class="hl-g">Active</span> │ 62.0       │ 2026-11-12T11:50:00.000+0000 │
+└──────────────────────────────┴────────┴────────────┴──────────────────────────────┘
+<span class="hl-m">Time: 621ms</span></div>
+    </section>
+
+    <!-- ── quick reference ── -->
+    <section class="cmd-section" id="examples">
+      <h2>Quick reference</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">All <code>apex</code> commands at a glance — copy-ready one-liners.</p>
+
+      <h3>Execute Anonymous Apex</h3>
+      <pre><span class="c"># From file</span>
+sf-rust apex execute <span class="k">-f</span> scripts/setup.apex <span class="k">-o</span> dev1
+
+<span class="c"># From stdin (single line)</span>
+<span class="b">echo</span> <span class="s">"System.debug('hello');"</span> | sf-rust apex execute <span class="k">-o</span> dev1
+
+<span class="c"># From stdin (multi-line heredoc)</span>
+sf-rust apex execute <span class="k">-o</span> dev1 <span class="k">&lt;&lt;</span><span class="s">'APEX'</span>
+Account a = new Account(Name='Test');
+insert a;
+System.debug('Created: ' + a.Id);
+<span class="s">APEX</span>
+
+<span class="c"># JSON output for CI</span>
+sf-rust apex execute <span class="k">-f</span> scripts/setup.apex <span class="k">-o</span> dev1 <span class="k">--json</span></pre>
+
+      <h3>Test management</h3>
+      <pre><span class="c"># Start a test run</span>
+sf-rust apex test run <span class="k">-n</span> MyTest <span class="k">-o</span> dev1
+
+<span class="c"># Start and wait 2 minutes for results</span>
+sf-rust apex test run <span class="k">-n</span> MyTest <span class="k">-o</span> dev1 <span class="k">--wait</span> 120
+
+<span class="c"># Run all local tests</span>
+sf-rust apex test run <span class="k">--test-level</span> RunLocalTests <span class="k">-o</span> dev1 <span class="k">--wait</span> 300
+
+<span class="c"># Check results</span>
+sf-rust apex test report <span class="k">-i</span> 7076g000003GnxRAAS <span class="k">-o</span> dev1
+
+<span class="c"># Full JSON for CI artifact</span>
+sf-rust apex test report <span class="k">-i</span> 7076g000003GnxRAAS <span class="k">-o</span> dev1 <span class="k">--json</span></pre>
+
+      <h3>Debug log workflow</h3>
+      <pre><span class="c"># List recent logs</span>
+sf-rust apex get-log <span class="k">-o</span> dev1
+
+<span class="c"># Download a specific log</span>
+sf-rust apex get-log <span class="k">-i</span> 07L6g000006lLy2EAE <span class="k">-o</span> dev1 &gt; trace.log
+
+<span class="c"># Parse it offline — table view</span>
+sf-rust apex log-parse trace.log
+
+<span class="c"># Open interactive browser datatable</span>
+sf-rust apex log-parse trace.log <span class="k">--datatable</span>
+
+<span class="c"># Show only SOQL events</span>
+sf-rust apex log-parse trace.log <span class="k">--filter</span> SOQL
+
+<span class="c"># Show only exceptions</span>
+sf-rust apex log-parse trace.log <span class="k">--filter</span> EXCEPTION
+
+<span class="c"># Full JSON — pipe to jq</span>
+sf-rust apex log-parse trace.log <span class="k">--json</span> | jq <span class="s">'.summary'</span>
+
+<span class="c"># Top 5 slowest method exits</span>
+sf-rust apex log-parse trace.log <span class="k">--json</span> \
+  | jq <span class="s">'[.events[] | select(.event == "METHOD_EXIT" and .duration_ms)]
+    | sort_by(.duration_ms) | reverse | .[:5]'</span></pre>
+
+      <h3>Coverage analysis</h3>
+      <pre><span class="c"># All classes, lowest first</span>
+sf-rust apex coverage <span class="k">-o</span> dev1
+
+<span class="c"># Only classes blocking deployment (&lt;75%)</span>
+sf-rust apex coverage <span class="k">-o</span> dev1 <span class="k">--below</span> 75
+
+<span class="c"># JSON — count how many classes pass 75%</span>
+sf-rust apex coverage <span class="k">-o</span> dev1 <span class="k">--json</span> \
+  | jq <span class="s">'[.result[] | select((.pct | tonumber) >= 75)] | length'</span></pre>
+
+      <h3>Static lint</h3>
+      <pre><span class="c"># Lint a single file</span>
+sf-rust apex lint AccountService.cls
+
+<span class="c"># Lint entire project — exit 1 on findings (CI pre-flight)</span>
+sf-rust apex lint force-app/main/default/classes/ <span class="k">--fail</span>
+
+<span class="c"># JSON findings grouped by rule</span>
+sf-rust apex lint force-app/ <span class="k">--json</span> \
+  | jq <span class="s">'.findings | group_by(.rule)
+    | map({rule: .[0].rule, count: length}) | sort_by(.count) | reverse'</span>
+
+<span class="c"># Only Critical findings</span>
+sf-rust apex lint force-app/ <span class="k">--json</span> \
+  | jq <span class="s">'[.findings[] | select(.severity == "Critical")]'</span>
+
+<span class="c"># Delegate to PMD (requires PMD on PATH)</span>
+sf-rust apex lint force-app/ <span class="k">--pmd</span></pre>
+
+      <h3>Miscellaneous</h3>
+      <pre><span class="c"># List all Apex classes</span>
+sf-rust apex list <span class="k">-o</span> dev1
+
+<span class="c"># Count active classes</span>
+sf-rust apex list <span class="k">-o</span> dev1 <span class="k">--json</span> \
+  | jq <span class="s">'[.result.records[] | select(.Status == "Active")] | length'</span>
+
+<span class="c"># Full command-level help</span>
+sf-rust apex <span class="k">--help</span>
+sf-rust apex log-parse <span class="k">--help</span>
+sf-rust apex coverage <span class="k">--help</span>
+sf-rust apex lint <span class="k">--help</span></pre>
+
+      <div class="callout tip">
+        <span class="callout-icon">💡</span>
+        <p><strong>Man pages:</strong> Every <code>apex</code> subcommand has a generated man page installed to <code>~/.local/share/man/man1/</code> by <code>make install</code>. Run <code>man sf-rust-apex-log-parse</code>, <code>man sf-rust-apex-coverage</code>, or <code>man sf-rust-apex-lint</code>.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ── footer ── -->
+<footer>
+  <span>sf-rust · apex command suite · Author: <strong style="color:#ccc">Mohan Chinnappan</strong></span>
+  <span>v0.2.0 · <a href="sf-rust-portal.html">Portal</a> · <a href="sf-rust-data-soql.html">data · soql</a></span>
+</footer>
+
+<script>
+// ── sidebar IntersectionObserver scrollspy ──
+(function() {
+  const links = document.querySelectorAll('nav.sidebar a[href^="#"]');
+  const sections = Array.from(links).map(l => document.querySelector(l.getAttribute('href'))).filter(Boolean);
+
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const a = document.querySelector(`nav.sidebar a[href="#${e.target.id}"]`);
+        if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-48px 0px -60% 0px', threshold: 0 });
+
+  sections.forEach(s => obs.observe(s));
+})();
+</script>
+</body>
+</html>

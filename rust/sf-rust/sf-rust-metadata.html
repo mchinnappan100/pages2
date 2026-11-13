@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sf-rust metadata — Metadata command suite</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #1e1e1e;
+    --panel:   #252526;
+    --panel2:  #2d2d2d;
+    --border:  #3c3c3c;
+    --text:    #cccccc;
+    --muted:   #6a6a6a;
+    --blue:    #569cd6;
+    --green:   #4ec9b0;
+    --red:     #f14c4c;
+    --yellow:  #dcdcaa;
+    --purple:  #c586c0;
+    --orange:  #ce9178;
+    --cyan:    #9cdcfe;
+    --string:  #ce9178;
+    --comment: #6a9955;
+    --keyword: #c586c0;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+  }
+
+  /* ── top bar ── */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    height: 48px;
+    background: #252526;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center;
+    padding: 0 1.5rem; gap: 1rem;
+  }
+  .topbar-logo { font-size: 1rem; font-weight: 700; color: var(--blue); letter-spacing: -.01em; }
+  .topbar-sep  { color: #444; }
+  .topbar-sub  { font-size: .9rem; color: #aaa; }
+  .topbar-badge {
+    margin-left: auto;
+    font-size: .7rem; color: var(--muted);
+    background: #333; border: 1px solid #444;
+    border-radius: 4px; padding: .18rem .6rem;
+  }
+
+  /* ── layout ── */
+  .layout {
+    display: flex;
+    flex: 1;
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 0 1rem;
+    gap: 2.5rem;
+  }
+
+  /* ── sidebar ── */
+  nav.sidebar {
+    width: 210px; flex-shrink: 0;
+    padding: 2rem 0;
+    position: sticky; top: 48px;
+    height: calc(100vh - 48px);
+    overflow-y: auto;
+  }
+  .nav-section-label {
+    font-size: .65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--muted);
+    padding: .9rem 0 .3rem;
+  }
+  .nav-section-label:first-child { padding-top: 0; }
+  nav a {
+    display: block;
+    font-size: .82rem; color: #999;
+    padding: .28rem .6rem;
+    border-radius: 4px;
+    text-decoration: none;
+    transition: background .1s, color .1s;
+  }
+  nav a:hover  { background: #2a2a2a; color: var(--text); }
+  nav a.active { background: rgba(86,156,214,.12); color: var(--blue); }
+  nav a .cmd-badge {
+    display: inline-block; font-family: monospace;
+    font-size: .72rem; background: #333; border-radius: 3px;
+    padding: .05rem .3rem; margin-right: .3rem; color: var(--cyan);
+  }
+  nav a .new-badge {
+    display: inline-block; font-size: .6rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .05em;
+    background: rgba(78,201,176,.15); color: var(--green);
+    border: 1px solid rgba(78,201,176,.3);
+    border-radius: 3px; padding: .05rem .28rem; margin-left: .25rem;
+    vertical-align: middle;
+  }
+
+  /* ── main content ── */
+  main { flex: 1; padding: 2rem 0 4rem; min-width: 0; }
+
+  /* ── hero ── */
+  .hero {
+    padding: 2.5rem 2rem 2rem;
+    background: linear-gradient(135deg, #1e1e1e 60%, #1a2535);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 3rem;
+  }
+  .hero h1 { font-size: 2rem; font-weight: 700; color: var(--blue); letter-spacing: -.02em; margin-bottom: .4rem; }
+  .hero .tagline { font-size: 1.05rem; color: #aaa; margin-bottom: 1.5rem; }
+  .hero-features { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .feat-pill {
+    font-size: .72rem; padding: .22rem .7rem;
+    border-radius: 20px; font-weight: 600;
+  }
+  .feat-pill.blue   { background: rgba(86,156,214,.12); color: #569cd6; border: 1px solid rgba(86,156,214,.25); }
+  .feat-pill.green  { background: rgba(78,201,176,.12); color: #4ec9b0; border: 1px solid rgba(78,201,176,.25); }
+  .feat-pill.purple { background: rgba(197,134,192,.12); color: #c586c0; border: 1px solid rgba(197,134,192,.25); }
+  .feat-pill.orange { background: rgba(206,145,120,.12); color: #ce9178; border: 1px solid rgba(206,145,120,.25); }
+  .feat-pill.yellow { background: rgba(220,220,170,.12); color: #dcdcaa; border: 1px solid rgba(220,220,170,.25); }
+
+  /* ── section headings ── */
+  .cmd-section { margin-bottom: 3.5rem; scroll-margin-top: 60px; }
+  .cmd-section h2 {
+    font-size: 1.3rem; font-weight: 700;
+    color: var(--text);
+    display: flex; align-items: center; gap: .6rem;
+    margin-bottom: .3rem;
+  }
+  .cmd-section h2 code {
+    font-size: 1.1rem; color: var(--blue);
+    background: rgba(86,156,214,.08);
+    border: 1px solid rgba(86,156,214,.2);
+    border-radius: 5px; padding: .1rem .5rem;
+  }
+  .cmd-section h2 .new-label {
+    font-size: .65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--green);
+    background: rgba(78,201,176,.1); border: 1px solid rgba(78,201,176,.3);
+    border-radius: 4px; padding: .15rem .45rem;
+  }
+  .cmd-desc { color: #aaa; font-size: .92rem; margin-bottom: 1.2rem; }
+  .section-divider { height: 1px; background: var(--border); margin-bottom: 1.5rem; }
+
+  /* ── flags table ── */
+  .flags-table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: .85rem; }
+  .flags-table th {
+    text-align: left; font-size: .7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--muted);
+    padding: .4rem .7rem; border-bottom: 1px solid var(--border);
+  }
+  .flags-table td { padding: .45rem .7rem; border-bottom: 1px solid #2a2a2a; vertical-align: top; }
+  .flags-table tr:last-child td { border-bottom: none; }
+  .flags-table td:first-child { font-family: monospace; color: var(--cyan); white-space: nowrap; }
+  .flags-table td:last-child  { color: #aaa; }
+  .flag-default { font-size: .72rem; color: var(--muted); margin-top: .15rem; }
+
+  /* ── code blocks ── */
+  pre {
+    background: #1a1a1a;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", monospace;
+    font-size: .8rem;
+    line-height: 1.65;
+    margin-bottom: 1rem;
+    position: relative;
+  }
+  pre .label {
+    position: absolute; top: .5rem; right: .7rem;
+    font-size: .62rem; color: #555; font-family: sans-serif;
+  }
+  .c  { color: var(--comment); }
+  .k  { color: var(--keyword); }
+  .s  { color: var(--string); }
+  .g  { color: var(--green); }
+  .r  { color: var(--red); }
+  .b  { color: var(--blue); }
+  .y  { color: var(--yellow); }
+  .m  { color: var(--muted); }
+
+  /* ── inline code ── */
+  code { font-family: monospace; font-size: .85em; }
+  p code, li code, td code {
+    background: #2a2a2a; border: 1px solid #3a3a3a;
+    border-radius: 3px; padding: .08em .35em;
+    color: var(--cyan);
+  }
+
+  /* ── sub-headings ── */
+  h3 { font-size: .95rem; font-weight: 600; color: #ccc; margin: 1.5rem 0 .6rem; }
+  h4 { font-size: .82rem; font-weight: 600; color: var(--muted); margin: 1.2rem 0 .4rem; text-transform: uppercase; letter-spacing: .06em; }
+
+  /* ── callout boxes ── */
+  .callout {
+    display: flex; gap: .8rem; align-items: flex-start;
+    padding: .8rem 1rem; border-radius: 6px; margin-bottom: 1rem;
+    font-size: .85rem;
+  }
+  .callout.tip  { background: rgba(78,201,176,.07); border: 1px solid rgba(78,201,176,.2); }
+  .callout.note { background: rgba(86,156,214,.07); border: 1px solid rgba(86,156,214,.2); }
+  .callout.warn { background: rgba(220,220,170,.07); border: 1px solid rgba(220,220,170,.2); }
+  .callout-icon { font-size: 1rem; flex-shrink: 0; margin-top: .05rem; }
+  .callout.tip  .callout-icon { color: var(--green); }
+  .callout.note .callout-icon { color: var(--blue); }
+  .callout.warn .callout-icon { color: var(--yellow); }
+  .callout p { color: #bbb; }
+  .callout p strong { color: var(--text); }
+
+  /* ── two-column examples ── */
+  .example-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+  @media (max-width: 800px) { .example-grid { grid-template-columns: 1fr; } }
+
+  /* ── output sample box ── */
+  .output-sample {
+    background: #181818; border: 1px solid #333;
+    border-radius: 7px; padding: .9rem 1rem;
+    font-family: monospace; font-size: .78rem; line-height: 1.7;
+    overflow-x: auto; margin-bottom: 1rem;
+  }
+  .hl-g { color: var(--green); }
+  .hl-b { color: var(--blue); }
+  .hl-y { color: var(--yellow); }
+  .hl-r { color: var(--red); }
+  .hl-m { color: var(--muted); }
+  .hl-p { color: var(--purple); }
+  .hl-o { color: var(--orange); }
+  .hl-c { color: var(--cyan); }
+
+  /* ── footer ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 1.2rem 1.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: .75rem; color: var(--muted);
+  }
+  footer a { color: #555; text-decoration: none; }
+  footer a:hover { color: #999; }
+
+  /* ── format pill grid ── */
+  .format-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: .5rem; margin-bottom: 1.2rem; }
+  .format-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: .6rem .8rem;
+    font-size: .78rem;
+  }
+  .format-card .fc-flag { font-family: monospace; color: var(--cyan); font-size: .82rem; display: block; margin-bottom: .2rem; }
+  .format-card .fc-desc { color: #888; font-size: .72rem; }
+
+  /* ── deploy status table ── */
+  .status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: .6rem; margin-bottom: 1.2rem; }
+  .status-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: .65rem .9rem;
+    font-size: .8rem;
+  }
+  .status-card .sc-label { font-size: .68rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; display: block; margin-bottom: .25rem; }
+  .status-card .sc-val   { font-family: monospace; color: var(--cyan); }
+  .status-card.green     { border-color: rgba(78,201,176,.3); }
+  .status-card.red       { border-color: rgba(241,76,76,.3); }
+  .status-card.yellow    { border-color: rgba(220,220,170,.3); }
+</style>
+</head>
+<body>
+
+<!-- ── top bar ── -->
+<header class="topbar">
+  <span class="topbar-logo">sf-rust</span>
+  <span class="topbar-sep">/</span>
+  <span class="topbar-sub">metadata</span>
+  <span class="topbar-badge">v0.2.0 · Metadata command suite</span>
+</header>
+
+<div class="layout">
+
+  <!-- ── sidebar ── -->
+  <nav class="sidebar" id="sidebar-nav">
+    <div class="nav-section-label">Overview</div>
+    <a href="#overview">Introduction</a>
+
+    <div class="nav-section-label">Browsing</div>
+    <a href="#list"><span class="cmd-badge">list</span>List components</a>
+    <a href="#describe"><span class="cmd-badge">describe</span>Describe types</a>
+
+    <div class="nav-section-label">Deploy / Retrieve</div>
+    <a href="#deploy"><span class="cmd-badge">deploy</span>Deploy source</a>
+    <a href="#validate"><span class="cmd-badge">validate</span>Validate only <span class="new-badge">NEW</span></a>
+    <a href="#retrieve"><span class="cmd-badge">retrieve</span>Retrieve source</a>
+
+    <div class="nav-section-label">Destructive</div>
+    <a href="#delete"><span class="cmd-badge">delete</span>Delete components</a>
+
+    <div class="nav-section-label">Reference</div>
+    <a href="#examples">Quick examples</a>
+  </nav>
+
+  <!-- ── main ── -->
+  <main>
+
+    <!-- ── hero ── -->
+    <section class="hero" id="overview">
+      <h1>sf-rust metadata</h1>
+      <p class="tagline">
+        Deploy, validate, retrieve, and inspect Salesforce metadata from a single native binary.
+        No Node.js, no npm, no Metadata API SDK required.
+      </p>
+      <div class="hero-features">
+        <span class="feat-pill blue">SOAP Metadata API</span>
+        <span class="feat-pill green">Deploy + Validate</span>
+        <span class="feat-pill purple">Retrieve &amp; unpack zip</span>
+        <span class="feat-pill orange">Comfy-table component list</span>
+        <span class="feat-pill yellow">No Node.js</span>
+        <span class="feat-pill blue">JSON output</span>
+      </div>
+    </section>
+
+    <!-- ── command overview ── -->
+    <section class="cmd-section" id="commands-overview">
+      <h2>Command overview</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        All <code>metadata</code> subcommands at a glance.
+        <code>validate</code> was added in v0.2.0 and runs a check-only deploy so you can confirm
+        correctness before touching a production org.
+        <code>list</code> was upgraded to a formatted Unicode table in v0.2.0.
+      </p>
+
+      <div class="format-grid">
+        <div class="format-card">
+          <span class="fc-flag">metadata list</span>
+          <span class="fc-desc">Table of all deployed components of a given type</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">metadata describe</span>
+          <span class="fc-desc">Enumerate all available metadata types in the org</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">metadata deploy</span>
+          <span class="fc-desc">Package a source directory as zip and deploy via SOAP</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">metadata validate ✦</span>
+          <span class="fc-desc">Validate-only deploy — no changes committed to org</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">metadata retrieve</span>
+          <span class="fc-desc">Retrieve components and unpack the returned zip</span>
+        </div>
+        <div class="format-card">
+          <span class="fc-flag">metadata delete</span>
+          <span class="fc-desc">Build a destructive-changes manifest and deploy it</span>
+        </div>
+      </div>
+      <p class="cmd-desc" style="font-size:.8rem;color:var(--muted);">✦ New in v0.2.0.</p>
+
+      <div class="callout note">
+        <span class="callout-icon">ℹ</span>
+        <p>
+          <strong>Transport:</strong> All metadata commands use the SOAP Metadata API
+          (<code>/services/Soap/m/{version}</code>). Deploy and retrieve operations build / unpack
+          a zip file in memory — no <code>sfdx-project.json</code> or scratch-org toolchain required.
+        </p>
+      </div>
+    </section>
+
+    <!-- ── list ── -->
+    <section class="cmd-section" id="list">
+      <h2><code>metadata list</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Retrieve the list of deployed components of a given metadata type and render them as a
+        Unicode table (Name · Type · Last Modified · Created · ID). Upgraded to comfy_table in v0.2.0;
+        previously plain text output.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--metadata-type &lt;TYPE&gt;</td><td>-m</td><td>Salesforce metadata type, e.g. <code>ApexClass</code>, <code>CustomObject</code>, <code>Flow</code>.</td></tr>
+          <tr><td>--target-org &lt;ALIAS&gt;</td><td>-o</td><td>Org alias or username. Defaults to the configured default org.</td></tr>
+          <tr><td>--json</td><td>-j</td><td>Return result as JSON array of component objects.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c"># List all Apex classes</span>
+sf-rust metadata list <span class="k">-m</span> ApexClass <span class="k">-o</span> dev1
+
+<span class="c"># List custom objects</span>
+sf-rust metadata list <span class="k">-m</span> CustomObject <span class="k">-o</span> dev1
+
+<span class="c"># List flows as JSON and pipe to jq</span>
+sf-rust metadata list <span class="k">-m</span> Flow <span class="k">-o</span> dev1 <span class="k">--json</span> \
+  | jq <span class="s">'[.result[] | select(.fullName | startswith("Order"))]'</span>
+
+<span class="c"># Count how many Apex triggers exist</span>
+sf-rust metadata list <span class="k">-m</span> ApexTrigger <span class="k">-o</span> dev1 <span class="k">--json</span> \
+  | jq <span class="s">'length'</span></pre>
+
+      <h3>Sample output</h3>
+      <div class="output-sample">
+<span class="hl-m">╔══════════════════════════╤═══════════╤══════════════════════╤══════════════════════╤══════════════════════╗</span>
+<span class="hl-b">║ Name                     │ Type      │ Last Modified        │ Created              │ ID                   ║</span>
+<span class="hl-m">╠══════════════════════════╪═══════════╪══════════════════════╪══════════════════════╪══════════════════════╣</span>
+<span class="hl-g">║ AccountService           │ ApexClass │ 2025-10-14T09:22:11Z │ 2024-03-01T18:00:00Z │ 01pxx000001AbCdAAE   ║</span>
+<span class="hl-g">║ ContactController        │ ApexClass │ 2025-11-02T14:33:05Z │ 2024-05-10T12:00:00Z │ 01pxx000001EfGhAAF   ║</span>
+<span class="hl-g">║ OpportunityUtils         │ ApexClass │ 2025-09-28T07:11:44Z │ 2024-01-20T08:00:00Z │ 01pxx000001IjKlAAG   ║</span>
+<span class="hl-m">╚══════════════════════════╧═══════════╧══════════════════════╧══════════════════════╧══════════════════════╝</span>
+
+  <span class="hl-c">3 ApexClass component(s)</span>
+      </div>
+
+      <div class="callout tip">
+        <span class="callout-icon">💡</span>
+        <p>
+          <strong>Common metadata types:</strong> <code>ApexClass</code>, <code>ApexTrigger</code>,
+          <code>CustomObject</code>, <code>Flow</code>, <code>Layout</code>,
+          <code>PermissionSet</code>, <code>Profile</code>, <code>LightningComponentBundle</code>,
+          <code>AuraDefinitionBundle</code>, <code>StaticResource</code>.
+          Run <code>metadata describe</code> to see the full list supported by your org.
+        </p>
+      </div>
+    </section>
+
+    <!-- ── describe ── -->
+    <section class="cmd-section" id="describe">
+      <h2><code>metadata describe</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Call the Metadata API <code>describeMetadata()</code> SOAP operation to retrieve all
+        metadata types available in your org. Use this to discover valid type names for
+        <code>--metadata-type</code> in <code>metadata list</code> and <code>metadata retrieve</code>.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--target-org &lt;ALIAS&gt;</td><td>-o</td><td>Org alias or username. Defaults to the configured default org.</td></tr>
+          <tr><td>--json</td><td>-j</td><td>Return result as JSON object.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c"># Show all metadata types</span>
+sf-rust metadata describe <span class="k">-o</span> dev1
+
+<span class="c"># Output as JSON for scripting</span>
+sf-rust metadata describe <span class="k">-o</span> dev1 <span class="k">--json</span></pre>
+    </section>
+
+    <!-- ── deploy ── -->
+    <section class="cmd-section" id="deploy">
+      <h2><code>metadata deploy</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Package a Salesforce source directory (or an explicit <code>package.xml</code> manifest) as a
+        zip file and deploy it to the target org via the SOAP Metadata API. A progress spinner shows
+        component counts as the deployment runs; the command polls until done or the wait timeout
+        expires.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--source-dir &lt;DIR&gt;</td><td>-d</td><td>Source directory containing metadata to deploy. Defaults to current directory (<code>.</code>).</td></tr>
+          <tr><td>--manifest &lt;FILE&gt;</td><td>-x</td><td>Path to <code>package.xml</code> manifest (alternative to <code>-d</code>).</td></tr>
+          <tr><td>--target-org &lt;ALIAS&gt;</td><td>-o</td><td>Org alias or username. Defaults to the configured default org.</td></tr>
+          <tr><td>--test-level &lt;LEVEL&gt;</td><td></td><td>Test level: <code>NoTestRun</code>, <code>RunLocalTests</code>, <code>RunAllTestsInOrg</code>, <code>RunSpecifiedTests</code>. Default: <code>NoTestRun</code>.</td></tr>
+          <tr><td>--tests &lt;CLASS&gt;</td><td>-t</td><td>Test class names (repeatable). Required when <code>--test-level RunSpecifiedTests</code>.</td></tr>
+          <tr><td>--wait &lt;MINUTES&gt;</td><td>-w</td><td>Polling timeout in minutes. Default: <code>33</code>.</td></tr>
+          <tr><td>--json</td><td>-j</td><td>Output deploy result as JSON.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c"># Deploy a force-app directory</span>
+sf-rust metadata deploy <span class="k">-d</span> force-app <span class="k">-o</span> dev1
+
+<span class="c"># Deploy with local tests</span>
+sf-rust metadata deploy <span class="k">-d</span> force-app <span class="k">-o</span> staging \
+  <span class="k">--test-level</span> RunLocalTests
+
+<span class="c"># Deploy with specific test classes</span>
+sf-rust metadata deploy <span class="k">-d</span> force-app <span class="k">-o</span> staging \
+  <span class="k">--test-level</span> RunSpecifiedTests \
+  <span class="k">-t</span> AccountServiceTest <span class="k">-t</span> ContactControllerTest
+
+<span class="c"># Deploy and capture result as JSON</span>
+sf-rust metadata deploy <span class="k">-d</span> force-app <span class="k">-o</span> dev1 <span class="k">--json</span>
+
+<span class="c"># Deploy from a package.xml manifest</span>
+sf-rust metadata deploy <span class="k">-x</span> manifest/package.xml <span class="k">-o</span> dev1
+
+<span class="c"># Increase wait to 60 minutes for large deployments</span>
+sf-rust metadata deploy <span class="k">-d</span> force-app <span class="k">-o</span> prod \
+  <span class="k">--test-level</span> RunLocalTests <span class="k">--wait</span> 60</pre>
+
+      <h3>Deploy status output</h3>
+      <div class="output-sample">
+<span class="hl-m">Deploying metadata to https://myorg.my.salesforce.com...</span>
+<span class="hl-b">Deploy ID: 0Afxx0000012345AAA</span>
+<span class="hl-m">⠸ Status: InProgress (12/15)</span>
+<span class="hl-g">Deploy succeeded! Deployed 15 components.</span>
+<span class="hl-m">Time: 18.42s</span>
+      </div>
+
+      <h3>JSON output</h3>
+      <pre>{
+  <span class="b">"status"</span>: <span class="g">0</span>,
+  <span class="b">"result"</span>: {
+    <span class="b">"id"</span>:                        <span class="s">"0Afxx0000012345AAA"</span>,
+    <span class="b">"success"</span>:                   <span class="g">true</span>,
+    <span class="b">"status"</span>:                    <span class="s">"Succeeded"</span>,
+    <span class="b">"numberComponentsDeployed"</span>:  <span class="g">15</span>,
+    <span class="b">"numberComponentsTotal"</span>:     <span class="g">15</span>
+  }
+}</pre>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠</span>
+        <p>
+          <strong>Production deployments</strong> require at least 75% code coverage (Salesforce
+          platform rule). Use <code>--test-level RunLocalTests</code> or
+          <code>RunAllTestsInOrg</code> for production. Run
+          <code>metadata validate</code> first to catch failures before they affect the org.
+        </p>
+      </div>
+    </section>
+
+    <!-- ── validate ── -->
+    <section class="cmd-section" id="validate">
+      <h2><code>metadata validate</code> <span class="new-label">NEW in v0.2.0</span></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Run a check-only deploy (<code>checkOnly=true</code> in the SOAP envelope) to validate that
+        your source directory would deploy successfully — without committing any changes to the org.
+        Identical flags to <code>metadata deploy</code>; internally delegates to the same deploy
+        path with <code>check_only: true</code>.
+      </p>
+      <p class="cmd-desc">
+        Use this as a CI gate: validate on every pull request, deploy only on merge to main.
+        A <code>--test-level RunLocalTests</code> validate run on a sandbox gives you full
+        pre-flight coverage before touching production.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--source-dir &lt;DIR&gt;</td><td>-d</td><td>Source directory to validate. Defaults to <code>.</code>.</td></tr>
+          <tr><td>--manifest &lt;FILE&gt;</td><td>-x</td><td>Path to <code>package.xml</code> manifest.</td></tr>
+          <tr><td>--target-org &lt;ALIAS&gt;</td><td>-o</td><td>Org alias or username. Defaults to the configured default org.</td></tr>
+          <tr><td>--test-level &lt;LEVEL&gt;</td><td></td><td>Test level for the validation run. Defaults to <code>NoTestRun</code>.</td></tr>
+          <tr><td>--tests &lt;CLASS&gt;</td><td>-t</td><td>Test classes when using <code>RunSpecifiedTests</code>.</td></tr>
+          <tr><td>--wait &lt;MINUTES&gt;</td><td>-w</td><td>Polling timeout in minutes. Default: <code>33</code>.</td></tr>
+          <tr><td>--json</td><td>-j</td><td>Output validation result as JSON.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c"># Validate a source directory (no changes deployed)</span>
+sf-rust metadata validate <span class="k">-d</span> force-app <span class="k">-o</span> dev1
+
+<span class="c"># Validate with local tests — typical CI gate</span>
+sf-rust metadata validate <span class="k">-d</span> force-app <span class="k">-o</span> staging \
+  <span class="k">--test-level</span> RunLocalTests
+
+<span class="c"># Validate against production before deploying</span>
+sf-rust metadata validate <span class="k">-d</span> force-app <span class="k">-o</span> prod \
+  <span class="k">--test-level</span> RunLocalTests <span class="k">--wait</span> 60
+
+<span class="c"># Validate and exit non-zero on failure (for CI pipelines)</span>
+sf-rust metadata validate <span class="k">-d</span> force-app <span class="k">-o</span> dev1 <span class="k">--json</span> \
+  | jq <span class="s">'.result.success'</span></pre>
+
+      <h3>Validate vs Deploy</h3>
+      <div class="output-sample">
+<span class="hl-b">metadata validate</span>  <span class="hl-m">→  checkOnly=true  → no org state changes, returns deploy ID</span>
+<span class="hl-b">metadata deploy</span>    <span class="hl-m">→  checkOnly=false → commits changes on success</span>
+      </div>
+
+      <div class="callout tip">
+        <span class="callout-icon">💡</span>
+        <p>
+          <strong>CI/CD pattern:</strong> Use <code>metadata validate --test-level RunLocalTests</code>
+          on PRs and <code>metadata deploy --test-level RunLocalTests</code> on merge to main.
+          A passing validate guarantees the deploy will succeed (same code path, same test run).
+        </p>
+      </div>
+    </section>
+
+    <!-- ── retrieve ── -->
+    <section class="cmd-section" id="retrieve">
+      <h2><code>metadata retrieve</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Retrieve one or more metadata components from the org and unpack the returned zip into a
+        local directory. Accepts either a list of <code>Type:Name</code> pairs via
+        <code>-m</code> or an explicit <code>package.xml</code> manifest via <code>-x</code>.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--metadata &lt;Type:Name&gt;</td><td>-m</td><td>Component to retrieve (repeatable). Format: <code>ApexClass:AccountService</code>.</td></tr>
+          <tr><td>--manifest &lt;FILE&gt;</td><td>-x</td><td>Path to <code>package.xml</code> manifest (alternative to <code>-m</code>).</td></tr>
+          <tr><td>--target-dir &lt;DIR&gt;</td><td>-d</td><td>Output directory. Default: <code>./retrieve_output</code>.</td></tr>
+          <tr><td>--api-version &lt;VER&gt;</td><td>-a</td><td>Override API version (e.g. <code>62.0</code>). Defaults to org's max version.</td></tr>
+          <tr><td>--target-org &lt;ALIAS&gt;</td><td>-o</td><td>Org alias or username.</td></tr>
+          <tr><td>--json</td><td>-j</td><td>Output result as JSON.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c"># Retrieve a single Apex class</span>
+sf-rust metadata retrieve <span class="k">-m</span> ApexClass:AccountService <span class="k">-o</span> dev1
+
+<span class="c"># Retrieve multiple components into a custom directory</span>
+sf-rust metadata retrieve \
+  <span class="k">-m</span> ApexClass:AccountService \
+  <span class="k">-m</span> ApexClass:ContactController \
+  <span class="k">-m</span> CustomObject:Order__c \
+  <span class="k">-d</span> ./retrieved-metadata <span class="k">-o</span> dev1
+
+<span class="c"># Retrieve using an existing package.xml</span>
+sf-rust metadata retrieve <span class="k">-x</span> manifest/package.xml \
+  <span class="k">-d</span> ./force-app <span class="k">-o</span> dev1
+
+<span class="c"># Retrieve with explicit API version</span>
+sf-rust metadata retrieve <span class="k">-m</span> Flow:Order_Approval <span class="k">-o</span> dev1 <span class="k">-a</span> 62.0</pre>
+
+      <div class="callout note">
+        <span class="callout-icon">ℹ</span>
+        <p>
+          <strong>How it works:</strong> sf-rust builds a <code>package.xml</code> from your
+          <code>-m</code> flags, POSTs a SOAP <code>retrieve()</code> call, polls
+          <code>checkRetrieveStatus()</code> every 5 seconds, then base64-decodes and unzips
+          the returned payload into <code>--target-dir</code>. No temporary files on disk
+          during the transfer.
+        </p>
+      </div>
+    </section>
+
+    <!-- ── delete ── -->
+    <section class="cmd-section" id="delete">
+      <h2><code>metadata delete</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Delete metadata components from the org by deploying a
+        <code>destructiveChanges.xml</code> manifest (Salesforce's mechanism for
+        removing metadata via the Metadata API). This command builds the manifest
+        from the <code>-m</code> component list and deploys it.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--metadata &lt;Type:Name&gt;</td><td>-m</td><td>Component to delete (repeatable). Format: <code>ApexClass:OldUtils</code>.</td></tr>
+          <tr><td>--target-org &lt;ALIAS&gt;</td><td>-o</td><td>Org alias or username.</td></tr>
+          <tr><td>--json</td><td>-j</td><td>Output result as JSON.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Examples</h3>
+      <pre><span class="c"># Delete an obsolete Apex class</span>
+sf-rust metadata delete <span class="k">-m</span> ApexClass:OldUtils <span class="k">-o</span> dev1
+
+<span class="c"># Delete multiple components in one operation</span>
+sf-rust metadata delete \
+  <span class="k">-m</span> ApexClass:LegacyHelper \
+  <span class="k">-m</span> ApexTrigger:ObsoleteTrigger \
+  <span class="k">-o</span> dev1</pre>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠</span>
+        <p>
+          <strong>Destructive changes are permanent.</strong>
+          Deleted metadata cannot be recovered from the Metadata API. Use
+          <code>metadata retrieve</code> to back up components before deleting them.
+          Always test on a sandbox first.
+        </p>
+      </div>
+    </section>
+
+    <!-- ── quick examples ── -->
+    <section class="cmd-section" id="examples">
+      <h2>Quick examples</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">Common workflows across the entire <code>metadata</code> command suite.</p>
+
+      <h3>Full deploy pipeline</h3>
+      <pre><span class="c"># 1. Validate on staging with tests</span>
+sf-rust metadata validate <span class="k">-d</span> force-app <span class="k">-o</span> staging \
+  <span class="k">--test-level</span> RunLocalTests
+
+<span class="c"># 2. If validate passes, deploy to production</span>
+sf-rust metadata deploy <span class="k">-d</span> force-app <span class="k">-o</span> prod \
+  <span class="k">--test-level</span> RunLocalTests</pre>
+
+      <h3>Discover and inspect</h3>
+      <pre><span class="c"># See all metadata types supported by your org</span>
+sf-rust metadata describe <span class="k">-o</span> dev1
+
+<span class="c"># List all Permission Sets as a table</span>
+sf-rust metadata list <span class="k">-m</span> PermissionSet <span class="k">-o</span> dev1
+
+<span class="c"># Extract Permission Set names as a text list</span>
+sf-rust metadata list <span class="k">-m</span> PermissionSet <span class="k">-o</span> dev1 <span class="k">--json</span> \
+  | jq <span class="s">-r '.result[].fullName'</span>
+
+<span class="c"># Count LWC bundles</span>
+sf-rust metadata list <span class="k">-m</span> LightningComponentBundle <span class="k">-o</span> dev1 <span class="k">--json</span> \
+  | jq <span class="s">'length'</span></pre>
+
+      <h3>Targeted retrieve and diff</h3>
+      <pre><span class="c"># Retrieve one class to review changes</span>
+sf-rust metadata retrieve \
+  <span class="k">-m</span> ApexClass:AccountService \
+  <span class="k">-d</span> /tmp/before <span class="k">-o</span> prod
+
+<span class="c"># Diff against local working copy</span>
+diff /tmp/before/classes/AccountService.cls \
+     force-app/main/default/classes/AccountService.cls</pre>
+
+      <h3>Man pages</h3>
+      <pre><span class="c"># All metadata subcommands have generated man pages</span>
+man sf-rust-metadata-deploy
+man sf-rust-metadata-validate
+man sf-rust-metadata-retrieve
+man sf-rust-metadata-list
+man sf-rust-metadata-describe
+man sf-rust-metadata-delete</pre>
+
+      <h3>Help flags</h3>
+      <pre>sf-rust metadata <span class="k">--help</span>
+sf-rust metadata deploy <span class="k">--help</span>
+sf-rust metadata validate <span class="k">--help</span>
+sf-rust metadata retrieve <span class="k">--help</span>
+sf-rust metadata list <span class="k">--help</span>
+sf-rust metadata describe <span class="k">--help</span></pre>
+
+      <div class="callout tip">
+        <span class="callout-icon">💡</span>
+        <p>
+          <strong>Man pages:</strong> Every <code>metadata</code> subcommand has a generated man page
+          installed to <code>~/.local/share/man/man1/</code> by <code>make install</code>.
+          Run <code>man sf-rust-metadata-validate</code>, <code>man sf-rust-metadata-deploy</code>, etc.
+        </p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- ── footer ── -->
+<footer>
+  <span>sf-rust · metadata command suite · Author: <strong style="color:#ccc">Mohan Chinnappan</strong></span>
+  <span>v0.2.0 · <a href="sf-rust-apex.html">apex</a> · <a href="sf-rust-data-soql.html">data · soql</a></span>
+</footer>
+
+<script>
+// ── sidebar IntersectionObserver scrollspy ──
+(function() {
+  const links = document.querySelectorAll('nav.sidebar a[href^="#"]');
+  const sections = Array.from(links).map(l => document.querySelector(l.getAttribute('href'))).filter(Boolean);
+
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const a = document.querySelector(`nav.sidebar a[href="#${e.target.id}"]`);
+        if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-48px 0px -60% 0px', threshold: 0 });
+
+  sections.forEach(s => obs.observe(s));
+})();
+</script>
+</body>
+</html>
