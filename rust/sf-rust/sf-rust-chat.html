@@ -5,6 +5,7 @@
 <link rel="icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>sf-rust chat — Peer-to-peer terminal chat over TCP</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <style>
 :root {
   --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
@@ -65,6 +66,9 @@ code{font-family:"JetBrains Mono","SF Mono",monospace;font-size:.85em;background
 .card-desc{font-size:.85rem;color:var(--muted)}
 .tip{background:var(--bg2);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:.7rem 1rem;margin:1rem 0;font-size:.88rem;color:var(--muted)}
 .warn{background:#261a00;border-left:3px solid var(--yellow);border-radius:0 6px 6px 0;padding:.7rem 1rem;margin:1rem 0;font-size:.88rem;color:var(--yellow)}
+.badge{display:inline-block;padding:.15em .5em;border-radius:4px;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.badge-new{background:#1f4a1f;color:#3fb950}
+.badge-v2{background:#1a1a4a;color:#58a6ff}
 /* chat mock terminal */
 .chat-demo{background:#0d1117;border:1px solid #30363d;border-radius:10px;padding:1rem 1.2rem;margin:1rem 0;font-family:"JetBrains Mono","SF Mono",monospace;font-size:.82rem;line-height:1.7}
 .chat-demo .bar{color:#8b949e;border-bottom:1px solid #21262d;padding-bottom:.4rem;margin-bottom:.8rem;font-size:.75rem}
@@ -74,6 +78,23 @@ code{font-family:"JetBrains Mono","SF Mono",monospace;font-size:.85em;background
 .chat-demo .sys{color:#d29922;font-style:italic}
 .chat-demo .input{color:#e6edf3}
 .chat-demo .prompt{color:#484f58}
+/* TUI mock */
+.tui-frame{background:#0d1117;border:2px solid #30363d;border-radius:6px;font-family:"JetBrains Mono","SF Mono",monospace;font-size:.8rem;overflow:hidden;margin:1rem 0}
+.tui-titlebar{background:#1f6feb;color:#fff;font-weight:700;padding:.3rem .8rem;font-size:.78rem}
+.tui-messages{padding:.6rem 1rem;min-height:120px;border-bottom:1px solid #30363d}
+.tui-msg-sys{color:#d29922;font-style:italic;padding:.15rem 0}
+.tui-msg-me{padding:.15rem 0}
+.tui-msg-me .ts{color:#484f58}
+.tui-msg-me .name{color:#3fb950;font-weight:700}
+.tui-msg-remote{padding:.15rem 0}
+.tui-msg-remote .ts{color:#484f58}
+.tui-msg-remote .name{color:#58a6ff;font-weight:700}
+.tui-input{padding:.4rem .8rem;border-top:1px solid #30363d}
+.tui-input-title{color:#484f58;font-size:.72rem;margin-bottom:.2rem}
+.tui-input-box{color:#d29922}
+/* mermaid */
+.mermaid-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:1.5rem;margin:1rem 0;overflow-x:auto}
+.mermaid-wrap .mermaid{display:flex;justify-content:center}
 footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);text-align:center;color:var(--muted);font-size:.8rem}
 </style>
 </head>
@@ -83,126 +104,106 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   <span class="nav-logo">⚙ sf-rust</span>
   <a href="sf-rust-portal.html">Home</a>
   <a href="#overview">Overview</a>
+  <a href="#tui">TUI</a>
   <a href="#howto">How to use</a>
-  <a href="#demo">Demo</a>
-  <a href="#network">Network</a>
+  <a href="#encryption">Encryption</a>
+  <a href="#architecture">Architecture</a>
   <a href="#flags">Flags</a>
   <a href="#history">History</a>
   <div class="nav-right">
-    <button class="theme-btn" onclick="document.body.classList.toggle('light')">☀ / 🌙</button>
+    <button class="theme-btn" onclick="toggleTheme()">☀ / 🌙</button>
   </div>
 </nav>
 
 <div class="page">
 
 <h1>💬 sf-rust chat</h1>
-<p class="subtitle">Peer-to-peer terminal chat between two machines — pure TCP, zero infrastructure</p>
+<p class="subtitle">Peer-to-peer terminal chat between two machines — ratatui TUI, AES-256-GCM encryption, pure TCP</p>
 
 <div class="hero">
   <div class="hero-stat"><div class="num">2</div><div class="lbl">Subcommands</div></div>
   <div class="hero-stat"><div class="num">TCP</div><div class="lbl">Transport</div></div>
   <div class="hero-stat"><div class="num">7878</div><div class="lbl">Default port</div></div>
-  <div class="hero-stat"><div class="num">0</div><div class="lbl">New deps</div></div>
+  <div class="hero-stat"><div class="num">AES</div><div class="lbl">Encryption</div></div>
+  <div class="hero-stat"><div class="num">TUI</div><div class="lbl">Interface</div></div>
 </div>
 
 <p>
   <code>sf-rust chat</code> opens a direct TCP connection between two machines.
-  One side runs <code>chat serve</code> and waits; the other runs <code>chat connect</code>.
-  Once connected, both sides can type freely — messages are delivered in real time
-  with timestamps and the sender's name.
+  Phase 2 adds a <strong>ratatui split-screen TUI</strong> (messages above, input below —
+  no more interleaving) and optional <strong>AES-256-GCM end-to-end encryption</strong>
+  via a shared passphrase.
 </p>
 
 <div class="card-grid">
   <div class="card">
     <div class="card-icon">🖥️</div>
-    <div class="card-title">chat serve</div>
-    <div class="card-desc">Binds a TCP port and waits for a peer. Accepts one connection (1-to-1 chat). Share your LAN IP and port with the other machine.</div>
+    <div class="card-title">chat serve <span class="badge badge-v2">v2</span></div>
+    <div class="card-desc">Binds a TCP port, waits for one peer. Full TUI on connection. Add <code>--secret</code> to encrypt.</div>
   </div>
   <div class="card">
     <div class="card-icon">🔌</div>
-    <div class="card-title">chat connect</div>
-    <div class="card-desc">Connects to the serving machine's IP and port. As soon as the handshake succeeds, the chat session starts on both ends.</div>
+    <div class="card-title">chat connect <span class="badge badge-v2">v2</span></div>
+    <div class="card-desc">Connects to the serving machine. TUI starts immediately. Add <code>--secret</code> with the same passphrase.</div>
   </div>
   <div class="card">
-    <div class="card-icon">📋</div>
-    <div class="card-title">History log</div>
-    <div class="card-desc">Pass <code>--history</code> on either side to append every message (sent and received) to <code>~/.sf-rust/chat_history.log</code>.</div>
+    <div class="card-icon">🔒</div>
+    <div class="card-title">AES-256-GCM <span class="badge badge-new">new</span></div>
+    <div class="card-desc">Pass <code>--secret passphrase</code> on both sides. Key = SHA-256(passphrase). Each message encrypted with a fresh nonce.</div>
   </div>
 </div>
+
+<!-- ── TUI ── -->
+<h2 id="tui">Split-screen TUI <span class="badge badge-new">Phase 2</span></h2>
+
+<p>Phase 2 replaces the raw terminal with a <strong>ratatui</strong> split-screen. Incoming messages no longer interrupt your typing.</p>
+
+<div class="tui-frame">
+  <div class="tui-titlebar"> sf-rust chat  |  you: mohan@MacBook-Pro.local [AES-256-GCM] </div>
+  <div class="tui-messages" style="border:1px solid #30363d;margin:.4rem;border-radius:4px">
+    <div style="color:#484f58;font-size:.72rem;padding:.2rem 0"> Messages (AES-256-GCM) </div>
+    <div class="tui-msg-sys">  -- Connected! Type a message, Enter to send. /quit or Esc to exit. --</div>
+    <div class="tui-msg-remote"><span class="ts"> [14:32:09] </span><span class="name">sarojan@mac-mini:</span> hey, can you hear me?</div>
+    <div class="tui-msg-me"><span class="ts"> [14:32:11] </span><span class="name">mohan@MacBook-Pro:</span> loud and clear — deploying now</div>
+    <div class="tui-msg-remote"><span class="ts"> [14:32:28] </span><span class="name">sarojan@mac-mini:</span> great, watching the logs</div>
+    <div class="tui-msg-me"><span class="ts"> [14:32:45] </span><span class="name">mohan@MacBook-Pro:</span> deploy complete, all green</div>
+  </div>
+  <div class="tui-input" style="border:1px solid #30363d;margin:.4rem;border-radius:4px">
+    <div class="tui-input-title"> Message  (Enter=send  Up/Down=scroll  Esc=/quit=exit) </div>
+    <div class="tui-input-box"> > type here|</div>
+  </div>
+</div>
+
+<ul>
+  <li><strong>Messages pane</strong> — auto-scrolls to the latest message; Up/Down to scroll history</li>
+  <li><strong>Input box</strong> — your in-progress text, never interleaved with incoming messages</li>
+  <li><strong>Title bar</strong> — shows your name, encryption status, and peer connection state</li>
+  <li><strong>System messages</strong> — connection events shown in yellow italic inside the message pane</li>
+</ul>
 
 <!-- ── How to use ── -->
 <h2 id="howto">How to use</h2>
 
-<h3>Step 1 — Server side (Machine A, e.g. MacBook)</h3>
-<div class="code-block"><span class="cmd">sf-rust chat serve</span>
-<span class="comment"># default port 7878, name auto-detected as user@hostname</span>
-
-<span class="cmd">sf-rust chat serve</span> <span class="flag">--port</span> <span class="value">9000</span> <span class="flag">--name</span> <span class="value">mohan-mbp</span>
-<span class="comment"># custom port and display name</span>
-
-<span class="out">sf-rust chat — listening on port 7878  (you: mohan@MacBook-Pro.local)
-Waiting for peer… (Ctrl+C to cancel)</span></div>
-
-<h3>Step 2 — Client side (Machine B, e.g. mac-mini)</h3>
-<div class="code-block"><span class="comment"># replace 192.168.1.5 with the server machine's LAN IP</span>
-<span class="cmd">sf-rust chat connect</span> <span class="value">192.168.1.5:7878</span>
-
-<span class="cmd">sf-rust chat connect</span> <span class="value">192.168.1.5:7878</span> <span class="flag">--name</span> <span class="value">sarojan-mini</span>
-
-<span class="out">Connecting to 192.168.1.5:7878  (you: sarojan@mac-mini.local) …
-✓ Connected!</span></div>
-
-<h3>Step 3 — Chat!</h3>
-<div class="code-block"><span class="comment"># both sides see the banner, then type freely</span>
-<span class="out">─────────────────────────────────────────────────
-  Type a message and press Enter.  /quit to exit.
-  Remote messages appear prefixed with their name.
-─────────────────────────────────────────────────</span>
-
-<span class="comment"># to exit:</span>
-/quit    <span class="comment"># or /exit  or /q</span></div>
-
-<!-- ── Demo ── -->
-<h2 id="demo">What it looks like</h2>
-
-<p><strong>Machine A terminal (MacBook):</strong></p>
-<div class="chat-demo">
-  <div class="bar">sf-rust chat serve  ·  mohan@MacBook-Pro.local  ·  port 7878</div>
-  <div class="sys">✓ Peer connected from 192.168.1.9:51234</div>
-  <div>&nbsp;</div>
-  <div><span class="prompt">▶ </span><span class="input">hello from the MacBook!</span></div>
-  <div><span class="ts">[14:32:11]</span> <span class="remote">sarojan@mac-mini:</span> hi! can you hear me?</div>
-  <div><span class="prompt">▶ </span><span class="input">loud and clear 👍 — deploying now</span></div>
-  <div><span class="ts">[14:32:28]</span> <span class="remote">sarojan@mac-mini:</span> great, I'll watch the logs</div>
-  <div><span class="prompt">▶ </span><span class="input">/quit</span></div>
-  <div class="sys">Goodbye.</div>
-</div>
-
-<p><strong>Machine B terminal (mac-mini):</strong></p>
-<div class="chat-demo">
-  <div class="bar">sf-rust chat connect 192.168.1.5:7878  ·  sarojan@mac-mini.local</div>
-  <div class="sys">✓ Connected!</div>
-  <div>&nbsp;</div>
-  <div><span class="ts">[14:32:09]</span> <span class="remote">mohan@MacBook-Pro:</span> hello from the MacBook!</div>
-  <div><span class="prompt">▶ </span><span class="input">hi! can you hear me?</span></div>
-  <div><span class="ts">[14:32:21]</span> <span class="remote">mohan@MacBook-Pro:</span> loud and clear 👍 — deploying now</div>
-  <div><span class="prompt">▶ </span><span class="input">great, I'll watch the logs</div>
-  <div class="sys">Peer disconnected. Press Enter to exit.</div>
-</div>
-
-<!-- ── Network ── -->
-<h2 id="network">Network setup</h2>
-
-<h3>Same local network (easiest — MacBook ↔ mac-mini)</h3>
-<div class="code-block"><span class="comment"># find server machine's LAN IP</span>
-ifconfig | grep "inet " | grep -v 127   <span class="comment"># macOS</span>
-ip addr show                             <span class="comment"># Linux</span>
-
-<span class="comment"># typical LAN session</span>
-<span class="comment"># Machine A (192.168.1.5):</span>
+<h3>Plain (no encryption)</h3>
+<div class="code-block"><span class="comment"># Machine A — listen</span>
 <span class="cmd">sf-rust chat serve</span>
-<span class="comment"># Machine B:</span>
-<span class="cmd">sf-rust chat connect</span> <span class="value">192.168.1.5:7878</span></div>
+<span class="cmd">sf-rust chat serve</span> <span class="flag">--port</span> <span class="value">9000</span> <span class="flag">--name</span> <span class="value">mohan-mbp</span>
+
+<span class="comment"># Machine B — connect</span>
+<span class="cmd">sf-rust chat connect</span> <span class="value">192.168.1.5:7878</span>
+<span class="cmd">sf-rust chat connect</span> <span class="value">192.168.1.5:7878</span> <span class="flag">--name</span> <span class="value">sarojan-mini</span></div>
+
+<h3>Encrypted (AES-256-GCM) <span class="badge badge-new">Phase 2</span></h3>
+<div class="code-block"><span class="comment"># both sides must pass the same --secret passphrase</span>
+
+<span class="comment"># Machine A</span>
+<span class="cmd">sf-rust chat serve</span> <span class="flag">--secret</span> <span class="value">"my-team-secret"</span>
+
+<span class="comment"># Machine B</span>
+<span class="cmd">sf-rust chat connect</span> <span class="value">192.168.1.5:7878</span> <span class="flag">--secret</span> <span class="value">"my-team-secret"</span></div>
+
+<div class="tip">The TUI shows <strong>[AES-256-GCM]</strong> in the title bar when encryption is active.
+If the passphrases don't match, a decryption-failed warning appears in the message pane.</div>
 
 <h3>Same machine (testing)</h3>
 <div class="code-block"><span class="comment"># Terminal 1:</span>
@@ -210,19 +211,98 @@ ip addr show                             <span class="comment"># Linux</span>
 <span class="comment"># Terminal 2:</span>
 <span class="cmd">sf-rust chat connect</span> <span class="value">127.0.0.1:7878</span> <span class="flag">--name</span> <span class="value">bob</span></div>
 
-<h3>Different networks (port forwarding / VPN)</h3>
-<div class="code-block"><span class="comment"># Option A: router port forwarding</span>
-<span class="comment">#   forward router port 7878 → Machine A's LAN IP</span>
-<span class="comment">#   Machine B uses your public IP:  sf-rust chat connect &lt;public-ip&gt;:7878</span>
+<!-- ── Encryption ── -->
+<h2 id="encryption">Encryption</h2>
 
-<span class="comment"># Option B: Tailscale / WireGuard VPN (recommended)</span>
-<span class="comment">#   both machines on the same VPN → use VPN IP as if on LAN</span>
-<span class="cmd">sf-rust chat connect</span> <span class="value">100.64.x.x:7878</span>  <span class="comment"># Tailscale IP</span></div>
+<table>
+  <thead><tr><th>Detail</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Algorithm</td><td>AES-256-GCM (authenticated encryption)</td></tr>
+    <tr><td>Key derivation</td><td>SHA-256(passphrase) → 32-byte key</td></tr>
+    <tr><td>Nonce</td><td>Random 96-bit, generated fresh per message via <code>OsRng</code></td></tr>
+    <tr><td>Wire format</td><td><code>hex(nonce):hex(ciphertext)\n</code> (plaintext is the JSON payload)</td></tr>
+    <tr><td>Mismatch detection</td><td>Decryption failure shows a warning in the TUI message pane</td></tr>
+    <tr><td>No-secret fallback</td><td>Raw JSON — V1 wire-compatible</td></tr>
+  </tbody>
+</table>
 
 <div class="warn">
-  <strong>V1 is plaintext.</strong> Messages travel unencrypted over the TCP connection.
-  Fine for a trusted local network; use a VPN for anything sensitive.
+  <strong>Key derivation is SHA-256, not PBKDF2.</strong> This is intentional for V2 speed on a LAN.
+  For a hostile network, use Tailscale/WireGuard VPN in addition to <code>--secret</code>.
 </div>
+
+<!-- ── Architecture ── -->
+<h2 id="architecture">Architecture</h2>
+
+<h3>System view</h3>
+<div class="mermaid-wrap">
+<div class="mermaid">
+flowchart LR
+    subgraph A ["Machine A — sf-rust chat serve"]
+        KBD_A(["keyboard\n(crossterm)"]) --> TUI_A["ratatui TUI\nmain loop"]
+        TUI_A --> SEND_A["send\njson/encrypt"]
+        RECV_A["recv task\ndecrypt/parse"] --> TUI_A
+    end
+
+    subgraph B ["Machine B — sf-rust chat connect"]
+        KBD_B(["keyboard\n(crossterm)"]) --> TUI_B["ratatui TUI\nmain loop"]
+        TUI_B --> SEND_B["send\njson/encrypt"]
+        RECV_B["recv task\ndecrypt/parse"] --> TUI_B
+    end
+
+    SEND_A -->|"TCP :7878\nnewline-delimited JSON\n(optionally AES-256-GCM)"| RECV_B
+    SEND_B -->|"TCP :7878"| RECV_A
+</div>
+</div>
+
+<h3>Internal message flow (per machine)</h3>
+<div class="mermaid-wrap">
+<div class="mermaid">
+sequenceDiagram
+    participant KB as keyboard (crossterm)
+    participant TUI as ratatui TUI
+    participant TX as mpsc sender
+    participant NET as TCP socket
+    participant RX as recv task
+
+    KB->>TUI: KeyCode::Char(c)
+    KB->>TUI: KeyCode::Enter
+    TUI->>NET: write JSON (encrypted if --secret)
+    NET-->>RX: raw line arrives
+    RX->>TX: decrypt → UiEvent::RemoteMessage
+    TX->>TUI: ui_rx.recv()
+    TUI->>TUI: messages.push() + redraw
+</div>
+</div>
+
+<h3>Encryption wire format</h3>
+<div class="mermaid-wrap">
+<div class="mermaid">
+flowchart TD
+    MSG["plaintext JSON\n{from, ts, msg}"] --> ENC["AES-256-GCM\nnonce = OsRng::96bit\nkey = SHA-256(passphrase)"]
+    ENC --> WIRE["wire line\nhex(nonce):hex(ciphertext)\\n"]
+    WIRE --> DEC["AES-256-GCM\ndecrypt"]
+    DEC --> PARSE["parse JSON\nrender in TUI"]
+
+    style ENC fill:#1a1a4a,color:#58a6ff
+    style DEC fill:#1a1a4a,color:#58a6ff
+</div>
+</div>
+
+<!-- ── Network ── -->
+<h2>Network setup</h2>
+
+<h3>Same LAN (MacBook ↔ mac-mini)</h3>
+<div class="code-block"><span class="comment"># find server's LAN IP</span>
+ifconfig | grep "inet " | grep -v 127
+
+<span class="comment"># Machine A (192.168.1.5):</span>
+<span class="cmd">sf-rust chat serve</span> <span class="flag">--secret</span> <span class="value">"shared-passphrase"</span>
+<span class="comment"># Machine B:</span>
+<span class="cmd">sf-rust chat connect</span> <span class="value">192.168.1.5:7878</span> <span class="flag">--secret</span> <span class="value">"shared-passphrase"</span></div>
+
+<h3>Different networks (Tailscale / VPN)</h3>
+<div class="code-block"><span class="cmd">sf-rust chat connect</span> <span class="value">100.64.x.x:7878</span> <span class="flag">--secret</span> <span class="value">"passphrase"</span></div>
 
 <!-- ── Flags ── -->
 <h2 id="flags">Flag reference</h2>
@@ -233,6 +313,7 @@ ip addr show                             <span class="comment"># Linux</span>
   <tbody>
     <tr><td><code>--port</code></td><td><code>-p</code></td><td>7878</td><td>TCP port to listen on</td></tr>
     <tr><td><code>--name</code></td><td><code>-n</code></td><td>user@hostname</td><td>Display name shown to the remote peer</td></tr>
+    <tr><td><code>--secret</code></td><td><code>-s</code></td><td>—</td><td><span class="badge badge-new">Phase 2</span> AES-256-GCM passphrase (both sides must match)</td></tr>
     <tr><td><code>--history</code></td><td>—</td><td>false</td><td>Append all messages to <code>~/.sf-rust/chat_history.log</code></td></tr>
   </tbody>
 </table>
@@ -243,7 +324,21 @@ ip addr show                             <span class="comment"># Linux</span>
   <tbody>
     <tr><td><code>HOST:PORT</code></td><td>—</td><td>—</td><td>Address to connect to, e.g. <code>192.168.1.9:7878</code></td></tr>
     <tr><td><code>--name</code></td><td><code>-n</code></td><td>user@hostname</td><td>Display name shown to the remote peer</td></tr>
+    <tr><td><code>--secret</code></td><td><code>-s</code></td><td>—</td><td><span class="badge badge-new">Phase 2</span> AES-256-GCM passphrase (must match serve side)</td></tr>
     <tr><td><code>--history</code></td><td>—</td><td>false</td><td>Append all messages to <code>~/.sf-rust/chat_history.log</code></td></tr>
+  </tbody>
+</table>
+
+<h3>TUI keybindings</h3>
+<table>
+  <thead><tr><th>Key</th><th>Action</th></tr></thead>
+  <tbody>
+    <tr><td><code>Enter</code></td><td>Send message</td></tr>
+    <tr><td><code>Backspace</code></td><td>Delete last character</td></tr>
+    <tr><td><code>Up / Down</code></td><td>Scroll message history</td></tr>
+    <tr><td><code>Esc</code></td><td>Exit chat</td></tr>
+    <tr><td><code>/quit</code> <code>/exit</code> <code>/q</code></td><td>Exit chat (typed as a message)</td></tr>
+    <tr><td><code>Ctrl+C</code></td><td>Force exit</td></tr>
   </tbody>
 </table>
 
@@ -260,31 +355,34 @@ tail -50 ~/.sf-rust/chat_history.log
 <span class="comment"># search history</span>
 <span class="cmd">sf-rust grep</span> <span class="value">"deploying"</span> ~/.sf-rust/chat_history.log</div>
 
-<!-- ── Commands reference ── -->
+<!-- ── Quick reference ── -->
 <h2>Quick reference</h2>
-<div class="code-block"><span class="comment"># serve (Machine A)</span>
+<div class="code-block"><span class="comment"># serve</span>
 <span class="cmd">sf-rust chat serve</span>
 <span class="cmd">sf-rust chat serve</span> <span class="flag">--port</span> <span class="value">9000</span>
 <span class="cmd">sf-rust chat serve</span> <span class="flag">--name</span> <span class="value">mohan-mbp</span> <span class="flag">--history</span>
+<span class="cmd">sf-rust chat serve</span> <span class="flag">--secret</span> <span class="value">"passphrase"</span>
 
-<span class="comment"># connect (Machine B)</span>
+<span class="comment"># connect</span>
 <span class="cmd">sf-rust chat connect</span> <span class="value">192.168.1.9:7878</span>
 <span class="cmd">sf-rust chat connect</span> <span class="value">192.168.1.9:7878</span> <span class="flag">--name</span> <span class="value">sarojan-mini</span>
+<span class="cmd">sf-rust chat connect</span> <span class="value">192.168.1.9:7878</span> <span class="flag">--secret</span> <span class="value">"passphrase"</span>
 <span class="cmd">sf-rust chat connect</span> <span class="value">127.0.0.1:7878</span> <span class="flag">--name</span> <span class="value">bob</span>  <span class="comment"># same machine test</span>
 
-<span class="comment"># exit</span>
-/quit   <span class="comment"># (or /exit  or /q)</span>
+<span class="comment"># exit (from inside the TUI)</span>
+/quit   <span class="comment"># or /exit  or /q  or  Esc</span>
 Ctrl+C  <span class="comment"># emergency exit</span></div>
 
-<!-- ── V2 roadmap ── -->
-<h2>V2 ideas</h2>
+<!-- ── Roadmap ── -->
+<h2>Roadmap</h2>
 <table>
-  <thead><tr><th>Feature</th><th>Notes</th></tr></thead>
+  <thead><tr><th>Phase</th><th>Feature</th><th>Notes</th></tr></thead>
   <tbody>
-    <tr><td>TUI split-screen</td><td><code>ratatui</code> — input box at bottom, messages scrolling above. Eliminates the interleaving of typed text and incoming messages.</td></tr>
-    <tr><td>AES-256-GCM encryption</td><td>Reuse <code>sf-auth</code>'s encryption module. <code>--secret &lt;passphrase&gt;</code> derives a key with PBKDF2.</td></tr>
-    <tr><td>Multi-party broadcast</td><td>Server holds a list of connections and fan-outs each message to all peers.</td></tr>
-    <tr><td>File transfer</td><td>Chunk-encode binary payloads in the same JSON protocol.</td></tr>
+    <tr><td>✅ V1</td><td>Raw TCP chat</td><td>Newline-delimited JSON, colored output, history log</td></tr>
+    <tr><td>✅ Phase 2</td><td>ratatui TUI + AES-256-GCM</td><td>Split-screen, no interleaving, encrypted messages</td></tr>
+    <tr><td>Phase 3</td><td>Multi-party broadcast</td><td>Server fan-out via <code>tokio::sync::broadcast</code>; <code>--max-peers N</code></td></tr>
+    <tr><td>Phase 3</td><td>File transfer</td><td>Chunk-encode binary payloads in the same JSON protocol</td></tr>
+    <tr><td>Phase 4</td><td>PBKDF2 key derivation</td><td>Replace SHA-256 with PBKDF2 + random salt exchange for stronger key stretching</td></tr>
   </tbody>
 </table>
 
@@ -294,11 +392,21 @@ Ctrl+C  <span class="comment"># emergency exit</span></div>
 </div>
 
 <script>
+  mermaid.initialize({ startOnLoad: true, theme: 'dark', securityLevel: 'loose' });
+
+  function toggleTheme() {
+    document.body.classList.toggle('light');
+    localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+    mermaid.initialize({ startOnLoad: false, theme: document.body.classList.contains('light') ? 'default' : 'dark' });
+    document.querySelectorAll('.mermaid').forEach(el => {
+      const src = el.getAttribute('data-src') || el.textContent;
+      el.removeAttribute('data-processed');
+      mermaid.run({ nodes: [el] });
+    });
+  }
+
   const saved = localStorage.getItem('theme');
   if (saved === 'light') document.body.classList.add('light');
-  document.querySelector('.theme-btn').addEventListener('click', () => {
-    localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
-  });
 </script>
 </body>
 </html>
