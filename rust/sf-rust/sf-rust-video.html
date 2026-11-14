@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sf-rust video — Media conversion, noise removal &amp; inspection</title>
+<style>
+:root {
+  --bg:      #0d1117; --bg2: #161b22; --bg3: #21262d;
+  --border:  #30363d; --text: #e6edf3; --muted: #8b949e;
+  --accent:  #58a6ff; --green: #3fb950; --red: #f85149;
+  --yellow:  #d29922; --purple: #bc8cff; --teal: #39d353;
+  --code-bg: #161b22; --code-border: #30363d;
+  --card: #161b22; --card-border: #30363d;
+}
+.light {
+  --bg:      #ffffff; --bg2: #f6f8fa; --bg3: #eaeef2;
+  --border:  #d0d7de; --text: #1f2328; --muted: #656d76;
+  --accent:  #0969da; --green: #1a7f37; --red: #cf222e;
+  --yellow:  #9a6700; --purple: #8250df; --teal: #1a7f37;
+  --code-bg: #f6f8fa; --code-border: #d0d7de;
+  --card: #ffffff; --card-border: #d0d7de;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px; line-height: 1.65;
+  transition: background .2s, color .2s;
+}
+.page { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0; overflow-x: auto;
+  padding: 0 1.5rem;
+}
+nav a { color: var(--muted); text-decoration: none; font-size: .8rem;
+        padding: .7rem .8rem; white-space: nowrap; border-bottom: 2px solid transparent; }
+nav a:hover { color: var(--text); }
+nav .nav-logo { font-weight: 700; color: var(--accent); margin-right: .5rem; font-size: .85rem; }
+nav .nav-right { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
+.theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+             border-radius: 6px; padding: .25rem .6rem; font-size: .75rem; cursor: pointer; }
+.theme-btn:hover { background: var(--border); }
+
+h1 { font-size: 2rem; font-weight: 700; margin-bottom: .4rem; }
+h2 { font-size: 1.35rem; font-weight: 600; margin: 2.5rem 0 1rem;
+     padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1rem; font-weight: 600; margin: 1.5rem 0 .6rem; color: var(--accent); }
+p  { margin-bottom: .8rem; color: var(--text); }
+a  { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+ul { padding-left: 1.5rem; margin-bottom: .8rem; }
+li { margin: .3em 0; color: var(--text); }
+.subtitle { color: var(--muted); font-size: 1rem; margin-bottom: 1.5rem; }
+
+.hero {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 1.8rem 2rem; margin: 1.5rem 0 2.5rem;
+  display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center;
+}
+.hero-stat { text-align: center; }
+.hero-stat .num { font-size: 2rem; font-weight: 700; color: var(--accent); }
+.hero-stat .lbl { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .9rem; }
+th { background: var(--bg3); color: var(--muted); font-size: .75rem;
+     text-transform: uppercase; letter-spacing: .05em; text-align: left;
+     padding: .5rem .75rem; border-bottom: 1px solid var(--border); }
+td { padding: .5rem .75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg3); }
+code { font-family: "JetBrains Mono", "SF Mono", monospace; font-size: .85em;
+       background: var(--code-bg); border: 1px solid var(--code-border);
+       border-radius: 4px; padding: .1em .4em; color: var(--purple); }
+
+.code-block {
+  background: var(--code-bg); border: 1px solid var(--code-border);
+  border-radius: 8px; padding: 1rem 1.2rem; margin: .8rem 0;
+  font-family: "JetBrains Mono", "SF Mono", monospace; font-size: .82rem;
+  overflow-x: auto; white-space: pre; line-height: 1.55;
+}
+.code-block .comment { color: var(--muted); }
+.code-block .cmd     { color: var(--green); }
+.code-block .flag    { color: var(--yellow); }
+.code-block .value   { color: var(--teal); }
+
+.card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; margin: 1rem 0 2rem; }
+.card {
+  background: var(--card); border: 1px solid var(--card-border);
+  border-radius: 8px; padding: 1.1rem 1.2rem;
+}
+.card-icon { font-size: 1.6rem; margin-bottom: .5rem; }
+.card-title { font-weight: 600; margin-bottom: .3rem; }
+.card-desc  { font-size: .85rem; color: var(--muted); }
+
+.badge { display: inline-block; font-size: .7rem; font-weight: 600; padding: .15em .5em;
+         border-radius: 4px; text-transform: uppercase; letter-spacing: .04em; }
+.badge-new    { background: #1f4e1f; color: var(--green); }
+.badge-dep    { background: #3d2a00; color: var(--yellow); }
+
+.tip {
+  background: var(--bg2); border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0; padding: .7rem 1rem; margin: 1rem 0;
+  font-size: .88rem; color: var(--muted);
+}
+.warn {
+  background: #261a00; border-left: 3px solid var(--yellow);
+  border-radius: 0 6px 6px 0; padding: .7rem 1rem; margin: 1rem 0;
+  font-size: .88rem; color: var(--yellow);
+}
+footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--border);
+         text-align: center; color: var(--muted); font-size: .8rem; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-logo">⚙ sf-rust</span>
+  <a href="sf-rust-portal.html">Home</a>
+  <a href="#overview">Overview</a>
+  <a href="#subcommands">Subcommands</a>
+  <a href="#convert">Convert</a>
+  <a href="#denoise">Denoise</a>
+  <a href="#info">Info</a>
+  <a href="#examples">Examples</a>
+  <a href="#flags">Flags</a>
+  <div class="nav-right">
+    <button class="theme-btn" onclick="document.body.classList.toggle('light')">☀ / 🌙</button>
+  </div>
+</nav>
+
+<div class="page">
+
+<h1>🎬 sf-rust video</h1>
+<p class="subtitle">Media conversion, noise removal &amp; inspection — powered by ffmpeg, written in Rust</p>
+
+<div class="hero">
+  <div class="hero-stat"><div class="num">3</div><div class="lbl">Subcommands</div></div>
+  <div class="hero-stat"><div class="num">5</div><div class="lbl">Output Formats</div></div>
+  <div class="hero-stat"><div class="num">0</div><div class="lbl">Native deps</div></div>
+  <div class="hero-stat"><div class="num">ffmpeg</div><div class="lbl">Runtime req</div></div>
+</div>
+
+<div class="tip">
+  <strong>Prerequisite:</strong> Install ffmpeg once with <code>brew install ffmpeg</code>.
+  sf-rust will show a clear error if it's not on PATH.
+</div>
+
+<!-- ── Overview ── -->
+<h2 id="overview">Overview</h2>
+
+<p>
+  <code>sf-rust video</code> is a thin, ergonomic wrapper around <strong>ffmpeg</strong> and
+  <strong>ffprobe</strong>. It handles the most common media tasks a developer or content creator
+  needs: converting between formats, cleaning up noisy audio, and quickly inspecting what's
+  inside a media file — all from one familiar CLI.
+</p>
+
+<div class="card-grid">
+  <div class="card">
+    <div class="card-icon">🔄</div>
+    <div class="card-title">Convert</div>
+    <div class="card-desc">webm → gif, any video → mp4, extract audio as mp3, or combine a static image + audio track into an mp4 slideshow.</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">🎙️</div>
+    <div class="card-title">Denoise</div>
+    <div class="card-desc">Remove background hiss and hum from recordings with the ffmpeg <code>afftdn</code> filter. Three strength presets: low, medium, high.</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">🔍</div>
+    <div class="card-title">Info</div>
+    <div class="card-desc">Probe any media file with ffprobe and show codec, resolution, duration, sample rate, and channel count in a table or datatable.</div>
+  </div>
+</div>
+
+<!-- ── Subcommands ── -->
+<h2 id="subcommands">Subcommands</h2>
+
+<table>
+  <thead><tr><th>Subcommand</th><th>Description</th><th>Requires</th></tr></thead>
+  <tbody>
+    <tr><td><code>video convert</code></td><td>Convert video/audio format, or combine image+audio into mp4</td><td>ffmpeg</td></tr>
+    <tr><td><code>video denoise</code></td><td>Remove background noise from an audio file</td><td>ffmpeg</td></tr>
+    <tr><td><code>video info</code></td><td>Inspect streams and format metadata via ffprobe</td><td>ffprobe</td></tr>
+  </tbody>
+</table>
+
+<!-- ── Convert ── -->
+<h2 id="convert">video convert</h2>
+
+<p>Two modes:</p>
+<ul>
+  <li><strong>File conversion</strong> — <code>--input</code> + <code>--format</code></li>
+  <li><strong>Slideshow</strong> — <code>--image</code> + <code>--audio</code> → mp4</li>
+</ul>
+
+<h3>webm → gif (screen recording)</h3>
+<div class="code-block"><span class="cmd">sf-rust video convert</span> <span class="flag">--input</span> <span class="value">recording.webm</span> <span class="flag">--format</span> <span class="value">gif</span>
+<span class="comment"># default framerate: 2 fps — good for silent screencasts</span>
+
+<span class="cmd">sf-rust video convert</span> <span class="flag">--input</span> <span class="value">recording.webm</span> <span class="flag">--format</span> <span class="value">gif</span> <span class="flag">--framerate</span> <span class="value">5</span>
+<span class="comment"># higher framerate for smoother motion</span>
+
+<span class="comment"># equivalent ffmpeg command:</span>
+ffmpeg -i recording.webm -r 2 recording.gif</div>
+
+<h3>webm / any video → mp4</h3>
+<div class="code-block"><span class="cmd">sf-rust video convert</span> <span class="flag">--input</span> <span class="value">input.webm</span> <span class="flag">--format</span> <span class="value">mp4</span>
+<span class="comment"># default CRF 26 — good quality / size balance</span>
+
+<span class="cmd">sf-rust video convert</span> <span class="flag">--input</span> <span class="value">input.webm</span> <span class="flag">--format</span> <span class="value">mp4</span> <span class="flag">--crf</span> <span class="value">18</span>
+<span class="comment"># lower CRF = higher quality, larger file</span>
+
+<span class="cmd">sf-rust video convert</span> <span class="flag">--input</span> <span class="value">input.mp4</span> <span class="flag">--format</span> <span class="value">mp4</span> <span class="flag">--output</span> <span class="value">compressed.mp4</span> <span class="flag">--crf</span> <span class="value">32</span>
+<span class="comment"># re-encode to smaller file</span>
+
+<span class="comment"># equivalent ffmpeg command:</span>
+ffmpeg -i input.webm -crf 26 input.mp4</div>
+
+<h3>Extract audio track as mp3</h3>
+<div class="code-block"><span class="cmd">sf-rust video convert</span> <span class="flag">--input</span> <span class="value">meeting.mp4</span> <span class="flag">--format</span> <span class="value">mp3</span>
+<span class="comment"># extracts audio track at best quality (-q:a 0)</span>
+
+<span class="cmd">sf-rust video convert</span> <span class="flag">--input</span> <span class="value">meeting.mp4</span> <span class="flag">--format</span> <span class="value">mp3</span> <span class="flag">--output</span> <span class="value">meeting_audio.mp3</span></div>
+
+<h3>Image + Audio → mp4 (slideshow / podcast cover)</h3>
+<div class="code-block"><span class="cmd">sf-rust video convert</span> \
+  <span class="flag">--image</span>  <span class="value">cover.jpg</span>       \
+  <span class="flag">--audio</span>  <span class="value">narration.mp3</span>  \
+  <span class="flag">--output</span> <span class="value">podcast.mp4</span>
+
+<span class="comment"># default output name: narration_slideshow.mp4</span>
+<span class="cmd">sf-rust video convert</span> <span class="flag">--image</span> <span class="value">cover.png</span> <span class="flag">--audio</span> <span class="value">talk.mp3</span>
+
+<span class="comment"># equivalent ffmpeg command:</span>
+ffmpeg -loop 1 -i cover.jpg -i narration.mp3 \
+  -c:v libx264 -tune stillimage -c:a aac -b:a 192k \
+  -pix_fmt yuv420p -shortest podcast.mp4</div>
+
+<h3>Supported output formats</h3>
+<table>
+  <thead><tr><th>Format</th><th>Extension</th><th>Use case</th><th>Key flag</th></tr></thead>
+  <tbody>
+    <tr><td><code>gif</code></td><td>.gif</td><td>Silent screencasts, README animations</td><td><code>--framerate</code> (default 2)</td></tr>
+    <tr><td><code>mp4</code></td><td>.mp4</td><td>Web video, uploading, sharing</td><td><code>--crf</code> (default 26)</td></tr>
+    <tr><td><code>webm</code></td><td>.webm</td><td>Browser-native video</td><td>—</td></tr>
+    <tr><td><code>mkv</code></td><td>.mkv</td><td>Lossless container</td><td>—</td></tr>
+    <tr><td><code>mp3</code></td><td>.mp3</td><td>Extract audio track</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<!-- ── Denoise ── -->
+<h2 id="denoise">video denoise</h2>
+
+<p>
+  Applies ffmpeg's <strong>afftdn</strong> (Audio FFT Denoiser) filter to reduce steady-state
+  background noise like fan hum, room noise, or recording hiss.
+</p>
+
+<div class="code-block"><span class="comment"># medium strength (default) — good for most recordings</span>
+<span class="cmd">sf-rust video denoise</span> <span class="flag">--input</span> <span class="value">recording.mp3</span>
+<span class="comment"># output: recording_clean.mp3</span>
+
+<span class="cmd">sf-rust video denoise</span> <span class="flag">--input</span> <span class="value">recording.mp3</span> <span class="flag">--strength</span> <span class="value">high</span>
+<span class="comment"># aggressive — good for very noisy recordings</span>
+
+<span class="cmd">sf-rust video denoise</span> <span class="flag">--input</span> <span class="value">recording.mp3</span> <span class="flag">--output</span> <span class="value">podcast_ep1_clean.mp3</span>
+
+<span class="cmd">sf-rust video denoise</span> <span class="flag">--input</span> <span class="value">meeting.wav</span> <span class="flag">--strength</span> <span class="value">low</span>
+<span class="comment"># low strength preserves more audio detail</span>
+
+<span class="comment"># equivalent ffmpeg command:</span>
+ffmpeg -i recording.mp3 -af "afftdn=nf=-25" recording_clean.mp3</div>
+
+<h3>Strength presets</h3>
+<table>
+  <thead><tr><th>Strength</th><th>Noise floor (nf)</th><th>Best for</th></tr></thead>
+  <tbody>
+    <tr><td><code>low</code></td><td>-15 dB</td><td>Lightly noisy recordings, preserve audio fidelity</td></tr>
+    <tr><td><code>medium</code></td><td>-25 dB</td><td>Typical room noise, fan hum — most recordings</td></tr>
+    <tr><td><code>high</code></td><td>-40 dB</td><td>Heavy background noise, outdoor recordings</td></tr>
+  </tbody>
+</table>
+
+<div class="tip">
+  <strong>Tip:</strong> <code>afftdn</code> works best on <em>consistent</em> background noise (fans, HVAC, electrical hum).
+  For intermittent noise (traffic, keyboard), try <code>high</code> strength.
+</div>
+
+<!-- ── Info ── -->
+<h2 id="info">video info</h2>
+
+<p>
+  Calls <code>ffprobe</code> under the hood and presents stream metadata in a clean
+  terminal table. Supports <code>--json</code> for raw output and <code>--datatable</code>
+  to open in the browser.
+</p>
+
+<div class="code-block"><span class="comment"># terminal table (default)</span>
+<span class="cmd">sf-rust video info</span> <span class="flag">--input</span> <span class="value">recording.webm</span>
+
+<span class="comment"># raw ffprobe JSON</span>
+<span class="cmd">sf-rust video info</span> <span class="flag">--input</span> <span class="value">recording.mp4</span> <span class="flag">--json</span>
+
+<span class="comment"># open in browser datatable</span>
+<span class="cmd">sf-rust video info</span> <span class="flag">--input</span> <span class="value">podcast.mp3</span> <span class="flag">--datatable</span>
+
+<span class="comment"># equivalent ffprobe command:</span>
+ffprobe -v quiet -print_format json -show_streams -show_format recording.webm</div>
+
+<h3>Info table columns</h3>
+<table>
+  <thead><tr><th>Column</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>Type</td><td>Stream type: <code>video</code> or <code>audio</code></td></tr>
+    <tr><td>Codec</td><td>Codec name, e.g. <code>vp8</code>, <code>h264</code>, <code>aac</code></td></tr>
+    <tr><td>Resolution</td><td>Width × Height for video streams</td></tr>
+    <tr><td>Duration (s)</td><td>Stream duration in seconds</td></tr>
+    <tr><td>Sample Rate</td><td>Audio sample rate in Hz</td></tr>
+    <tr><td>Channels</td><td>Number of audio channels (1=mono, 2=stereo)</td></tr>
+  </tbody>
+</table>
+
+<!-- ── Examples ── -->
+<h2 id="examples">Full examples</h2>
+
+<h3>Screen recording workflow (webm → gif for README)</h3>
+<div class="code-block"><span class="comment"># 1. Record your screen → recording.webm</span>
+<span class="comment"># 2. Convert to gif at 2fps</span>
+<span class="cmd">sf-rust video convert</span> <span class="flag">-i</span> <span class="value">recording.webm</span> <span class="flag">-f</span> <span class="value">gif</span>
+<span class="comment"># → recording.gif</span></div>
+
+<h3>Podcast / narration workflow</h3>
+<div class="code-block"><span class="comment"># 1. Denoise raw recording</span>
+<span class="cmd">sf-rust video denoise</span> <span class="flag">-i</span> <span class="value">episode1_raw.mp3</span> <span class="flag">--strength</span> <span class="value">medium</span>
+<span class="comment"># → episode1_raw_clean.mp3</span>
+
+<span class="comment"># 2. Create mp4 with podcast artwork for YouTube</span>
+<span class="cmd">sf-rust video convert</span> \
+  <span class="flag">--image</span>  <span class="value">artwork.jpg</span>              \
+  <span class="flag">--audio</span>  <span class="value">episode1_raw_clean.mp3</span> \
+  <span class="flag">--output</span> <span class="value">episode1.mp4</span>
+
+<span class="comment"># 3. Inspect the result</span>
+<span class="cmd">sf-rust video info</span> <span class="flag">-i</span> <span class="value">episode1.mp4</span></div>
+
+<h3>Meeting recording — extract audio</h3>
+<div class="code-block"><span class="cmd">sf-rust video convert</span> <span class="flag">-i</span> <span class="value">meeting.mp4</span> <span class="flag">-f</span> <span class="value">mp3</span>
+<span class="cmd">sf-rust video denoise</span>  <span class="flag">-i</span> <span class="value">meeting.mp3</span> <span class="flag">--strength</span> <span class="value">high</span></div>
+
+<!-- ── Flags ── -->
+<h2 id="flags">Flag reference</h2>
+
+<h3>video convert</h3>
+<table>
+  <thead><tr><th>Flag</th><th>Short</th><th>Default</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>--input</code></td><td><code>-i</code></td><td>—</td><td>Input video/audio file (required unless --image is given)</td></tr>
+    <tr><td><code>--format</code></td><td><code>-f</code></td><td>—</td><td>Output format: <code>gif</code>, <code>mp4</code>, <code>webm</code>, <code>mkv</code>, <code>mp3</code></td></tr>
+    <tr><td><code>--framerate</code></td><td>—</td><td>2</td><td>Frames per second for GIF output</td></tr>
+    <tr><td><code>--crf</code></td><td>—</td><td>26</td><td>CRF quality for MP4 (0=lossless, 51=worst)</td></tr>
+    <tr><td><code>--image</code></td><td>—</td><td>—</td><td>Static image for image+audio → mp4 mode</td></tr>
+    <tr><td><code>--audio</code></td><td>—</td><td>—</td><td>Audio file for image+audio → mp4 mode</td></tr>
+    <tr><td><code>--output</code></td><td><code>-o</code></td><td>auto</td><td>Output file path (default: derived from input stem)</td></tr>
+  </tbody>
+</table>
+
+<h3>video denoise</h3>
+<table>
+  <thead><tr><th>Flag</th><th>Short</th><th>Default</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>--input</code></td><td><code>-i</code></td><td>—</td><td>Input audio file (mp3, wav, aac, …)</td></tr>
+    <tr><td><code>--output</code></td><td><code>-o</code></td><td><code>&lt;stem&gt;_clean.&lt;ext&gt;</code></td><td>Output file path</td></tr>
+    <tr><td><code>--strength</code></td><td>—</td><td>medium</td><td>Denoising strength: <code>low</code>, <code>medium</code>, <code>high</code></td></tr>
+  </tbody>
+</table>
+
+<h3>video info</h3>
+<table>
+  <thead><tr><th>Flag</th><th>Short</th><th>Default</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>--input</code></td><td><code>-i</code></td><td>—</td><td>Media file to inspect</td></tr>
+    <tr><td><code>--json</code></td><td>—</td><td>false</td><td>Output raw ffprobe JSON</td></tr>
+    <tr><td><code>--datatable</code></td><td>—</td><td>false</td><td>Open results in browser datatable</td></tr>
+  </tbody>
+</table>
+
+<!-- ── Error handling ── -->
+<h2 id="errors">Error handling</h2>
+
+<table>
+  <thead><tr><th>Situation</th><th>Error message</th></tr></thead>
+  <tbody>
+    <tr><td>ffmpeg not on PATH</td><td><code>ffmpeg not found — install it with: brew install ffmpeg</code></td></tr>
+    <tr><td>ffprobe not on PATH</td><td><code>ffprobe not found — install it with: brew install ffmpeg</code></td></tr>
+    <tr><td>Missing <code>--input</code></td><td><code>--input is required (or use --image + --audio for slideshow)</code></td></tr>
+    <tr><td>Missing <code>--format</code></td><td><code>--format is required (gif, mp4, webm, mkv, mp3)</code></td></tr>
+    <tr><td>ffmpeg exits non-zero</td><td><code>ffmpeg exited with an error</code> (ffmpeg stderr shown above)</td></tr>
+  </tbody>
+</table>
+
+<!-- ── Quick ref ── -->
+<h2>Quick reference</h2>
+<div class="code-block"><span class="comment"># install ffmpeg (once)</span>
+brew install ffmpeg
+
+<span class="comment"># convert</span>
+<span class="cmd">sf-rust video convert</span> <span class="flag">-i</span> <span class="value">input.webm</span>  <span class="flag">-f</span> <span class="value">gif</span>                   <span class="comment"># → input.gif at 2fps</span>
+<span class="cmd">sf-rust video convert</span> <span class="flag">-i</span> <span class="value">input.webm</span>  <span class="flag">-f</span> <span class="value">mp4</span>                   <span class="comment"># → input.mp4 (CRF 26)</span>
+<span class="cmd">sf-rust video convert</span> <span class="flag">-i</span> <span class="value">input.mp4</span>   <span class="flag">-f</span> <span class="value">mp3</span>                   <span class="comment"># → extract audio</span>
+<span class="cmd">sf-rust video convert</span> <span class="flag">--image</span> <span class="value">art.jpg</span> <span class="flag">--audio</span> <span class="value">talk.mp3</span>        <span class="comment"># → talk_slideshow.mp4</span>
+
+<span class="comment"># denoise</span>
+<span class="cmd">sf-rust video denoise</span>  <span class="flag">-i</span> <span class="value">recording.mp3</span>                        <span class="comment"># → recording_clean.mp3</span>
+<span class="cmd">sf-rust video denoise</span>  <span class="flag">-i</span> <span class="value">recording.mp3</span> <span class="flag">--strength</span> <span class="value">high</span>        <span class="comment"># aggressive</span>
+
+<span class="comment"># info</span>
+<span class="cmd">sf-rust video info</span>     <span class="flag">-i</span> <span class="value">input.mp4</span>                            <span class="comment"># table</span>
+<span class="cmd">sf-rust video info</span>     <span class="flag">-i</span> <span class="value">input.mp4</span>  <span class="flag">--json</span>                    <span class="comment"># raw JSON</span>
+<span class="cmd">sf-rust video info</span>     <span class="flag">-i</span> <span class="value">input.mp4</span>  <span class="flag">--datatable</span>              <span class="comment"># browser</span></div>
+
+<footer>
+  sf-rust video &mdash; Part of the <a href="sf-rust-portal.html">sf-rust</a> native Salesforce CLI &mdash; Author: Mohan Chinnappan
+</footer>
+</div>
+
+<script>
+  const saved = localStorage.getItem('theme');
+  if (saved === 'light') document.body.classList.add('light');
+  document.querySelector('.theme-btn').addEventListener('click', () => {
+    localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+  });
+</script>
+</body>
+</html>
