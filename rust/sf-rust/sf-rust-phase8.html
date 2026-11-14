@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>sf-rust Phase 8 — Real-time &amp; Streaming</title>
+  <style>
+    :root {
+      --bg: #1e1e1e;
+      --panel: #252526;
+      --border: #3c3c3c;
+      --blue: #569cd6;
+      --green: #4ec9b0;
+      --yellow: #dcdcaa;
+      --cyan: #9cdcfe;
+      --red: #f44747;
+      --orange: #ce9178;
+      --purple: #c586c0;
+      --muted: #858585;
+      --text: #d4d4d4;
+      --comment: #6a9955;
+      --keyword: #c586c0;
+      --string: #ce9178;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    /* ── Topbar ── */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      height: 48px;
+      background: #333;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 12px;
+    }
+    .topbar-brand { color: var(--blue); font-weight: 700; font-size: 16px; }
+    .topbar-sep { color: var(--muted); }
+    .topbar-title { color: var(--text); font-size: 14px; }
+    .topbar-badge {
+      margin-left: auto;
+      background: #0e639c;
+      color: #fff;
+      font-size: 11px;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }
+
+    /* ── Layout ── */
+    .layout {
+      display: flex;
+      flex: 1;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: 210px;
+      flex-shrink: 0;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      position: sticky;
+      top: 48px;
+      height: calc(100vh - 48px);
+      overflow-y: auto;
+      padding: 16px 0;
+    }
+    .sidebar-section {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 10px 16px 4px;
+    }
+    .sidebar a {
+      display: block;
+      padding: 5px 16px 5px 24px;
+      color: var(--text);
+      text-decoration: none;
+      font-size: 13px;
+      border-left: 2px solid transparent;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .sidebar a:hover {
+      background: rgba(255,255,255,0.05);
+      border-left-color: var(--blue);
+      color: var(--cyan);
+    }
+
+    /* ── Main content ── */
+    main {
+      flex: 1;
+      max-width: 900px;
+      padding: 32px 40px 60px;
+      overflow-x: hidden;
+    }
+
+    /* ── Hero ── */
+    .hero { margin-bottom: 40px; }
+    .hero h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--cyan);
+      margin-bottom: 10px;
+    }
+    .hero-tagline {
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 680px;
+      margin-bottom: 20px;
+      line-height: 1.7;
+    }
+    .feat-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+    .feat-pill {
+      display: inline-block;
+      padding: 3px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    }
+    .pill-blue   { background: rgba(86,156,214,.18); color: var(--blue);   border: 1px solid rgba(86,156,214,.35); }
+    .pill-green  { background: rgba(78,201,176,.18); color: var(--green);  border: 1px solid rgba(78,201,176,.35); }
+    .pill-purple { background: rgba(197,134,192,.18); color: var(--purple); border: 1px solid rgba(197,134,192,.35); }
+    .pill-orange { background: rgba(206,145,120,.18); color: var(--orange); border: 1px solid rgba(206,145,120,.35); }
+    .pill-yellow { background: rgba(220,220,170,.18); color: var(--yellow); border: 1px solid rgba(220,220,170,.35); }
+    .pill-cyan   { background: rgba(156,220,254,.18); color: var(--cyan);   border: 1px solid rgba(156,220,254,.35); }
+
+    /* ── Section ── */
+    .cmd-section { margin-bottom: 48px; }
+    .cmd-section h2 {
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--yellow);
+      margin-bottom: 6px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .cmd-section h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--cyan);
+      margin: 20px 0 8px;
+    }
+    .section-divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 40px 0;
+    }
+    .cmd-desc {
+      color: var(--text);
+      margin-bottom: 16px;
+      line-height: 1.7;
+    }
+
+    /* ── Code / pre ── */
+    pre {
+      background: #0d0d0d;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--text);
+      margin: 10px 0 16px;
+    }
+    code {
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 12.5px;
+      background: rgba(255,255,255,0.08);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--cyan);
+    }
+    pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
+
+    /* ── Flags table ── */
+    .flags-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 13px;
+    }
+    .flags-table th {
+      background: #2a2a2a;
+      color: var(--muted);
+      text-transform: uppercase;
+      font-size: 11px;
+      letter-spacing: 0.5px;
+      padding: 8px 12px;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .flags-table td {
+      padding: 7px 12px;
+      border: 1px solid var(--border);
+      vertical-align: top;
+    }
+    .flags-table tr:nth-child(even) td { background: rgba(255,255,255,.025); }
+    .flags-table td:first-child {
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      color: var(--green);
+      white-space: nowrap;
+      font-size: 12px;
+    }
+    .flags-table td:last-child { color: var(--muted); font-style: italic; }
+
+    /* ── Output sample ── */
+    .output-sample {
+      background: #0a0a0a;
+      border-left: 3px solid var(--green);
+      border-radius: 0 6px 6px 0;
+      padding: 12px 16px;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 12.5px;
+      line-height: 1.6;
+      overflow-x: auto;
+      white-space: pre;
+      color: var(--text);
+      margin: 10px 0 16px;
+    }
+
+    /* ── Callouts ── */
+    .callout {
+      display: flex;
+      gap: 10px;
+      padding: 12px 16px;
+      border-radius: 6px;
+      margin: 16px 0;
+      font-size: 13px;
+      line-height: 1.65;
+    }
+    .callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .callout.note   { background: rgba(86,156,214,.1);  border-left: 3px solid var(--blue);   }
+    .callout.tip    { background: rgba(78,201,176,.1);  border-left: 3px solid var(--green);  }
+    .callout.warn   { background: rgba(244,71,71,.1);   border-left: 3px solid var(--red);    }
+    .callout.note .callout-icon   { color: var(--blue);   }
+    .callout.tip  .callout-icon   { color: var(--green);  }
+    .callout.warn .callout-icon   { color: var(--red);    }
+
+    /* ── Arch grid ── */
+    .arch-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .arch-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .arch-card h4 {
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 8px;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    }
+    .arch-card p { color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 16px 40px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 768px) {
+      .sidebar { display: none; }
+      main { padding: 20px 16px 40px; }
+      .arch-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Topbar -->
+<div class="topbar">
+  <span class="topbar-brand">sf-rust</span>
+  <span class="topbar-sep">/</span>
+  <span class="topbar-title">phase 8</span>
+  <span class="topbar-badge">v0.4.0 · Real-time &amp; Streaming</span>
+</div>
+
+<div class="layout">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-section">Overview</div>
+    <a href="#overview">Introduction</a>
+
+    <div class="sidebar-section">Apex Streaming</div>
+    <a href="#debug-tail">apex debug-tail</a>
+
+    <div class="sidebar-section">Platform Events</div>
+    <a href="#subscribe">event subscribe</a>
+    <a href="#publish">event publish</a>
+
+    <div class="sidebar-section">Org Audit</div>
+    <a href="#audit-login">login history</a>
+    <a href="#audit-setup">setup audit</a>
+    <a href="#audit-field">field history</a>
+
+    <div class="sidebar-section">Config CLI</div>
+    <a href="#config-get">config get</a>
+    <a href="#config-set">config set</a>
+    <a href="#config-list">config list</a>
+
+    <div class="sidebar-section">Architecture</div>
+    <a href="#arch">Implementation</a>
+  </nav>
+
+  <!-- Main -->
+  <main>
+
+    <!-- Hero -->
+    <section class="hero" id="overview">
+      <h1>sf-rust Phase 8 — Real-time &amp; Streaming</h1>
+      <p class="hero-tagline">
+        Live debug log streaming, Platform Event pub/sub via CometD, org audit trails,
+        and CLI config management — all from a single native binary.
+      </p>
+      <div class="feat-pills">
+        <span class="feat-pill pill-blue">apex debug-tail</span>
+        <span class="feat-pill pill-green">event subscribe</span>
+        <span class="feat-pill pill-purple">event publish</span>
+        <span class="feat-pill pill-orange">audit login</span>
+        <span class="feat-pill pill-orange">audit setup</span>
+        <span class="feat-pill pill-orange">audit field-history</span>
+        <span class="feat-pill pill-yellow">config get/set/list</span>
+      </div>
+    </section>
+
+    <div class="cmd-section">
+      <p class="cmd-desc">
+        Phase 8 adds nine new commands focused on real-time observability and org management.
+        Developers can now tail Apex logs as they fire, subscribe to Platform Events as they
+        arrive, audit who changed what in the org, and manage CLI configuration — all without
+        leaving the terminal.
+      </p>
+    </div>
+
+    <!-- ── apex debug-tail ── -->
+    <hr class="section-divider">
+    <section class="cmd-section" id="debug-tail">
+      <h2>apex debug-tail</h2>
+      <p class="cmd-desc">
+        Polls <code>ApexLog</code> via the Tooling API every 2 seconds. For each new log entry,
+        a header line is printed showing the timestamp, running user, entry point, and log size.
+        With <code>--body</code>, filtered body lines are also streamed — surfacing USER_DEBUG
+        output, exceptions, SOQL statements, and DML events without downloading the full log.
+        Runs until Ctrl-C.
+      </p>
+
+      <h3>Flags</h3>
+      <table class="flags-table">
+        <thead>
+          <tr><th>Flag</th><th>Description</th><th>Default</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>-o, --target-org</td>
+            <td>Target org alias or username</td>
+            <td>default org</td>
+          </tr>
+          <tr>
+            <td>--level</td>
+            <td>Log level hint displayed in the header</td>
+            <td>DEBUG</td>
+          </tr>
+          <tr>
+            <td>--body</td>
+            <td>Also stream filtered body lines (USER_DEBUG, EXCEPTION_THROWN, SOQL_EXECUTE_BEGIN, DML_BEGIN)</td>
+            <td>off</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Usage</h3>
+      <pre>sf-rust apex debug-tail -o dev1
+sf-rust apex debug-tail -o dev1 --body
+sf-rust apex debug-tail -o dev1 --body --level FINEST</pre>
+
+      <h3>Example output — header mode</h3>
+      <div class="output-sample">$ sf-rust apex debug-tail -o dev1
+Tailing Apex debug logs for dev1. Ctrl-C to stop.
+
+─── [2026-11-14T10:23:11Z] Admin User | /apex/MyController | 48,201B ───
+─── [2026-11-14T10:23:45Z] Admin User | Execute Anonymous | 1,204B ───</div>
+
+      <h3>Example output — with --body</h3>
+      <div class="output-sample">$ sf-rust apex debug-tail -o dev1 --body
+Tailing Apex debug logs for dev1. Ctrl-C to stop.
+
+─── [2026-11-14T10:24:01Z] Admin User | /apex/InvoiceController | 72,440B ───
+14:24:01.012 (12345)|USER_DEBUG|[42]|DEBUG|Invoice processed: INV-0042
+14:24:01.098 (98765)|SOQL_EXECUTE_BEGIN|[18]|SELECT Id FROM Invoice__c WHERE Status = 'Open'
+
+─── [2026-11-14T10:24:33Z] Admin User | Execute Anonymous | 3,801B ───
+14:24:33.004 (4000)|USER_DEBUG|[1]|DEBUG|Hello from execute anonymous</div>
+
+      <div class="callout note">
+        <span class="callout-icon">ℹ</span>
+        <span>Polling interval is 2 seconds. Use <code>--body</code> to surface USER_DEBUG and
+        exception lines without downloading the full log. The Tooling API tracks a <code>last_id</code>
+        cursor so only new logs since the previous poll are shown.</span>
+      </div>
+    </section>
+
+    <!-- ── event subscribe ── -->
+    <hr class="section-divider">
+    <section class="cmd-section" id="subscribe">
+      <h2>event subscribe</h2>
+      <p class="cmd-desc">
+        Subscribes to a Salesforce Platform Event channel using CometD/Bayeux long-polling.
+        Performs the full CometD handshake (handshake → subscribe → connect loop) against
+        <code>/cometd/{api_version}</code> and prints each event payload as JSON as it arrives.
+        Runs until Ctrl-C.
+      </p>
+
+      <h3>Flags</h3>
+      <table class="flags-table">
+        <thead>
+          <tr><th>Flag</th><th>Description</th><th>Default</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>&lt;event&gt;</td>
+            <td>Platform Event API name (e.g. <code>OrderEvent__e</code>)</td>
+            <td>required</td>
+          </tr>
+          <tr>
+            <td>-o, --target-org</td>
+            <td>Target org alias or username</td>
+            <td>default org</td>
+          </tr>
+          <tr>
+            <td>--replay-id</td>
+            <td>CometD replay ID: <code>-1</code> = new events only, <code>-2</code> = all retained</td>
+            <td>-1</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Usage</h3>
+      <pre>sf-rust event subscribe OrderEvent__e -o dev1
+sf-rust event subscribe OrderEvent__e -o dev1 --replay-id -2
+sf-rust event subscribe MyPlatformEvent__e -o prod</pre>
+
+      <h3>Example output</h3>
+      <div class="output-sample">$ sf-rust event subscribe OrderEvent__e -o dev1
+Subscribed to /event/OrderEvent__e (replay_id=-1). Waiting for events... Ctrl-C to stop.
+
+[replayId=42] {
+  "OrderNumber__c": "ORD-9001",
+  "Amount__c": 2500.00,
+  "Status__c": "Confirmed"
+}
+[replayId=43] {
+  "OrderNumber__c": "ORD-9002",
+  "Amount__c": 150.00,
+  "Status__c": "Pending"
+}</div>
+
+      <div class="callout tip">
+        <span class="callout-icon">✓</span>
+        <span>Use <code>--replay-id -2</code> to replay all retained events (up to 72 hours)
+        from the beginning of the retention window. This is useful for debugging missed events
+        or replaying a sequence during development.</span>
+      </div>
+    </section>
+
+    <!-- ── event publish ── -->
+    <hr class="section-divider">
+    <section class="cmd-section" id="publish">
+      <h2>event publish</h2>
+      <p class="cmd-desc">
+        Publishes a Platform Event to the org via the Salesforce REST API
+        (<code>POST /services/data/v{api_version}/sobjects/{Event__e}/</code>).
+        The JSON payload is passed directly as the event's field values.
+      </p>
+
+      <h3>Flags</h3>
+      <table class="flags-table">
+        <thead>
+          <tr><th>Flag</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>&lt;event&gt;</td>
+            <td>Platform Event API name (e.g. <code>OrderEvent__e</code>)</td>
+          </tr>
+          <tr>
+            <td>-o, --target-org</td>
+            <td>Target org alias or username</td>
+          </tr>
+          <tr>
+            <td>--data</td>
+            <td>JSON payload with the event's field values</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Usage</h3>
+      <pre>sf-rust event publish OrderEvent__e -o dev1 \
+    --data '{"OrderNumber__c":"ORD-9003","Amount__c":750.00,"Status__c":"New"}'</pre>
+
+      <h3>Example output</h3>
+      <div class="output-sample">$ sf-rust event publish OrderEvent__e -o dev1 \
+    --data '{"OrderNumber__c":"ORD-9003","Amount__c":750.00,"Status__c":"New"}'
+Published event OrderEvent__e · Id: e00xx0000000001AAA</div>
+
+      <div class="callout note">
+        <span class="callout-icon">ℹ</span>
+        <span>Combine <code>event publish</code> in one terminal with <code>event subscribe</code>
+        in another to test end-to-end Platform Event flows without writing any Apex or Flow.</span>
+      </div>
+    </section>
+
+    <!-- ── audit login ── -->
+    <hr class="section-divider">
+    <section class="cmd-section" id="audit-login">
+      <h2>audit login</h2>
+      <p class="cmd-desc">
+        Queries <code>LoginHistory</code> for the past N login attempts to the org.
+        Shows who logged in, from where, with which browser, and whether the attempt succeeded.
+        Useful for security audits and investigating unauthorized access.
+      </p>
+
+      <h3>Flags</h3>
+      <table class="flags-table">
+        <thead>
+          <tr><th>Flag</th><th>Description</th><th>Default</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>-o, --target-org</td><td>Target org alias or username</td><td>default org</td></tr>
+          <tr><td>--last N</td><td>Number of records to return</td><td>50</td></tr>
+          <tr><td>--json</td><td>Output as JSON</td><td>off</td></tr>
+          <tr><td>--csv</td><td>Output as CSV</td><td>off</td></tr>
+          <tr><td>--datatable</td><td>Open results in a browser datatable</td><td>off</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Usage</h3>
+      <pre>sf-rust audit login -o dev1
+sf-rust audit login -o dev1 --last 100
+sf-rust audit login -o dev1 --json
+sf-rust audit login -o dev1 --datatable</pre>
+
+      <h3>Example output</h3>
+      <div class="output-sample">╔══════════════════╦═══════════╦══════════════════════╦══════════╦═════════╦════════════╦════════════════╗
+║ UserId           ║ LoginType ║ LoginTime            ║ Status   ║ Browser ║ Platform   ║ SourceIp       ║
+╠══════════════════╬═══════════╬══════════════════════╬══════════╬═════════╬════════════╬════════════════╣
+║ 005xx000001234   ║ Username  ║ 2026-11-14T09:12:00Z ║ Success  ║ Chrome  ║ Mac OS X   ║ 203.0.113.42   ║
+║ 005xx000001234   ║ Username  ║ 2026-11-13T22:45:00Z ║ Failed   ║ Firefox ║ Windows 10 ║ 198.51.100.7   ║
+╚══════════════════╩═══════════╩══════════════════════╩══════════╩═════════╩════════════╩════════════════╝</div>
+    </section>
+
+    <!-- ── audit setup ── -->
+    <hr class="section-divider">
+    <section class="cmd-section" id="audit-setup">
+      <h2>audit setup</h2>
+      <p class="cmd-desc">
+        Queries <code>SetupAuditTrail</code> to show admin changes made to the org configuration.
+        Tracks which user made the change, when, in which Setup section, and what the display text was.
+        Essential for change management and compliance reviews.
+      </p>
+
+      <h3>Flags</h3>
+      <table class="flags-table">
+        <thead>
+          <tr><th>Flag</th><th>Description</th><th>Default</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>-o, --target-org</td><td>Target org alias or username</td><td>default org</td></tr>
+          <tr><td>--last N</td><td>Number of records to return</td><td>50</td></tr>
+          <tr><td>--json</td><td>Output as JSON</td><td>off</td></tr>
+          <tr><td>--csv</td><td>Output as CSV</td><td>off</td></tr>
+          <tr><td>--datatable</td><td>Open results in a browser datatable</td><td>off</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Usage</h3>
+      <pre>sf-rust audit setup -o dev1
+sf-rust audit setup -o dev1 --last 20
+sf-rust audit setup -o prod --datatable</pre>
+
+      <h3>Example output</h3>
+      <div class="output-sample">╔══════════════════════╦══════════════════╦══════════════════════╦═══════════════╦═══════════════════════════════╗
+║ CreatedDate          ║ CreatedBy.Name   ║ Action               ║ Section       ║ Display                       ║
+╠══════════════════════╬══════════════════╬══════════════════════╬═══════════════╬═══════════════════════════════╣
+║ 2026-11-14T08:30:00Z ║ Admin User       ║ fieldCreated         ║ CustomObject  ║ Created field Status__c       ║
+║ 2026-11-13T17:12:00Z ║ Admin User       ║ permSetCreate        ║ PermSets      ║ Created permission set DevOps ║
+╚══════════════════════╩══════════════════╩══════════════════════╩═══════════════╩═══════════════════════════════╝</div>
+    </section>
+
+    <!-- ── audit field-history ── -->
+    <hr class="section-divider">
+    <section class="cmd-section" id="audit-field">
+      <h2>audit field-history</h2>
+      <p class="cmd-desc">
+        Queries <code>{Object}History</code> to show field-level change history for a Salesforce object.
+        Shows who changed which field, when, and from what value to what value.
+        Requires field history tracking to be enabled on the object.
+      </p>
+
+      <h3>Flags</h3>
+      <table class="flags-table">
+        <thead>
+          <tr><th>Flag</th><th>Description</th><th>Default</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>&lt;object&gt;</td><td>SObject API name (e.g. Account, Opportunity)</td><td>required</td></tr>
+          <tr><td>-o, --target-org</td><td>Target org alias or username</td><td>default org</td></tr>
+          <tr><td>--last N</td><td>Number of records to return</td><td>50</td></tr>
+          <tr><td>--json</td><td>Output as JSON</td><td>off</td></tr>
+          <tr><td>--csv</td><td>Output as CSV</td><td>off</td></tr>
+          <tr><td>--datatable</td><td>Open results in a browser datatable</td><td>off</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Usage</h3>
+      <pre>sf-rust audit field-history Account -o dev1
+sf-rust audit field-history Account -o dev1 --last 100
+sf-rust audit field-history Opportunity -o dev1 --datatable</pre>
+
+      <h3>Example output</h3>
+      <div class="output-sample">╔══════════════════════╦══════════════════╦════════════════╦═════════════════╦═════════════════╗
+║ CreatedDate          ║ CreatedBy.Name   ║ Field          ║ OldValue        ║ NewValue        ║
+╠══════════════════════╬══════════════════╬════════════════╬═════════════════╬═════════════════╣
+║ 2026-11-14T10:05:00Z ║ Sales Rep        ║ Industry       ║ Technology      ║ Financial       ║
+║ 2026-11-14T09:50:00Z ║ Admin User       ║ AnnualRevenue  ║ 1000000         ║ 2500000         ║
+╚══════════════════════╩══════════════════╩════════════════╩═════════════════╩═════════════════╝</div>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠</span>
+        <span>Field history tracking must be enabled for the object in
+        <strong>Setup → Object Manager → {Object} → Fields &amp; Relationships → Set History Tracking</strong>
+        before this command will return data. Salesforce retains field history for 18 months.</span>
+      </div>
+    </section>
+
+    <!-- ── config get ── -->
+    <hr class="section-divider">
+    <section class="cmd-section" id="config-get">
+      <h2>config get</h2>
+      <p class="cmd-desc">
+        Reads a single configuration key from <code>~/.sf-rust/config.toml</code>.
+        Supported keys: <code>default_org</code>, <code>default_dev_hub</code>, <code>api_version</code>.
+      </p>
+
+      <h3>Usage</h3>
+      <pre>sf-rust config get default_org
+sf-rust config get api_version
+sf-rust config get default_dev_hub</pre>
+
+      <h3>Example output</h3>
+      <div class="output-sample">$ sf-rust config get default_org
+admin@myorg.com</div>
+    </section>
+
+    <!-- ── config set ── -->
+    <hr class="section-divider">
+    <section class="cmd-section" id="config-set">
+      <h2>config set</h2>
+      <p class="cmd-desc">
+        Writes a configuration key to <code>~/.sf-rust/config.toml</code>.
+        Changes take effect immediately for subsequent commands.
+      </p>
+
+      <h3>Usage</h3>
+      <pre>sf-rust config set default_org dev1
+sf-rust config set api_version 62.0
+sf-rust config set default_dev_hub devhub@example.com</pre>
+
+      <h3>Example output</h3>
+      <div class="output-sample">$ sf-rust config set default_org dev1
+Set default_org = dev1
+
+$ sf-rust config set api_version 62.0
+Set api_version = 62.0</div>
+    </section>
+
+    <!-- ── config list ── -->
+    <hr class="section-divider">
+    <section class="cmd-section" id="config-list">
+      <h2>config list</h2>
+      <p class="cmd-desc">
+        Displays all configuration keys and their current values in a table.
+        Keys that have not been set show <code>(not set)</code>.
+        Use <code>--datatable</code> to open the config in an interactive browser table.
+      </p>
+
+      <h3>Flags</h3>
+      <table class="flags-table">
+        <thead>
+          <tr><th>Flag</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>--datatable</td><td>Open results in a browser datatable</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Usage</h3>
+      <pre>sf-rust config list
+sf-rust config list --datatable</pre>
+
+      <h3>Example output</h3>
+      <div class="output-sample">╔══════════════════╦════════════════════════════════════════╗
+║ Key              ║ Value                                  ║
+╠══════════════════╬════════════════════════════════════════╣
+║ default_org      ║ admin@myorg.com                        ║
+║ default_dev_hub  ║ (not set)                              ║
+║ api_version      ║ (not set)                              ║
+╚══════════════════╩════════════════════════════════════════╝</div>
+
+      <div class="callout tip">
+        <span class="callout-icon">✓</span>
+        <span>Setting <code>api_version</code> overrides the live version lookup from
+        <code>GET /services/data/</code>. Leave it unset to always use the org's highest
+        supported API version automatically.</span>
+      </div>
+    </section>
+
+    <!-- ── Architecture ── -->
+    <hr class="section-divider">
+    <section class="cmd-section" id="arch">
+      <h2>Architecture</h2>
+      <p class="cmd-desc">
+        Phase 8 adds two new crates (<code>sf-event</code>, <code>sf-audit</code>) and
+        extends <code>sf-apex</code> and <code>sf-cli</code>. All commands follow the
+        existing async Tokio pattern and share the <code>SalesforceClient</code> from <code>sf-api</code>.
+      </p>
+
+      <div class="arch-grid">
+        <div class="arch-card">
+          <h4>sf-event</h4>
+          <p>
+            CometD/Bayeux protocol implemented with <code>reqwest</code> async HTTP.
+            Flow: POST handshake → extract <code>clientId</code> → POST subscribe →
+            long-poll connect loop. The replay extension uses a dynamic channel key
+            so each reconnect carries the latest <code>replayId</code>.
+          </p>
+        </div>
+        <div class="arch-card">
+          <h4>sf-audit</h4>
+          <p>
+            Standard SOQL queries via <code>SalesforceClient::query()</code>.
+            Nested relationship fields (<code>CreatedBy.Name</code>) are flattened
+            by <code>flatten_record()</code> before rendering. All three audit commands
+            share a common <code>print_results()</code> path for table / JSON / CSV output.
+          </p>
+        </div>
+        <div class="arch-card">
+          <h4>apex debug-tail</h4>
+          <p>
+            Tooling API — polls <code>ApexLog</code> every 2 seconds. Tracks a
+            <code>last_id</code> cursor to query only new logs since the previous poll.
+            With <code>--body</code>, fetches the log body and line-filters to relevant
+            event types: USER_DEBUG, EXCEPTION_THROWN, SOQL_EXECUTE_BEGIN, DML_BEGIN.
+          </p>
+        </div>
+        <div class="arch-card">
+          <h4>config commands</h4>
+          <p>
+            Synchronous (no <code>.await</code>) — directly calls
+            <code>sf_core::Config::load()</code> for reads and <code>cfg.save()</code>
+            for writes. No network calls needed; operates entirely on
+            <code>~/.sf-rust/config.toml</code>.
+          </p>
+        </div>
+      </div>
+
+      <h3 style="margin-top: 24px;">New crates in workspace</h3>
+      <pre>crates/sf-event/     # CometD subscribe + publish commands
+crates/sf-audit/     # Login history, setup audit, field history commands</pre>
+
+      <h3>Wiring in sf-cli</h3>
+      <pre>// crates/sf-cli/src/lib.rs
+use sf_event::commands::EventArgs;
+use sf_audit::commands::AuditArgs;
+
+#[command(about = "Subscribe to and publish Salesforce Platform Events")]
+Event(EventArgs),
+#[command(about = "Inspect org audit trails: login history, setup audit, field history")]
+Audit(AuditArgs),
+#[command(about = "Get, set, or list sf-rust configuration values")]
+Config(ConfigArgs),</pre>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  Generated by sf-rust · v0.4.0 · November 2026
+</footer>
+
+</body>
+</html>

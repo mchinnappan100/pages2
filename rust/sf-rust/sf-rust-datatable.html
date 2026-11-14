@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sf-rust --datatable</title>
+<style>
+  :root {
+    --bg: #1e1e1e; --panel: #252526; --border: #3c3c3c;
+    --blue: #569cd6; --green: #4ec9b0; --yellow: #dcdcaa;
+    --cyan: #9cdcfe; --red: #f44747; --orange: #ce9178;
+    --purple: #c586c0; --muted: #858585; --text: #d4d4d4;
+    --comment: #6a9955; --keyword: #c586c0; --string: #ce9178;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; font-family: 'Segoe UI', system-ui, sans-serif;
+         background: var(--bg); color: var(--text); font-size: .9rem; line-height: 1.6; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ── topbar ── */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    height: 48px; background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; padding: 0 1.2rem; gap: .5rem;
+    font-size: .82rem;
+  }
+  .topbar-logo { font-weight: 700; color: var(--blue); letter-spacing: -.01em; }
+  .topbar-sep  { color: var(--border); }
+  .topbar-sub  { color: var(--cyan); font-weight: 600; }
+  .topbar-badge {
+    margin-left: auto; font-size: .68rem; font-weight: 600;
+    color: var(--muted); background: rgba(86,156,214,.08);
+    border: 1px solid rgba(86,156,214,.2); border-radius: 20px;
+    padding: .18rem .7rem;
+  }
+
+  /* ── layout ── */
+  .layout { display: flex; min-height: calc(100vh - 48px); }
+
+  /* ── sidebar ── */
+  .sidebar {
+    width: 210px; flex-shrink: 0;
+    background: var(--panel); border-right: 1px solid var(--border);
+    padding: 1.2rem 0; position: sticky; top: 48px;
+    height: calc(100vh - 48px); overflow-y: auto;
+    font-size: .8rem;
+  }
+  .sidebar a {
+    display: flex; align-items: center; gap: .4rem;
+    padding: .32rem 1.1rem; color: #aaa;
+    border-left: 2px solid transparent; transition: all .15s;
+  }
+  .sidebar a:hover { color: var(--text); background: rgba(255,255,255,.04); text-decoration: none; }
+  .sidebar a.active { color: var(--blue); border-left-color: var(--blue); background: rgba(86,156,214,.07); }
+  .nav-section-label {
+    font-size: .64rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--muted);
+    padding: .9rem 1.1rem .3rem; margin-top: .3rem;
+  }
+  .cmd-badge {
+    font-family: monospace; font-size: .72rem;
+    background: rgba(86,156,214,.1); color: var(--blue);
+    border: 1px solid rgba(86,156,214,.2); border-radius: 3px;
+    padding: .05rem .3rem; flex-shrink: 0;
+  }
+  .new-badge {
+    font-size: .6rem; font-weight: 700; text-transform: uppercase;
+    color: var(--green); background: rgba(78,201,176,.1);
+    border: 1px solid rgba(78,201,176,.3); border-radius: 3px;
+    padding: .05rem .3rem;
+  }
+
+  /* ── main ── */
+  main { flex: 1; padding: 2rem 2.5rem; max-width: 900px; }
+
+  /* ── hero ── */
+  .hero { margin-bottom: 2.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }
+  .hero h1 { font-size: 2rem; font-weight: 700; color: var(--blue); letter-spacing: -.02em; margin-bottom: .4rem; }
+  .hero .tagline { font-size: 1.05rem; color: #aaa; margin-bottom: 1.5rem; }
+  .hero-features { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .feat-pill {
+    font-size: .72rem; padding: .22rem .7rem;
+    border-radius: 20px; font-weight: 600;
+  }
+  .feat-pill.blue   { background: rgba(86,156,214,.12); color: #569cd6; border: 1px solid rgba(86,156,214,.25); }
+  .feat-pill.green  { background: rgba(78,201,176,.12); color: #4ec9b0; border: 1px solid rgba(78,201,176,.25); }
+  .feat-pill.purple { background: rgba(197,134,192,.12); color: #c586c0; border: 1px solid rgba(197,134,192,.25); }
+  .feat-pill.orange { background: rgba(206,145,120,.12); color: #ce9178; border: 1px solid rgba(206,145,120,.25); }
+  .feat-pill.yellow { background: rgba(220,220,170,.12); color: #dcdcaa; border: 1px solid rgba(220,220,170,.25); }
+
+  /* ── section headings ── */
+  .cmd-section { margin-bottom: 3.5rem; scroll-margin-top: 60px; }
+  .cmd-section h2 {
+    font-size: 1.3rem; font-weight: 700;
+    color: var(--text);
+    display: flex; align-items: center; gap: .6rem;
+    margin-bottom: .3rem;
+  }
+  .cmd-section h2 code {
+    font-size: 1.1rem; color: var(--blue);
+    background: rgba(86,156,214,.08);
+    border: 1px solid rgba(86,156,214,.2);
+    border-radius: 5px; padding: .1rem .5rem;
+  }
+  .cmd-desc { color: #aaa; font-size: .92rem; margin-bottom: 1.2rem; }
+  .section-divider { height: 1px; background: var(--border); margin-bottom: 1.5rem; }
+
+  /* ── flags table ── */
+  .flags-table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: .85rem; }
+  .flags-table th {
+    text-align: left; font-size: .7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--muted);
+    padding: .4rem .7rem; border-bottom: 1px solid var(--border);
+  }
+  .flags-table td { padding: .45rem .7rem; border-bottom: 1px solid #2a2a2a; vertical-align: top; }
+  .flags-table tr:last-child td { border-bottom: none; }
+  .flags-table td:first-child { font-family: monospace; color: var(--cyan); white-space: nowrap; }
+  .flags-table td:last-child  { color: #aaa; }
+
+  /* ── code blocks ── */
+  pre {
+    background: #1a1a1a;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", monospace;
+    font-size: .8rem;
+    line-height: 1.65;
+    margin-bottom: 1rem;
+    position: relative;
+  }
+  pre .label {
+    position: absolute; top: .5rem; right: .7rem;
+    font-size: .62rem; color: #555; font-family: sans-serif;
+  }
+  .c  { color: var(--comment); }
+  .k  { color: var(--keyword); }
+  .s  { color: var(--string); }
+  .g  { color: var(--green); }
+  .r  { color: var(--red); }
+  .b  { color: var(--blue); }
+  .y  { color: var(--yellow); }
+  .m  { color: var(--muted); }
+
+  /* ── inline code ── */
+  code { font-family: monospace; font-size: .85em; }
+  p code, li code, td code {
+    background: #2a2a2a; border: 1px solid #3a3a3a;
+    border-radius: 3px; padding: .08em .35em;
+    color: var(--cyan);
+  }
+
+  /* ── sub-headings ── */
+  h3 { font-size: .95rem; font-weight: 600; color: #ccc; margin: 1.5rem 0 .6rem; }
+  h4 { font-size: .82rem; font-weight: 600; color: var(--muted); margin: 1.2rem 0 .4rem; text-transform: uppercase; letter-spacing: .06em; }
+
+  /* ── callout boxes ── */
+  .callout {
+    display: flex; gap: .8rem; align-items: flex-start;
+    padding: .8rem 1rem; border-radius: 6px; margin-bottom: 1rem;
+    font-size: .85rem;
+  }
+  .callout.tip  { background: rgba(78,201,176,.07); border: 1px solid rgba(78,201,176,.2); }
+  .callout.note { background: rgba(86,156,214,.07); border: 1px solid rgba(86,156,214,.2); }
+  .callout.warn { background: rgba(220,220,170,.07); border: 1px solid rgba(220,220,170,.2); }
+  .callout-icon { font-size: 1rem; flex-shrink: 0; margin-top: .05rem; }
+  .callout.tip  .callout-icon { color: var(--green); }
+  .callout.note .callout-icon { color: var(--blue); }
+  .callout.warn .callout-icon { color: var(--yellow); }
+  .callout p { color: #bbb; margin: 0; }
+  .callout p strong { color: var(--text); }
+
+  /* ── output sample ── */
+  .output-sample {
+    background: #181818; border: 1px solid #333;
+    border-radius: 7px; padding: .9rem 1rem;
+    font-family: monospace; font-size: .78rem; line-height: 1.7;
+    overflow-x: auto; margin-bottom: 1rem;
+  }
+  .hl-g { color: var(--green); }
+  .hl-b { color: var(--blue); }
+  .hl-y { color: var(--yellow); }
+  .hl-c { color: var(--cyan); }
+  .hl-m { color: var(--muted); }
+
+  /* ── feature grid ── */
+  .feature-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: .6rem; margin-bottom: 1.5rem; }
+  .feature-card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: 6px; padding: .7rem .9rem;
+  }
+  .feature-card .fc-name { font-family: monospace; color: var(--cyan); font-size: .82rem; font-weight: 600; display: block; margin-bottom: .2rem; }
+  .feature-card .fc-desc { color: #888; font-size: .72rem; }
+
+  /* ── footer ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 1.2rem 1.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: .75rem; color: var(--muted);
+  }
+  footer a { color: #555; text-decoration: none; }
+  footer a:hover { color: #999; }
+</style>
+</head>
+<body>
+
+<!-- ── top bar ── -->
+<header class="topbar">
+  <span class="topbar-logo">sf-rust</span>
+  <span class="topbar-sep">/</span>
+  <span class="topbar-sub">--datatable</span>
+  <span class="topbar-badge">v0.4.0 · Universal browser tables</span>
+</header>
+
+<div class="layout">
+
+  <!-- ── sidebar ── -->
+  <nav class="sidebar" id="sidebar-nav">
+    <div class="nav-section-label">Overview</div>
+    <a href="#how-it-works">How it works</a>
+
+    <div class="nav-section-label">Reference</div>
+    <a href="#commands">Supported commands</a>
+    <a href="#examples">Examples</a>
+
+    <div class="nav-section-label">Output</div>
+    <a href="#html-output">HTML output features</a>
+
+    <div class="nav-section-label">Contributing</div>
+    <a href="#implementation">For contributors</a>
+  </nav>
+
+  <!-- ── main ── -->
+  <main>
+
+    <!-- ── hero ── -->
+    <section class="hero" id="overview">
+      <h1>sf-rust --datatable</h1>
+      <p class="tagline">
+        Every table-displaying command in sf-rust supports <code>--datatable</code> —
+        open any result set as a sortable, searchable HTML page in your browser.
+        No extra tooling required.
+      </p>
+      <div class="hero-features">
+        <span class="feat-pill blue">sortable columns</span>
+        <span class="feat-pill green">live search</span>
+        <span class="feat-pill yellow">row count</span>
+        <span class="feat-pill purple">dark mode</span>
+        <span class="feat-pill orange">auto-opens in browser</span>
+        <span class="feat-pill blue">/tmp output</span>
+      </div>
+    </section>
+
+    <!-- ── how it works ── -->
+    <section class="cmd-section" id="how-it-works">
+      <h2>How it works</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Pass <code>--datatable</code> to any table-displaying command and sf-rust will
+        fetch the data as normal, then generate a self-contained HTML page and open it
+        in your default browser automatically.
+      </p>
+
+      <div class="feature-grid">
+        <div class="feature-card">
+          <span class="fc-name">1. Fetch</span>
+          <span class="fc-desc">Data is retrieved from Salesforce exactly as it would be for a normal table print.</span>
+        </div>
+        <div class="feature-card">
+          <span class="fc-name">2. Generate</span>
+          <span class="fc-desc">A standalone HTML file is written to <code>/tmp/sf-rust-{name}-{ts}.html</code>.</span>
+        </div>
+        <div class="feature-card">
+          <span class="fc-name">3. Open</span>
+          <span class="fc-desc">The file is opened with the system browser (<code>open</code> on macOS, <code>xdg-open</code> on Linux).</span>
+        </div>
+        <div class="feature-card">
+          <span class="fc-name">4. Offline</span>
+          <span class="fc-desc">The generated file is fully self-contained — no network required after generation.</span>
+        </div>
+      </div>
+
+      <div class="callout note">
+        <span class="callout-icon">ℹ</span>
+        <p>The file path is printed to <code>stderr</code> after opening:
+        <code>Datatable: /tmp/sf-rust-org-limits-1731600000000.html</code></p>
+      </div>
+
+      <h3>Shared helper</h3>
+      <p>All commands use the same shared implementation in <code>sf-output</code>:</p>
+      <ul style="color:#aaa; font-size:.88rem; padding-left:1.3rem;">
+        <li><code>Output::open_datatable(title, cols, rows)</code> — for multi-column result sets</li>
+        <li><code>Output::open_kv_datatable(title, rows)</code> — for key-value pages like <code>org display</code></li>
+      </ul>
+    </section>
+
+    <!-- ── supported commands ── -->
+    <section class="cmd-section" id="commands">
+      <h2>Supported commands</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Every table-displaying command across all sf-rust command groups supports <code>--datatable</code>.
+      </p>
+
+      <h3>Data</h3>
+      <table class="flags-table">
+        <thead><tr><th>Command</th><th>Opens</th></tr></thead>
+        <tbody>
+          <tr><td>data query ... --datatable</td><td>SOQL result rows</td></tr>
+          <tr><td>data pivot ... --datatable</td><td>Pivot cross-tab with heatmap</td></tr>
+          <tr><td>data schema-view ... --datatable</td><td>Object schema browser</td></tr>
+          <tr><td>data arrow-view &lt;file&gt; --datatable</td><td>Parquet / Arrow IPC file viewer</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Apex</h3>
+      <table class="flags-table">
+        <thead><tr><th>Command</th><th>Opens</th></tr></thead>
+        <tbody>
+          <tr><td>apex list --datatable</td><td>Apex class list</td></tr>
+          <tr><td>apex get-log --datatable</td><td>Debug log list</td></tr>
+          <tr><td>apex coverage --datatable</td><td>Code coverage report</td></tr>
+          <tr><td>apex log-profile ... --datatable</td><td>Hotspot profiler results</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Audit</h3>
+      <table class="flags-table">
+        <thead><tr><th>Command</th><th>Opens</th></tr></thead>
+        <tbody>
+          <tr><td>audit login --datatable</td><td>Login history (LoginHistory)</td></tr>
+          <tr><td>audit setup --datatable</td><td>Setup audit trail (SetupAuditTrail)</td></tr>
+          <tr><td>audit field-history &lt;Obj&gt; --datatable</td><td>Field change history for an object</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Org Management</h3>
+      <table class="flags-table">
+        <thead><tr><th>Command</th><th>Opens</th></tr></thead>
+        <tbody>
+          <tr><td>org list --datatable</td><td>All connected orgs</td></tr>
+          <tr><td>org display --datatable</td><td>Org details key-value page</td></tr>
+          <tr><td>org limits --datatable</td><td>API governor limits</td></tr>
+          <tr><td>org alias list --datatable</td><td>Org alias table</td></tr>
+          <tr><td>org sandbox list --datatable</td><td>Sandbox inventory</td></tr>
+          <tr><td>org users list --datatable</td><td>Org user list</td></tr>
+          <tr><td>org compare --datatable</td><td>Metadata diff between two orgs</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Flows, Reports, Metadata</h3>
+      <table class="flags-table">
+        <thead><tr><th>Command</th><th>Opens</th></tr></thead>
+        <tbody>
+          <tr><td>flow list --datatable</td><td>Flow list (FlowDefinitionView)</td></tr>
+          <tr><td>report list --datatable</td><td>Salesforce report inventory</td></tr>
+          <tr><td>report run &lt;id&gt; --datatable</td><td>Report result rows</td></tr>
+          <tr><td>metadata list --datatable</td><td>Deployed metadata components</td></tr>
+          <tr><td>metadata diff --datatable</td><td>Local vs deployed unified diff</td></tr>
+        </tbody>
+      </table>
+
+      <h3>Permissions &amp; Config</h3>
+      <table class="flags-table">
+        <thead><tr><th>Command</th><th>Opens</th></tr></thead>
+        <tbody>
+          <tr><td>perms who-can &lt;Obj&gt; &lt;Action&gt; --datatable</td><td>Profiles and PermSets with the permission</td></tr>
+          <tr><td>perms compare &lt;u1&gt; &lt;u2&gt; --datatable</td><td>User permission diff (Only/Common sections)</td></tr>
+          <tr><td>config list --datatable</td><td>All config keys and values</td></tr>
+          <tr><td>doctor --datatable</td><td>Environment health check results</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ── examples ── -->
+    <section class="cmd-section" id="examples">
+      <h2>Examples</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">Add <code>--datatable</code> to any command that normally prints a table.</p>
+
+      <pre><span class="label">shell</span><span class="c"># SOQL query — open 586 Account rows in the browser</span>
+<span class="b">sf-rust</span> data query <span class="y">-q</span> <span class="s">"SELECT Id, Name, Industry FROM Account"</span> <span class="y">-o</span> dev1 <span class="g">--datatable</span>
+
+<span class="c"># Login history — last 100 logins</span>
+<span class="b">sf-rust</span> audit login <span class="y">-o</span> dev1 <span class="y">--last</span> 100 <span class="g">--datatable</span>
+
+<span class="c"># API governor limits</span>
+<span class="b">sf-rust</span> org limits <span class="y">-o</span> dev1 <span class="g">--datatable</span>
+
+<span class="c"># Code coverage report</span>
+<span class="b">sf-rust</span> apex coverage <span class="y">-o</span> dev1 <span class="g">--datatable</span>
+
+<span class="c"># Who can read Account records?</span>
+<span class="b">sf-rust</span> perms who-can Account Read <span class="y">-o</span> dev1 <span class="g">--datatable</span>
+
+<span class="c"># Config key-value table</span>
+<span class="b">sf-rust</span> config list <span class="g">--datatable</span>
+
+<span class="c"># Salesforce report inventory</span>
+<span class="b">sf-rust</span> report list <span class="y">-o</span> dev1 <span class="g">--datatable</span>
+
+<span class="c"># Deployed Apex classes</span>
+<span class="b">sf-rust</span> metadata list <span class="y">-o</span> dev1 <span class="y">--types</span> ApexClass <span class="g">--datatable</span>
+
+<span class="c"># Flow list</span>
+<span class="b">sf-rust</span> flow list <span class="y">-o</span> dev1 <span class="g">--datatable</span>
+
+<span class="c"># Org display (key-value page)</span>
+<span class="b">sf-rust</span> org display <span class="y">-o</span> dev1 <span class="g">--datatable</span></pre>
+
+      <div class="callout tip">
+        <span class="callout-icon">✓</span>
+        <p><strong>Tip:</strong> <code>--datatable</code> and <code>--json</code> / <code>--csv</code> are mutually exclusive.
+        If you need both a browser view and a file export, run the command twice with the respective flags.</p>
+      </div>
+
+      <h3>Stderr output</h3>
+      <div class="output-sample"><span class="hl-m">$</span> sf-rust org limits -o dev1 --datatable
+<span class="hl-g">Datatable: /tmp/sf-rust-org-limits-1731600123456.html</span>
+<span class="hl-m">Elapsed: 0.42s</span></div>
+    </section>
+
+    <!-- ── html output features ── -->
+    <section class="cmd-section" id="html-output">
+      <h2>HTML output features</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Every generated HTML datatable has the same interactive features, powered by
+        a small inline JavaScript engine — no CDN, no React, no build step.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Feature</th><th>Details</th></tr></thead>
+        <tbody>
+          <tr><td>Dark mode</td><td>VS Code palette — <code>#1e1e1e</code> background, <code>#9cdcfe</code> column headers</td></tr>
+          <tr><td>Sortable columns</td><td>Click any header to sort ascending (▲) or descending (▼); numeric and string-aware</td></tr>
+          <tr><td>Live search</td><td>Filters all columns in real time as you type — no page reload</td></tr>
+          <tr><td>Row counter</td><td>Shows <code>N / Total rows</code> updating as you filter</td></tr>
+          <tr><td>Sticky header</td><td>Column headers remain visible while scrolling long result sets</td></tr>
+          <tr><td>Self-contained</td><td>Single HTML file — all data embedded as JSON constants, no network after generation</td></tr>
+          <tr><td>Row hover</td><td>Subtle highlight on hover for easier row tracking</td></tr>
+          <tr><td>Path on stderr</td><td><code>Datatable: /tmp/sf-rust-{slug}-{ts}.html</code> printed after opening</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout note">
+        <span class="callout-icon">ℹ</span>
+        <p>Generated files are written to <code>/tmp/</code> and are not automatically cleaned up.
+        On macOS, <code>/tmp/</code> is cleared on reboot. On Linux it persists until manually removed.</p>
+      </div>
+    </section>
+
+    <!-- ── implementation ── -->
+    <section class="cmd-section" id="implementation">
+      <h2>For contributors</h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Adding <code>--datatable</code> to a new command takes four lines. The HTML template
+        and browser-open logic live entirely in <code>sf-output</code>.
+      </p>
+
+      <h3>Shared helpers (sf-output/src/lib.rs)</h3>
+      <table class="flags-table">
+        <thead><tr><th>Function</th><th>Use when</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Output::open_datatable(title, cols, rows)</td>
+            <td>Multi-column result rows (<code>&amp;[serde_json::Value]</code>)</td>
+          </tr>
+          <tr>
+            <td>Output::open_kv_datatable(title, rows)</td>
+            <td>Key-value pairs (<code>&amp;[(&amp;str, String)]</code>) — e.g. org display</td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="color:#aaa;font-size:.85rem;">Both return <code>Result&lt;(), String&gt;</code>. Map the error with <code>.map_err(SfError::Other)?</code>.</p>
+
+      <h3>Pattern</h3>
+      <pre><span class="label">Rust</span><span class="c">// 1. Add flag to your args struct</span>
+<span class="k">#[derive(Debug, Args)]</span>
+<span class="k">pub struct</span> MyCommandArgs {
+    <span class="k">#[arg(long, help =</span> <span class="s">"Open results in a browser datatable"</span><span class="k">)]</span>
+    <span class="k">pub</span> datatable: <span class="b">bool</span>,
+    <span class="c">// ... other fields</span>
+}
+
+<span class="c">// 2. Early-return before the existing print call</span>
+<span class="k">if</span> args.datatable {
+    <span class="k">return</span> Output::open_datatable(<span class="s">"My Title"</span>, &amp;cols, &amp;rows)
+        .map_err(SfError::Other);
+}
+
+<span class="c">// 3. Normal table print (unchanged)</span>
+Output::print_table_from_json(&amp;rows, &amp;cols);</pre>
+
+      <h3>No extra Cargo dep needed</h3>
+      <div class="callout tip">
+        <span class="callout-icon">✓</span>
+        <p>The <code>open</code> crate (browser launch) is a dependency of <code>sf-output</code>, not of individual
+        command crates. You only need <code>sf-output = &#123; path = "../sf-output" &#125;</code> which every
+        command crate already has.</p>
+      </div>
+
+      <h3>Key-value variant</h3>
+      <pre><span class="label">Rust</span><span class="k">if</span> args.datatable {
+    <span class="k">let</span> kv_rows = <span class="b">vec!</span>[
+        (<span class="s">"Username"</span>,  org.username.clone()),
+        (<span class="s">"Instance"</span>,  org.instance_url.clone()),
+    ];
+    <span class="k">return</span> Output::open_kv_datatable(<span class="s">"Org Display"</span>, &amp;kv_rows)
+        .map_err(SfError::Other);
+}</pre>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <span>Generated by sf-rust &nbsp;·&nbsp; v0.4.0 &nbsp;·&nbsp; November 2026</span>
+  <span><a href="sf-rust-portal.html">← Portal</a></span>
+</footer>
+
+</body>
+</html>
