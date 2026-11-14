@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sf-rust · Admin &amp; Org Management</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #1e1e1e;
+    --panel:   #252526;
+    --border:  #3c3c3c;
+    --blue:    #569cd6;
+    --green:   #4ec9b0;
+    --yellow:  #dcdcaa;
+    --cyan:    #9cdcfe;
+    --red:     #f44747;
+    --orange:  #ce9178;
+    --purple:  #c586c0;
+    --muted:   #858585;
+    --text:    #d4d4d4;
+    --comment: #6a9955;
+    --keyword: #c586c0;
+    --string:  #ce9178;
+  }
+
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; line-height: 1.6; }
+  a { color: var(--blue); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  ul, ol { padding-left: 1.4rem; }
+  li { margin-bottom: .2rem; }
+
+  /* ── topbar ── */
+  .topbar {
+    position: sticky; top: 0; z-index: 100;
+    height: 48px;
+    background: #333; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: .5rem; padding: 0 1.2rem;
+    font-size: .82rem;
+  }
+  .topbar-logo { font-weight: 700; color: #cccccc; letter-spacing: -.01em; }
+  .topbar-sep  { color: #555; }
+  .topbar-sub  { color: var(--blue); font-weight: 600; }
+  .topbar-badge {
+    margin-left: auto;
+    font-size: .7rem; color: var(--muted);
+    background: #2a2a2a; border: 1px solid var(--border);
+    border-radius: 20px; padding: .18rem .65rem;
+  }
+
+  /* ── layout ── */
+  .layout { display: flex; min-height: calc(100vh - 48px); }
+
+  /* ── sidebar ── */
+  .sidebar {
+    width: 210px; flex-shrink: 0;
+    background: var(--panel); border-right: 1px solid var(--border);
+    padding: 1rem 0 2rem;
+    position: sticky; top: 48px; height: calc(100vh - 48px); overflow-y: auto;
+    font-size: .8rem;
+  }
+  .sidebar a {
+    display: flex; align-items: center; gap: .4rem;
+    padding: .28rem 1rem; color: #aaa; text-decoration: none;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    border-left: 2px solid transparent;
+  }
+  .sidebar a:hover { color: var(--text); background: #2a2a2a; }
+  .sidebar a.active { color: var(--blue); border-left-color: var(--blue); background: rgba(86,156,214,.07); }
+  .nav-section-label {
+    font-size: .64rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .08em; color: var(--muted);
+    padding: .9rem 1rem .2rem; pointer-events: none;
+  }
+  .cmd-badge {
+    font-family: monospace; font-size: .72rem;
+    background: rgba(86,156,214,.1); color: var(--blue);
+    border: 1px solid rgba(86,156,214,.2); border-radius: 3px;
+    padding: .05rem .3rem; flex-shrink: 0;
+  }
+  .new-badge {
+    font-size: .6rem; font-weight: 700; text-transform: uppercase;
+    color: var(--green); background: rgba(78,201,176,.1);
+    border: 1px solid rgba(78,201,176,.3); border-radius: 3px;
+    padding: .05rem .25rem; flex-shrink: 0;
+  }
+
+  /* ── main ── */
+  main { flex: 1; padding: 2rem 2.5rem 4rem; max-width: 900px; }
+
+  /* ── hero ── */
+  .hero { margin-bottom: 2.5rem; padding-bottom: 2rem; border-bottom: 1px solid var(--border); }
+  .hero h1 { font-size: 2rem; font-weight: 700; color: var(--blue); letter-spacing: -.02em; margin-bottom: .4rem; }
+  .hero .tagline { font-size: 1.05rem; color: #aaa; margin-bottom: 1.5rem; }
+  .hero-features { display: flex; flex-wrap: wrap; gap: .5rem; }
+  .feat-pill {
+    font-size: .72rem; padding: .22rem .7rem;
+    border-radius: 20px; font-weight: 600;
+  }
+  .feat-pill.blue   { background: rgba(86,156,214,.12); color: #569cd6; border: 1px solid rgba(86,156,214,.25); }
+  .feat-pill.green  { background: rgba(78,201,176,.12); color: #4ec9b0; border: 1px solid rgba(78,201,176,.25); }
+  .feat-pill.purple { background: rgba(197,134,192,.12); color: #c586c0; border: 1px solid rgba(197,134,192,.25); }
+  .feat-pill.orange { background: rgba(206,145,120,.12); color: #ce9178; border: 1px solid rgba(206,145,120,.25); }
+  .feat-pill.yellow { background: rgba(220,220,170,.12); color: #dcdcaa; border: 1px solid rgba(220,220,170,.25); }
+
+  /* ── section headings ── */
+  .cmd-section { margin-bottom: 3.5rem; scroll-margin-top: 60px; }
+  .cmd-section h2 {
+    font-size: 1.3rem; font-weight: 700;
+    color: var(--text);
+    display: flex; align-items: center; gap: .6rem;
+    margin-bottom: .3rem;
+  }
+  .cmd-section h2 code {
+    font-size: 1.1rem; color: var(--blue);
+    background: rgba(86,156,214,.08);
+    border: 1px solid rgba(86,156,214,.2);
+    border-radius: 5px; padding: .1rem .5rem;
+  }
+  .cmd-section h2 .new-label {
+    font-size: .65rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .06em; color: var(--green);
+    background: rgba(78,201,176,.1); border: 1px solid rgba(78,201,176,.3);
+    border-radius: 4px; padding: .15rem .45rem;
+  }
+  .cmd-desc { color: #aaa; font-size: .92rem; margin-bottom: 1.2rem; }
+  .section-divider { height: 1px; background: var(--border); margin-bottom: 1.5rem; }
+
+  /* ── flags table ── */
+  .flags-table { width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: .85rem; }
+  .flags-table th {
+    text-align: left; font-size: .7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .07em; color: var(--muted);
+    padding: .4rem .7rem; border-bottom: 1px solid var(--border);
+  }
+  .flags-table td { padding: .45rem .7rem; border-bottom: 1px solid #2a2a2a; vertical-align: top; }
+  .flags-table tr:last-child td { border-bottom: none; }
+  .flags-table td:first-child { font-family: monospace; color: var(--cyan); white-space: nowrap; }
+  .flags-table td:last-child  { color: #aaa; }
+  .flag-default { font-size: .72rem; color: var(--muted); margin-top: .15rem; }
+
+  /* ── code blocks ── */
+  pre {
+    background: #1a1a1a;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 1rem 1.2rem;
+    overflow-x: auto;
+    font-family: "Cascadia Code", "Fira Code", "JetBrains Mono", monospace;
+    font-size: .8rem;
+    line-height: 1.65;
+    margin-bottom: 1rem;
+    position: relative;
+  }
+  pre .label {
+    position: absolute; top: .5rem; right: .7rem;
+    font-size: .62rem; color: #555; font-family: sans-serif;
+  }
+  .c  { color: var(--comment); }
+  .k  { color: var(--keyword); }
+  .s  { color: var(--string); }
+  .g  { color: var(--green); }
+  .r  { color: var(--red); }
+  .b  { color: var(--blue); }
+  .y  { color: var(--yellow); }
+  .m  { color: var(--muted); }
+
+  /* ── inline code ── */
+  code { font-family: monospace; font-size: .85em; }
+  p code, li code, td code {
+    background: #2a2a2a; border: 1px solid #3a3a3a;
+    border-radius: 3px; padding: .08em .35em;
+    color: var(--cyan);
+  }
+
+  /* ── sub-headings ── */
+  h3 { font-size: .95rem; font-weight: 600; color: #ccc; margin: 1.5rem 0 .6rem; }
+  h4 { font-size: .82rem; font-weight: 600; color: var(--muted); margin: 1.2rem 0 .4rem; text-transform: uppercase; letter-spacing: .06em; }
+
+  /* ── callout boxes ── */
+  .callout {
+    display: flex; gap: .8rem; align-items: flex-start;
+    padding: .8rem 1rem; border-radius: 6px; margin-bottom: 1rem;
+    font-size: .85rem;
+  }
+  .callout.tip  { background: rgba(78,201,176,.07); border: 1px solid rgba(78,201,176,.2); }
+  .callout.note { background: rgba(86,156,214,.07); border: 1px solid rgba(86,156,214,.2); }
+  .callout.warn { background: rgba(220,220,170,.07); border: 1px solid rgba(220,220,170,.2); }
+  .callout-icon { font-size: 1rem; flex-shrink: 0; margin-top: .05rem; }
+  .callout.tip  .callout-icon { color: var(--green); }
+  .callout.note .callout-icon { color: var(--blue); }
+  .callout.warn .callout-icon { color: var(--yellow); }
+  .callout p { color: #bbb; }
+  .callout p strong { color: var(--text); }
+
+  /* ── output sample box ── */
+  .output-sample {
+    background: #181818; border: 1px solid #333;
+    border-radius: 7px; padding: .9rem 1rem;
+    font-family: monospace; font-size: .78rem; line-height: 1.7;
+    overflow-x: auto; margin-bottom: 1rem;
+  }
+  .hl-g { color: var(--green); }
+  .hl-b { color: var(--blue); }
+  .hl-y { color: var(--yellow); }
+  .hl-r { color: var(--red); }
+  .hl-m { color: var(--muted); }
+  .hl-p { color: var(--purple); }
+  .hl-o { color: var(--orange); }
+  .hl-c { color: var(--cyan); }
+
+  /* ── footer ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 1.2rem 1.5rem;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: .75rem; color: var(--muted);
+  }
+  footer a { color: #555; text-decoration: none; }
+  footer a:hover { color: #999; }
+</style>
+</head>
+<body>
+
+<!-- ── top bar ── -->
+<header class="topbar">
+  <span class="topbar-logo">sf-rust</span>
+  <span class="topbar-sep">/</span>
+  <span class="topbar-sub">admin &amp; org management</span>
+  <span class="topbar-badge">v0.4.0 · Phase 4–7 features</span>
+</header>
+
+<div class="layout">
+
+  <!-- ── sidebar ── -->
+  <nav class="sidebar" id="sidebar-nav">
+    <div class="nav-section-label">Overview</div>
+    <a href="#overview">Introduction</a>
+
+    <div class="nav-section-label">Diagnostics</div>
+    <a href="#doctor"><span class="cmd-badge">doctor</span>Health check <span class="new-badge">NEW</span></a>
+
+    <div class="nav-section-label">Flow Management</div>
+    <a href="#flow-list"><span class="cmd-badge">flow list</span>List flows</a>
+    <a href="#flow-activate"><span class="cmd-badge">activate</span>Activate flow</a>
+    <a href="#flow-deactivate"><span class="cmd-badge">deactivate</span>Deactivate flow</a>
+
+    <div class="nav-section-label">Org Management</div>
+    <a href="#sandbox"><span class="cmd-badge">sandbox</span>Sandbox lifecycle</a>
+    <a href="#org-compare"><span class="cmd-badge">org compare</span>Compare orgs</a>
+    <a href="#org-users"><span class="cmd-badge">org users</span>User management</a>
+
+    <div class="nav-section-label">Permissions</div>
+    <a href="#perms-who-can"><span class="cmd-badge">who-can</span>Who can do X</a>
+    <a href="#perms-compare"><span class="cmd-badge">compare</span>Compare users</a>
+
+    <div class="nav-section-label">CI / DevOps</div>
+    <a href="#ci-generate"><span class="cmd-badge">ci generate</span>Generate CI YAML</a>
+
+    <div class="nav-section-label">Metadata</div>
+    <a href="#metadata-backup"><span class="cmd-badge">backup</span>Org backup</a>
+    <a href="#metadata-diff"><span class="cmd-badge">diff</span>Local vs remote</a>
+  </nav>
+
+  <!-- ── main ── -->
+  <main>
+
+    <!-- ── hero ── -->
+    <section class="hero" id="overview">
+      <h1>sf-rust admin &amp; org management</h1>
+      <p class="tagline">
+        Diagnose your environment, manage org users, sandboxes, permissions, CI pipelines,
+        and metadata backups — all from a single native binary.
+      </p>
+      <div class="hero-features">
+        <span class="feat-pill green">doctor diagnostics</span>
+        <span class="feat-pill blue">flow management</span>
+        <span class="feat-pill orange">sandbox lifecycle</span>
+        <span class="feat-pill purple">org compare</span>
+        <span class="feat-pill yellow">user management</span>
+        <span class="feat-pill green">perms who-can</span>
+        <span class="feat-pill blue">ci generate</span>
+        <span class="feat-pill orange">metadata backup</span>
+        <span class="feat-pill purple">metadata diff</span>
+      </div>
+    </section>
+
+    <!-- ── doctor ── -->
+    <section class="cmd-section" id="doctor">
+      <h2><code>sf-rust doctor</code> <span class="new-label">NEW</span></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Runs a full environment health check and prints a colour-coded status table.
+        Checks include: config and key files, credential store, default org, live token ping
+        per org, shell completion scripts (zsh &amp; bash), man pages, and the installed binary.
+        Use this to quickly diagnose setup issues without reading error logs.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--json</td><td>bool</td><td>Output results as JSON instead of table</td></tr>
+        </tbody>
+      </table>
+
+      <pre><span class="m">$ </span><span class="b">sf-rust doctor</span></pre>
+
+      <div class="output-sample">
+<span class="hl-m">┌──────────────────────────────────┬──────────┬────────────────────────────────────────────────────┐
+│ Check                            │ Status   │ Detail                                             │
+├──────────────────────────────────┼──────────┼────────────────────────────────────────────────────┤
+│ Config file                      │ <span class="hl-g">✓ OK</span>     │ ~/.sf-rust/config.toml                             │
+│ Encryption key                   │ <span class="hl-g">✓ OK</span>     │ ~/.sf-rust/.key (chmod 600)                        │
+│ Credential store                 │ <span class="hl-g">✓ OK</span>     │ ~/.sf-rust/credentials.json — 2 orgs               │
+│ Default org                      │ <span class="hl-g">✓ OK</span>     │ dev1 (mohan@example.com)                           │
+│ Token ping: dev1                 │ <span class="hl-g">✓ OK</span>     │ API v62.0 reachable                                │
+│ Token ping: prod                 │ <span class="hl-g">✓ OK</span>     │ API v62.0 reachable                                │
+│ zsh completion                   │ <span class="hl-g">✓ OK</span>     │ ~/.zfunc/_sf-rust                                  │
+│ bash completion                  │ <span class="hl-g">✓ OK</span>     │ ~/.bash_completion.d/sf-rust                       │
+│ Man pages                        │ <span class="hl-g">✓ OK</span>     │ 56 pages in ~/.local/share/man/man1/               │
+│ Binary                           │ <span class="hl-g">✓ OK</span>     │ ~/.local/bin/sf-rust (ad-hoc signed)               │
+└──────────────────────────────────┴──────────┴────────────────────────────────────────────────────┘</span>
+      </div>
+
+      <div class="callout note">
+        <span class="callout-icon">ℹ</span>
+        <p><strong>Token ping</strong> makes a live <code>GET /services/data/</code> request with the stored
+        Bearer token to verify it has not expired. Run <code>sf-rust org login web -o &lt;alias&gt;</code>
+        to refresh an expired credential.</p>
+      </div>
+    </section>
+
+    <!-- ── flow list ── -->
+    <section class="cmd-section" id="flow-list">
+      <h2><code>sf-rust flow list</code> <span class="new-label">NEW</span></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Queries <code>FlowDefinitionView</code> via the Tooling API and renders a colour-coded table.
+        Status is shown as <span style="color:var(--green)">Active</span> (green),
+        <span style="color:var(--yellow)">Draft</span> (yellow), or
+        <span style="color:var(--red)">Obsolete</span> (red).
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>-o, --target-org</td><td>string</td><td>Org alias or username</td></tr>
+          <tr><td>--json</td><td>bool</td><td>JSON output</td></tr>
+        </tbody>
+      </table>
+
+      <pre><span class="m">$ </span><span class="b">sf-rust flow list -o dev1</span></pre>
+
+      <div class="output-sample">
+<span class="hl-m">┌──────────────────────────────────┬────────────────────────────────┬──────────┬─────────┐
+│ Label                            │ ApiName                        │ Status   │ Version │
+├──────────────────────────────────┼────────────────────────────────┼──────────┼─────────┤
+│ Account Onboarding               │ Account_Onboarding             │ <span class="hl-g">Active</span>   │ 3       │
+│ Lead Assignment                  │ Lead_Assignment_Flow           │ <span class="hl-g">Active</span>   │ 7       │
+│ Opportunity Approval             │ Opportunity_Approval           │ <span class="hl-y">Draft</span>    │ 2       │
+│ Legacy Contact Sync              │ Legacy_Contact_Sync_V1         │ <span class="hl-r">Obsolete</span> │ 1       │
+└──────────────────────────────────┴────────────────────────────────┴──────────┴─────────┘</span>
+
+<span class="hl-m">  4 flows  (2 Active · 1 Draft · 1 Obsolete)  ·  41ms</span>
+      </div>
+    </section>
+
+    <!-- ── flow activate ── -->
+    <section class="cmd-section" id="flow-activate">
+      <h2><code>sf-rust flow activate</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Activates a flow by PATCHing the <code>FlowDefinition</code> record with the latest
+        <code>ActiveVersionNumber</code>. Use <code>flow list</code> first to obtain the definition ID.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--id</td><td>string</td><td>FlowDefinition record ID (required)</td></tr>
+          <tr><td>-o, --target-org</td><td>string</td><td>Org alias or username</td></tr>
+        </tbody>
+      </table>
+
+      <pre><span class="m">$ </span><span class="b">sf-rust flow activate --id 3005g000003kFXcAAM -o dev1</span>
+<span class="g">✓ Flow activated (ActiveVersionNumber → 2)</span></pre>
+    </section>
+
+    <!-- ── flow deactivate ── -->
+    <section class="cmd-section" id="flow-deactivate">
+      <h2><code>sf-rust flow deactivate</code></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Deactivates a flow by setting <code>ActiveVersionNumber</code> to <code>0</code> via
+        a Tooling API PATCH request. The flow remains in Draft state and can be reactivated.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--id</td><td>string</td><td>FlowDefinition record ID (required)</td></tr>
+          <tr><td>-o, --target-org</td><td>string</td><td>Org alias or username</td></tr>
+        </tbody>
+      </table>
+
+      <pre><span class="m">$ </span><span class="b">sf-rust flow deactivate --id 3005g000003kFXcAAM -o dev1</span>
+<span class="y">⊘ Flow deactivated</span></pre>
+
+      <div class="callout warn">
+        <span class="callout-icon">⚠</span>
+        <p><strong>Running interviews are not interrupted.</strong> Deactivating a flow only prevents
+        new interviews from starting. In-flight automation continues until it completes or errors.</p>
+      </div>
+    </section>
+
+    <!-- ── sandbox ── -->
+    <section class="cmd-section" id="sandbox">
+      <h2><code>sf-rust org sandbox</code> <span class="new-label">NEW</span></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Full sandbox lifecycle management. Queries <code>SandboxInfo</code> and
+        <code>SandboxProcess</code> via the Tooling API to list, create, monitor, and delete
+        sandboxes — without leaving the terminal.
+      </p>
+
+      <h3>List</h3>
+      <pre><span class="m">$ </span><span class="b">sf-rust org sandbox list -o prod</span></pre>
+
+      <div class="output-sample">
+<span class="hl-m">┌──────────────┬────────────────┬───────────────────────────────┬────────────────────┬────────────┐
+│ Name         │ License        │ Description                   │ Status             │ CopyDate   │
+├──────────────┼────────────────┼───────────────────────────────┼────────────────────┼────────────┤
+│ dev1         │ Developer      │ Main developer sandbox        │ <span class="hl-g">Completed</span>          │ 2026-10-15 │
+│ uat          │ Developer Pro  │ UAT environment               │ <span class="hl-g">Completed</span>          │ 2026-10-01 │
+│ staging      │ Partial        │ Pre-prod staging              │ <span class="hl-y">Processing</span>         │ —          │
+└──────────────┴────────────────┴───────────────────────────────┴────────────────────┴────────────┘</span>
+      </div>
+
+      <h3>Status</h3>
+      <pre><span class="m">$ </span><span class="b">sf-rust org sandbox status --name staging -o prod</span>
+<span class="y">⟳ staging: Processing (45%)</span></pre>
+
+      <h3>Create</h3>
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--name</td><td>string</td><td>Sandbox name (required)</td></tr>
+          <tr><td>--license</td><td>string</td><td>License type: Developer, Developer Pro, Partial, Full</td></tr>
+          <tr><td>--wait</td><td>bool</td><td>Poll until sandbox is Completed</td></tr>
+          <tr><td>-o, --target-org</td><td>string</td><td>Production org alias</td></tr>
+        </tbody>
+      </table>
+
+      <pre><span class="m">$ </span><span class="b">sf-rust org sandbox create --name hotfix1 --license Developer --wait -o prod</span>
+<span class="b">Creating sandbox hotfix1 (Developer)…</span>
+<span class="m">  ⟳ Pending    [0s]</span>
+<span class="m">  ⟳ Processing [30s]</span>
+<span class="m">  ⟳ Processing [60s]</span>
+<span class="g">  ✓ Completed  [94s]</span>
+<span class="g">Sandbox hotfix1 is ready.</span></pre>
+
+      <h3>Delete</h3>
+      <pre><span class="m">$ </span><span class="b">sf-rust org sandbox delete --name hotfix1 -o prod</span>
+<span class="r">✗ Sandbox hotfix1 deleted.</span></pre>
+
+      <div class="callout note">
+        <span class="callout-icon">ℹ</span>
+        <p>Sandbox creation can take several minutes. Without <code>--wait</code> the command
+        returns immediately after submitting the request; use <code>sandbox status</code> to poll
+        manually.</p>
+      </div>
+    </section>
+
+    <!-- ── org compare ── -->
+    <section class="cmd-section" id="org-compare">
+      <h2><code>sf-rust org compare</code> <span class="new-label">NEW</span></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Compares metadata inventories between two orgs using the SOAP
+        <code>listMetadata</code> call. Produces a three-section diff table:
+        <span style="color:var(--cyan)">Only in source org</span>,
+        <span style="color:var(--yellow)">Only in target org</span>, and
+        <span style="color:var(--green)">Common to both</span>.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>-o, --target-org</td><td>string</td><td>Source org (required)</td></tr>
+          <tr><td>--target</td><td>string</td><td>Target org to compare against (required)</td></tr>
+          <tr><td>--types</td><td>string</td><td>Comma-separated metadata types to check (default: all)</td></tr>
+          <tr><td>--json</td><td>bool</td><td>JSON output</td></tr>
+        </tbody>
+      </table>
+
+      <pre><span class="m">$ </span><span class="b">sf-rust org compare -o dev1 --target prod --types ApexClass,Flow,CustomObject</span></pre>
+
+      <div class="output-sample">
+<span class="hl-b">── Only in dev1 ──────────────────────────────────</span>
+<span class="hl-c">  ApexClass    WIP_FeatureController</span>
+<span class="hl-c">  Flow         Account_Onboarding_v2</span>
+
+<span class="hl-y">── Only in prod ──────────────────────────────────</span>
+<span class="hl-y">  ApexClass    LegacyBatchJob</span>
+
+<span class="hl-g">── Common ────────────────────────────────────────</span>
+<span class="hl-g">  ApexClass    AccountController  ContactController  LeadHandler</span>
+<span class="hl-g">  Flow         Lead_Assignment_Flow</span>
+<span class="hl-g">  CustomObject Account__c  Contact__c</span>
+
+<span class="hl-m">  dev1: 8 components · prod: 7 components · 3 types compared</span>
+      </div>
+
+      <div class="callout tip">
+        <span class="callout-icon">✦</span>
+        <p>Pipe to <code>--json</code> and use <code>jq</code> to extract just the diff sections
+        for scripting pre-deploy checks in CI.</p>
+      </div>
+    </section>
+
+    <!-- ── org users ── -->
+    <section class="cmd-section" id="org-users">
+      <h2><code>sf-rust org users</code> <span class="new-label">NEW</span></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        SOQL-backed user management: list all users, freeze/unfreeze accounts, and trigger
+        password resets. All writes go through the REST API — no SOAP required.
+      </p>
+
+      <h3>List users</h3>
+      <pre><span class="m">$ </span><span class="b">sf-rust org users list -o prod</span></pre>
+
+      <div class="output-sample">
+<span class="hl-m">┌──────────────────────┬──────────────────────────────┬──────────────────────┬──────────┬──────────────────────┐
+│ Name                 │ Username                     │ Profile              │ IsActive │ LastLoginDate        │
+├──────────────────────┼──────────────────────────────┼──────────────────────┼──────────┼──────────────────────┤
+│ Mohan Chinnappan     │ mohan@example.com            │ System Administrator │ <span class="hl-g">true</span>     │ 2026-11-13T08:14:00Z │
+│ Jane Smith           │ jane.smith@example.com       │ Standard User        │ <span class="hl-g">true</span>     │ 2026-11-12T14:30:00Z │
+│ Bob Legacy           │ bob.legacy@example.com       │ Standard User        │ <span class="hl-r">false</span>    │ 2025-03-01T09:00:00Z │
+└──────────────────────┴──────────────────────────────┴──────────────────────┴──────────┴──────────────────────┘</span>
+      </div>
+
+      <h3>Freeze &amp; Unfreeze</h3>
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--username</td><td>string</td><td>Username of the user to act on (required)</td></tr>
+          <tr><td>-o, --target-org</td><td>string</td><td>Org alias or username</td></tr>
+        </tbody>
+      </table>
+
+      <pre><span class="m">$ </span><span class="b">sf-rust org users freeze --username jane.smith@example.com -o prod</span>
+<span class="y">⊘ User jane.smith@example.com frozen (IsActive → false)</span>
+
+<span class="m">$ </span><span class="b">sf-rust org users unfreeze --username jane.smith@example.com -o prod</span>
+<span class="g">✓ User jane.smith@example.com active (IsActive → true)</span></pre>
+
+      <h3>Reset Password</h3>
+      <pre><span class="m">$ </span><span class="b">sf-rust org users reset-password --username jane.smith@example.com -o prod</span>
+<span class="g">✓ Password reset email sent to jane.smith@example.com</span></pre>
+
+      <div class="callout note">
+        <span class="callout-icon">ℹ</span>
+        <p>Password reset uses <code>POST /sobjects/User/{id}/password</code> with an empty body,
+        which triggers Salesforce to send a standard reset email. The user's current session
+        is not invalidated until they complete the reset flow.</p>
+      </div>
+    </section>
+
+    <!-- ── perms who-can ── -->
+    <section class="cmd-section" id="perms-who-can">
+      <h2><code>sf-rust perms who-can</code> <span class="new-label">NEW</span></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Answers the question "who can read/create/edit/delete this object?" Queries
+        <code>ObjectPermissions</code> filtered by SObject type and permission field, then
+        resolves the linked <code>PermissionSet</code> names. Profiles appear in
+        <span style="color:var(--cyan)">cyan</span>,
+        permission sets in <span style="color:var(--yellow)">yellow</span>.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Argument</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>&lt;object&gt;</td><td>SObject API name (e.g. <code>Account</code>, <code>Invoice__c</code>)</td></tr>
+          <tr><td>&lt;action&gt;</td><td>Permission: <code>read</code>, <code>create</code>, <code>edit</code>, <code>delete</code>, <code>view-all</code>, <code>modify-all</code></td></tr>
+        </tbody>
+      </table>
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>-o, --target-org</td><td>string</td><td>Org alias or username</td></tr>
+          <tr><td>--json</td><td>bool</td><td>JSON output</td></tr>
+        </tbody>
+      </table>
+
+      <pre><span class="m">$ </span><span class="b">sf-rust perms who-can Invoice__c edit -o dev1</span></pre>
+
+      <div class="output-sample">
+<span class="hl-m">┌───────────────────────────────────┬──────────────┐
+│ PermissionSet / Profile           │ Type         │
+├───────────────────────────────────┼──────────────┤
+│ System Administrator              │ <span class="hl-c">Profile</span>      │
+│ Finance_Manager_PS                │ <span class="hl-y">Permission Set</span>│
+│ Revenue_Operations_PS             │ <span class="hl-y">Permission Set</span>│
+└───────────────────────────────────┴──────────────┘</span>
+
+<span class="hl-m">  3 entities have Edit on Invoice__c  ·  38ms</span>
+      </div>
+    </section>
+
+    <!-- ── perms compare ── -->
+    <section class="cmd-section" id="perms-compare">
+      <h2><code>sf-rust perms compare</code> <span class="new-label">NEW</span></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Diffs the full <code>PermissionSetAssignment</code> for two users, showing which
+        permission sets and profiles are assigned to each but not the other, and which
+        both share. Useful for troubleshooting access issues by comparing a working user
+        to a blocked one.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Argument</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>&lt;user1&gt;</td><td>Username or User ID</td></tr>
+          <tr><td>&lt;user2&gt;</td><td>Username or User ID to compare against</td></tr>
+        </tbody>
+      </table>
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>-o, --target-org</td><td>string</td><td>Org alias or username</td></tr>
+        </tbody>
+      </table>
+
+      <pre><span class="m">$ </span><span class="b">sf-rust perms compare mohan@example.com jane.smith@example.com -o dev1</span></pre>
+
+      <div class="output-sample">
+<span class="hl-c">── Only mohan@example.com ────────────────────────</span>
+<span class="hl-c">  System Administrator (Profile)</span>
+<span class="hl-c">  DevOps_Admin_PS</span>
+
+<span class="hl-y">── Only jane.smith@example.com ───────────────────</span>
+<span class="hl-y">  Standard User (Profile)</span>
+
+<span class="hl-g">── Common ────────────────────────────────────────</span>
+<span class="hl-g">  Finance_Manager_PS</span>
+<span class="hl-g">  Revenue_Operations_PS</span>
+<span class="hl-g">  Analytics_Viewer_PS</span>
+      </div>
+    </section>
+
+    <!-- ── ci generate ── -->
+    <section class="cmd-section" id="ci-generate">
+      <h2><code>sf-rust ci generate</code> <span class="new-label">NEW</span></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Generates a production-ready CI/CD pipeline YAML for GitHub Actions or GitLab CI.
+        Uses JWT Bearer flow for unattended authentication — the standard for CI environments.
+        The generated file includes validate-only jobs on pull requests and full deploy jobs
+        on merge to the production branch.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>--platform</td><td>string</td><td><code>github</code> or <code>gitlab</code> (required)</td></tr>
+          <tr><td>--source-dir</td><td>string</td><td>Source directory to deploy (default: force-app)</td></tr>
+          <tr><td>--prod-branch</td><td>string</td><td>Branch that triggers deployment (default: main)</td></tr>
+          <tr><td>--output</td><td>path</td><td>Write YAML to this file (default: stdout)</td></tr>
+        </tbody>
+      </table>
+
+      <h3>GitHub Actions</h3>
+      <pre><span class="m">$ </span><span class="b">sf-rust ci generate \
+    --platform github \
+    --source-dir force-app \
+    --prod-branch main \
+    --output .github/workflows/deploy.yml</span>
+<span class="g">✓ Written: .github/workflows/deploy.yml</span></pre>
+
+      <pre><span class="m"># Generated .github/workflows/deploy.yml</span>
+<span class="b">name:</span> <span class="s">Salesforce Deploy</span>
+
+<span class="b">on:</span>
+  <span class="b">push:</span>
+    <span class="b">branches:</span> [<span class="s">main</span>]
+  <span class="b">pull_request:</span>
+    <span class="b">branches:</span> [<span class="s">main</span>]
+
+<span class="b">jobs:</span>
+  <span class="b">validate:</span>
+    <span class="b">if:</span> <span class="s">github.event_name == 'pull_request'</span>
+    <span class="b">runs-on:</span> <span class="s">ubuntu-latest</span>
+    <span class="b">steps:</span>
+      - <span class="b">uses:</span> <span class="s">actions/checkout@v4</span>
+      - <span class="b">name:</span> <span class="s">Validate</span>
+        <span class="b">run:</span> <span class="s">sf-rust metadata validate -d force-app -o prod</span>
+        <span class="b">env:</span>
+          <span class="b">SF_JWT_KEY:</span> <span class="s">${{ secrets.SF_JWT_KEY }}</span>
+          <span class="b">SF_CLIENT_ID:</span> <span class="s">${{ secrets.SF_CLIENT_ID }}</span>
+          <span class="b">SF_USERNAME:</span> <span class="s">${{ secrets.SF_USERNAME }}</span>
+
+  <span class="b">deploy:</span>
+    <span class="b">if:</span> <span class="s">github.event_name == 'push'</span>
+    <span class="b">runs-on:</span> <span class="s">ubuntu-latest</span>
+    <span class="b">steps:</span>
+      - <span class="b">uses:</span> <span class="s">actions/checkout@v4</span>
+      - <span class="b">name:</span> <span class="s">Deploy</span>
+        <span class="b">run:</span> <span class="s">sf-rust metadata deploy -d force-app -o prod</span>
+        <span class="b">env:</span>
+          <span class="b">SF_JWT_KEY:</span> <span class="s">${{ secrets.SF_JWT_KEY }}</span>
+          <span class="b">SF_CLIENT_ID:</span> <span class="s">${{ secrets.SF_CLIENT_ID }}</span>
+          <span class="b">SF_USERNAME:</span> <span class="s">${{ secrets.SF_USERNAME }}</span></pre>
+
+      <h3>GitLab CI</h3>
+      <pre><span class="m">$ </span><span class="b">sf-rust ci generate --platform gitlab --output .gitlab-ci.yml</span>
+<span class="g">✓ Written: .gitlab-ci.yml</span></pre>
+
+      <div class="callout tip">
+        <span class="callout-icon">✦</span>
+        <p>Store <code>SF_JWT_KEY</code>, <code>SF_CLIENT_ID</code>, and <code>SF_USERNAME</code>
+        as encrypted CI secrets. Never commit private keys to source control.</p>
+      </div>
+    </section>
+
+    <!-- ── metadata backup ── -->
+    <section class="cmd-section" id="metadata-backup">
+      <h2><code>sf-rust metadata backup</code> <span class="new-label">NEW</span></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Creates a full or partial org backup by building a wildcard <code>package.xml</code>
+        (using <code>*</code> members for each type), submitting a Retrieve request via the SOAP
+        Metadata API, polling until the job completes, and writing the returned zip to disk.
+        Optionally commits the zip to the current git repository with an auto-generated message.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>-o, --target-org</td><td>string</td><td>Org alias or username (required)</td></tr>
+          <tr><td>--output</td><td>path</td><td>Output zip file path (required)</td></tr>
+          <tr><td>--types</td><td>string</td><td>Comma-separated types to back up (default: all)</td></tr>
+          <tr><td>--git-commit</td><td>bool</td><td>Commit the zip to git after writing</td></tr>
+        </tbody>
+      </table>
+
+      <pre><span class="m">$ </span><span class="b">sf-rust metadata backup -o dev1 --output backup-$(date +%Y%m%d).zip</span>
+<span class="b">Building package.xml (wildcard)…</span>
+<span class="b">Submitting Retrieve request…</span>
+<span class="m">  ⟳ InProgress [5s]</span>
+<span class="m">  ⟳ InProgress [10s]</span>
+<span class="g">  ✓ Succeeded  [15s]</span>
+<span class="g">Backup written: backup-20261113.zip (2.4 MB)  ·  15s</span></pre>
+
+      <pre><span class="m">$ </span><span class="b">sf-rust metadata backup -o dev1 \
+    --output backup-apex.zip \
+    --types ApexClass,ApexTrigger,Flow \
+    --git-commit</span>
+<span class="g">✓ Backup written: backup-apex.zip</span>
+<span class="g">✓ Committed: "chore: metadata backup 2026-11-13 (ApexClass,ApexTrigger,Flow)"</span></pre>
+
+      <div class="callout note">
+        <span class="callout-icon">ℹ</span>
+        <p>Without <code>--types</code> the backup attempts all metadata types. For large orgs
+        this can take several minutes. Use <code>--types</code> to scope the backup to the
+        component types you care about.</p>
+      </div>
+    </section>
+
+    <!-- ── metadata diff ── -->
+    <section class="cmd-section" id="metadata-diff">
+      <h2><code>sf-rust metadata diff</code> <span class="new-label">NEW</span></h2>
+      <div class="section-divider"></div>
+      <p class="cmd-desc">
+        Compares local source files against their deployed counterparts retrieved from the org
+        via the Tooling API. Walks <code>.cls</code>, <code>.trigger</code>, and
+        <code>lwc/*/</code> directories, fetches each component's <code>Body</code> remotely,
+        and diffs using the <code>similar</code> crate's unified diff engine. Produces a
+        colour-coded diff to stdout or a self-contained HTML datatable with expandable diffs.
+      </p>
+
+      <table class="flags-table">
+        <thead><tr><th>Flag</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>-o, --target-org</td><td>string</td><td>Org alias or username (required)</td></tr>
+          <tr><td>--source-dir</td><td>path</td><td>Local source root (default: force-app/main/default)</td></tr>
+          <tr><td>--types</td><td>string</td><td>Limit to comma-separated types: ApexClass, ApexTrigger, LWC</td></tr>
+          <tr><td>--datatable</td><td>bool</td><td>Open an HTML datatable with inline coloured diffs</td></tr>
+          <tr><td>--json</td><td>bool</td><td>JSON diff output</td></tr>
+        </tbody>
+      </table>
+
+      <pre><span class="m">$ </span><span class="b">sf-rust metadata diff -o dev1 --types ApexClass</span></pre>
+
+      <div class="output-sample">
+<span class="hl-b">─── AccountController.cls ───────────────────────</span>
+<span class="hl-m"> 1 | public class AccountController {</span>
+<span class="hl-m"> 2 |     public static List&lt;Account&gt; getAccounts() {</span>
+<span class="hl-r">-3 |         return [SELECT Id, Name FROM Account LIMIT 50];</span>
+<span class="hl-g">+3 |         return [SELECT Id, Name, Industry FROM Account LIMIT 100];</span>
+<span class="hl-m"> 4 |     }</span>
+<span class="hl-m"> 5 | }</span>
+
+<span class="hl-b">─── LeadHandler.trigger ─────────────────────────</span>
+<span class="hl-g">  No diff — matches deployed version</span>
+
+<span class="hl-m">  2 files checked · 1 modified · 1 clean</span>
+      </div>
+
+      <pre><span class="m">$ </span><span class="b">sf-rust metadata diff -o dev1 --datatable</span>
+<span class="g">Datatable opened: /tmp/sf-rust-diff-1731456789000.html</span></pre>
+
+      <div class="callout tip">
+        <span class="callout-icon">✦</span>
+        <p>Use <code>metadata diff</code> before a deploy to confirm exactly which lines have
+        drifted between your local source and what's live in the org — a quick sanity check
+        in a release workflow.</p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<footer>
+  <span>Generated by sf-rust &nbsp;·&nbsp; v0.4.0 &nbsp;·&nbsp; November 2026</span>
+  <a href="sf-rust-portal.html">← Back to portal</a>
+</footer>
+
+<script>
+  // Highlight active sidebar link on scroll
+  const sections = document.querySelectorAll('.cmd-section[id]');
+  const links    = document.querySelectorAll('.sidebar a[href^="#"]');
+  const obs = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        links.forEach(l => l.classList.remove('active'));
+        const a = document.querySelector(`.sidebar a[href="#${e.target.id}"]`);
+        if (a) a.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-48px 0px -60% 0px', threshold: 0 });
+  sections.forEach(s => obs.observe(s));
+</script>
+
+</body>
+</html>
