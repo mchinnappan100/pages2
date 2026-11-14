@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="https://mohan-chinnappan-n5.github.io/mc_favIcon.png"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sf-rust disk — Disk usage scanner with HTML reports</title>
+<style>
+:root {
+  --bg:      #0d1117; --bg2: #161b22; --bg3: #21262d;
+  --border:  #30363d; --text: #e6edf3; --muted: #8b949e;
+  --accent:  #58a6ff; --green: #3fb950; --red: #f85149;
+  --yellow:  #d29922; --purple: #bc8cff; --teal: #39d353;
+  --code-bg: #161b22; --code-border: #30363d;
+  --card: #161b22; --card-border: #30363d;
+}
+.light {
+  --bg:      #ffffff; --bg2: #f6f8fa; --bg3: #eaeef2;
+  --border:  #d0d7de; --text: #1f2328; --muted: #656d76;
+  --accent:  #0969da; --green: #1a7f37; --red: #cf222e;
+  --yellow:  #9a6700; --purple: #8250df; --teal: #1a7f37;
+  --code-bg: #f6f8fa; --code-border: #d0d7de;
+  --card: #ffffff; --card-border: #d0d7de;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 15px; line-height: 1.65;
+  transition: background .2s, color .2s;
+}
+.page { max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem 5rem; }
+nav {
+  position: sticky; top: 0; z-index: 100;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 0; overflow-x: auto;
+  padding: 0 1.5rem;
+}
+nav a { color: var(--muted); text-decoration: none; font-size: .8rem;
+        padding: .7rem .8rem; white-space: nowrap; border-bottom: 2px solid transparent; }
+nav a:hover { color: var(--text); }
+nav .nav-logo { font-weight: 700; color: var(--accent); margin-right: .5rem; font-size: .85rem; }
+nav .nav-right { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
+.theme-btn { background: var(--bg3); border: 1px solid var(--border); color: var(--text);
+             border-radius: 6px; padding: .25rem .6rem; font-size: .75rem; cursor: pointer; }
+.theme-btn:hover { background: var(--border); }
+
+h1 { font-size: 2rem; font-weight: 700; margin-bottom: .4rem; }
+h2 { font-size: 1.35rem; font-weight: 600; margin: 2.5rem 0 1rem;
+     padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
+h3 { font-size: 1rem; font-weight: 600; margin: 1.5rem 0 .6rem; color: var(--accent); }
+p  { margin-bottom: .8rem; color: var(--text); }
+a  { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+ul { padding-left: 1.5rem; margin-bottom: .8rem; }
+li { margin: .3em 0; color: var(--text); }
+.subtitle { color: var(--muted); font-size: 1rem; margin-bottom: 1.5rem; }
+
+.hero {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 10px;
+  padding: 1.8rem 2rem; margin: 1.5rem 0 2.5rem;
+  display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: center;
+}
+.hero-stat { text-align: center; }
+.hero-stat .num { font-size: 2rem; font-weight: 700; color: var(--accent); }
+.hero-stat .lbl { font-size: .75rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: .9rem; }
+th { background: var(--bg3); color: var(--muted); font-size: .75rem;
+     text-transform: uppercase; letter-spacing: .05em; text-align: left;
+     padding: .5rem .75rem; border-bottom: 1px solid var(--border); }
+td { padding: .5rem .75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg3); }
+code { font-family: "JetBrains Mono", "SF Mono", monospace; font-size: .85em;
+       background: var(--code-bg); border: 1px solid var(--code-border);
+       border-radius: 4px; padding: .1em .4em; color: var(--purple); }
+
+.code-block {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  overflow: hidden; margin: 1rem 0;
+}
+.code-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: .4rem .9rem; background: var(--bg3); border-bottom: 1px solid var(--border);
+  font-size: .75rem; color: var(--muted);
+}
+.copy-btn {
+  background: var(--bg2); border: 1px solid var(--border); color: var(--muted);
+  border-radius: 4px; padding: .15rem .5rem; font-size: .7rem; cursor: pointer;
+}
+.copy-btn:hover { color: var(--text); border-color: var(--accent); }
+.code-block pre { padding: 1rem; font-family: "JetBrains Mono","SF Mono",monospace;
+                  font-size: .82rem; line-height: 1.6; overflow-x: auto;
+                  color: var(--green); white-space: pre; }
+
+.pill-row { display: flex; flex-wrap: wrap; gap: .4rem; margin: .8rem 0 1.4rem; }
+.pill {
+  font-family: "JetBrains Mono","SF Mono",monospace; font-size: .78rem;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 20px;
+  padding: .2rem .75rem; color: var(--accent);
+}
+
+/* feature cards */
+.feat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: .9rem; margin: 1.2rem 0; }
+.feat-card {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 1rem 1.1rem;
+}
+.feat-card .feat-icon { font-size: 1.4rem; margin-bottom: .4rem; }
+.feat-card .feat-title { font-weight: 600; font-size: .9rem; margin-bottom: .3rem; color: var(--text); }
+.feat-card .feat-desc  { font-size: .8rem; color: var(--muted); line-height: 1.5; }
+
+/* report preview mock */
+.report-preview {
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 1.2rem 1.4rem; margin: 1rem 0;
+}
+.kpi-mock { display: grid; grid-template-columns: repeat(5, 1fr); gap: .5rem; margin-bottom: 1rem; }
+@media(max-width:680px){ .kpi-mock { grid-template-columns: repeat(2, 1fr); } }
+.kpi-tile {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 6px;
+  padding: .6rem .8rem; text-align: center;
+}
+.kpi-tile .kv { font-size: 1.3rem; font-weight: 700; color: var(--accent); }
+.kpi-tile .kl { font-size: .65rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-top: .15rem; }
+.chart-mock-row { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; margin-bottom: .8rem; }
+.chart-mock { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: .7rem; min-height: 80px; }
+.chart-mock .cm-title { font-size: .7rem; color: var(--muted); margin-bottom: .4rem; }
+.bar-row { display: flex; align-items: center; gap: .4rem; margin: .2rem 0; font-size: .68rem; color: var(--muted); }
+.bar-fill { height: 8px; border-radius: 3px; }
+.pie-row { display: flex; align-items: center; gap: .4rem; margin: .15rem 0; font-size: .68rem; }
+.pie-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.age-recent { color: var(--green); }
+.age-mid    { color: var(--yellow); }
+.age-old    { color: var(--red); }
+
+.callout {
+  background: var(--bg2); border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0; padding: .75rem 1rem;
+  font-size: .85rem; margin: 1rem 0; color: var(--muted);
+}
+.callout strong { color: var(--text); }
+
+footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--border);
+         font-size: .78rem; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<nav>
+  <span class="nav-logo">sf-rust</span>
+  <a href="#overview">Overview</a>
+  <a href="#report">HTML Report</a>
+  <a href="#flags">Flags</a>
+  <a href="#examples">Examples</a>
+  <a href="#reference">Reference</a>
+  <div class="nav-right">
+    <button class="theme-btn" onclick="toggleTheme()">☀︎ Light</button>
+    <a href="sf-rust-portal.html" style="font-size:.78rem;padding:.4rem .7rem;background:var(--bg3);border:1px solid var(--border);border-radius:6px;">← Portal</a>
+  </div>
+</nav>
+
+<div class="page">
+
+  <h1>sf-rust disk</h1>
+  <p class="subtitle">Native Rust disk usage scanner — find large &amp; old files, beautiful HTML reports with Chart.js, cleanup script, CSV export.</p>
+
+  <!-- hero stats -->
+  <div class="hero">
+    <div class="hero-stat"><div class="num">1</div><div class="lbl">subcommand</div></div>
+    <div class="hero-stat"><div class="num">5</div><div class="lbl">output modes</div></div>
+    <div class="hero-stat"><div class="num">4</div><div class="lbl">filter flags</div></div>
+    <div class="hero-stat"><div class="num">2</div><div class="lbl">charts (Chart.js)</div></div>
+    <div class="hero-stat"><div class="num">0</div><div class="lbl">Node.js / npm</div></div>
+  </div>
+
+  <!-- command pills -->
+  <div class="pill-row">
+    <span class="pill">sf-rust disk scan</span>
+    <span class="pill">--directory / -d</span>
+    <span class="pill">--min-size / -s</span>
+    <span class="pill">--older-than / -o</span>
+    <span class="pill">--limit / -l</span>
+    <span class="pill">--html</span>
+    <span class="pill">--csv</span>
+    <span class="pill">--datatable</span>
+  </div>
+
+  <!-- overview -->
+  <h2 id="overview">Overview</h2>
+  <p>
+    <code>sf-rust disk scan</code> walks any directory recursively with
+    <strong>walkdir</strong>, collects files matching your size and age filters,
+    and presents them sorted largest-first. Inspired by
+    <a href="https://www.npmjs.com/package/diskclean-cli" target="_blank">diskclean-cli</a>
+    — ported to native Rust with zero runtime dependencies.
+  </p>
+
+  <div class="feat-grid">
+    <div class="feat-card">
+      <div class="feat-icon">📋</div>
+      <div class="feat-title">Terminal table</div>
+      <div class="feat-desc">Default output: UTF8_FULL comfy-table with path, size, age (days), modified date, and file type columns.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">📊</div>
+      <div class="feat-title">HTML report</div>
+      <div class="feat-desc">Full browser report: KPI tiles, Chart.js doughnut (types by size) + bar (age buckets), sortable file table, bash cleanup script.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">📄</div>
+      <div class="feat-title">CSV export</div>
+      <div class="feat-desc">Saves path, size (bytes + human), modified date, age in days, and extension to a CSV file for further analysis.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🌐</div>
+      <div class="feat-title">Datatable view</div>
+      <div class="feat-desc"><code>--datatable</code> opens results in an sf-output HTML datatable in the browser — sortable, filterable, searchable.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🧹</div>
+      <div class="feat-title">Cleanup script</div>
+      <div class="feat-desc">Every HTML report includes a copy-to-clipboard bash script with per-file confirmation prompts and a freed-space summary.</div>
+    </div>
+    <div class="feat-card">
+      <div class="feat-icon">🛡️</div>
+      <div class="feat-title">Safe by design</div>
+      <div class="feat-desc">Validates directory existence before scanning. Clear error message when path is not found. No silent empty results.</div>
+    </div>
+  </div>
+
+  <!-- HTML report -->
+  <h2 id="report">HTML Report</h2>
+  <p>Generated with <code>--html &lt;file&gt;</code> — opened automatically in your browser. Dark-themed, Chart.js via CDN.</p>
+
+  <div class="report-preview">
+    <div style="font-size:.7rem;color:var(--muted);margin-bottom:.6rem;">Preview — sf-rust disk scan HTML report</div>
+
+    <!-- KPI tiles mock -->
+    <div class="kpi-mock">
+      <div class="kpi-tile"><div class="kv">42</div><div class="kl">Large files</div></div>
+      <div class="kpi-tile"><div class="kv">3.8 GB</div><div class="kl">Cleanable</div></div>
+      <div class="kpi-tile"><div class="kv">512 GB</div><div class="kl">Disk total</div></div>
+      <div class="kpi-tile"><div class="kv">198 GB</div><div class="kl">Disk used</div></div>
+      <div class="kpi-tile"><div class="kv">314 GB</div><div class="kl">Available</div></div>
+    </div>
+
+    <!-- Charts mock -->
+    <div class="chart-mock-row">
+      <div class="chart-mock">
+        <div class="cm-title">File types by size (top 8)</div>
+        <div class="pie-row"><span class="pie-dot" style="background:#58a6ff"></span><span>.mp4 — 2.1 GB</span></div>
+        <div class="pie-row"><span class="pie-dot" style="background:#3fb950"></span><span>.pkg — 890 MB</span></div>
+        <div class="pie-row"><span class="pie-dot" style="background:#d29922"></span><span>.dmg — 540 MB</span></div>
+        <div class="pie-row"><span class="pie-dot" style="background:#f85149"></span><span>.zip — 180 MB</span></div>
+        <div class="pie-row"><span class="pie-dot" style="background:#a371f7"></span><span>.png — 90 MB</span></div>
+      </div>
+      <div class="chart-mock">
+        <div class="cm-title">Files by age</div>
+        <div class="bar-row"><span style="width:3rem">0–3 mo</span><div class="bar-fill" style="width:60%;background:#3fb950"></div><span>18</span></div>
+        <div class="bar-row"><span style="width:3rem">3–6 mo</span><div class="bar-fill" style="width:30%;background:#58a6ff"></div><span>9</span></div>
+        <div class="bar-row"><span style="width:3rem">6–12 mo</span><div class="bar-fill" style="width:20%;background:#d29922"></div><span>6</span></div>
+        <div class="bar-row"><span style="width:3rem">1–2 yr</span><div class="bar-fill" style="width:16%;background:#db6d28"></div><span>5</span></div>
+        <div class="bar-row"><span style="width:3rem">2+ yr</span><div class="bar-fill" style="width:13%;background:#f85149"></div><span>4</span></div>
+      </div>
+    </div>
+
+    <!-- File table mock -->
+    <div style="font-size:.7rem;color:var(--muted);margin-bottom:.3rem;">Large files  (sortable ⇅ · filterable 🔍)</div>
+    <table style="font-size:.72rem;margin:0">
+      <thead><tr>
+        <th>Path ⇅</th><th>Size ⇅</th><th>Age (days) ⇅</th><th>Modified ⇅</th><th>Type ⇅</th>
+      </tr></thead>
+      <tbody>
+        <tr><td>/Users/you/Movies/project-demo.mp4</td><td style="color:var(--accent);font-weight:600">1.2 GB</td><td class="age-recent">12</td><td>2026-11-02</td><td style="color:var(--muted)">.mp4</td></tr>
+        <tr><td>/Users/you/Downloads/xcode.dmg</td><td style="color:var(--accent);font-weight:600">540 MB</td><td class="age-mid">187</td><td>2026-05-10</td><td style="color:var(--muted)">.dmg</td></tr>
+        <tr><td>/Users/you/Downloads/archive.zip</td><td style="color:var(--accent);font-weight:600">180 MB</td><td class="age-old">412</td><td>2025-10-28</td><td style="color:var(--muted)">.zip</td></tr>
+      </tbody>
+    </table>
+    <div style="font-size:.68rem;color:var(--muted);margin-top:.5rem">🧹 Cleanup script included — bash with per-file confirmation · copy to clipboard</div>
+  </div>
+
+  <h3>Age colour coding</h3>
+  <table>
+    <thead><tr><th>Range</th><th>Colour</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>&lt; 90 days (0–3 months)</td><td><span style="color:var(--green)">■ green</span></td><td>Recently modified — likely still in use</td></tr>
+      <tr><td>90–364 days (3–12 months)</td><td><span style="color:var(--yellow)">■ yellow</span></td><td>Getting old — worth reviewing</td></tr>
+      <tr><td>≥ 365 days (1 year +)</td><td><span style="color:var(--red)">■ red</span></td><td>Old — good cleanup candidate</td></tr>
+    </tbody>
+  </table>
+
+  <!-- Flags -->
+  <h2 id="flags">Flags</h2>
+  <table>
+    <thead><tr><th>Flag</th><th>Short</th><th>Default</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>--directory &lt;PATH&gt;</code></td><td><code>-d</code></td><td><code>~</code></td><td>Directory to scan (tilde expanded)</td></tr>
+      <tr><td><code>--min-size &lt;MB&gt;</code></td><td><code>-s</code></td><td><code>10</code></td><td>Minimum file size in megabytes</td></tr>
+      <tr><td><code>--older-than &lt;MONTHS&gt;</code></td><td><code>-o</code></td><td><code>0</code> (all)</td><td>Only files older than N months (0 = no age filter)</td></tr>
+      <tr><td><code>--limit &lt;N&gt;</code></td><td><code>-l</code></td><td><code>100</code></td><td>Maximum number of files in output</td></tr>
+      <tr><td><code>--html &lt;FILE&gt;</code></td><td>—</td><td>—</td><td>Save full HTML report with Chart.js; auto-opens in browser</td></tr>
+      <tr><td><code>--csv &lt;FILE&gt;</code></td><td>—</td><td>—</td><td>Save CSV export (path, size bytes, size human, modified, age, ext)</td></tr>
+      <tr><td><code>--datatable</code></td><td>—</td><td>—</td><td>Open results in sf-output HTML datatable in the browser</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <strong>Tip:</strong> <code>--html</code>, <code>--csv</code>, and terminal table output can all run together in one command.
+    <code>--datatable</code> skips the terminal table and opens the browser instead.
+  </div>
+
+  <!-- Examples -->
+  <h2 id="examples">Examples</h2>
+
+  <div class="code-block">
+    <div class="code-header"><span>bash — basic scans</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre># Default: scan home dir, files ≥10MB, table output
+sf-rust disk scan
+
+# Scan Downloads folder (files ≥10MB, default)
+sf-rust disk scan -d ~/Downloads
+
+# Lower threshold — find files ≥1MB
+sf-rust disk scan -d ~/Downloads -s 1
+
+# Only files larger than 500MB
+sf-rust disk scan -d ~ --min-size 500
+
+# Files older than 6 months
+sf-rust disk scan -d ~/Documents --older-than 6
+
+# Top 50 largest files in home
+sf-rust disk scan -d ~ -l 50</pre>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header"><span>bash — HTML and CSV reports</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre># Full HTML report (auto-opens in browser)
+sf-rust disk scan -d ~/Downloads --html /tmp/disk-report.html
+
+# CSV export for spreadsheet analysis
+sf-rust disk scan -d ~ -s 50 --csv ~/disk-large-files.csv
+
+# Both HTML and CSV in one pass
+sf-rust disk scan -d ~/Downloads -s 1 \
+  --html /tmp/disk-report.html \
+  --csv /tmp/disk-report.csv
+
+# Targeted: 100MB+, older than 1 year, top 200
+sf-rust disk scan -d ~ -s 100 -o 12 -l 200 \
+  --html /tmp/old-large.html</pre>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header"><span>bash — datatable and filtering</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre># Open as interactive browser datatable (sortable/filterable)
+sf-rust disk scan -d ~/Downloads --datatable
+
+# Scan specific project directory
+sf-rust disk scan -d ~/projects/my-app -s 5 --datatable
+
+# Large video files older than 3 months
+sf-rust disk scan -d ~/Movies --older-than 3 --datatable</pre>
+  </div>
+
+  <!-- Cleanup script -->
+  <h2>Cleanup Script</h2>
+  <p>Every <code>--html</code> report includes a bash cleanup script you can copy and run. Each file prompts individually before deletion:</p>
+  <div class="code-block">
+    <div class="code-header"><span>bash — generated cleanup script (excerpt)</span></div>
+    <pre>#!/usr/bin/env bash
+# sf-rust disk cleanup script — generated by sf-rust disk scan
+set -euo pipefail
+
+size=$(stat -f%z '/Users/you/Downloads/old-backup.zip' 2>/dev/null || echo 0)
+read -rp "Delete '/Users/you/Downloads/old-backup.zip' (540.0 MB)? [y/N] " ans
+if [[ "$ans" =~ ^[Yy]$ ]]; then
+  rm -f '/Users/you/Downloads/old-backup.zip' && echo "  Deleted"
+fi
+
+# ... (one block per file)
+
+echo "Done. Freed approximately $((freed / 1048576)) MB."</pre>
+  </div>
+
+  <!-- Error handling -->
+  <h2>Error Handling</h2>
+  <table>
+    <thead><tr><th>Situation</th><th>Message</th></tr></thead>
+    <tbody>
+      <tr><td>Directory does not exist</td><td><code>Error: Configuration error: Directory not found: /path/typo</code></td></tr>
+      <tr><td>No files match the criteria</td><td><code>No files found ≥NMB[, older than M months] in /path. Try a smaller --min-size value.</code></td></tr>
+    </tbody>
+  </table>
+
+  <!-- Quick reference -->
+  <h2 id="reference">Quick Reference</h2>
+  <div class="code-block">
+    <div class="code-header"><span>bash</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+    <pre>sf-rust disk scan --help
+
+sf-rust disk scan                                    # scan ~, files ≥10MB
+sf-rust disk scan -d ~/Downloads                     # scan Downloads
+sf-rust disk scan -d ~/Downloads -s 1 -l 50          # 1MB+, top 50
+sf-rust disk scan -d ~/Downloads --html /tmp/out.html # full HTML report
+sf-rust disk scan -d ~ -s 100 --csv ~/large.csv       # CSV export
+sf-rust disk scan -d ~/Downloads --datatable          # browser datatable
+sf-rust disk scan -d ~/Downloads -o 6 --html out.html # files older than 6mo</pre>
+  </div>
+
+</div>
+
+<footer>
+  sf-rust disk · part of <a href="sf-rust-portal.html">sf-rust</a> — native Salesforce CLI in Rust &nbsp;·&nbsp; Mohan Chinnappan
+</footer>
+
+<script>
+function toggleTheme() {
+  document.body.classList.toggle('light');
+  document.querySelector('.theme-btn').textContent =
+    document.body.classList.contains('light') ? '🌙 Dark' : '☀︎ Light';
+  localStorage.setItem('sf-disk-theme', document.body.classList.contains('light') ? 'light' : 'dark');
+}
+(function() {
+  if (localStorage.getItem('sf-disk-theme') === 'light') {
+    document.body.classList.add('light');
+    document.querySelector('.theme-btn').textContent = '🌙 Dark';
+  }
+})();
+function copyCode(btn) {
+  const pre = btn.closest('.code-block').querySelector('pre');
+  navigator.clipboard.writeText(pre.textContent).then(() => {
+    btn.textContent = 'Copied!';
+    setTimeout(() => btn.textContent = 'Copy', 1600);
+  });
+}
+</script>
+</body>
+</html>
