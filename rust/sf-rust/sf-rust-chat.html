@@ -106,6 +106,7 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   <a href="#overview">Overview</a>
   <a href="#tui">TUI</a>
   <a href="#howto">How to use</a>
+  <a href="#multiparty">Multi-party</a>
   <a href="#encryption">Encryption</a>
   <a href="#architecture">Architecture</a>
   <a href="#flags">Flags</a>
@@ -126,13 +127,14 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   <div class="hero-stat"><div class="num">7878</div><div class="lbl">Default port</div></div>
   <div class="hero-stat"><div class="num">AES</div><div class="lbl">Encryption</div></div>
   <div class="hero-stat"><div class="num">TUI</div><div class="lbl">Interface</div></div>
+  <div class="hero-stat"><div class="num">8</div><div class="lbl">Default max peers</div></div>
 </div>
 
 <p>
   <code>sf-rust chat</code> opens a direct TCP connection between two machines.
-  Phase 2 adds a <strong>ratatui split-screen TUI</strong> (messages above, input below —
-  no more interleaving) and optional <strong>AES-256-GCM end-to-end encryption</strong>
-  via a shared passphrase.
+  Phase 2 added a <strong>ratatui split-screen TUI</strong> and <strong>AES-256-GCM encryption</strong>.
+  Phase 3 makes the server a <strong>multi-party hub</strong> — it accepts up to <code>--max-peers N</code>
+  simultaneous connections and fan-outs every message to all connected peers.
 </p>
 
 <div class="card-grid">
@@ -148,8 +150,13 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   </div>
   <div class="card">
     <div class="card-icon">🔒</div>
-    <div class="card-title">AES-256-GCM <span class="badge badge-new">new</span></div>
-    <div class="card-desc">Pass <code>--secret passphrase</code> on both sides. Key = SHA-256(passphrase). Each message encrypted with a fresh nonce.</div>
+    <div class="card-title">AES-256-GCM <span class="badge badge-v2">Phase 2</span></div>
+    <div class="card-desc">Pass <code>--secret passphrase</code> on all sides. Key = SHA-256(passphrase). Each message encrypted with a fresh nonce. Server relays the raw encrypted wire line — no re-encryption.</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">👥</div>
+    <div class="card-title">Multi-party <span class="badge badge-new">Phase 3</span></div>
+    <div class="card-desc">Server accepts up to <code>--max-peers N</code> (default 8) simultaneous TCP connections. Every incoming message is fanned-out to all other peers. Server itself participates as a peer — types in the TUI, messages broadcast to all.</div>
   </div>
 </div>
 
@@ -205,6 +212,44 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
 <div class="tip">The TUI shows <strong>[AES-256-GCM]</strong> in the title bar when encryption is active.
 If the passphrases don't match, a decryption-failed warning appears in the message pane.</div>
 
+<!-- ── Multi-party ── -->
+<h2 id="multiparty">Multi-party chat <span class="badge badge-new">Phase 3</span></h2>
+
+<p>
+  The server now acts as a hub. All peers connect to the same <code>chat serve</code> instance.
+  Every message from any peer is fan-outed to all others — including the server operator.
+  The server's title bar shows <strong>peers: N/max</strong> live.
+</p>
+
+<div class="code-block"><span class="comment"># Machine A — start the hub (server + participant)</span>
+<span class="cmd">sf-rust chat serve</span> <span class="flag">--max-peers</span> <span class="value">4</span> <span class="flag">--name</span> <span class="value">mohan-hub</span>
+
+<span class="comment"># Machine B — connect</span>
+<span class="cmd">sf-rust chat connect</span> <span class="value">192.168.1.5:7878</span> <span class="flag">--name</span> <span class="value">alice</span>
+
+<span class="comment"># Machine C — connect</span>
+<span class="cmd">sf-rust chat connect</span> <span class="value">192.168.1.5:7878</span> <span class="flag">--name</span> <span class="value">bob</span>
+
+<span class="comment"># All three can now chat together</span>
+<span class="comment"># Server title bar: "peers: 2/4"</span></div>
+
+<div class="tip">
+  The server operator types in their own TUI just like any other peer. Their messages are broadcast to all connected clients.
+  When a peer joins or leaves, a system message appears in the server's TUI.
+</div>
+
+<div class="warn">
+  <strong>Peer limit:</strong> attempting to connect beyond <code>--max-peers</code> shows a "Rejected" system message on the server and the client's connection is dropped immediately.
+  The default limit is 8.
+</div>
+
+<h3>Multi-party with encryption</h3>
+<div class="code-block"><span class="comment"># Server and ALL clients must pass the same --secret</span>
+<span class="cmd">sf-rust chat serve</span> <span class="flag">--max-peers</span> <span class="value">4</span> <span class="flag">--secret</span> <span class="value">"team-pass"</span>
+<span class="cmd">sf-rust chat connect</span> <span class="value">192.168.1.5:7878</span> <span class="flag">--secret</span> <span class="value">"team-pass"</span>
+<span class="cmd">sf-rust chat connect</span> <span class="value">192.168.1.5:7878</span> <span class="flag">--secret</span> <span class="value">"team-pass"</span>
+<span class="comment"># Server relays the raw AES-256-GCM wire line — no re-encryption needed</span></div>
+
 <h3>Same machine (testing)</h3>
 <div class="code-block"><span class="comment"># Terminal 1:</span>
 <span class="cmd">sf-rust chat serve</span> <span class="flag">--name</span> <span class="value">alice</span>
@@ -234,24 +279,35 @@ If the passphrases don't match, a decryption-failed warning appears in the messa
 <!-- ── Architecture ── -->
 <h2 id="architecture">Architecture</h2>
 
-<h3>System view</h3>
+<h3>System view — Phase 3 multi-party hub</h3>
 <div class="mermaid-wrap">
 <div class="mermaid">
 flowchart LR
-    subgraph A ["Machine A — sf-rust chat serve"]
-        KBD_A(["keyboard\n(crossterm)"]) --> TUI_A["ratatui TUI\nmain loop"]
-        TUI_A --> SEND_A["send\njson/encrypt"]
-        RECV_A["recv task\ndecrypt/parse"] --> TUI_A
+    subgraph SRV ["Server — sf-rust chat serve --max-peers 8"]
+        KBD_S(["keyboard"]) --> TUI_S["ratatui TUI"]
+        TUI_S --> FAN["fan_out()\nexclude SERVER_ID"]
+        FANIN["accept_loop\nspawn recv+send\nper peer"] --> TUI_S
+        FAN --> FANIN
     end
 
-    subgraph B ["Machine B — sf-rust chat connect"]
-        KBD_B(["keyboard\n(crossterm)"]) --> TUI_B["ratatui TUI\nmain loop"]
-        TUI_B --> SEND_B["send\njson/encrypt"]
-        RECV_B["recv task\ndecrypt/parse"] --> TUI_B
+    subgraph P1 ["Peer 1 — chat connect"]
+        TUI_1["ratatui TUI"] --> TCP1(["TCP :7878"])
+        TCP1 --> TUI_1
     end
 
-    SEND_A -->|"TCP :7878\nnewline-delimited JSON\n(optionally AES-256-GCM)"| RECV_B
-    SEND_B -->|"TCP :7878"| RECV_A
+    subgraph P2 ["Peer 2 — chat connect"]
+        TUI_2["ratatui TUI"] --> TCP2(["TCP :7878"])
+        TCP2 --> TUI_2
+    end
+
+    subgraph P3 ["Peer 3 — chat connect"]
+        TUI_3["ratatui TUI"] --> TCP3(["TCP :7878"])
+        TCP3 --> TUI_3
+    end
+
+    FANIN <-->|"encrypted wire\nhex(nonce):hex(ct)"| TCP1
+    FANIN <-->|"encrypted wire"| TCP2
+    FANIN <-->|"encrypted wire"| TCP3
 </div>
 </div>
 
@@ -312,8 +368,9 @@ ifconfig | grep "inet " | grep -v 127
   <thead><tr><th>Flag</th><th>Short</th><th>Default</th><th>Description</th></tr></thead>
   <tbody>
     <tr><td><code>--port</code></td><td><code>-p</code></td><td>7878</td><td>TCP port to listen on</td></tr>
-    <tr><td><code>--name</code></td><td><code>-n</code></td><td>user@hostname</td><td>Display name shown to the remote peer</td></tr>
-    <tr><td><code>--secret</code></td><td><code>-s</code></td><td>—</td><td><span class="badge badge-new">Phase 2</span> AES-256-GCM passphrase (both sides must match)</td></tr>
+    <tr><td><code>--name</code></td><td><code>-n</code></td><td>user@hostname</td><td>Display name shown to peers</td></tr>
+    <tr><td><code>--max-peers</code></td><td>—</td><td>8</td><td><span class="badge badge-new">Phase 3</span> Maximum simultaneous peer connections</td></tr>
+    <tr><td><code>--secret</code></td><td><code>-s</code></td><td>—</td><td><span class="badge badge-v2">Phase 2</span> AES-256-GCM passphrase (all sides must match)</td></tr>
     <tr><td><code>--history</code></td><td>—</td><td>false</td><td>Append all messages to <code>~/.sf-rust/chat_history.log</code></td></tr>
   </tbody>
 </table>
@@ -380,8 +437,8 @@ Ctrl+C  <span class="comment"># emergency exit</span></div>
   <tbody>
     <tr><td>✅ V1</td><td>Raw TCP chat</td><td>Newline-delimited JSON, colored output, history log</td></tr>
     <tr><td>✅ Phase 2</td><td>ratatui TUI + AES-256-GCM</td><td>Split-screen, no interleaving, encrypted messages</td></tr>
-    <tr><td>Phase 3</td><td>Multi-party broadcast</td><td>Server fan-out via <code>tokio::sync::broadcast</code>; <code>--max-peers N</code></td></tr>
-    <tr><td>Phase 3</td><td>File transfer</td><td>Chunk-encode binary payloads in the same JSON protocol</td></tr>
+    <tr><td>✅ Phase 3</td><td>Multi-party broadcast</td><td>Server hub fan-out; <code>TcpPeers</code> registry; <code>--max-peers N</code> (default 8)</td></tr>
+    <tr><td>Phase 4</td><td>File transfer</td><td>Chunk-encode binary payloads in the same JSON protocol</td></tr>
     <tr><td>Phase 4</td><td>PBKDF2 key derivation</td><td>Replace SHA-256 with PBKDF2 + random salt exchange for stronger key stretching</td></tr>
   </tbody>
 </table>
