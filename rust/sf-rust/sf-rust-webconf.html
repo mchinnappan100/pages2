@@ -128,10 +128,13 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
 </p>
 <p>
   <strong>Phase W1</strong> (signaling) added a WebSocket hub and a ratatui TUI join client.
-  <strong>Phase W2</strong> (P2P data channels) wires <code>webrtc-rs</code> <code>RTCPeerConnection</code>
-  objects to those signals — peers exchange SDP and ICE through the hub and then communicate
-  <em>directly</em> via an encrypted DTLS/SCTP data channel, bypassing the signaling server for
-  actual message traffic.
+  <strong>Phase W2</strong> (P2P data channels) wired <code>webrtc-rs</code> <code>RTCPeerConnection</code>
+  objects to those signals — peers exchange SDP and ICE through the hub and communicate
+  <em>directly</em> via an encrypted DTLS/SCTP data channel.
+  <strong>Phase W3</strong> (auto-mesh) makes the entire process automatic: when a peer joins,
+  it auto-offers to every existing peer; when a new peer arrives, the lower peer-ID side
+  initiates to avoid simultaneous-offer glare. The signaling server is now used exclusively for
+  bootstrapping — all message traffic flows P2P.
 </p>
 
 <a id="architecture"></a>
@@ -149,7 +152,7 @@ sequenceDiagram
     Server-->>Alice: welcome {id, peers:[Bob]}
     Server-->>Bob: peer_joined {id:Alice}
 
-    Note over Alice,Bob: /offer &lt;bob-id&gt; triggers WebRTC
+    Note over Alice,Bob: Phase W3 — Alice auto-offers on welcome
     Alice->>Server: {type:offer, to:Bob, sdp:...}
     Server->>Bob: {type:relay_offer, from:Alice, sdp:...}
     Bob->>Server: {type:answer, to:Alice, sdp:...}
@@ -186,26 +189,31 @@ sequenceDiagram
 <span class="cmd">mc-webconf join</span> <span class="value">192.168.1.5:8080</span> <span class="flag">--name</span> <span class="value">Alice</span> <span class="flag">--stun</span> <span class="value">stun:stun1.l.google.com:19302</span></div>
 
 <a id="p2p"></a>
-<h2>Opening a P2P data channel</h2>
+<h2>Automatic P2P mesh (Phase W3)</h2>
 
 <p>
-  After joining, type <code>/peers</code> to see peer IDs, then <code>/offer &lt;peer-id&gt;</code> to
-  initiate a WebRTC data channel to that peer. The answering side auto-responds; ICE candidates
-  are exchanged automatically through the signaling hub.
+  No manual steps required. When you join a room, the client immediately auto-offers to every
+  existing peer. When a new peer joins later, the peer with the lexicographically lower ID
+  initiates the offer — this deterministic rule prevents simultaneous-offer glare.
+  ICE candidates are exchanged through the signaling hub; once the
+  <code>RTCDataChannel</code> opens, all subsequent traffic is fully P2P.
+</p>
+<p>
+  <code>/offer &lt;peer-id&gt;</code> is still accepted for manual reconnection when needed.
 </p>
 
 <div class="tui-frame">
   <div class="tui-titlebar"> mc-webconf  |  room: default  |  you: Alice  |  id: a3f9c1b2…  |  peers: 1  [P2P: 1]</div>
   <div class="tui-messages">
-    <div class="tui-msg-sys">  -- Joined! Type to chat. /offer &lt;id&gt; starts a WebRTC P2P channel. /peers lists room. --</div>
+    <div class="tui-msg-sys">  -- Joined! Auto-mesh P2P active — connecting to all peers automatically. /peers = list room. --</div>
     <div class="tui-msg-sys">  -- Your ID: a3f9c1b2…  (1 peer(s) already in room) --</div>
     <div class="tui-msg-sys">  --   Bob  (d7e21f04…) --</div>
-    <div class="tui-msg-sys">  -- [WebRTC] initiating P2P with d7e21f04… --</div>
+    <div class="tui-msg-sys">  -- [WebRTC] auto-mesh: initiating P2P with 1 peer(s)… --</div>
     <div class="tui-msg-sys">  -- [WebRTC] ✓ P2P channel open  (d7e21f04…) --</div>
     <div class="tui-msg-p2p"><span class="ts"> [14:22:18] </span><span class="name">[P2P] Bob:</span> hello from the data channel!</div>
   </div>
   <div class="tui-input">
-    <div class="tui-input-title"> Message  |  /peers  /offer &lt;id&gt;  |  Enter=send  Esc=exit </div>
+    <div class="tui-input-title"> Message  |  /peers  /offer &lt;id&gt; (manual)  |  Enter=send  Esc=exit </div>
     <div class="tui-input-box"> &gt; hey Bob, P2P is working!|</div>
   </div>
 </div>
@@ -239,10 +247,10 @@ sequenceDiagram
     <div class="phase-title">WebRTC data channels</div>
     <div class="phase-desc">webrtc-rs RTCPeerConnection, RTCDataChannel, STUN/ICE, auto SDP exchange, [P2P] message routing</div>
   </div>
-  <div class="phase-card planned">
-    <div class="phase-num">Phase W3 ⏳</div>
+  <div class="phase-card done">
+    <div class="phase-num">Phase W3 ✅</div>
     <div class="phase-title">Automatic mesh</div>
-    <div class="phase-desc">Auto-offer all peers on join; full P2P mesh; signaling used only for bootstrapping</div>
+    <div class="phase-desc">Newcomer auto-offers to all existing peers; lower peer-ID initiates on new join; full P2P mesh without manual /offer</div>
   </div>
   <div class="phase-card planned">
     <div class="phase-num">Phase W4 ⏳</div>
@@ -297,7 +305,7 @@ sequenceDiagram
 
 <footer>
   mc-webconf — part of <a href="sf-rust-portal.html">sf-rust</a> |
-  Mohan Chinnappan | Phase W2 — WebRTC data channels
+  Mohan Chinnappan | Phase W3 — Automatic P2P mesh
 </footer>
 </div>
 
