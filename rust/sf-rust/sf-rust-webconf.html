@@ -137,6 +137,11 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   "file" <code>RTCDataChannel</code>. Each 16 KiB chunk is encrypted with AES-256-GCM using a
   key derived from both peer IDs (SHA-256-based HKDF-lite) — application-layer encryption
   on top of DTLS.
+  <strong>Phase W5</strong> (voice) adds real-time Opus voice conferencing over WebRTC media tracks.
+  <code>/voice on</code> starts mic capture, Opus-encodes at 48 kHz, and streams audio to every
+  connected peer via <code>TrackLocalStaticSample</code> RTP tracks. Receiving peers auto-create
+  a playback decoder on first audio packet. Renegotiation (new SDP offer/answer) is handled
+  transparently by the existing signaling channel.
 </p>
 
 <a id="architecture"></a>
@@ -205,18 +210,18 @@ sequenceDiagram
 </p>
 
 <div class="tui-frame">
-  <div class="tui-titlebar"> mc-webconf  |  room: default  |  you: Alice  |  id: a3f9c1b2…  |  peers: 1  [P2P: 1]</div>
+  <div class="tui-titlebar"> mc-webconf  |  room: default  |  you: Alice  |  id: a3f9c1b2…  |  peers: 1  [P2P: 1]  [Voice: on]</div>
   <div class="tui-messages">
     <div class="tui-msg-sys">  -- Joined! Auto-mesh P2P active — connecting to all peers automatically. /peers = list room. --</div>
     <div class="tui-msg-sys">  -- Your ID: a3f9c1b2…  (1 peer(s) already in room) --</div>
-    <div class="tui-msg-sys">  --   Bob  (d7e21f04…) --</div>
     <div class="tui-msg-sys">  -- [WebRTC] auto-mesh: initiating P2P with 1 peer(s)… --</div>
     <div class="tui-msg-sys">  -- [WebRTC] ✓ P2P channel open  (d7e21f04…) --</div>
-    <div class="tui-msg-p2p"><span class="ts"> [14:22:18] </span><span class="name">[P2P] Bob:</span> hello from the data channel!</div>
+    <div class="tui-msg-sys">  -- [Voice] mic active — /voice off to stop, /mute to toggle mic --</div>
+    <div class="tui-msg-p2p"><span class="ts"> [14:22:18] </span><span class="name">[P2P] Bob:</span> I can hear you!</div>
   </div>
   <div class="tui-input">
-    <div class="tui-input-title"> Message  |  /peers  /offer &lt;id&gt; (manual)  |  Enter=send  Esc=exit </div>
-    <div class="tui-input-box"> &gt; hey Bob, P2P is working!|</div>
+    <div class="tui-input-title"> Message  |  /peers  /voice on|off  /mute  /send &lt;peer&gt; &lt;file&gt;  /offer &lt;id&gt;  |  Enter=send  Esc=exit </div>
+    <div class="tui-input-box"> &gt; |</div>
   </div>
 </div>
 
@@ -231,6 +236,9 @@ sequenceDiagram
   <tr><th>Command</th><th>Action</th></tr>
   <tr><td><code>/peers</code></td><td>List peers in the room (shows <code>[P2P]</code> tag for connected peers)</td></tr>
   <tr><td><code>/send &lt;peer&gt; &lt;filepath&gt;</code></td><td><strong>W4</strong> — send a file over the encrypted file channel; peer name or ID prefix; AES-256-GCM per chunk; receiver auto-saves</td></tr>
+  <tr><td><code>/voice on</code></td><td><strong>W5</strong> — start mic capture; Opus-encodes at 48 kHz; streams audio to all P2P-connected peers via WebRTC media track + renegotiation</td></tr>
+  <tr><td><code>/voice off</code></td><td><strong>W5</strong> — stop mic capture and all voice playback streams</td></tr>
+  <tr><td><code>/mute</code></td><td><strong>W5</strong> — toggle mic mute while voice is active; title shows <code>[Voice: muted]</code></td></tr>
   <tr><td><code>/offer &lt;peer-id&gt;</code></td><td>Manually initiate WebRTC to a peer (auto-mesh normally handles this)</td></tr>
   <tr><td>plain text</td><td>Chat via signaling to all peers; also mirrored over open P2P data channels</td></tr>
   <tr><td><code>Esc</code> / <code>Ctrl+C</code></td><td>Exit</td></tr>
@@ -260,6 +268,11 @@ sequenceDiagram
     <div class="phase-title">File transfer + AES-256-GCM</div>
     <div class="phase-desc">Dedicated "file" RTCDataChannel per peer; /send &lt;peer&gt; &lt;file&gt; command; 16 KiB chunks; AES-256-GCM with key derived from peer IDs; auto-save on receive</div>
   </div>
+  <div class="phase-card done">
+    <div class="phase-num">Phase W5 ✅</div>
+    <div class="phase-title">Voice conferencing</div>
+    <div class="phase-desc">cpal mic capture + audiopus Opus encode/decode at 48 kHz; TrackLocalStaticSample RTP tracks; on_track auto-creates playback; SDP renegotiation; /voice on|off /mute; [Voice: on/muted] title badge</div>
+  </div>
 </div>
 
 <a id="flags"></a>
@@ -288,6 +301,8 @@ sequenceDiagram
   <tr><td><code>ratatui</code></td><td>0.28</td><td>TUI rendering</td></tr>
   <tr><td><code>crossterm</code></td><td>0.28</td><td>Terminal events</td></tr>
   <tr><td><code>serde_json</code></td><td>1</td><td>Signaling wire protocol (JSON over WebSocket)</td></tr>
+  <tr><td><code>cpal</code></td><td>0.15</td><td><strong>W5</strong> — cross-platform audio I/O (mic capture + speaker playback via CoreAudio on macOS)</td></tr>
+  <tr><td><code>audiopus</code></td><td>0.2</td><td><strong>W5</strong> — Rust bindings to libopus; Opus encode/decode at 48 kHz for voice over RTP</td></tr>
 </table>
 
 <h2>Wire protocol</h2>
@@ -308,7 +323,7 @@ sequenceDiagram
 
 <footer>
   mc-webconf — part of <a href="sf-rust-portal.html">sf-rust</a> |
-  Mohan Chinnappan | Phase W4 — File transfer + AES-256-GCM
+  Mohan Chinnappan | Phase W5 — Voice conferencing
 </footer>
 </div>
 
