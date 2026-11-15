@@ -101,9 +101,9 @@ sfr data query -q "SELECT Id, Name FROM Account" -o dev1 --page-size 25
 # Interactive HTML datatable
 sfr data query -q "SELECT Id, Account.Name FROM Contact" -o dev1 --datatable
 
-# Cross-tab pivot  (StageName × Amount)
-sfr data query -q "SELECT StageName, COUNT(Id), SUM(Amount) \
-  FROM Opportunity GROUP BY StageName" -o dev1 --pivot
+# Cross-tab pivot  (StageName rows × Type cols, sum Amount)
+sfr data pivot -q "SELECT StageName, Type, Amount FROM Opportunity" \
+  -o dev1 --row StageName --col Type --val Amount --agg sum
 
 # SOQL explain plan
 sfr data soql-explain -q "SELECT Id FROM Account WHERE Name LIKE '%Tech%'" -o dev1
