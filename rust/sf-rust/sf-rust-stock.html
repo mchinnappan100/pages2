@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sf-rust stock — live quotes via Yahoo Finance</title>
+<style>
+:root {
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --accent:#58a6ff;--green:#3fb950;--red:#f85149;
+  --yellow:#d29922;--purple:#bc8cff;--teal:#39d353;
+  --code-bg:#161b22;--code-border:#30363d;
+  --card:#161b22;--card-border:#30363d;
+}
+.light {
+  --bg:#ffffff;--bg2:#f6f8fa;--bg3:#eaeef2;
+  --border:#d0d7de;--text:#1f2328;--muted:#656d76;
+  --accent:#0969da;--green:#1a7f37;--red:#cf222e;
+  --yellow:#9a6700;--purple:#8250df;--teal:#1a7f37;
+  --code-bg:#f6f8fa;--code-border:#d0d7de;
+  --card:#ffffff;--card-border:#d0d7de;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px;line-height:1.65;transition:background .2s,color .2s}
+.page{max-width:960px;margin:0 auto;padding:2rem 1.5rem 5rem}
+nav{position:sticky;top:0;z-index:100;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;overflow-x:auto;padding:0 1.5rem}
+nav a{color:var(--muted);text-decoration:none;font-size:.8rem;padding:.7rem .8rem;white-space:nowrap;border-bottom:2px solid transparent}
+nav a:hover{color:var(--text)}
+nav .nav-logo{font-weight:700;color:var(--accent);margin-right:.5rem;font-size:.85rem}
+nav .nav-right{margin-left:auto;display:flex;gap:.5rem;align-items:center}
+.theme-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:.25rem .6rem;font-size:.75rem;cursor:pointer}
+.theme-btn:hover{background:var(--border)}
+h1{font-size:2rem;font-weight:700;margin-bottom:.4rem}
+h2{font-size:1.35rem;font-weight:600;margin:2.5rem 0 1rem;padding-bottom:.4rem;border-bottom:1px solid var(--border)}
+h3{font-size:1rem;font-weight:600;margin:1.5rem 0 .6rem;color:var(--accent)}
+p{margin-bottom:.8rem;color:var(--text)}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+ul{padding-left:1.5rem;margin-bottom:.8rem}
+li{margin:.3em 0;color:var(--text)}
+.subtitle{color:var(--muted);font-size:1rem;margin-bottom:1.5rem}
+.hero{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1.8rem 2rem;margin:1.5rem 0 2.5rem;display:flex;flex-wrap:wrap;gap:1.5rem;align-items:center;justify-content:space-around}
+.hero-stat{text-align:center}
+.hero-stat .num{font-size:2rem;font-weight:700;color:var(--accent)}
+.hero-stat .lbl{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.9rem}
+th{background:var(--bg3);color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--border)}
+td{padding:.5rem .75rem;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg3)}
+code{font-family:"JetBrains Mono","SF Mono",monospace;font-size:.85em;background:var(--code-bg);border:1px solid var(--code-border);border-radius:4px;padding:.1em .4em;color:var(--purple)}
+.code-block{background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:1rem 1.2rem;margin:.8rem 0;font-family:"JetBrains Mono","SF Mono",monospace;font-size:.82rem;overflow-x:auto;white-space:pre;line-height:1.55}
+.code-block .comment{color:var(--muted)}
+.code-block .cmd{color:var(--green)}
+.code-block .flag{color:var(--yellow)}
+.code-block .value{color:var(--teal)}
+.code-block .out{color:var(--purple)}
+.tip{background:var(--bg2);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:.7rem 1rem;margin:1rem 0;font-size:.88rem;color:var(--muted)}
+
+/* terminal mock */
+.term{background:#0d1117;border:2px solid #30363d;border-radius:8px;font-family:"JetBrains Mono","SF Mono",monospace;font-size:.78rem;overflow:hidden;margin:1rem 0}
+.term-bar{background:#21262d;padding:.35rem .8rem;display:flex;align-items:center;gap:.45rem;border-bottom:1px solid #30363d}
+.term-dot{width:11px;height:11px;border-radius:50%}
+.term-dot.r{background:#f85149}.term-dot.y{background:#d29922}.term-dot.g{background:#3fb950}
+.term-body{padding:.8rem 1rem;white-space:pre;overflow-x:auto;line-height:1.6}
+.t-prompt{color:#3fb950}.t-flag{color:#d29922}.t-val{color:#39d353}
+.t-head{color:#58a6ff;font-weight:700}.t-row{color:#e6edf3}.t-muted{color:#8b949e}
+.t-up{color:#3fb950}.t-dn{color:#f85149}
+
+/* html preview cards */
+.sq-cards{display:flex;flex-wrap:wrap;gap:.8rem;margin:1rem 0 1.5rem}
+.sq-card{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1rem 1.2rem;min-width:160px;flex:1}
+.sq-ticker{font-size:.95rem;font-weight:700;color:var(--accent);margin-bottom:.1rem}
+.sq-name{font-size:.72rem;color:var(--muted);margin-bottom:.5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
+.sq-price{font-size:1.5rem;font-weight:700;margin-bottom:.2rem}
+.sq-chg-up{font-size:.85rem;font-weight:600;color:var(--green);margin-bottom:.6rem}
+.sq-chg-dn{font-size:.85rem;font-weight:600;color:var(--red);margin-bottom:.6rem}
+.sq-row{display:flex;justify-content:space-between;font-size:.76rem;border-top:1px solid var(--border);padding:.22rem 0}
+.sq-lbl{color:var(--muted)}.sq-val{font-weight:600}
+
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);text-align:center;color:var(--muted);font-size:.8rem}
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-logo">⚙ sf-rust</span>
+  <a href="sf-rust-portal.html">Home</a>
+  <a href="#overview">Overview</a>
+  <a href="#howto">How to use</a>
+  <a href="#output">Output sample</a>
+  <a href="#html-output">HTML page</a>
+  <a href="#flags">Flags</a>
+  <a href="#api">API details</a>
+  <div class="nav-right">
+    <button class="theme-btn" onclick="toggleTheme()">☀ / 🌙</button>
+  </div>
+</nav>
+
+<div class="page">
+
+<h1>📈 sf-rust stock</h1>
+<p class="subtitle">Live stock quotes for one or more tickers — Yahoo Finance v8 API, no key, table / HTML / JSON / CSV</p>
+
+<div class="hero">
+  <div class="hero-stat"><div class="num">📡</div><div class="lbl">Live data</div></div>
+  <div class="hero-stat"><div class="num">0</div><div class="lbl">API keys</div></div>
+  <div class="hero-stat"><div class="num">∞</div><div class="lbl">Tickers</div></div>
+  <div class="hero-stat"><div class="num">HTML</div><div class="lbl">Summary cards</div></div>
+  <div class="hero-stat"><div class="num">JSON</div><div class="lbl">Machine output</div></div>
+  <div class="hero-stat"><div class="num">CSV</div><div class="lbl">Spreadsheet</div></div>
+</div>
+
+<a id="overview"></a>
+<p>
+  <code>sf-rust stock</code> fetches live price, change, volume, 52-week range, and market cap
+  for any list of tickers using the <strong>Yahoo Finance v8/finance/chart</strong> endpoint —
+  free, unauthenticated, no API key, no account.
+  Supports any equity, ETF, index, or crypto symbol tracked by Yahoo Finance.
+</p>
+
+<p class="tip">Data is typically 15-minute delayed for US equities. The Yahoo Finance <code>v8/finance/chart</code> endpoint is used because <code>v7/finance/quote</code> now requires authentication.</p>
+
+<a id="howto"></a>
+<h2>How to use</h2>
+
+<h3>Basic — table in terminal</h3>
+<div class="code-block"><span class="comment"># Comma-separated tickers</span>
+<span class="cmd">sf-rust stock</span> <span class="flag">--tickers</span> <span class="value">"AAPL,MSFT,TSLA"</span>
+<span class="cmd">sfr stock</span> <span class="flag">-t</span> <span class="value">"AAPL,MSFT,TSLA"</span>
+
+<span class="comment"># ETFs and indices</span>
+<span class="cmd">sfr stock</span> <span class="flag">-t</span> <span class="value">"SPY,QQQ,DIA"</span>
+
+<span class="comment"># International and crypto</span>
+<span class="cmd">sfr stock</span> <span class="flag">-t</span> <span class="value">"INFY.NS,TCS.NS,BTC-USD,ETH-USD"</span></div>
+
+<h3>HTML — summary cards + detail table in browser</h3>
+<div class="code-block"><span class="cmd">sfr stock</span> <span class="flag">-t</span> <span class="value">"AAPL,MSFT,GOOGL,AMZN,NVDA"</span> <span class="flag">--html</span>
+<span class="comment"># → opens /tmp/sf-rust-stock-{ts}.html with live data</span></div>
+
+<h3>JSON — raw data for scripting</h3>
+<div class="code-block"><span class="cmd">sfr stock</span> <span class="flag">-t</span> <span class="value">"AAPL"</span> <span class="flag">--json</span> | jq '.[] | {symbol, price: .regular_market_price, change: .regular_market_change_percent}'
+<span class="cmd">sfr stock</span> <span class="flag">-t</span> <span class="value">"SPY,QQQ"</span> <span class="flag">--json</span> > quotes.json</div>
+
+<h3>CSV — pipe to file or further tools</h3>
+<div class="code-block"><span class="cmd">sfr stock</span> <span class="flag">-t</span> <span class="value">"AAPL,MSFT,TSLA,NVDA"</span> <span class="flag">--csv</span> > quotes.csv
+<span class="cmd">sfr stock</span> <span class="flag">-t</span> <span class="value">"AAPL,MSFT"</span> <span class="flag">--csv</span> | column -t -s,</div>
+
+<a id="output"></a>
+<h2>Terminal output sample</h2>
+
+<div class="term">
+  <div class="term-bar">
+    <div class="term-dot r"></div><div class="term-dot y"></div><div class="term-dot g"></div>
+  </div>
+  <div class="term-body"><span class="t-prompt">$</span> <span>sfr stock</span> <span class="t-flag">-t</span> <span class="t-val">"AAPL,MSFT,TSLA"</span> <span class="t-flag">--no-time</span>
+
+<span class="t-head">┌────────┬───────────────────────┬─────────┬────────────────┬──────────┬─────────────┬──────────────┬────────┬──────────┬───────┐
+│ Ticker ┆ Name                  ┆ Price   ┆ Change         ┆ High     ┆ Low         ┆ Volume       ┆ Mkt Cap┆ 52w H/L  ┆ State │
+╞════════╪═══════════════════════╪═════════╪════════════════╪══════════╪═════════════╪══════════════╪════════╪══════════╪═══════╡</span>
+<span class="t-row">│ AAPL   ┆ Apple Inc.            ┆ $356.27 ┆ <span class="t-up">▲ 1.39 (0.39%)</span> ┆ $360.83  ┆ $355.75     ┆ 39.10M       ┆ —      ┆ $360/$243┆ Closed│
+│ MSFT   ┆ Microsoft Corporation ┆ $523.88 ┆ <span class="t-up">▲ 0.88 (0.17%)</span> ┆ $526.42  ┆ $513.82     ┆ 25.46M       ┆ —      ┆ $559/$349┆ Closed│
+│ TSLA   ┆ Tesla, Inc.           ┆ $390.22 ┆ <span class="t-dn">▼ 7.23 (1.82%)</span> ┆ $404.40  ┆ $385.83     ┆ 32.04M       ┆ —      ┆ $499/$297┆ Closed│</span>
+<span class="t-head">└────────┴───────────────────────┴─────────┴────────────────┴──────────┴─────────────┴──────────────┴────────┴──────────┴───────┘</span>
+
+<span class="t-muted">Time: 1.23s</span></div>
+</div>
+
+<a id="html-output"></a>
+<h2>HTML output preview</h2>
+
+<p>The <code>--html</code> flag generates a self-contained dark-mode page at <code>/tmp/sf-rust-stock-{ts}.html</code> and opens it in the browser. It has summary cards at the top and a full detail table below.</p>
+
+<div class="sq-cards">
+  <div class="sq-card">
+    <div class="sq-ticker">AAPL</div>
+    <div class="sq-name">Apple Inc.</div>
+    <div class="sq-price">$356.27</div>
+    <div class="sq-chg-up">▲ 1.39 (0.39%)</div>
+    <div class="sq-row"><span class="sq-lbl">Volume</span><span class="sq-val">39.10M</span></div>
+    <div class="sq-row"><span class="sq-lbl">52w</span><span class="sq-val">$243 – $361</span></div>
+  </div>
+  <div class="sq-card">
+    <div class="sq-ticker">MSFT</div>
+    <div class="sq-name">Microsoft Corporation</div>
+    <div class="sq-price">$523.88</div>
+    <div class="sq-chg-up">▲ 0.88 (0.17%)</div>
+    <div class="sq-row"><span class="sq-lbl">Volume</span><span class="sq-val">25.46M</span></div>
+    <div class="sq-row"><span class="sq-lbl">52w</span><span class="sq-val">$349 – $559</span></div>
+  </div>
+  <div class="sq-card">
+    <div class="sq-ticker">TSLA</div>
+    <div class="sq-name">Tesla, Inc.</div>
+    <div class="sq-price">$390.22</div>
+    <div class="sq-chg-dn">▼ 7.23 (1.82%)</div>
+    <div class="sq-row"><span class="sq-lbl">Volume</span><span class="sq-val">32.04M</span></div>
+    <div class="sq-row"><span class="sq-lbl">52w</span><span class="sq-val">$297 – $499</span></div>
+  </div>
+</div>
+
+<a id="flags"></a>
+<h2>Command flags</h2>
+
+<table>
+  <tr><th>Flag</th><th>Short</th><th>Description</th></tr>
+  <tr><td><code>--tickers</code></td><td><code>-t</code></td><td>Comma-separated ticker symbols: <code>AAPL,MSFT,TSLA</code>. Any Yahoo Finance symbol works — equities, ETFs, indices, crypto (<code>BTC-USD</code>), international (<code>INFY.NS</code>)</td></tr>
+  <tr><td><code>--html</code></td><td>—</td><td>Generate a self-contained dark-mode HTML page with summary cards + detail table; opens in browser</td></tr>
+  <tr><td><code>--json</code></td><td><code>-j</code></td><td>Output JSON array — one object per ticker with all fields</td></tr>
+  <tr><td><code>--csv</code></td><td>—</td><td>Output CSV with headers — Ticker, Name, Currency, Price, Change, ChangePct, Open, High, Low, PrevClose, Volume, MarketCap, 52wHigh, 52wLow, MarketState</td></tr>
+</table>
+
+<h2>Output modes</h2>
+<table>
+  <tr><th>Mode</th><th>How</th><th>Best for</th></tr>
+  <tr><td>Table (default)</td><td><code>sfr stock -t "AAPL,MSFT"</code></td><td>Quick check in terminal</td></tr>
+  <tr><td>HTML</td><td><code>--html</code></td><td>Summary cards, shareable page, dark mode</td></tr>
+  <tr><td>JSON</td><td><code>--json</code></td><td>Scripting, piping to <code>jq</code>, integration</td></tr>
+  <tr><td>CSV</td><td><code>--csv</code></td><td>Import to spreadsheet, further processing</td></tr>
+</table>
+
+<a id="api"></a>
+<h2>API details</h2>
+
+<table>
+  <tr><th>Endpoint</th><th>Base URL</th><th>Auth</th><th>Notes</th></tr>
+  <tr>
+    <td><strong>Yahoo Finance v8 chart</strong></td>
+    <td><code>query1.finance.yahoo.com/v8/finance/chart/{symbol}</code></td>
+    <td>None</td>
+    <td>Returns OHLCV + meta with 52-week range; called once per ticker</td>
+  </tr>
+</table>
+
+<p class="tip">The older <code>v7/finance/quote</code> endpoint now requires authentication. The <code>v8/finance/chart</code> endpoint returns all needed fields (price, change %, high/low, volume, 52-week range) without any key.</p>
+
+<h2>Supported symbol formats</h2>
+<div class="code-block"><span class="comment"># US equities</span>
+<span class="value">AAPL  MSFT  GOOGL  AMZN  NVDA  META  TSLA  NFLX  ORCL</span>
+
+<span class="comment"># ETFs &amp; indices</span>
+<span class="value">SPY  QQQ  DIA  IWM  VTI  ^GSPC  ^DJI  ^IXIC</span>
+
+<span class="comment"># Indian market (NSE)</span>
+<span class="value">INFY.NS  TCS.NS  RELIANCE.NS  HDFCBANK.NS  WIPRO.NS</span>
+
+<span class="comment"># Crypto (USD pair)</span>
+<span class="value">BTC-USD  ETH-USD  SOL-USD  BNB-USD</span>
+
+<span class="comment"># European (suffix by exchange)</span>
+<span class="value">SAP.DE  LVMH.PA  ASML.AS</span></div>
+
+<h2>sf-rust alias tip</h2>
+<div class="code-block"><span class="comment"># Add to ~/.zshrc</span>
+<span class="value">alias sfr="$HOME/.local/bin/sf-rust"</span>
+
+<span class="cmd">sfr stock</span> <span class="flag">-t</span> <span class="value">"AAPL,MSFT,NVDA,GOOGL,AMZN"</span>
+<span class="cmd">sfr stock</span> <span class="flag">-t</span> <span class="value">"INFY.NS,TCS.NS,WIPRO.NS"</span>
+<span class="cmd">sfr stock</span> <span class="flag">-t</span> <span class="value">"BTC-USD,ETH-USD"</span> <span class="flag">--html</span></div>
+
+<footer>
+  sf-rust stock — part of <a href="sf-rust-portal.html">sf-rust</a> |
+  Mohan Chinnappan | Data: Yahoo Finance (yahoo.com/finance)
+</footer>
+</div>
+
+<script>
+function toggleTheme() {
+  document.body.classList.toggle('light');
+  localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+}
+if (localStorage.getItem('theme') === 'light') document.body.classList.add('light');
+</script>
+</body>
+</html>
