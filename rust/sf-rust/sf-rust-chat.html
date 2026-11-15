@@ -107,6 +107,7 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   <a href="#tui">TUI</a>
   <a href="#howto">How to use</a>
   <a href="#multiparty">Multi-party</a>
+  <a href="#filetransfer">File transfer</a>
   <a href="#encryption">Encryption</a>
   <a href="#architecture">Architecture</a>
   <a href="#flags">Flags</a>
@@ -128,6 +129,7 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   <div class="hero-stat"><div class="num">AES</div><div class="lbl">Encryption</div></div>
   <div class="hero-stat"><div class="num">TUI</div><div class="lbl">Interface</div></div>
   <div class="hero-stat"><div class="num">8</div><div class="lbl">Default max peers</div></div>
+  <div class="hero-stat"><div class="num">50</div><div class="lbl">MB max file transfer</div></div>
 </div>
 
 <p>
@@ -135,6 +137,8 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   Phase 2 added a <strong>ratatui split-screen TUI</strong> and <strong>AES-256-GCM encryption</strong>.
   Phase 3 makes the server a <strong>multi-party hub</strong> — it accepts up to <code>--max-peers N</code>
   simultaneous connections and fan-outs every message to all connected peers.
+  Phase 4 adds <strong>file transfer</strong> — type <code>/send &lt;path&gt;</code> in the TUI to send any file (up to 50 MB)
+  to all connected peers over the same encrypted wire.
 </p>
 
 <div class="card-grid">
@@ -155,8 +159,13 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   </div>
   <div class="card">
     <div class="card-icon">👥</div>
-    <div class="card-title">Multi-party <span class="badge badge-new">Phase 3</span></div>
+    <div class="card-title">Multi-party <span class="badge badge-v2">Phase 3</span></div>
     <div class="card-desc">Server accepts up to <code>--max-peers N</code> (default 8) simultaneous TCP connections. Every incoming message is fanned-out to all other peers. Server itself participates as a peer — types in the TUI, messages broadcast to all.</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">📁</div>
+    <div class="card-title">File transfer <span class="badge badge-new">Phase 4</span></div>
+    <div class="card-desc">Type <code>/send &lt;path&gt;</code> in the input box to send any file (up to 50 MB). Base64-encoded in the same JSON wire protocol; encrypted with AES-256-GCM if <code>--secret</code> is active. Receiver saves to <code>~/Downloads/</code> automatically.</div>
   </div>
 </div>
 
@@ -255,6 +264,53 @@ If the passphrases don't match, a decryption-failed warning appears in the messa
 <span class="cmd">sf-rust chat serve</span> <span class="flag">--name</span> <span class="value">alice</span>
 <span class="comment"># Terminal 2:</span>
 <span class="cmd">sf-rust chat connect</span> <span class="value">127.0.0.1:7878</span> <span class="flag">--name</span> <span class="value">bob</span></div>
+
+<!-- ── File transfer ── -->
+<h2 id="filetransfer">File transfer <span class="badge badge-new">Phase 4</span></h2>
+
+<p>
+  Type <code>/send &lt;path&gt;</code> in the TUI input box to send a file to all connected peers.
+  The file is read, base64-encoded, and sent as a <code>{"type":"file"}</code> JSON payload over the
+  same newline-delimited TCP wire used for chat. Encryption with <code>--secret</code> applies to file
+  payloads too — each send gets a fresh AES-256-GCM nonce.
+</p>
+
+<h3>Sending a file</h3>
+<div class="code-block"><span class="comment"># In the TUI input box, type:</span>
+/send scripts/deploy.sh
+/send ~/Desktop/notes.txt
+/send /tmp/report.pdf</div>
+
+<div class="tip">
+  The server fans the file out to all connected peers in one shot — every peer receives it simultaneously.
+  The sender sees <code>[FILE] deploy.sh (2.1 KB) sent</code>; each receiver sees
+  <code>[FILE] deploy.sh (2.1 KB) from alice → saved to ~/Downloads/deploy.sh</code>.
+</div>
+
+<h3>Receiving a file</h3>
+<p>
+  The receiver saves the file to <code>~/Downloads/</code> automatically (falls back to <code>~/.sf-rust/received/</code>
+  if <code>~/Downloads/</code> does not exist). Directory path components in the sender-supplied filename are
+  stripped before saving — path traversal is not possible.
+</p>
+
+<h3>Limits and wire format</h3>
+<table>
+  <thead><tr><th>Detail</th><th>Value</th></tr></thead>
+  <tbody>
+    <tr><td>Max file size</td><td>50 MB (hard limit; larger files are rejected with a clear error)</td></tr>
+    <tr><td>Encoding</td><td>Base64 (standard alphabet)</td></tr>
+    <tr><td>JSON type field</td><td><code>"type":"file"</code> — same wire as chat (<code>"type":"chat"</code>)</td></tr>
+    <tr><td>Fields</td><td><code>type, from, ts, name, size, data</code></td></tr>
+    <tr><td>Encryption</td><td>Identical to chat messages — AES-256-GCM with fresh nonce if <code>--secret</code></td></tr>
+    <tr><td>Save location</td><td><code>~/Downloads/&lt;filename&gt;</code> (or <code>~/.sf-rust/received/</code>)</td></tr>
+  </tbody>
+</table>
+
+<div class="warn">
+  <strong>Binary files work</strong> — base64 encoding handles all byte values. PDF, zip, images, executables are all supported.
+  For files larger than 50 MB, split with <code>split(1)</code> and send each chunk separately.
+</div>
 
 <!-- ── Encryption ── -->
 <h2 id="encryption">Encryption</h2>
@@ -438,8 +494,8 @@ Ctrl+C  <span class="comment"># emergency exit</span></div>
     <tr><td>✅ V1</td><td>Raw TCP chat</td><td>Newline-delimited JSON, colored output, history log</td></tr>
     <tr><td>✅ Phase 2</td><td>ratatui TUI + AES-256-GCM</td><td>Split-screen, no interleaving, encrypted messages</td></tr>
     <tr><td>✅ Phase 3</td><td>Multi-party broadcast</td><td>Server hub fan-out; <code>TcpPeers</code> registry; <code>--max-peers N</code> (default 8)</td></tr>
-    <tr><td>Phase 4</td><td>File transfer</td><td>Chunk-encode binary payloads in the same JSON protocol</td></tr>
-    <tr><td>Phase 4</td><td>PBKDF2 key derivation</td><td>Replace SHA-256 with PBKDF2 + random salt exchange for stronger key stretching</td></tr>
+    <tr><td>✅ Phase 4</td><td>File transfer</td><td><code>/send &lt;path&gt;</code> in TUI; base64 JSON payload; AES-256-GCM encrypted; saves to <code>~/Downloads/</code></td></tr>
+    <tr><td>Phase 5</td><td>PBKDF2 key derivation</td><td>Replace SHA-256 with PBKDF2 + random salt exchange for stronger key stretching</td></tr>
   </tbody>
 </table>
 
