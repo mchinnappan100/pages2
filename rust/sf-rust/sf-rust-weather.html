@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sf-rust weather — current conditions + 7-day forecast for any city</title>
+<style>
+:root {
+  --bg:#0d1117;--bg2:#161b22;--bg3:#21262d;
+  --border:#30363d;--text:#e6edf3;--muted:#8b949e;
+  --accent:#58a6ff;--green:#3fb950;--red:#f85149;
+  --yellow:#d29922;--purple:#bc8cff;--teal:#39d353;
+  --code-bg:#161b22;--code-border:#30363d;
+  --card:#161b22;--card-border:#30363d;
+}
+.light {
+  --bg:#ffffff;--bg2:#f6f8fa;--bg3:#eaeef2;
+  --border:#d0d7de;--text:#1f2328;--muted:#656d76;
+  --accent:#0969da;--green:#1a7f37;--red:#cf222e;
+  --yellow:#9a6700;--purple:#8250df;--teal:#1a7f37;
+  --code-bg:#f6f8fa;--code-border:#d0d7de;
+  --card:#ffffff;--card-border:#d0d7de;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:15px;line-height:1.65;transition:background .2s,color .2s}
+.page{max-width:960px;margin:0 auto;padding:2rem 1.5rem 5rem}
+nav{position:sticky;top:0;z-index:100;background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;overflow-x:auto;padding:0 1.5rem}
+nav a{color:var(--muted);text-decoration:none;font-size:.8rem;padding:.7rem .8rem;white-space:nowrap;border-bottom:2px solid transparent}
+nav a:hover{color:var(--text)}
+nav .nav-logo{font-weight:700;color:var(--accent);margin-right:.5rem;font-size:.85rem}
+nav .nav-right{margin-left:auto;display:flex;gap:.5rem;align-items:center}
+.theme-btn{background:var(--bg3);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:.25rem .6rem;font-size:.75rem;cursor:pointer}
+.theme-btn:hover{background:var(--border)}
+h1{font-size:2rem;font-weight:700;margin-bottom:.4rem}
+h2{font-size:1.35rem;font-weight:600;margin:2.5rem 0 1rem;padding-bottom:.4rem;border-bottom:1px solid var(--border)}
+h3{font-size:1rem;font-weight:600;margin:1.5rem 0 .6rem;color:var(--accent)}
+p{margin-bottom:.8rem;color:var(--text)}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+ul{padding-left:1.5rem;margin-bottom:.8rem}
+li{margin:.3em 0;color:var(--text)}
+.subtitle{color:var(--muted);font-size:1rem;margin-bottom:1.5rem}
+.hero{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1.8rem 2rem;margin:1.5rem 0 2.5rem;display:flex;flex-wrap:wrap;gap:1.5rem;align-items:center;justify-content:space-around}
+.hero-stat{text-align:center}
+.hero-stat .num{font-size:2rem;font-weight:700;color:var(--accent)}
+.hero-stat .lbl{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+table{width:100%;border-collapse:collapse;margin:1rem 0;font-size:.9rem}
+th{background:var(--bg3);color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;text-align:left;padding:.5rem .75rem;border-bottom:1px solid var(--border)}
+td{padding:.5rem .75rem;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg3)}
+code{font-family:"JetBrains Mono","SF Mono",monospace;font-size:.85em;background:var(--code-bg);border:1px solid var(--code-border);border-radius:4px;padding:.1em .4em;color:var(--purple)}
+.code-block{background:var(--code-bg);border:1px solid var(--code-border);border-radius:8px;padding:1rem 1.2rem;margin:.8rem 0;font-family:"JetBrains Mono","SF Mono",monospace;font-size:.82rem;overflow-x:auto;white-space:pre;line-height:1.55}
+.code-block .comment{color:var(--muted)}
+.code-block .cmd{color:var(--green)}
+.code-block .flag{color:var(--yellow)}
+.code-block .value{color:var(--teal)}
+.code-block .out{color:var(--purple)}
+.tip{background:var(--bg2);border-left:3px solid var(--accent);border-radius:0 6px 6px 0;padding:.7rem 1rem;margin:1rem 0;font-size:.88rem;color:var(--muted)}
+.badge{display:inline-block;padding:.15em .5em;border-radius:4px;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;margin:1rem 0 2rem}
+.card{background:var(--card);border:1px solid var(--card-border);border-radius:8px;padding:1.1rem 1.2rem}
+.card-icon{font-size:1.6rem;margin-bottom:.5rem}
+.card-title{font-weight:600;margin-bottom:.3rem}
+.card-desc{font-size:.85rem;color:var(--muted)}
+
+/* terminal mock */
+.term{background:#0d1117;border:2px solid #30363d;border-radius:8px;font-family:"JetBrains Mono","SF Mono",monospace;font-size:.8rem;overflow:hidden;margin:1rem 0}
+.term-bar{background:#21262d;padding:.35rem .8rem;display:flex;align-items:center;gap:.45rem;border-bottom:1px solid #30363d}
+.term-dot{width:11px;height:11px;border-radius:50%}
+.term-dot.r{background:#f85149}.term-dot.y{background:#d29922}.term-dot.g{background:#3fb950}
+.term-body{padding:.8rem 1rem;white-space:pre;overflow-x:auto;line-height:1.55}
+.t-prompt{color:#3fb950}.t-cmd{color:#e6edf3}.t-flag{color:#d29922}.t-val{color:#39d353}
+.t-head{color:#58a6ff;font-weight:700}.t-row{color:#e6edf3}.t-muted{color:#8b949e}
+.t-emoji{}.t-hi{color:#f85149}.t-lo{color:#58a6ff}.t-sys{color:#d29922;font-style:italic}
+
+/* html preview card */
+.html-preview{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:1.5rem;margin:1rem 0}
+.hp-header{display:flex;align-items:center;gap:1rem;margin-bottom:1.2rem}
+.hp-emoji{font-size:2.5rem}
+.hp-temp{font-size:2.2rem;font-weight:700;color:var(--accent)}
+.hp-desc{color:var(--muted);font-size:.9rem}
+.hp-grid{display:grid;grid-template-columns:1fr 1fr;gap:.4rem .8rem;font-size:.85rem;margin-bottom:1.2rem}
+.hp-row{display:flex;justify-content:space-between;border-bottom:1px solid var(--border);padding:.2rem 0}
+.hp-row .lbl{color:var(--muted)}.hp-row .val{font-weight:600}
+.fc-row{display:grid;grid-template-columns:repeat(7,1fr);gap:.4rem;font-size:.72rem;text-align:center}
+.fc-day-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:.5rem .3rem}
+.fc-day-label{font-weight:700;color:var(--muted);text-transform:uppercase;font-size:.65rem;margin-bottom:.3rem}
+.fc-day-emoji{font-size:1.1rem;margin-bottom:.2rem}
+.fc-day-temps .hi{color:var(--red);font-weight:700}.fc-day-temps .lo{color:var(--accent)}
+
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);text-align:center;color:var(--muted);font-size:.8rem}
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-logo">⚙ sf-rust</span>
+  <a href="sf-rust-portal.html">Home</a>
+  <a href="#overview">Overview</a>
+  <a href="#howto">How to use</a>
+  <a href="#output">Output modes</a>
+  <a href="#html-output">HTML page</a>
+  <a href="#flags">Flags</a>
+  <a href="#wmo">WMO codes</a>
+  <div class="nav-right">
+    <button class="theme-btn" onclick="toggleTheme()">☀ / 🌙</button>
+  </div>
+</nav>
+
+<div class="page">
+
+<h1>🌤 sf-rust weather</h1>
+<p class="subtitle">Current conditions + 7-day forecast for any city — Open-Meteo, no API key, works worldwide</p>
+
+<div class="hero">
+  <div class="hero-stat"><div class="num">🌍</div><div class="lbl">Global coverage</div></div>
+  <div class="hero-stat"><div class="num">0</div><div class="lbl">API keys needed</div></div>
+  <div class="hero-stat"><div class="num">7</div><div class="lbl">Day forecast</div></div>
+  <div class="hero-stat"><div class="num">°C / °F</div><div class="lbl">Metric & imperial</div></div>
+  <div class="hero-stat"><div class="num">HTML</div><div class="lbl">Browser output</div></div>
+  <div class="hero-stat"><div class="num">JSON</div><div class="lbl">Machine-readable</div></div>
+</div>
+
+<a id="overview"></a>
+<p>
+  <code>sf-rust weather</code> fetches live weather data for any city on Earth — no account, no API key, no config.
+  It uses the <strong>Open-Meteo</strong> geocoding API to resolve city names to coordinates, then the
+  Open-Meteo forecast API for current conditions and a 7-day outlook.
+  Output is a rich terminal table, a self-contained HTML page (opens in browser with <code>--html</code>),
+  or raw JSON (with <code>--json</code>).
+</p>
+
+<p class="tip">Open-Meteo is an open-source weather API that provides free access to weather forecast models. No registration, no API key.</p>
+
+<a id="howto"></a>
+<h2>How to use</h2>
+
+<h3>Basic — table output</h3>
+<div class="code-block"><span class="comment"># Current conditions + 7-day forecast in the terminal</span>
+<span class="cmd">sf-rust weather</span> <span class="flag">--city</span> <span class="value">"San Francisco"</span>
+<span class="cmd">sfr weather</span> <span class="flag">-c</span> <span class="value">"Chennai"</span>
+<span class="cmd">sfr weather</span> <span class="flag">-c</span> <span class="value">"Tokyo"</span> <span class="flag">--units</span> <span class="value">imperial</span></div>
+
+<h3>HTML — self-contained page opens in browser</h3>
+<div class="code-block"><span class="cmd">sfr weather</span> <span class="flag">-c</span> <span class="value">"London"</span> <span class="flag">--html</span>
+<span class="comment"># → generates /tmp/sf-rust-weather-{ts}.html and opens it</span>
+
+<span class="cmd">sfr weather</span> <span class="flag">-c</span> <span class="value">"Mumbai"</span> <span class="flag">--html</span> <span class="flag">--units</span> <span class="value">metric</span></div>
+
+<h3>JSON — pipe to jq or save to file</h3>
+<div class="code-block"><span class="cmd">sfr weather</span> <span class="flag">-c</span> <span class="value">"Berlin"</span> <span class="flag">--json</span>
+<span class="cmd">sfr weather</span> <span class="flag">-c</span> <span class="value">"New York"</span> <span class="flag">--json</span> | jq '.current.temperature_2m'</div>
+
+<a id="output"></a>
+<h2>Terminal output sample</h2>
+
+<div class="term">
+  <div class="term-bar">
+    <div class="term-dot r"></div><div class="term-dot y"></div><div class="term-dot g"></div>
+  </div>
+  <div class="term-body"><span class="t-prompt">$</span> <span class="t-cmd">sfr weather</span> <span class="t-flag">--city</span> <span class="t-val">"San Francisco"</span>
+
+<span class="t-emoji">☁️</span> Overcast  San Francisco, California, United States
+
+<span class="t-head">┌───────────────┬────────────────────┐
+│               │ Current conditions │
+╞═══════════════╪════════════════════╡</span>
+<span class="t-row">│ Temperature   │ 12.9°C             │
+│ Feels like    │ 11.6°C             │
+│ Humidity      │ 80%                │
+│ Wind          │ 7.7 km/h ↓ S       │
+│ Pressure      │ 1014 hPa           │
+│ Precipitation │ 0.0 mm             │</span>
+<span class="t-head">└───────────────┴────────────────────┘</span>
+
+  7-day forecast
+
+<span class="t-head">┌─────────────────┬─────────────────┬────────┬────────┬────────┬─────────┐
+│ Date            │ Cond.           │ Max    │ Min    │ Rain % │ Precip. │
+╞═════════════════╪═════════════════╪════════╪════════╪════════╪═════════╡</span>
+<span class="t-row">│ Today  (Sat 14) │ <span class="t-emoji">🌦️</span> Drizzle      │ <span class="t-hi">16.9°C</span> │ <span class="t-lo">11.2°C</span> │ 15%    │ 1.0mm   │
+│ Tmrw   (Sun 15) │ <span class="t-emoji">🌧️</span> Rain         │ <span class="t-hi">16.5°C</span> │ <span class="t-lo">10.1°C</span> │ 94%    │ 12.5mm  │
+│ Mon Nov 16      │ <span class="t-emoji">🌧️</span> Rain         │ <span class="t-hi">14.5°C</span> │ <span class="t-lo">9.3°C</span>  │ 64%    │ 8.8mm   │
+│ Tue Nov 17      │ <span class="t-emoji">🌦️</span> Drizzle      │ <span class="t-hi">15.8°C</span> │ <span class="t-lo">11.7°C</span> │ 83%    │ 0.2mm   │
+│ Wed Nov 18      │ <span class="t-emoji">🌦️</span> Rain showers │ <span class="t-hi">14.5°C</span> │ <span class="t-lo">11.9°C</span> │ 99%    │ 48.1mm  │
+│ Thu Nov 19      │ <span class="t-emoji">⛈️</span> Thunderstorm │ <span class="t-hi">15.9°C</span> │ <span class="t-lo">12.3°C</span> │ 95%    │ 26.0mm  │
+│ Fri Nov 20      │ <span class="t-emoji">🌦️</span> Drizzle      │ <span class="t-hi">15.3°C</span> │ <span class="t-lo">11.1°C</span> │ 24%    │ 0.4mm   │</span>
+<span class="t-head">└─────────────────┴─────────────────┴────────┴────────┴────────┴─────────┘</span>
+
+<span class="t-muted">Time: 718ms</span></div>
+</div>
+
+<a id="html-output"></a>
+<h2>HTML output preview</h2>
+
+<p>The <code>--html</code> flag generates a self-contained dark-mode page at <code>/tmp/sf-rust-weather-{ts}.html</code> and opens it in your default browser. Dark/light mode follows <code>prefers-color-scheme</code> automatically.</p>
+
+<div class="html-preview">
+  <div class="hp-header">
+    <div class="hp-emoji">☁️</div>
+    <div>
+      <div class="hp-temp">12.9°C</div>
+      <div class="hp-desc">Overcast &nbsp;·&nbsp; Feels like 11.6°C</div>
+    </div>
+  </div>
+  <div style="font-size:.7rem;color:var(--muted);margin-bottom:.8rem">Lat 37.7749 · Lon -122.4194 · Elevation 16 m &nbsp;|&nbsp; San Francisco, California, United States</div>
+  <div class="hp-grid">
+    <div class="hp-row"><span class="lbl">Humidity</span><span class="val">80%</span></div>
+    <div class="hp-row"><span class="lbl">Wind</span><span class="val">7.7 km/h ↓ S</span></div>
+    <div class="hp-row"><span class="lbl">Pressure</span><span class="val">1014 hPa</span></div>
+    <div class="hp-row"><span class="lbl">Precipitation</span><span class="val">0.0 mm</span></div>
+  </div>
+  <div style="font-size:.8rem;font-weight:600;color:var(--accent);margin-bottom:.6rem">7-Day Forecast</div>
+  <div class="fc-row">
+    <div class="fc-day-card"><div class="fc-day-label">Today</div><div class="fc-day-emoji">🌦️</div><div class="fc-day-temps"><span class="hi">17°</span> / <span class="lo">11°</span></div></div>
+    <div class="fc-day-card"><div class="fc-day-label">Tmrw</div><div class="fc-day-emoji">🌧️</div><div class="fc-day-temps"><span class="hi">16°</span> / <span class="lo">10°</span></div></div>
+    <div class="fc-day-card"><div class="fc-day-label">Mon</div><div class="fc-day-emoji">🌧️</div><div class="fc-day-temps"><span class="hi">14°</span> / <span class="lo">9°</span></div></div>
+    <div class="fc-day-card"><div class="fc-day-label">Tue</div><div class="fc-day-emoji">🌦️</div><div class="fc-day-temps"><span class="hi">16°</span> / <span class="lo">12°</span></div></div>
+    <div class="fc-day-card"><div class="fc-day-label">Wed</div><div class="fc-day-emoji">🌦️</div><div class="fc-day-temps"><span class="hi">14°</span> / <span class="lo">12°</span></div></div>
+    <div class="fc-day-card"><div class="fc-day-label">Thu</div><div class="fc-day-emoji">⛈️</div><div class="fc-day-temps"><span class="hi">16°</span> / <span class="lo">12°</span></div></div>
+    <div class="fc-day-card"><div class="fc-day-label">Fri</div><div class="fc-day-emoji">🌦️</div><div class="fc-day-temps"><span class="hi">15°</span> / <span class="lo">11°</span></div></div>
+  </div>
+</div>
+
+<a id="flags"></a>
+<h2>Command flags</h2>
+
+<table>
+  <tr><th>Flag</th><th>Short</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>--city</code></td><td><code>-c</code></td><td>required</td><td>City name — resolved to lat/lon via Open-Meteo geocoding</td></tr>
+  <tr><td><code>--html</code></td><td>—</td><td>off</td><td>Generate a self-contained HTML page and open it in the browser</td></tr>
+  <tr><td><code>--json</code></td><td><code>-j</code></td><td>off</td><td>Output raw JSON (current + daily blocks from Open-Meteo)</td></tr>
+  <tr><td><code>--units</code></td><td>—</td><td><code>metric</code></td><td><code>metric</code> (°C, km/h) or <code>imperial</code> (°F, mph)</td></tr>
+</table>
+
+<h2>Output modes</h2>
+<table>
+  <tr><th>Mode</th><th>How</th><th>Best for</th></tr>
+  <tr><td>Table (default)</td><td><code>sfr weather -c "City"</code></td><td>Quick glance in the terminal</td></tr>
+  <tr><td>HTML</td><td><code>--html</code></td><td>Shareable forecast page; auto dark/light mode</td></tr>
+  <tr><td>JSON</td><td><code>--json</code></td><td>Scripting, piping to <code>jq</code>, integration</td></tr>
+</table>
+
+<a id="wmo"></a>
+<h2>WMO weather codes</h2>
+<p>Open-Meteo uses standard WMO (World Meteorological Organization) codes to describe conditions. <code>sf-rust weather</code> maps every code to a description and emoji.</p>
+
+<div class="card-grid">
+  <div class="card"><div class="card-icon">☀️</div><div class="card-title">0 — Clear sky</div><div class="card-desc">No clouds, full sun</div></div>
+  <div class="card"><div class="card-icon">🌤️</div><div class="card-title">1 — Mainly clear</div><div class="card-desc">Few clouds, mostly sunny</div></div>
+  <div class="card"><div class="card-icon">⛅</div><div class="card-title">2 — Partly cloudy</div><div class="card-desc">Mix of sun and cloud</div></div>
+  <div class="card"><div class="card-icon">☁️</div><div class="card-title">3 — Overcast</div><div class="card-desc">Completely cloudy</div></div>
+  <div class="card"><div class="card-icon">🌫️</div><div class="card-title">45 / 48 — Fog</div><div class="card-desc">Fog or rime fog</div></div>
+  <div class="card"><div class="card-icon">🌦️</div><div class="card-title">51–55 — Drizzle</div><div class="card-desc">Light to dense drizzle</div></div>
+  <div class="card"><div class="card-icon">🌧️</div><div class="card-title">61–65 — Rain</div><div class="card-desc">Slight to heavy rain</div></div>
+  <div class="card"><div class="card-icon">🌨️</div><div class="card-title">71–75 — Snow</div><div class="card-desc">Slight to heavy snowfall</div></div>
+  <div class="card"><div class="card-icon">🌦️</div><div class="card-title">80–82 — Showers</div><div class="card-desc">Slight to violent rain showers</div></div>
+  <div class="card"><div class="card-icon">🌨️</div><div class="card-title">85–86 — Snow showers</div><div class="card-desc">Slight to heavy snow showers</div></div>
+  <div class="card"><div class="card-icon">⛈️</div><div class="card-title">95 — Thunderstorm</div><div class="card-desc">Slight or moderate thunderstorm</div></div>
+  <div class="card"><div class="card-icon">⛈️</div><div class="card-title">96 / 99 — Hail storm</div><div class="card-desc">Thunderstorm with slight or heavy hail</div></div>
+</div>
+
+<h2>Data source</h2>
+<table>
+  <tr><th>Service</th><th>Endpoint</th><th>Purpose</th><th>Key required</th></tr>
+  <tr>
+    <td><strong>Open-Meteo Geocoding</strong></td>
+    <td><code>geocoding-api.open-meteo.com/v1/search</code></td>
+    <td>City name → latitude / longitude</td>
+    <td>None</td>
+  </tr>
+  <tr>
+    <td><strong>Open-Meteo Forecast</strong></td>
+    <td><code>api.open-meteo.com/v1/forecast</code></td>
+    <td>Current conditions + 7-day daily forecast</td>
+    <td>None</td>
+  </tr>
+</table>
+
+<p class="tip">Open-Meteo is open-source and free for non-commercial use. It aggregates data from NOAA, DWD, ECMWF, and other national weather services.</p>
+
+<h2>sf-rust alias tip</h2>
+<div class="code-block"><span class="comment"># Add to ~/.zshrc for a shorter alias</span>
+<span class="value">alias sfr="$HOME/.local/bin/sf-rust"</span>
+
+<span class="cmd">sfr weather</span> <span class="flag">-c</span> <span class="value">"Chennai"</span>
+<span class="cmd">sfr weather</span> <span class="flag">-c</span> <span class="value">"Chennai"</span> <span class="flag">--html</span></div>
+
+<footer>
+  sf-rust weather — part of <a href="sf-rust-portal.html">sf-rust</a> |
+  Mohan Chinnappan | Data: Open-Meteo (open-meteo.com)
+</footer>
+</div>
+
+<script>
+function toggleTheme() {
+  document.body.classList.toggle('light');
+  localStorage.setItem('theme', document.body.classList.contains('light') ? 'light' : 'dark');
+}
+if (localStorage.getItem('theme') === 'light') document.body.classList.add('light');
+</script>
+</body>
+</html>
