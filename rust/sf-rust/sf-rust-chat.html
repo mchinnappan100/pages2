@@ -137,8 +137,8 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   Phase 2 added a <strong>ratatui split-screen TUI</strong> and <strong>AES-256-GCM encryption</strong>.
   Phase 3 makes the server a <strong>multi-party hub</strong> — it accepts up to <code>--max-peers N</code>
   simultaneous connections and fan-outs every message to all connected peers.
-  Phase 4 adds <strong>file transfer</strong> — type <code>/send &lt;path&gt;</code> in the TUI to send any file (up to 50 MB)
-  to all connected peers over the same encrypted wire.
+  Phase 4 adds <strong>file transfer</strong> — type <code>/send &lt;path&gt;</code> in the TUI to send any file
+  to all connected peers. Files are split into 1 MB chunks; no size limit.
 </p>
 
 <div class="card-grid">
@@ -165,7 +165,7 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   <div class="card">
     <div class="card-icon">📁</div>
     <div class="card-title">File transfer <span class="badge badge-new">Phase 4</span></div>
-    <div class="card-desc">Type <code>/send &lt;path&gt;</code> in the input box to send any file (up to 50 MB). Base64-encoded in the same JSON wire protocol; encrypted with AES-256-GCM if <code>--secret</code> is active. Receiver saves to <code>~/Downloads/</code> automatically.</div>
+    <div class="card-desc">Type <code>/send &lt;path&gt;</code> in the input box to send any file — no size limit. The file is split into 1 MB chunks; each chunk is a separate JSON message. AES-256-GCM encrypted if <code>--secret</code> is active. Receiver reassembles and saves to <code>~/Downloads/</code> automatically.</div>
   </div>
 </div>
 
@@ -270,9 +270,10 @@ If the passphrases don't match, a decryption-failed warning appears in the messa
 
 <p>
   Type <code>/send &lt;path&gt;</code> in the TUI input box to send a file to all connected peers.
-  The file is read, base64-encoded, and sent as a <code>{"type":"file"}</code> JSON payload over the
-  same newline-delimited TCP wire used for chat. Encryption with <code>--secret</code> applies to file
-  payloads too — each send gets a fresh AES-256-GCM nonce.
+  The file is split into <strong>1 MB chunks</strong>; each chunk is sent as a separate
+  <code>{"type":"file_chunk"}</code> JSON message over the same newline-delimited TCP wire.
+  There is <strong>no size limit</strong> — no single giant wire line, no artificial cap.
+  Encryption with <code>--secret</code> applies per chunk — each gets its own AES-256-GCM nonce.
 </p>
 
 <h3>Sending a file</h3>
@@ -298,18 +299,20 @@ If the passphrases don't match, a decryption-failed warning appears in the messa
 <table>
   <thead><tr><th>Detail</th><th>Value</th></tr></thead>
   <tbody>
-    <tr><td>Max file size</td><td>50 MB (hard limit; larger files are rejected with a clear error)</td></tr>
-    <tr><td>Encoding</td><td>Base64 (standard alphabet)</td></tr>
-    <tr><td>JSON type field</td><td><code>"type":"file"</code> — same wire as chat (<code>"type":"chat"</code>)</td></tr>
-    <tr><td>Fields</td><td><code>type, from, ts, name, size, data</code></td></tr>
-    <tr><td>Encryption</td><td>Identical to chat messages — AES-256-GCM with fresh nonce if <code>--secret</code></td></tr>
+    <tr><td>Max file size</td><td><strong>No limit</strong> — bounded only by available RAM and disk</td></tr>
+    <tr><td>Chunk size</td><td>1 MB (1,048,576 bytes) per chunk</td></tr>
+    <tr><td>Encoding</td><td>Base64 (standard alphabet) per chunk</td></tr>
+    <tr><td>JSON type field</td><td><code>"type":"file_chunk"</code></td></tr>
+    <tr><td>Chunk fields</td><td><code>type, from, ts, name, chunk, total, size, data</code></td></tr>
+    <tr><td>Encryption</td><td>AES-256-GCM with a fresh nonce per chunk if <code>--secret</code></td></tr>
     <tr><td>Save location</td><td><code>~/Downloads/&lt;filename&gt;</code> (or <code>~/.sf-rust/received/</code>)</td></tr>
+    <tr><td>Progress</td><td>First chunk of multi-part files shows "receiving (N chunks)…" in TUI</td></tr>
   </tbody>
 </table>
 
-<div class="warn">
+<div class="tip">
   <strong>Binary files work</strong> — base64 encoding handles all byte values. PDF, zip, images, executables are all supported.
-  For files larger than 50 MB, split with <code>split(1)</code> and send each chunk separately.
+  Multi-chunk progress appears as a system message when the first chunk arrives.
 </div>
 
 <!-- ── Encryption ── -->
