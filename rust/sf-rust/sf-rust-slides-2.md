@@ -113,6 +113,11 @@ sfr data query -q "SELECT Id, Name FROM Account" -o dev1 --grep 'Tech'
 
 ---
 
+## Data & SOQL (contd.)
+![Pivot](https://raw.githubusercontent.com/mchinnappan100/npmjs-images/main/sf-rust/pivot-1.png)
+
+---
+
 ## Data Engineering Formats
 
 | Flag | Format | Best for |
@@ -134,6 +139,11 @@ sfr data arrow-view accounts.parquet --xlsx accounts.xlsx
 # Interactive SQL REPL  (joins multiple SOQL tables)
 sfr data rsql -o dev1 --load Account --load Contact
 ```
+![arrow1](https://raw.githubusercontent.com/mchinnappan100/npmjs-images/main/sf-rust/arrow-1.png)
+![arrow2](https://raw.githubusercontent.com/mchinnappan100/npmjs-images/main/sf-rust/arrow-2.png)
+
+
+![rsql](https://raw.githubusercontent.com/mchinnappan100/npmjs-images/main/sf-rust/rsql.png)
 
 ---
 

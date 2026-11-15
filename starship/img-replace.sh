@@ -1,0 +1,1 @@
+sed -i '' 's|src="data:image/png;base64,[^"]*"|src="https://raw.githubusercontent.com/mchinnappan100/npmjs-images/main/starship/42.png"|g' /Users/mchinnappan/github-pages/pages2/starship/starship-42.html
