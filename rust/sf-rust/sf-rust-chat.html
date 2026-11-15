@@ -129,7 +129,7 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   <div class="hero-stat"><div class="num">AES</div><div class="lbl">Encryption</div></div>
   <div class="hero-stat"><div class="num">TUI</div><div class="lbl">Interface</div></div>
   <div class="hero-stat"><div class="num">8</div><div class="lbl">Default max peers</div></div>
-  <div class="hero-stat"><div class="num">50</div><div class="lbl">MB max file transfer</div></div>
+  <div class="hero-stat"><div class="num">PBKDF2</div><div class="lbl">Key derivation</div></div>
 </div>
 
 <p>
@@ -139,6 +139,8 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   simultaneous connections and fan-outs every message to all connected peers.
   Phase 4 adds <strong>file transfer</strong> — type <code>/send &lt;path&gt;</code> in the TUI to send any file
   to all connected peers. Files are split into 1 MB chunks; no size limit.
+  Phase 5 replaces SHA-256 key derivation with <strong>PBKDF2-HMAC-SHA256</strong> (100k iterations,
+  random session salt) for brute-force-resistant key stretching.
 </p>
 
 <div class="card-grid">
@@ -164,8 +166,13 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   </div>
   <div class="card">
     <div class="card-icon">📁</div>
-    <div class="card-title">File transfer <span class="badge badge-new">Phase 4</span></div>
+    <div class="card-title">File transfer <span class="badge badge-v2">Phase 4</span></div>
     <div class="card-desc">Type <code>/send &lt;path&gt;</code> in the input box to send any file — no size limit. The file is split into 1 MB chunks; each chunk is a separate JSON message. AES-256-GCM encrypted if <code>--secret</code> is active. Receiver reassembles and saves to <code>~/Downloads/</code> automatically.</div>
+  </div>
+  <div class="card">
+    <div class="card-icon">🔑</div>
+    <div class="card-title">PBKDF2 key derivation <span class="badge badge-new">Phase 5</span></div>
+    <div class="card-desc">Server generates a random 16-byte session salt and sends it in a <code>{"type":"hello"}</code> handshake. All peers derive the AES-256-GCM key via <strong>PBKDF2-HMAC-SHA256</strong> (100 000 iterations). Brute-force-resistant even on a hostile network.</div>
   </div>
 </div>
 
@@ -316,23 +323,38 @@ If the passphrases don't match, a decryption-failed warning appears in the messa
 </div>
 
 <!-- ── Encryption ── -->
-<h2 id="encryption">Encryption</h2>
+<h2 id="encryption">Encryption <span class="badge badge-new">Phase 5</span></h2>
 
 <table>
   <thead><tr><th>Detail</th><th>Value</th></tr></thead>
   <tbody>
     <tr><td>Algorithm</td><td>AES-256-GCM (authenticated encryption)</td></tr>
-    <tr><td>Key derivation</td><td>SHA-256(passphrase) → 32-byte key</td></tr>
+    <tr><td>Key derivation</td><td><strong>PBKDF2-HMAC-SHA256</strong> (100 000 iterations) + random 16-byte session salt</td></tr>
+    <tr><td>Session salt</td><td>Server generates once at startup via <code>OsRng</code>; sent to each peer in a <code>{"type":"hello","salt":"&lt;hex&gt;","iter":100000}</code> handshake before any messages</td></tr>
     <tr><td>Nonce</td><td>Random 96-bit, generated fresh per message via <code>OsRng</code></td></tr>
     <tr><td>Wire format</td><td><code>hex(nonce):hex(ciphertext)\n</code> (plaintext is the JSON payload)</td></tr>
+    <tr><td>TUI title bar</td><td>Shows <code>[PBKDF2+AES-256-GCM]</code> when <code>--secret</code> is active</td></tr>
     <tr><td>Mismatch detection</td><td>Decryption failure shows a warning in the TUI message pane</td></tr>
-    <tr><td>No-secret fallback</td><td>Raw JSON — V1 wire-compatible</td></tr>
+    <tr><td>No-secret fallback</td><td>Raw JSON — no handshake, no encryption (server skips hello)</td></tr>
   </tbody>
 </table>
 
-<div class="warn">
-  <strong>Key derivation is SHA-256, not PBKDF2.</strong> This is intentional for V2 speed on a LAN.
-  For a hostile network, use Tailscale/WireGuard VPN in addition to <code>--secret</code>.
+<h3>PBKDF2 handshake flow</h3>
+<div class="mermaid-wrap">
+<div class="mermaid">
+sequenceDiagram
+    participant S as Server
+    participant C as Client (connect)
+    S->>C: {"type":"hello","salt":"&lt;16-byte hex&gt;","iter":100000}
+    Note over C: PBKDF2-HMAC-SHA256(passphrase, salt, 100k) → 32-byte key
+    Note over S: same salt → same key
+    C->>S: {"type":"chat","from":"...","msg":"..."}  (AES-256-GCM)
+    S->>C: {"type":"chat",...}  (fan-out, same wire bytes)
+</div>
+</div>
+
+<div class="tip">
+  All peers derive <em>the same key</em> from the same session salt — the server can relay wire bytes unchanged (fan-out) without decrypting.
 </div>
 
 <!-- ── Architecture ── -->
@@ -497,8 +519,8 @@ Ctrl+C  <span class="comment"># emergency exit</span></div>
     <tr><td>✅ V1</td><td>Raw TCP chat</td><td>Newline-delimited JSON, colored output, history log</td></tr>
     <tr><td>✅ Phase 2</td><td>ratatui TUI + AES-256-GCM</td><td>Split-screen, no interleaving, encrypted messages</td></tr>
     <tr><td>✅ Phase 3</td><td>Multi-party broadcast</td><td>Server hub fan-out; <code>TcpPeers</code> registry; <code>--max-peers N</code> (default 8)</td></tr>
-    <tr><td>✅ Phase 4</td><td>File transfer</td><td><code>/send &lt;path&gt;</code> in TUI; base64 JSON payload; AES-256-GCM encrypted; saves to <code>~/Downloads/</code></td></tr>
-    <tr><td>Phase 5</td><td>PBKDF2 key derivation</td><td>Replace SHA-256 with PBKDF2 + random salt exchange for stronger key stretching</td></tr>
+    <tr><td>✅ Phase 4</td><td>File transfer</td><td><code>/send &lt;path&gt;</code> in TUI; 1 MB chunked base64 JSON; AES-256-GCM encrypted; saves to <code>~/Downloads/</code>; logged to <code>--history</code></td></tr>
+    <tr><td>✅ Phase 5</td><td>PBKDF2 key derivation</td><td>PBKDF2-HMAC-SHA256 (100k iterations) + random session salt; <code>{"type":"hello"}</code> handshake; TUI shows <code>[PBKDF2+AES-256-GCM]</code></td></tr>
   </tbody>
 </table>
 
