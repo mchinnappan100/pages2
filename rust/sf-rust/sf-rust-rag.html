@@ -106,9 +106,9 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   <tr><th>#</th><th>Stage</th><th>What happens</th><th>Rust module</th></tr>
   <tr><td>1</td><td><strong>Load</strong></td><td>Recursively read <code>.txt .md .html .apex .cls .json .rs …</code> files from a file or directory</td><td><code>sf-rag/loader.rs</code></td></tr>
   <tr><td>2</td><td><strong>Chunk</strong></td><td>Split each document into overlapping word windows (<code>--chunk-size</code> chars, <code>--chunk-overlap</code> chars)</td><td><code>sf-rag/chunker.rs</code></td></tr>
-  <tr><td>3</td><td><strong>Embed</strong></td><td>Call Ollama or OpenAI embeddings API to get a float vector per chunk</td><td><code>sf-rag/embeddings.rs</code></td></tr>
+  <tr><td>3</td><td><strong>Embed</strong></td><td>Call Ollama or OpenAI embeddings API to get a float vector per chunk. With <code>--cache</code>, SHA-256 keyed vectors are saved to <code>~/.sf-rust/rag-cache/</code> and re-used on subsequent runs</td><td><code>sf-rag/embeddings.rs</code> · <code>sf-rag/cache.rs</code></td></tr>
   <tr><td>4</td><td><strong>Search</strong></td><td>Embed the question, compute cosine similarity against all chunks, return top-K</td><td><code>sf-rag/vectorstore.rs</code></td></tr>
-  <tr><td>5</td><td><strong>Answer</strong></td><td>Pass retrieved chunks as context to Ollama / OpenAI / Claude, print the answer</td><td><code>sf-rag/commands.rs</code></td></tr>
+  <tr><td>5</td><td><strong>Answer</strong></td><td>Pass retrieved chunks as context to Ollama / OpenAI / Claude, print the answer. With <code>--datatable</code>, also open an interactive HTML table of sources in the browser</td><td><code>sf-rag/commands.rs</code></td></tr>
 </table>
 
 <!-- ═══════════════════════════════════════ USAGE ════════════════════════════════════ -->
@@ -154,6 +154,30 @@ ollama pull llama3.2
        <span class="f">--llm</span> <span class="v">ollama:codellama</span> \
        <span class="f">-q</span> <span class="v">"Which methods call Database.query without binding variables?"</span> \
        <span class="f">--show-sources</span></div>
+
+<h3>Cache embeddings — fast re-runs on the same docs</h3>
+<div class="code-block"><span class="c"># First run: embeds all chunks and writes ~/.sf-rust/rag-cache/nomic-embed-text/*.json</span>
+<span class="cmd">sfr rag</span> <span class="f">-d</span> <span class="v">docs/</span> <span class="f">--cache</span> <span class="f">-q</span> <span class="v">"How does authentication work?"</span>
+
+<span class="c"># Second run: all chunks loaded from cache — embedding step is instant</span>
+<span class="cmd">sfr rag</span> <span class="f">-d</span> <span class="v">docs/</span> <span class="f">--cache</span> <span class="f">-q</span> <span class="v">"What is the token refresh flow?"</span>
+<span class="t-m">  87 chunk(s) loaded from cache, 0 embedded fresh.</span></div>
+
+<h3>Index a PDF document</h3>
+<div class="code-block"><span class="c"># Ask questions about a PDF spec or design doc</span>
+<span class="cmd">sfr rag</span> <span class="f">-d</span> <span class="v">architecture.pdf</span> <span class="f">-q</span> <span class="v">"What are the data retention policies?"</span>
+
+<span class="c"># Mixed directory — Markdown + PDFs together</span>
+<span class="cmd">sfr rag</span> <span class="f">-d</span> <span class="v">specs/</span> <span class="f">--cache</span> <span class="f">-q</span> <span class="v">"Which API version introduced batch Apex limits?"</span>
+<span class="c"># .pdf files are auto-indexed alongside .md, .txt, etc.</span></div>
+
+<h3>Open retrieved sources as interactive datatable</h3>
+<div class="code-block"><span class="c"># Print answer to terminal AND open sources in browser HTML table</span>
+<span class="cmd">sfr rag</span> <span class="f">-d</span> <span class="v">~/rag/test/</span> <span class="f">--cache</span> \
+       <span class="f">--llm</span> <span class="v">ollama:gemma4</span> \
+       <span class="f">-q</span> <span class="v">"How do I deploy metadata?"</span> \
+       <span class="f">--datatable</span>
+<span class="c"># Opens: Source · Chunk # · Score · Preview columns in sortable HTML table</span></div>
 
 <div class="term">
   <div class="term-bar"><div class="term-dot r"></div><div class="term-dot y"></div><div class="term-dot g"></div></div>
@@ -211,11 +235,13 @@ On HTTP 401, the client automatically retries with a refreshed token...</span></
   <tr><td><code>--openai-key KEY</code></td><td>—</td><td>—</td><td>OpenAI API key</td></tr>
   <tr><td><code>--anthropic-key KEY</code></td><td>—</td><td>—</td><td>Anthropic API key</td></tr>
   <tr><td><code>--show-sources</code></td><td>—</td><td>off</td><td>Print retrieved chunks before the answer</td></tr>
+  <tr><td><code>--cache</code></td><td>—</td><td>off</td><td>Cache embeddings in <code>~/.sf-rust/rag-cache/</code>; subsequent runs skip re-embedding unchanged chunks</td></tr>
+  <tr><td><code>--datatable</code></td><td>—</td><td>off</td><td>Open retrieved chunks (Source · Chunk · Score · Preview) in an interactive HTML datatable in the browser</td></tr>
 </table>
 
 <h3>Supported file extensions</h3>
 <p>When no <code>--include</code> filter is given, these extensions are auto-indexed:</p>
-<p><code>txt</code> · <code>md</code> · <code>markdown</code> · <code>html</code> · <code>htm</code> · <code>rst</code> · <code>csv</code> · <code>json</code> · <code>toml</code> · <code>yaml</code> · <code>yml</code> · <code>apex</code> · <code>cls</code> · <code>trigger</code> · <code>js</code> · <code>ts</code> · <code>py</code> · <code>rs</code></p>
+<p><code>txt</code> · <code>md</code> · <code>markdown</code> · <code>html</code> · <code>htm</code> · <code>rst</code> · <code>csv</code> · <code>json</code> · <code>toml</code> · <code>yaml</code> · <code>yml</code> · <code>apex</code> · <code>cls</code> · <code>trigger</code> · <code>js</code> · <code>ts</code> · <code>py</code> · <code>rs</code> · <code>pdf</code></p>
 
 <!-- ═══════════════════════════════════════ SETUP ════════════════════════════════════ -->
 <h2 id="setup">Setup — Ollama (recommended, free)</h2>
