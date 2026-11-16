@@ -189,6 +189,18 @@ sfr os memory --speak</code></pre>
   </tbody>
 </table>
 
+<h2>Flags (on sfr pdf)</h2>
+
+<table class="flags-table">
+  <thead><tr><th>Flag</th><th>Default</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>--view</td><td>off</td><td>Open the generated PDF in the system viewer (macOS: Preview / Quick Look) after creation.</td></tr>
+    <tr><td>--speak</td><td>off</td><td>Speak a summary: "PDF created: &lt;file&gt; with N pages." after the PDF is written.</td></tr>
+    <tr><td>--phonon-port N</td><td>3000</td><td>Port where phonon-studio is listening.</td></tr>
+    <tr><td>--voice NAME</td><td>default</td><td>phonon voice name (Alfie, Harper, Freya, Micah, Toby, Russell, … or <code>default</code>).</td></tr>
+  </tbody>
+</table>
+
 <h2>sfr speak — stdin command</h2>
 
 <table class="flags-table">
@@ -196,6 +208,7 @@ sfr os memory --speak</code></pre>
   <tbody>
     <tr><td>--phonon-port N</td><td>3000</td><td>phonon-studio port.</td></tr>
     <tr><td>--voice NAME</td><td>default</td><td>phonon voice name.</td></tr>
+    <tr><td>--dry-run</td><td>off</td><td>Print the cleaned text that would be spoken — no audio, no phonon-studio needed. Useful for debugging pipe output.</td></tr>
   </tbody>
 </table>
 
@@ -215,15 +228,35 @@ sfr os battery --speak --voice Micah --phonon-port 3000
 sfr os info --speak
 # → "System: mac-mini. OS: macOS Sequoia 15.1. CPU: Apple M2 Pro with 12 cores. Memory 69 percent used. Uptime: 3 days, 2h 15m."</code></pre>
 
-<h3>Pipe mode — sfr speak</h3>
-<pre><code># Speak any text file
-cat report.txt | sfr speak
+<h3>PDF — view and speak</h3>
+<pre><code># Create a PDF, open in system viewer, and speak the summary
+sfr pdf image1.png image2.png -o slides.pdf --view --speak
 
-# Speak the output of any command (strip ANSI escape codes first if needed)
+# Custom voice
+sfr pdf diagram.png -o report.pdf --view --speak --voice Harper
+
+# Speak only (no viewer)
+sfr pdf cover.png -o doc.pdf --speak
+# → "PDF created: doc.pdf with 1 page."
+
+# View only (no audio)
+sfr pdf page1.png page2.png -o deck.pdf --view</code></pre>
+
+<h3>Pipe mode — sfr speak</h3>
+<pre><code># Speak a plain text file
+cat notes.txt | sfr speak
+# e.g. notes.txt: "this is the time for all good men to go for the aid of the country!"
+
+# Speak the output of any sf-rust command (box-drawing chars auto-stripped)
+sfr os battery | sfr speak
 sfr os battery | sfr speak --voice Harper
+sfr os memory  | sfr speak --voice Micah
 
 # Speak a custom message
-echo "Deploy succeeded. All tests passed." | sfr speak</code></pre>
+echo "Deploy succeeded. All tests passed." | sfr speak
+
+# Debug: see exactly what text would be spoken (no audio)
+sfr os battery | sfr speak --dry-run</code></pre>
 
 <!-- ── PIPELINE ── -->
 <h2>How it Works</h2>
@@ -327,8 +360,9 @@ echo "Deploy succeeded. All tests passed." | sfr speak</code></pre>
     <tr><td>crates/sf-os/src/memory.rs</td><td><code>speak_memory_summary()</code> — natural-language RAM/swap sentence</td></tr>
     <tr><td>crates/sf-os/src/battery.rs</td><td><code>speak_battery_summary()</code> — level, status, time remaining</td></tr>
     <tr><td>crates/sf-os/src/info.rs</td><td><code>speak_info_summary()</code> — hostname, OS, CPU, memory, uptime</td></tr>
+    <tr><td>crates/sf-pdf/src/lib.rs</td><td><code>--view</code> (opens PDF via <code>open::that()</code>) + <code>--speak / --phonon-port / --voice</code> flags on <code>PdfArgs</code></td></tr>
     <tr><td>crates/sf-cli/src/lib.rs</td><td><code>SpeakArgs</code> + <code>Commands::Speak</code></td></tr>
-    <tr><td>crates/sf-cli/src/main.rs</td><td>stdin dispatch — reads all of stdin, calls <code>sf_os::speak::speak_text()</code></td></tr>
+    <tr><td>crates/sf-cli/src/main.rs</td><td>stdin dispatch — reads all of stdin, calls <code>sf_os::speak::speak_text()</code>; pdf speak dispatch</td></tr>
     <tr><td>Makefile — install-phonon</td><td>Writes <code>~/my-speech-apps/phonon-studio/server.js</code> wrapper to <code>~/.local/bin/phonon-studio</code></td></tr>
   </tbody>
 </table>
