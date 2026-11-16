@@ -73,6 +73,7 @@ th{background:var(--bg3);font-weight:600;color:var(--muted);text-transform:upper
   <a href="#tools">Tools</a>
   <a href="#usage">Usage</a>
   <a href="#claude-desktop">Claude Desktop</a>
+  <a href="#resources">Resources</a>
   <a href="#in-action">In Action</a>
   <a href="#demo">Demo</a>
   <div class="nav-right">
@@ -89,8 +90,9 @@ th{background:var(--bg3);font-weight:600;color:var(--muted);text-transform:upper
     <span class="chip chip-purple">MCP 2024-11-05</span>
     <span class="chip chip-blue">stdio transport</span>
     <span class="chip chip-green">10 tools</span>
+    <span class="chip chip-blue">resources</span>
     <span class="chip chip-amber">no key required</span>
-    <span class="badge badge-new">V2</span>
+    <span class="badge badge-new">V3</span>
   </div>
 </div>
 
@@ -128,7 +130,8 @@ th{background:var(--bg3);font-weight:600;color:var(--muted);text-transform:upper
   <tr><td>Message endpoint</td><td>—</td><td><code class="inline">POST /message?sessionId=&lt;id&gt;</code> → 202</td></tr>
   <tr><td>Server name</td><td colspan="2"><code class="inline">sf-rust</code></td></tr>
   <tr><td>Tools</td><td colspan="2">10 tools (same set on both transports)</td></tr>
-  <tr><td>Methods</td><td colspan="2"><code class="inline">initialize</code>, <code class="inline">ping</code>, <code class="inline">tools/list</code>, <code class="inline">tools/call</code></td></tr>
+  <tr><td>Resources</td><td colspan="2">3 URI templates + dynamic listing for default org</td></tr>
+  <tr><td>Methods</td><td colspan="2"><code class="inline">initialize</code>, <code class="inline">ping</code>, <code class="inline">tools/list</code>, <code class="inline">tools/call</code>, <code class="inline">resources/list</code>, <code class="inline">resources/read</code>, <code class="inline">resources/templates/list</code></td></tr>
   <tr><td>Keep-alive</td><td>—</td><td>SSE ping every 15 s</td></tr>
   <tr><td>Timing output</td><td colspan="2">Auto-suppressed</td></tr>
   <tr><td>Server logs</td><td colspan="2">stderr (<code class="inline">[sf-rust mcp] ...</code>)</td></tr>
@@ -289,6 +292,37 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"
 <div class="tip">
   With Claude Code, you can also run <code class="inline">/mcp</code> to view connected servers and their available tools.
 </div>
+
+<h2 id="resources">MCP Resources (V3)</h2>
+<p>Resources let Claude browse and read Salesforce data as <em>context</em> rather than as tool results.
+Claude can call <code class="inline">resources/list</code> to discover what's available, then <code class="inline">resources/read</code> with a URI to fetch it.</p>
+
+<table>
+  <tr><th>URI</th><th>Content</th><th>When available</th></tr>
+  <tr><td><code class="inline">salesforce://orgs</code></td><td>All locally authenticated orgs (JSON)</td><td>Always</td></tr>
+  <tr><td><code class="inline">salesforce://org/{alias}/display</code></td><td>Org connection details</td><td>Template + auto-listed for default org</td></tr>
+  <tr><td><code class="inline">salesforce://org/{alias}/limits</code></td><td>API &amp; storage limits</td><td>Template + auto-listed for default org</td></tr>
+  <tr><td><code class="inline">salesforce://org/{alias}/schema</code></td><td>All queryable SObjects</td><td>Template + auto-listed for default org</td></tr>
+</table>
+
+<div class="tip">
+  <strong>URI templates</strong> are exposed via <code class="inline">resources/templates/list</code> — replace <code class="inline">{alias}</code> with any org alias you have credentials for.
+  When you start the server with <code class="inline">-o dev1</code>, all four resources are auto-listed in <code class="inline">resources/list</code> with <code class="inline">dev1</code> pre-substituted.
+</div>
+
+<h3>Test resources from the terminal</h3>
+<pre><code># List resources (default org = sf-rust-1)
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"resources/list","params":{}}\n' \
+  | sfr mcp server -o sf-rust-1 2>/dev/null | sfr json
+
+# Read org details
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"salesforce://org/sf-rust-1/display"}}\n' \
+  | sfr mcp server 2>/dev/null | sfr json
+
+# List URI templates
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"resources/templates/list","params":{}}\n' \
+  | sfr mcp server 2>/dev/null | sfr json
+</code></pre>
 
 <h2 id="in-action">Claude Desktop in Action</h2>
 <p>Real screenshots from Claude Desktop connected to <code class="inline">sfr mcp server</code> via the <code class="inline">sfr-salesforce</code> MCP server on a mac-mini.</p>
@@ -459,10 +493,10 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"
   The HTTP/SSE transport is ideal for shared servers (CI, staging) where you can't spawn a local process. The SSE transport protocol: Claude connects to <code class="inline">GET /sse</code>, receives an <code class="inline">endpoint</code> event, then POSTs each JSON-RPC request to <code class="inline">/message?sessionId=&lt;id&gt;</code>. Responses arrive as <code class="inline">message</code> SSE events on the same stream.
 </div>
 
-<h2>What's next — V3</h2>
-<p>V3 will add <strong>MCP resources</strong> (org schema, metadata list exposed as browsable resources) and streaming tool results for long-running operations like deploys.</p>
-<pre><code># V3 — resource support (planned)
-sfr mcp server -o dev1  # will expose resources/list, resources/read
+<h2>What's next — V4</h2>
+<p>V4 will add <strong>resource subscriptions</strong> (<code class="inline">resources/subscribe</code> + change notifications) and <strong>prompts</strong> — canned Salesforce analysis prompts Claude can discover and invoke.</p>
+<pre><code># V4 — prompts + subscriptions (planned)
+sfr mcp server -o dev1  # will expose prompts/list, prompts/get
 </code></pre>
 
 </div><!-- .page -->
