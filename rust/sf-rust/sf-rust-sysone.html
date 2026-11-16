@@ -76,6 +76,8 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   <a href="#usage">Usage</a>
   <a href="#request-json">Request JSON</a>
   <a href="#demo">Live Demo</a>
+  <a href="#parse-email">parse-email</a>
+  <a href="#classify">classify</a>
   <a href="#flags">Flags</a>
   <div class="nav-right">
     <button class="theme-btn" onclick="document.body.classList.toggle('light');localStorage.setItem('so-theme',document.body.classList.contains('light')?'light':'dark')">☀/☾</button>
@@ -159,7 +161,18 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
 
 <span class="c"># List available Ollama models</span>
 <span class="cmd">sfr sysone models</span>
-<span class="cmd">sfr sysone models --ollama http://192.168.1.9:11434</span></div>
+<span class="cmd">sfr sysone models --ollama http://192.168.1.9:11434</span>
+
+<span class="c"># Triage a plain-text email file (hardcoded questions: category, urgency, requires_action, is_automated)</span>
+<span class="cmd">sfr sysone parse-email invoice.txt</span>
+<span class="cmd">sfr sysone parse-email invoice.txt --format json</span>
+<span class="cmd">sfr sysone parse-email - &lt; email.txt</span>
+
+<span class="c"># SOQL classify — run a query and classify each record via sysone</span>
+<span class="cmd">sfr sysone classify -o dev1 \
+  -q "SELECT Id, Subject, Description FROM Case LIMIT 20" \
+  -Q "priority:choice:What is the support priority?:Critical=Blocker,High=Important,Medium=Normal,Low=Minor" \
+  -Q "escalate:noul:Should this case be escalated to L2?"</span></div>
 
 <!-- ══════ REQUEST JSON ══════ -->
 <h2 id="request-json">Request JSON format</h2>
@@ -236,6 +249,112 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
 
 <p>nimble correctly classified the email as <strong>invoice</strong> (97.6% probability), flagged it as requiring action (93.8%), rated urgency as <strong>High</strong> (82.5%), and detected it as an automated message (80.6%) — all in one structured call.</p>
 
+<!-- ══════ PARSE-EMAIL ══════ -->
+<h2 id="parse-email">sfr sysone parse-email <span class="badge b-new">new</span></h2>
+<p>Triages a plain-text email file with hardcoded, Salesforce-ready questions — no JSON authoring needed.
+Answers: <code>category</code> (choice), <code>requires_action</code> (noul), <code>urgency</code> (score), <code>is_automated</code> (noul).</p>
+
+<div class="code-block"><span class="c"># table output (bar charts)</span>
+<span class="cmd">sfr sysone parse-email ~/sysone/data/email-invoice.txt</span>
+<span class="cmd">sfr sysone parse-email ~/sysone/data/email-support.txt --model qwen3.8</span>
+
+<span class="c"># clean JSON for scripting / piping</span>
+<span class="cmd">sfr sysone parse-email ~/sysone/data/email-invoice.txt --format json</span>
+
+<span class="c"># pipe from stdin</span>
+<span class="cmd">cat ~/sysone/data/email-invoice.txt | sfr sysone parse-email -</span></div>
+
+<h3>Sample input — email-invoice.txt</h3>
+<div class="code-block">From: accounts@acme-corp.com
+To: payments@yourcompany.com
+Subject: Invoice #INV-2024-0847 Overdue – Action Required
+
+Dear Accounts Team,
+
+This is a reminder that invoice #INV-2024-0847 for $4,250.00 was due on
+November 1st, 2026 and remains unpaid.
+Please arrange payment within 48 hours to avoid a late fee of 2% per month.
+
+Kind regards,
+Accounts Receivable, Acme Corp</div>
+
+<h3>Expected JSON output (--format json)</h3>
+<div class="code-block"><span class="n">{</span>
+  <span class="k">"category"</span>:              <span class="s">"invoice"</span>,
+  <span class="k">"category_confidence"</span>:   <span class="n">0.976</span>,
+  <span class="k">"requires_action"</span>:       <span class="n">true</span>,
+  <span class="k">"requires_action_score"</span>: <span class="n">0.938</span>,
+  <span class="k">"urgency_label"</span>:         <span class="s">"High"</span>,
+  <span class="k">"urgency_score"</span>:         <span class="n">2.87</span>,
+  <span class="k">"is_automated"</span>:          <span class="n">true</span>,
+  <span class="k">"model"</span>:                 <span class="s">"nimble"</span>,
+  <span class="k">"ms"</span>:                    <span class="n">4979</span>
+<span class="n">}</span></div>
+
+<h3>Sample input — email-support.txt (critical escalation)</h3>
+<div class="code-block">From: john.smith@customer.com
+Subject: URGENT: Production system completely down — cannot process orders
+
+Hi Support Team,
+Our production environment has been completely non-functional since 9:15 AM PST.
+We are unable to process ANY new orders — 2,000 active users affected.
+Error: "System Error: Connection timeout to backend service (ERR_CONN_REFUSED)"
+Please escalate immediately. We need a response within 15 minutes.
+
+John Smith, VP of Engineering</div>
+
+<div class="tip">Expected parse-email result for the support email: <code>category=support</code>, <code>requires_action=true</code>, <code>urgency=Critical</code>, <code>is_automated=false</code>.</div>
+
+<!-- ══════ CLASSIFY ══════ -->
+<h2 id="classify">sfr sysone classify <span class="badge b-new">new</span></h2>
+<p>Runs a SOQL query against a Salesforce org, then calls sysone on each record with custom
+questions. Answer columns (prefixed <code>_</code>) are appended to the table or JSON output.</p>
+
+<div class="code-block"><span class="c"># classify Case records by priority and escalation likelihood</span>
+<span class="cmd">sfr sysone classify -o dev1 \
+  -q "SELECT Id, CaseNumber, Subject, Description, Priority FROM Case WHERE IsClosed = false LIMIT 10" \
+  -Q "ai_priority:choice:What should be the support priority?:Critical=Production down or data loss,High=Major feature broken,Medium=Partial degradation,Low=Minor inconvenience" \
+  -Q "escalate:noul:Should this case be escalated to Tier 2 or engineering?"</span>
+
+<span class="c"># lead scoring (3 questions per lead)</span>
+<span class="cmd">sfr sysone classify -o dev1 \
+  -q "SELECT Id, FirstName, LastName, Title, Company, Description FROM Lead WHERE IsConverted = false LIMIT 20" \
+  -Q "industry:choice:What industry does this lead belong to?:Technology=SaaS software tech,Financial=Banking finance insurance,Healthcare=Medical pharma,Retail=Consumer e-commerce,Other=None of the above" \
+  -Q "buying_intent:noul:Does this lead show strong buying intent?" \
+  -Q "deal_size:score:How large is the potential deal size?:Small,Medium,Large,Enterprise"</span>
+
+<span class="c"># JSON output for downstream processing</span>
+<span class="cmd">sfr sysone classify -o dev1 \
+  -q "SELECT Id, Subject, Description FROM Case LIMIT 5" \
+  -Q "priority:choice:Support priority?:Critical=P1,High=P2,Medium=P3,Low=P4" \
+  --format json | jq '.[] | {Id, Subject: .Subject, priority: ._priority}'</span></div>
+
+<h3>Sample scripts (in sf-rust/samples/)</h3>
+<div class="code-block"><span class="c"># classify-cases.sh — cases by priority and escalation</span>
+<span class="cmd">#!/bin/bash
+ORG=${1:-dev1}
+sfr sysone classify -o "$ORG" \
+  -q "SELECT Id, CaseNumber, Subject, Description FROM Case WHERE IsClosed = false LIMIT 10" \
+  -Q "ai_priority:choice:Support priority?:Critical=Production down,High=Major broken,Medium=Partial,Low=Minor" \
+  -Q "escalate:noul:Should this case be escalated to L2?" \
+  --model nimble</span>
+
+<span class="c"># classify-leads.sh — leads by industry, buying intent, and deal size</span>
+<span class="cmd">#!/bin/bash
+ORG=${1:-dev1}
+sfr sysone classify -o "$ORG" \
+  -q "SELECT Id, FirstName, LastName, Title, Company FROM Lead WHERE IsConverted = false LIMIT 20" \
+  -Q "industry:choice:Industry?:Technology=SaaS software,Financial=Banking finance,Healthcare=Medical" \
+  -Q "buying_intent:noul:Shows strong buying intent?" \
+  -Q "deal_size:score:Potential deal size?:Small,Medium,Large,Enterprise" \
+  --model nimble</span></div>
+
+<div class="tip">Question spec format: <code>NAME:TYPE[:INSTRUCTIONS[:CRITERIA]]</code>
+— <code>choice</code> criteria: <code>label=description,…</code>
+— <code>score</code> criteria: <code>Level0,Level1,Level2,…</code> (comma-separated ordered labels)
+— <code>noul</code> needs no criteria
+— Use <code>-Q</code> multiple times to ask several questions per record.</div>
+
 <!-- ══════ FLAGS ══════ -->
 <h2 id="flags">Flags</h2>
 <h3>sfr sysone run</h3>
@@ -251,6 +370,26 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
 <table>
   <tr><th>Flag</th><th>Default</th><th>Description</th></tr>
   <tr><td><code>--ollama</code></td><td><code>http://localhost:11434</code></td><td>Ollama base URL to query for available models</td></tr>
+</table>
+
+<h3>sfr sysone parse-email</h3>
+<table>
+  <tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>FILE</code></td><td>required</td><td>Plain-text email file path, or <code>-</code> for stdin</td></tr>
+  <tr><td><code>--model</code></td><td><code>nimble</code></td><td>Ollama model</td></tr>
+  <tr><td><code>--ollama</code></td><td><code>http://localhost:11434</code></td><td>Ollama base URL (<code>OLLAMA_HOST</code> env var also supported)</td></tr>
+  <tr><td><code>--format</code></td><td><code>table</code></td><td><code>table</code> (bar charts) or <code>json</code> (clean structured object)</td></tr>
+</table>
+
+<h3>sfr sysone classify</h3>
+<table>
+  <tr><th>Flag</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code>-q / --query</code></td><td>required</td><td>SOQL query to run against the org</td></tr>
+  <tr><td><code>-o / --target-org</code></td><td>default org</td><td>Org alias</td></tr>
+  <tr><td><code>-Q / --question</code></td><td>at least one required</td><td>Question spec <code>NAME:TYPE[:INSTRUCTIONS[:CRITERIA]]</code>; repeatable</td></tr>
+  <tr><td><code>--model</code></td><td><code>nimble</code></td><td>Ollama model</td></tr>
+  <tr><td><code>--ollama</code></td><td><code>http://localhost:11434</code></td><td>Ollama base URL</td></tr>
+  <tr><td><code>--format</code></td><td><code>table</code></td><td><code>table</code> or <code>json</code></td></tr>
 </table>
 
 <!-- ══════ MODELS ══════ -->
