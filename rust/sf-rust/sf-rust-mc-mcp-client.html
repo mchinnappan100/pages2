@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sf-rust · mc-mcp-client</title>
+<style>
+:root {
+  --bg:     #0f1117; --bg2: #13161f; --bg3: #1c2030;
+  --border: #2a2e45; --accent: #6c8aff; --accent2: #34d399;
+  --text:   #e2e8f0; --muted: #8892a4; --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.6; }
+header { background: var(--bg2); border-bottom: 1px solid var(--border);
+  padding: 20px 40px; display: flex; align-items: center; gap: 16px; }
+header h1 { font-size: 1.5rem; font-weight: 700; }
+header h1 span { color: var(--accent); }
+header p { color: var(--muted); font-size: .9rem; }
+.badge { background: var(--accent); color: #fff; font-size: .7rem;
+  font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+main { max-width: 920px; margin: 0 auto; padding: 40px 24px; }
+h2 { font-size: 1.1rem; font-weight: 700; color: var(--accent); margin: 32px 0 14px; }
+h2:first-child { margin-top: 0; }
+p { color: var(--muted); margin-bottom: 12px; }
+
+.code-block { background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px 20px;
+  font-family: 'SF Mono','Fira Code',monospace; font-size: .84rem;
+  color: #c9d1d9; overflow-x: auto; margin-bottom: 16px; white-space: pre; }
+.cmd  { color: var(--accent); }
+.flag { color: var(--accent2); }
+.cmt  { color: #4a5068; font-style: italic; }
+.val  { color: #fbbf24; }
+
+.arch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px; margin-bottom: 24px; }
+.arch-card { background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 16px 18px; }
+.arch-card h3 { font-size: .88rem; font-weight: 600; color: var(--accent2); margin-bottom: 6px; }
+.arch-card p  { font-size: .78rem; color: var(--muted); margin: 0; }
+.arch-card code { font-size: .75rem; color: var(--accent); background: var(--bg3);
+  padding: 1px 5px; border-radius: 4px; }
+
+.compare-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: .84rem; }
+.compare-table th { background: var(--bg2); border: 1px solid var(--border);
+  padding: 8px 14px; text-align: left; color: var(--accent); font-weight: 600; }
+.compare-table td { border: 1px solid var(--border); padding: 8px 14px; color: var(--muted); }
+.compare-table td:first-child { color: var(--text); font-weight: 500; }
+.yes { color: var(--accent2); font-weight: 600; }
+.no  { color: #f87171; }
+
+.flow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 24px; }
+.flow-box { background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 16px; font-size: .82rem; }
+.flow-box.highlight { border-color: var(--accent); color: var(--accent); }
+.flow-arrow { color: var(--muted); font-size: 1.2rem; }
+
+.config-example { background: var(--bg2); border: 1px solid var(--border);
+  border-left: 3px solid var(--accent); border-radius: var(--radius);
+  padding: 16px 20px; font-family: 'SF Mono','Fira Code',monospace;
+  font-size: .83rem; color: #c9d1d9; overflow-x: auto;
+  margin-bottom: 24px; white-space: pre; }
+
+footer { text-align: center; color: var(--muted); font-size: .78rem;
+  padding: 32px; border-top: 1px solid var(--border); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>◼ sf-rust · <span>mc-mcp-client</span></h1>
+    <p>MCP client — probe, test, and call any MCP server over stdio</p>
+  </div>
+  <span class="badge">v0.4.0</span>
+</header>
+
+<main>
+
+  <h2>Quick Start</h2>
+  <div class="code-block"><span class="cmt"># Test sfr's own MCP server — no Claude Desktop needed</span>
+<span class="cmd">mc-mcp-client tools</span>  <span class="flag">--named</span> af200
+<span class="cmd">mc-mcp-client repl</span>   <span class="flag">--named</span> af200
+
+<span class="cmt"># Inside the REPL — bare tool name, no 'call' prefix needed</span>
+mcp> <span class="cmd">query_soql</span> <span class="val">soql="SELECT Id, Name FROM Account LIMIT 2"</span>
+mcp> <span class="cmd">org_list</span>
+mcp> <span class="cmd">org_display</span> org=af200
+mcp> <span class="cmd">schema_describe</span> sobject=Account org=af200
+
+<span class="cmt"># One-shot call from the command line</span>
+<span class="cmd">mc-mcp-client call</span>  <span class="flag">--named</span> af200 <span class="flag">--tool</span> query_soql \
+                    <span class="flag">--arg</span> <span class="val">soql='SELECT Id, Name FROM Account LIMIT 5'</span>
+
+<span class="cmt"># Same via sfr passthrough</span>
+<span class="cmd">sfr mcp client tools</span> <span class="flag">--named</span> af200
+<span class="cmd">sfr mcp client repl</span>  <span class="flag">--named</span> af200
+
+<span class="cmt"># List configured named servers</span>
+<span class="cmd">mc-mcp-client servers</span>
+  </div>
+
+  <h2>REPL Session (live example)</h2>
+  <div class="code-block"><span class="cmt">$ mc-mcp-client repl --named af200</span>
+<span style="color:#888">Connecting: sf-rust mcp server -o af200… [sf-rust mcp] stdio server started (MCP 2024-11-05)</span>
+<span style="color:#888">[sf-rust mcp] notification: notifications/initialized</span>
+<span style="color:#34d399;font-weight:600">OK</span>
+<span style="color:#888">Server: sf-rust v0.4.0</span>
+<span style="color:#888">10 tools available.  tools · &lt;name&gt; [key=val …] · help · quit</span>
+
+<span class="cmt">mcp&gt; tools</span>
+<span style="color:#888">  #   Tool                 Description                                        Parameters (* = required)
+  1   query_soql           Run a SOQL query …                                 *soql, org
+  2   org_display          Show details for a connected org …                 org
+  3   org_list             List all locally authenticated orgs.
+  4   apex_execute         Execute an anonymous Apex script …                 *code, org
+  5   apex_get_log         Retrieve the most recent Apex debug log …          org
+  6   deploy_metadata      Deploy a local metadata directory …                *directory, org
+  7   sysone_parse_email   Classify an email (sysone) …                       *email, model
+  8   schema_describe      List all fields on a Salesforce SObject …          *sobject, org
+  9   audit_log            Retrieve recent Setup Audit Trail entries …        limit, org
+  10  org_limits           Show Salesforce org API limits …                   org</span>
+
+<span class="cmt">mcp&gt; query_soql soql="SELECT Id, Name FROM Account LIMIT 2"</span>
+{
+  "status": 0,
+  "result": {
+    "totalSize": 2,
+    "done": true,
+    "records": [
+      { "Id": "001dL000025KV19QAG", "Name": "Edge Communications" },
+      { "Id": "001dL000025KV1AQAW", "Name": "Burlington Textiles Corp of America" }
+    ]
+  }
+}
+
+<span class="cmt">mcp&gt; org_list</span>
+{
+  "status": 0,
+  "result": {
+    "nonScratchOrgs": [
+      { "username": "mohan.chinnappan.n5.b3a2393cf971@agentforce.com", "alias": "af200",
+        "instanceUrl": "https://orgfarm-af4a9ce631-dev-ed.develop.my.salesforce.com",
+        "orgId": "00DdL00000uL4VqUAK", "isDefault": false },
+      { "username": "mchinnappan@salesforce.com.af102",               "alias": "af102",
+        "instanceUrl": "https://dg8000003p54peas-dev-ed.develop.my.salesforce.com",
+        "orgId": "00Dg8000003P54PEAS", "isDefault": false },
+      { "username": "trailsignup.32a13e5eb16875@salesforce.com",       "alias": "sf-cli-1",
+        "instanceUrl": "https://trailsignup-32a13e5eb16875.my.salesforce.com",
+        "orgId": "00Dbm000018w7btEAA", "isDefault": false },
+      { "username": "mohan.chinnappan.n5.1001a914df2c@agentforce.com", "alias": "dev1",
+        "instanceUrl": "https://orgfarm-caca07f3b9-dev-ed.develop.my.salesforce.com",
+        "orgId": "00Dfj00000nTxlFEAS", <span style="color:#34d399">"isDefault": true</span> },
+      { "username": "trailsignup.2cd6e3b4cbaa49@salesforce.com",       "alias": "sf-rust-1",
+        "instanceUrl": "https://trailsignup-2cd6e3b4cbaa49.my.salesforce.com",
+        "orgId": "00Dg700000PwX0PEAV", "isDefault": false }
+    ]
+  }
+}
+
+<span class="cmt">mcp&gt; org_display org=af102</span>
+{
+  "status": 0,
+  "result": {
+    "accessToken": "[REDACTED]",
+    "alias": "af102",
+    "apiVersion": "68.0",
+    "clientId": "PlatformCLI",
+    "connectedStatus": "Connected",
+    "id": "00Dg8000003P54PEAS",
+    "instanceUrl": "https://dg8000003p54peas-dev-ed.develop.my.salesforce.com",
+    "username": "mchinnappan@salesforce.com.af102"
+  }
+}
+
+<span class="cmt">mcp&gt; quit</span>
+Bye.
+  </div>
+  <p>No <code>call</code> prefix needed — just type the tool name directly. Values with spaces work inside double or single quotes: <code>soql="SELECT Id, Name FROM Account LIMIT 2"</code>.</p>
+
+  <h2>Architecture</h2>
+  <div class="flow">
+    <div class="flow-box">User / script</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-box highlight">mc-mcp-client</div>
+    <span class="flow-arrow">─ stdio ─</span>
+    <div class="flow-box">Any MCP server<br><small style="color:var(--muted)">sfr · filesystem · GitHub · Slack · Postgres</small></div>
+  </div>
+  <div class="flow">
+    <div class="flow-box">sfr mcp client …</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-box highlight">mc-mcp-client</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-box">MCP server</div>
+  </div>
+  <p><code style="color:var(--accent)">sfr mcp client</code> is a thin passthrough — same pattern as <code style="color:var(--accent)">sfr webconf</code> → <code style="color:var(--accent)">mc-webconf</code>.</p>
+
+  <h2>Subcommands</h2>
+  <div class="arch-grid">
+    <div class="arch-card">
+      <h3>tools</h3>
+      <p>Connect, handshake, call <code>tools/list</code>. Prints a table of all tools with parameter names (* = required).</p>
+    </div>
+    <div class="arch-card">
+      <h3>call</h3>
+      <p>Call one tool and print its output. Pass arguments as <code>--arg key=value</code> (repeatable). Values auto-parsed as JSON or string.</p>
+    </div>
+    <div class="arch-card">
+      <h3>repl</h3>
+      <p>Interactive session. Commands: <code>tools</code>, <code>call &lt;name&gt; k=v…</code>, <code>help</code>, <code>quit</code>. History saved to <code>~/.sf-rust/mcp_client_history</code>.</p>
+    </div>
+    <div class="arch-card">
+      <h3>servers</h3>
+      <p>List named servers from <code>~/.sf-rust/mcp-servers.toml</code>. Shows alias, command, args, and env var keys.</p>
+    </div>
+  </div>
+
+  <h2>Named Server Config</h2>
+  <div class="config-example"><span class="cmt"># ~/.sf-rust/mcp-servers.toml</span>
+
+<span class="cmt"># Salesforce orgs</span>
+[servers.dev1]
+command = <span class="val">"sf-rust"</span>
+args    = [<span class="val">"mcp"</span>, <span class="val">"server"</span>, <span class="val">"-o"</span>, <span class="val">"dev1"</span>]
+
+[servers.af200]
+command = <span class="val">"sf-rust"</span>
+args    = [<span class="val">"mcp"</span>, <span class="val">"server"</span>, <span class="val">"-o"</span>, <span class="val">"af200"</span>]
+
+<span class="cmt"># Filesystem — ls, stat, read, tree, search</span>
+<span class="cmt"># Tools: list_directory · read_file · get_file_info · directory_tree · search_files · write_file</span>
+[servers.fs-home]
+command = <span class="val">"npx"</span>
+args    = [<span class="val">"-y"</span>, <span class="val">"@modelcontextprotocol/server-filesystem"</span>, <span class="val">"/Users/mchinnappan"</span>]
+
+[servers.fs-sf-rust]
+command = <span class="val">"npx"</span>
+args    = [<span class="val">"-y"</span>, <span class="val">"@modelcontextprotocol/server-filesystem"</span>, <span class="val">"/Users/mchinnappan/sf-rust"</span>]
+
+<span class="cmt"># GitHub</span>
+[servers.github]
+command = <span class="val">"npx"</span>
+args    = [<span class="val">"-y"</span>, <span class="val">"@modelcontextprotocol/server-github"</span>]
+env     = { GITHUB_PERSONAL_ACCESS_TOKEN = <span class="val">"ghp_..."</span> }
+
+<span class="cmt"># Postgres</span>
+[servers.postgres]
+command = <span class="val">"npx"</span>
+args    = [<span class="val">"-y"</span>, <span class="val">"@modelcontextprotocol/server-postgres"</span>, <span class="val">"postgresql://localhost/mydb"</span>]
+  </div>
+
+  <h2>Filesystem MCP — ls, stat, read, tree</h2>
+  <p>The <code>@modelcontextprotocol/server-filesystem</code> server exposes OS-level file operations as MCP tools. Use <code>fs-home</code> for home directory access or <code>fs-sf-rust</code> scoped to the project.</p>
+  <div class="code-block"><span class="cmt">$ mc-mcp-client repl --named fs-home</span>
+<span style="color:#888">Connecting: npx -y @modelcontextprotocol/server-filesystem /Users/mchinnappan…  OK
+Server: Filesystem MCP Server</span>
+
+<span class="cmt">mcp&gt; tools</span>
+<span style="color:#888">  #   Tool                 Description
+  1   read_file            Read the complete contents of a file
+  2   read_multiple_files  Read multiple files simultaneously
+  3   write_file           Write content to a file
+  4   create_directory     Create a new directory
+  5   list_directory       List directory contents  ← ls
+  6   directory_tree       Recursive tree view of a directory
+  7   move_file            Move or rename a file
+  8   search_files         Search for files matching a pattern
+  9   get_file_info        Get metadata for a file or directory  ← stat / ls -la</span>
+
+<span class="cmt">mcp&gt; list_directory path="/Users/mchinnappan/sf-rust/crates"</span>
+<span style="color:#888">[DIR] mc-mcp-client   [DIR] mc-webconf      [DIR] sf-agent
+[DIR] sf-apex         [DIR] sf-api          [DIR] sf-ask
+[DIR] sf-audit        [DIR] sf-auth         [DIR] sf-chat
+[DIR] sf-ci           [DIR] sf-cli          [DIR] sf-core
+[DIR] sf-cron         [DIR] sf-data         [DIR] sf-devops
+[DIR] sf-disk         [DIR] sf-event        [DIR] sf-file
+[DIR] sf-flow         [DIR] sf-git          [DIR] sf-icon
+[DIR] sf-image        [DIR] sf-map          [DIR] sf-mcp
+[DIR] sf-metadata     [DIR] sf-notify       [DIR] sf-org
+[DIR] sf-os           [DIR] sf-output       [DIR] sf-package
+[DIR] sf-pdf          [DIR] sf-perms        [DIR] sf-plugin
+[DIR] sf-project      [DIR] sf-rag          [DIR] sf-report
+[DIR] sf-rest         [DIR] sf-slides       [DIR] sf-smt
+[DIR] sf-soql         [DIR] sf-stock        [DIR] sf-sysone
+[DIR] sf-util         [DIR] sf-video        [DIR] sf-voice
+[DIR] sf-watch        [DIR] sf-weather      [DIR] sf-whiteboard</span>
+
+<span class="cmt">mcp&gt; get_file_info path="/Users/mchinnappan/sf-rust/Cargo.toml"</span>
+<span style="color:#888">size:        3023
+created:     Mon Nov 16 2026 14:11:35 GMT-0500
+modified:    Mon Nov 16 2026 14:11:35 GMT-0500
+accessed:    Mon Nov 16 2026 14:46:48 GMT-0500
+isDirectory: false
+isFile:      true
+permissions: 644</span>
+
+<span class="cmt">mcp&gt; directory_tree path="/Users/mchinnappan/sf-rust/crates/mc-mcp-client"</span>
+<span style="color:#888">[
+  { "name": "Cargo.toml", "type": "file" },
+  { "name": "src", "type": "directory", "children": [
+      { "name": "client.rs",   "type": "file" },
+      { "name": "commands.rs", "type": "file" },
+      { "name": "config.rs",   "type": "file" },
+      { "name": "main.rs",     "type": "file" },
+      { "name": "transport.rs","type": "file" },
+      { "name": "types.rs",    "type": "file" }
+  ]}
+]</span>
+
+<span class="cmt">mcp&gt; search_files path="/Users/mchinnappan/sf-rust" pattern="*.toml"</span>
+<span style="color:#888">/Users/mchinnappan/sf-rust/Cargo.toml</span>
+<span style="color:#4a5068;font-style:italic"># Note: search_files matches at the root level; for deeper searches use directory_tree + read_file</span>
+
+<span class="cmt">mcp&gt; read_file path="/Users/mchinnappan/sf-rust/Makefile"</span>
+<span style="color:#888">INSTALL_DIR := $(HOME)/.local/bin
+BINARY      := sf-rust
+…</span>
+  </div>
+  <p>Note: use <code>-y</code> in the args so npx auto-installs the server package on first run without an interactive prompt.</p>
+
+  <h2>Salesforce Official MCP Server</h2>
+  <p>Salesforce publishes <code>@salesforce/mcp</code> — an MCP server that wraps the <code>sf</code> CLI and exposes 20+ tools across DX, Apex, metadata, agents, LWC, Aura, and DevOps. It uses the same org auth as the <code>sf</code> CLI (<code>~/.sf/credentials.json</code>). Note: the package is deprecated upstream (see <a href="https://github.com/forcedotcom/mcp/issues/46" style="color:var(--accent)">issue #46</a>) but remains fully functional.</p>
+  <div class="code-block"><span class="cmt"># ~/.sf-rust/mcp-servers.toml — Salesforce official MCP entries</span>
+[servers.sf-mcp-dev1]
+command = <span class="val">"npx"</span>
+args    = [<span class="val">"-y"</span>, <span class="val">"@salesforce/mcp"</span>, <span class="val">"--target-org"</span>, <span class="val">"dev1"</span>]
+
+[servers.sf-mcp-af200]
+command = <span class="val">"npx"</span>
+args    = [<span class="val">"-y"</span>, <span class="val">"@salesforce/mcp"</span>, <span class="val">"--target-org"</span>, <span class="val">"af200"</span>]
+  </div>
+
+  <div class="code-block"><span class="cmt">$ mc-mcp-client repl --named sf-mcp-dev1</span>
+<span style="color:#888">Connecting: npx -y @salesforce/mcp --target-org dev1…  OK
+Server: @salesforce/mcp v0.30.x</span>
+
+<span class="cmt">mcp&gt; tools</span>
+<span style="color:#888">  #   Tool                            Category
+  1   sf_data_query                   SOQL — run a query against an org
+  2   sf_apex_run                     Apex — execute anonymous Apex
+  3   sf_org_list                     Org — list authenticated orgs
+  4   sf_org_display                  Org — show org details
+  5   sf_project_deploy_start         Metadata — deploy a source directory
+  6   sf_project_retrieve_start       Metadata — retrieve metadata
+  7   sf_agent_generate_spec          Agent — generate agent spec
+  8   sf_agent_generate_agent         Agent — scaffold a new agent
+  9   sf_agent_test_run               Agent — run agent test suite
+  10  sf_flow_list                    Flow — list flows in an org
+  11  sf_lightning_generate_component LWC — scaffold a new LWC
+  12  sf_aura_generate_component      Aura — scaffold an Aura component
+  13  sf_code_analyzer_run            Code Analyzer — lint/scan Apex &amp; JS
+  14  sf_devops_pipeline_deploy       DevOps — trigger a pipeline deploy
+  … (20+ tools total)</span>
+
+<span class="cmt">mcp&gt; sf_org_display</span>
+<span style="color:#888">{ "alias": "dev1", "username": "mohan.chinnappan.n5.1001a914df2c@agentforce.com",
+  "instanceUrl": "https://orgfarm-caca07f3b9-dev-ed.develop.my.salesforce.com",
+  "apiVersion": "62.0", "connectedStatus": "Connected" }</span>
+
+<span class="cmt">mcp&gt; sf_data_query soql="SELECT Id, Name, Industry FROM Account LIMIT 5"</span>
+<span style="color:#888">{ "totalSize": 5, "done": true, "records": [ … ] }</span>
+
+<span class="cmt">mcp&gt; sf_apex_run apexCode="System.debug('hello from MCP');"</span>
+<span style="color:#888">{ "logs": "… USER_DEBUG [1]|DEBUG|hello from MCP …" }</span>
+
+<span class="cmt">mcp&gt; quit</span>
+Bye.
+  </div>
+
+  <div style="background:var(--bg2);border:1px solid var(--border);border-left:3px solid #fbbf24;border-radius:var(--radius);padding:12px 18px;margin-bottom:24px;font-size:.82rem;color:var(--muted);">
+    <strong style="color:#fbbf24;">Note:</strong> <code>@salesforce/mcp</code> requires the <code>sf</code> CLI (<code>npm install -g @salesforce/cli</code>) and uses <strong>sf CLI org auth</strong> — not sf-rust credentials. Run <code>sf org login web -a dev1</code> to authenticate. The package is marked deprecated upstream but continues to work at v0.30.x.
+  </div>
+
+  <h2>PostgreSQL MCP — query any local database</h2>
+  <p>The <code>@modelcontextprotocol/server-postgres</code> server exposes a single <code>query</code> tool that accepts any SQL statement against the configured database. Add one entry per database in <code>mcp-servers.toml</code>.</p>
+  <div class="code-block"><span class="cmt"># ~/.sf-rust/mcp-servers.toml</span>
+[servers.pg-ai-sales]
+command = <span class="val">"npx"</span>
+args    = [<span class="val">"-y"</span>, <span class="val">"@modelcontextprotocol/server-postgres"</span>, <span class="val">"postgresql://localhost/ai_sales_db"</span>]
+
+[servers.pg-crm]
+command = <span class="val">"npx"</span>
+args    = [<span class="val">"-y"</span>, <span class="val">"@modelcontextprotocol/server-postgres"</span>, <span class="val">"postgresql://localhost/crm"</span>]
+  </div>
+
+  <div class="code-block"><span class="cmt">$ mc-mcp-client repl --named pg-ai-sales</span>
+<span style="color:#888">Connecting: npx -y @modelcontextprotocol/server-postgres postgresql://localhost/ai_sales_db…</span>
+<span style="color:#34d399;font-weight:600">OK</span>
+<span style="color:#888">Server: example-servers/postgres v0.1.0
+1 tools available.  tools · &lt;name&gt; [key=val …] · help · quit</span>
+
+<span class="cmt">mcp&gt; tools</span>
+<span style="color:#888">┌───┬───────┬───────────────────────────┬───────────────────────────┐
+│ # ┆ Tool  ┆ Description               ┆ Parameters (* = required) │
+╞═══╪═══════╪═══════════════════════════╪═══════════════════════════╡
+│ 1 ┆ query ┆ Run a read-only SQL query ┆ sql                       │
+└───┴───────┴───────────────────────────┴───────────────────────────┘</span>
+
+<span class="cmt">mcp&gt; help</span>
+<span style="color:#888">Commands:
+  tools                        — list all tools
+  &lt;toolname&gt; [key=val …]       — call a tool (bare name or 'call &lt;name&gt;')
+  help                         — this help
+  quit                         — exit
+
+Available tools:
+  query</span>
+
+<span class="cmt">mcp&gt; query sql="SELECT table_name FROM information_schema.tables WHERE table_schema='public'"</span>
+[
+  { "table_name": "leads"              },
+  { "table_name": "lead_scores"        },
+  { "table_name": "outreach_sequences" },
+  { "table_name": "outreach_logs"      }
+]
+
+<span class="cmt">mcp&gt; query sql="SELECT id, name, company, title FROM leads LIMIT 5"</span>
+[
+  { "id": 1, "name": "Ken Thompson",   "company": "Unix",      "title": "VP of Sales" },
+  { "id": 2, "name": "Dennis Ritchie", "company": "plan9",     "title": "VP of Sales" },
+  { "id": 3, "name": "Bill Joy",       "company": "Sun Micro", "title": "VP of Sales" }
+]
+
+<span class="cmt">mcp&gt; query sql="SELECT column_name, data_type FROM information_schema.columns WHERE table_name='leads' ORDER BY ordinal_position"</span>
+<span style="color:#888">id · name · email · company · title · phone · linkedin · source · status · notes · created_at · updated_at</span>
+
+<span class="cmt">mcp&gt; query sql="SELECT status, COUNT(*) AS count FROM leads GROUP BY status ORDER BY count DESC"</span>
+<span style="color:#888">[ { "status": "new", "count": "3" } ]</span>
+
+<span class="cmt">mcp&gt; quit</span>
+Bye.
+  </div>
+  <p>The PostgreSQL server connects via local socket auth (default on macOS Homebrew — no password needed). Note: the package is archived/unmaintained upstream but fully functional for local dev use. One <code>mcp-servers.toml</code> entry per database.</p>
+
+  <h2>MCP Protocol (stdio)</h2>
+  <div class="code-block"><span class="cmt"># What mc-mcp-client does on connect:</span>
+Client → Server:  initialize  { protocolVersion, clientInfo }
+Server → Client:  { serverInfo, capabilities }
+Client → Server:  notifications/initialized
+Client → Server:  tools/list  {}
+Server → Client:  { tools: [ { name, description, inputSchema } ] }
+
+<span class="cmt"># On call:</span>
+Client → Server:  tools/call  { name, arguments }
+Server → Client:  { content: [ { type: "text", text: "..." } ], isError: false }
+  </div>
+
+  <h2>Key Use Case — Test sfr mcp server without Claude Desktop</h2>
+  <table class="compare-table">
+    <tr><th>Task</th><th>Before</th><th>After</th></tr>
+    <tr><td>Verify all 7 tools are exposed</td><td class="no">Open Claude Desktop</td><td class="yes">mc-mcp-client tools --named sfr-dev1</td></tr>
+    <tr><td>Test a new tool during development</td><td class="no">Configure Claude Desktop session</td><td class="yes">mc-mcp-client call --tool &lt;name&gt; …</td></tr>
+    <tr><td>Smoke-test MCP server in CI</td><td class="no">Not possible</td><td class="yes">Add to tests/smoke.sh</td></tr>
+    <tr><td>Interactive debug session</td><td class="no">Claude Desktop only</td><td class="yes">mc-mcp-client repl --named sfr-dev1</td></tr>
+    <tr><td>Probe a third-party MCP server</td><td class="no">Need an MCP host app</td><td class="yes">mc-mcp-client tools --server "npx …"</td></tr>
+  </table>
+
+  <h2>Implementation</h2>
+  <div class="arch-grid">
+    <div class="arch-card">
+      <h3>transport.rs</h3>
+      <p>Async JSON-RPC 2.0 over stdio. Spawns child process, matches responses by ID via <code>oneshot</code> channels. 30 s timeout per request.</p>
+    </div>
+    <div class="arch-card">
+      <h3>client.rs</h3>
+      <p><code>McpClient::connect()</code> — handshake + <code>tools/list</code>. <code>call_tool(name, args)</code> returns <code>CallToolResult</code>.</p>
+    </div>
+    <div class="arch-card">
+      <h3>config.rs</h3>
+      <p>Loads <code>~/.sf-rust/mcp-servers.toml</code>. Shell-splits <code>--server</code> strings. Applies per-server env vars before spawning.</p>
+    </div>
+    <div class="arch-card">
+      <h3>commands.rs</h3>
+      <p>Four commands: <code>tools</code>, <code>call</code>, <code>repl</code>, <code>servers</code>. REPL uses <code>rustyline</code> with persistent history.</p>
+    </div>
+  </div>
+  <p>No new crate dependencies — uses existing workspace deps: <code>tokio</code>, <code>serde_json</code>, <code>clap</code>, <code>comfy-table</code>, <code>rustyline</code>, <code>colored</code>, <code>toml</code>, <code>dirs</code>.</p>
+
+</main>
+
+<footer>
+  mc-mcp-client · <a href="sf-rust-portal.html" style="color:var(--accent)">Back to portal</a>
+  &nbsp;·&nbsp; Mohan Chinnappan
+</footer>
+</body>
+</html>
