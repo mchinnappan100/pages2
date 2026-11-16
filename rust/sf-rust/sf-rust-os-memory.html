@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<link rel="icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>sf-rust · os memory — RAM &amp; Swap Dashboard</title>
+<style>
+:root {
+  --bg:#0b0d14; --surface:#13161f; --surface2:#1c2030; --surface3:#242840;
+  --border:#2a2e45; --accent:#6c8cff; --accent2:#a78bfa; --accent3:#34d399;
+  --yellow:#fbbf24; --red:#f87171; --text:#e2e8f0; --muted:#8892a4;
+}
+[data-theme="light"] {
+  --bg:#f0f2f8; --surface:#ffffff; --surface2:#f4f6fb; --surface3:#eaecf5;
+  --border:#d8dce8; --accent:#4055cc; --accent2:#6d28d9; --accent3:#059669;
+  --yellow:#b45309; --red:#dc2626; --text:#1a1e2e; --muted:#5a637a;
+}
+*,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+html { scroll-behavior:smooth; }
+body {
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg); color:var(--text); min-height:100vh; font-size:15px; line-height:1.65;
+}
+
+/* header */
+header {
+  background:var(--surface); border-bottom:1px solid var(--border);
+  padding:0 2rem; height:56px; display:flex; align-items:center; gap:1rem;
+  position:sticky; top:0; z-index:20;
+}
+.logo { font-weight:700; font-size:1.1rem; color:var(--accent); text-decoration:none; }
+.sep { color:var(--border); }
+.page-title { font-weight:600; color:var(--text); flex:1; }
+.toggle { background:none; border:1px solid var(--border); color:var(--text);
+          border-radius:6px; padding:4px 12px; font-size:.8rem; cursor:pointer; }
+.back { color:var(--accent); font-size:.85rem; text-decoration:none; }
+.back:hover { text-decoration:underline; }
+
+/* hero */
+.hero {
+  background:linear-gradient(135deg,var(--surface) 0%,var(--surface2) 100%);
+  border-bottom:1px solid var(--border); padding:3rem 2rem 2.5rem;
+  text-align:center;
+}
+.hero h1 { font-size:2.2rem; font-weight:800; margin-bottom:.5rem; }
+.hero h1 span { color:var(--accent3); }
+.hero .sub { color:var(--muted); font-size:1rem; max-width:640px; margin:0 auto 1.5rem; }
+.badge-row { display:flex; gap:.6rem; justify-content:center; flex-wrap:wrap; }
+.badge {
+  font-size:.72rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+  padding:.2rem .7rem; border-radius:12px; border:1px solid;
+}
+.badge-blue  { color:var(--accent);  border-color:rgba(108,140,255,.4); background:rgba(108,140,255,.1); }
+.badge-green { color:var(--accent3); border-color:rgba(52,211,153,.4);  background:rgba(52,211,153,.1); }
+.badge-red   { color:var(--red);     border-color:rgba(248,113,113,.4); background:rgba(248,113,113,.1); }
+
+/* main layout */
+.page { max-width:900px; margin:0 auto; padding:2.5rem 1.5rem; }
+h2 { font-size:1.25rem; font-weight:700; margin:2.5rem 0 1rem; padding-bottom:.4rem;
+     border-bottom:1px solid var(--border); }
+h3 { font-size:1rem; font-weight:600; margin:1.5rem 0 .6rem; color:var(--accent2); }
+
+/* code blocks */
+pre {
+  background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+  padding:1rem 1.2rem; overflow-x:auto; font-size:.85rem; line-height:1.6;
+  font-family:'JetBrains Mono','Fira Code','SF Mono',monospace;
+  margin:.6rem 0 1rem;
+}
+code { font-family:inherit; }
+.inline-code {
+  font-family:'JetBrains Mono','Fira Code','SF Mono',monospace;
+  background:var(--surface2); border:1px solid var(--border);
+  border-radius:4px; padding:.1rem .4rem; font-size:.82em;
+}
+
+/* flags table */
+.flags-table { width:100%; border-collapse:collapse; font-size:.88rem; margin:.6rem 0 1.2rem; }
+.flags-table th {
+  background:var(--surface2); color:var(--muted); font-size:.72rem; font-weight:600;
+  text-transform:uppercase; letter-spacing:.05em; padding:.5rem .8rem;
+  border-bottom:2px solid var(--border); text-align:left;
+}
+.flags-table td { padding:.55rem .8rem; border-bottom:1px solid var(--border); }
+.flags-table tr:last-child td { border-bottom:none; }
+.flags-table td:first-child { font-family:'JetBrains Mono','Fira Code',monospace; font-size:.82rem; color:var(--accent); }
+.flags-table td:nth-child(2) { color:var(--accent2); font-size:.82rem; }
+
+/* output sample box */
+.output-box {
+  background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+  padding:1rem 1.2rem; font-family:'JetBrains Mono','Fira Code',monospace;
+  font-size:.8rem; line-height:1.75; white-space:pre; overflow-x:auto;
+  margin:.6rem 0 1rem;
+}
+.g { color:#3fb950; }   /* green */
+.y { color:#d29922; }   /* yellow */
+.r { color:#f85149; }   /* red */
+.b { color:#58a6ff; }   /* blue */
+.d { color:#8b949e; }   /* dim */
+
+/* note / tip callout */
+.note {
+  background:rgba(108,140,255,.08); border:1px solid rgba(108,140,255,.25);
+  border-left:3px solid var(--accent); border-radius:6px;
+  padding:.8rem 1rem; margin:.6rem 0 1rem; font-size:.88rem; color:var(--muted);
+}
+.note strong { color:var(--text); }
+.tip { border-left-color:var(--accent3); background:rgba(52,211,153,.06); }
+
+/* KPI demo grid */
+.kpi-row { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin:1rem 0; }
+.kpi-card {
+  background:var(--surface2); border:1px solid var(--border); border-radius:10px;
+  padding:1rem; text-align:center;
+}
+.kpi-label { font-size:.7rem; color:var(--muted); text-transform:uppercase;
+             letter-spacing:.05em; margin-bottom:.3rem; font-weight:600; }
+.kpi-value { font-size:1.4rem; font-weight:700; }
+
+/* bar demo */
+.bar-demo { background:var(--border); border-radius:8px; height:22px; overflow:hidden;
+            position:relative; margin:.5rem 0; }
+.bar-fill-demo { height:100%; border-radius:8px; display:flex; align-items:center;
+                 padding:0 10px; font-size:.75rem; font-weight:600; color:#fff; }
+
+footer {
+  margin-top:4rem; padding:1.5rem 2rem; border-top:1px solid var(--border);
+  text-align:center; font-size:.8rem; color:var(--muted);
+}
+footer a { color:var(--accent); text-decoration:none; }
+
+@media (max-width:600px) {
+  .kpi-row { grid-template-columns:repeat(2,1fr); }
+  .hero h1 { font-size:1.6rem; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <a class="logo" href="sf-rust-portal.html">sf-rust</a>
+  <span class="sep">/</span>
+  <span class="page-title">os memory — RAM &amp; Swap Dashboard</span>
+  <button class="toggle" onclick="document.documentElement.dataset.theme=document.documentElement.dataset.theme==='light'?'':'light'">☀ / ☾</button>
+  <a class="back" href="sf-rust-portal.html">← Portal</a>
+</header>
+
+<!-- ── HERO ── -->
+<div class="hero">
+  <h1>sfr os <span>memory</span></h1>
+  <p class="sub">RAM and swap usage at a glance — colored pressure bars, GiB display, animated HTML dashboard. Powered by the <code>sysinfo</code> crate. No Node.js, no shell scripts.</p>
+  <div class="badge-row">
+    <span class="badge badge-blue">sysinfo crate</span>
+    <span class="badge badge-green">ASCII pressure bar</span>
+    <span class="badge badge-blue">--json</span>
+    <span class="badge badge-green">--datatable</span>
+    <span class="badge badge-red">swap pressure</span>
+    <span class="badge badge-blue">cross-platform</span>
+  </div>
+</div>
+
+<div class="page">
+
+<!-- ── QUICK START ── -->
+<h2>Quick Start</h2>
+
+<pre><code># Terminal table with colored pressure bars
+sfr os memory
+
+# JSON output (for scripting / piping)
+sfr os memory --json
+
+# Open interactive HTML dashboard in browser
+sfr os memory --datatable</code></pre>
+
+<!-- ── FLAGS ── -->
+<h2>Flags</h2>
+<table class="flags-table">
+  <thead><tr><th>Flag</th><th>Short</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>--json</td><td>-j</td><td>Output as machine-readable JSON (RAM + swap objects with byte counts and percentages)</td></tr>
+    <tr><td>--datatable</td><td></td><td>Generate a self-contained HTML dashboard and open it in your browser. KPI row + animated progress bars + detail tables.</td></tr>
+  </tbody>
+</table>
+
+<!-- ── TERMINAL OUTPUT ── -->
+<h2>Terminal Output</h2>
+
+<p>Two UTF-8 box-drawing tables — one for RAM, one for swap — with color-coded rows:</p>
+<ul style="margin:.4rem 0 1rem 1.4rem; color:var(--muted); font-size:.9rem; line-height:1.9;">
+  <li><span style="color:#3fb950;font-weight:700;">Green</span> — usage below 70 % (healthy)</li>
+  <li><span style="color:#d29922;font-weight:700;">Yellow</span> — usage 70–89 % (watch out)</li>
+  <li><span style="color:#f85149;font-weight:700;">Red</span> — usage ≥ 90 % (pressure)</li>
+</ul>
+
+<div class="output-box">┌───────────┬──────────────────────────────────────┐
+│ <b>Property </b> │ <b>Value                                </b>│
+╞═══════════╪══════════════════════════════════════╡
+│ Total RAM │ 24.00 GiB                            │
+├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ Used      │ <span class="y">16.75 GiB (69%)</span>                     │
+├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ Available │ <span class="g">7.25 GiB (31%)</span>                      │
+├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ Free      │ 7.25 GiB                             │
+├╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ Pressure  │ <span class="y">████████████████████░░░░░░░░░░ 69%</span> │
+└───────────┴──────────────────────────────────────┘
+
+┌──────────┬────────────────────────────────────────┐
+│ <b>Swap    </b> │ <b>Value                                  </b>│
+╞══════════╪════════════════════════════════════════╡
+│ Total    │ 2.00 GiB                               │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ Used     │ <span class="r">1.88 GiB (94%)</span>                       │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ Free     │ 128.0 MiB                              │
+├╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ Pressure │ <span class="r">████████████████████████████░░ 94%</span> │
+└──────────┴────────────────────────────────────────┘</div>
+
+<div class="note"><strong>Swap pressure on macOS:</strong> macOS aggressively compresses pages. High swap usage is normal — the system tries to keep responsive by using swap before evicting pages. Watch the <span class="inline-code">Pressure</span> row: yellow ≥ 70%, red ≥ 90%.</div>
+
+<!-- ── DATATABLE DASHBOARD ── -->
+<h2>--datatable Dashboard</h2>
+
+<p><code class="inline-code">sfr os memory --datatable</code> generates a self-contained HTML file at <code class="inline-code">/tmp/sf-rust-os-memory-&lt;ts&gt;.html</code> and opens it automatically.</p>
+
+<h3>KPI Row</h3>
+
+<div class="kpi-row">
+  <div class="kpi-card">
+    <div class="kpi-label">Total RAM</div>
+    <div class="kpi-value" style="color:var(--accent)">24.00 GiB</div>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:.3rem">Physical memory</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Used</div>
+    <div class="kpi-value" style="color:var(--yellow)">16.75 GiB</div>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:.3rem">69% of total</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Available</div>
+    <div class="kpi-value" style="color:var(--accent3)">7.25 GiB</div>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:.3rem">31% free</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-label">Swap Used</div>
+    <div class="kpi-value" style="color:var(--red)">1.88 GiB</div>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:.3rem">94% of swap total</div>
+  </div>
+</div>
+
+<h3>Animated Pressure Bars</h3>
+<p style="color:var(--muted);font-size:.9rem;margin-bottom:.7rem">Progress bars animate in on page load. Color matches terminal output — green / yellow / red by threshold.</p>
+
+<div style="margin:1rem 0;">
+  <div style="font-size:.78rem;color:var(--muted);margin-bottom:.3rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">RAM Pressure</div>
+  <div class="bar-demo">
+    <div class="bar-fill-demo" style="width:69%;background:#d29922;">69%</div>
+  </div>
+</div>
+<div style="margin:1rem 0;">
+  <div style="font-size:.78rem;color:var(--muted);margin-bottom:.3rem;font-weight:600;text-transform:uppercase;letter-spacing:.05em;">Swap Pressure</div>
+  <div class="bar-demo">
+    <div class="bar-fill-demo" style="width:94%;background:#f85149;">94%</div>
+  </div>
+</div>
+
+<h3>Detail Tables</h3>
+<p style="color:var(--muted);font-size:.9rem;">Two expandable sections — RAM details (Total / Used / Available / Free) and Swap (Total / Used / Free) — rendered as clean tables with color-coded used rows.</p>
+
+<div class="note tip"><strong>Tip:</strong> Click the <code class="inline-code">☀ / ☾</code> toggle in the dashboard header to switch light/dark mode. The preference is NOT persisted (the file is ephemeral).</div>
+
+<!-- ── JSON OUTPUT ── -->
+<h2>JSON Output</h2>
+
+<pre><code>sfr os memory --json</code></pre>
+
+<pre><code>{
+  "status": 0,
+  "result": {
+    "ram": {
+      "total_bytes":     25769803776,
+      "used_bytes":      17993146368,
+      "free_bytes":       7776657408,
+      "available_bytes":  7776657408,
+      "used_pct": 69
+    },
+    "swap": {
+      "total_bytes": 2147483648,
+      "used_bytes":  2013265920,
+      "free_bytes":   134217728,
+      "used_pct": 93
+    }
+  }
+}</code></pre>
+
+<div class="note"><strong>Pipe tip:</strong> Use <code class="inline-code">sfr os memory --json | jq '.result.ram.used_pct'</code> to extract the RAM pressure percentage in scripts or CI health checks.</div>
+
+<!-- ── THRESHOLDS ── -->
+<h2>Pressure Thresholds</h2>
+
+<table class="flags-table">
+  <thead><tr><th>Range</th><th>Color</th><th>ASCII Bar</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td>0–69%</td><td style="color:#3fb950;font-weight:700;">Green</td><td>█ · · ·</td><td>Healthy — plenty of headroom</td></tr>
+    <tr><td>70–89%</td><td style="color:#d29922;font-weight:700;">Yellow</td><td>███ · ·</td><td>Elevated — monitor closely, consider closing tabs/apps</td></tr>
+    <tr><td>≥ 90%</td><td style="color:#f85149;font-weight:700;">Red</td><td>████ ·</td><td>High pressure — system may be swapping heavily</td></tr>
+  </tbody>
+</table>
+
+<!-- ── IMPLEMENTATION ── -->
+<h2>Implementation Notes</h2>
+
+<h3>sysinfo crate</h3>
+<p style="color:var(--muted);font-size:.9rem;margin-bottom:.6rem;">Uses <code class="inline-code">sysinfo = "0.32"</code> with <code class="inline-code">MemoryRefreshKind::everything()</code>. On macOS, <code class="inline-code">available_memory()</code> returns 0 (the OS uses compressed memory and wired pages in ways sysinfo can't expose); the implementation falls back to <code class="inline-code">free_memory()</code> in that case.</p>
+
+<pre><code>// macOS quirk: available_memory() returns 0; fall back to free
+let available = {
+    let a = sys.available_memory();
+    if a > 0 { a } else { sys.free_memory() }
+};</code></pre>
+
+<h3>ASCII Bar</h3>
+<pre><code>fn make_bar(pct: u64, width: usize) -> String {
+    let filled = (pct as usize * width / 100).min(width);
+    let empty  = width - filled;
+    format!("{}{}", "█".repeat(filled), "░".repeat(empty))
+}</code></pre>
+
+<h3>Files</h3>
+<table class="flags-table">
+  <thead><tr><th>File</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>crates/sf-os/src/memory.rs</td><td>Full implementation — <code>memory_cmd()</code>, <code>open_memory_datatable()</code>, <code>MEMORY_HTML</code> template</td></tr>
+    <tr><td>crates/sf-os/src/commands.rs</td><td><code>MemoryArgs</code> struct, <code>OsCommands::Memory</code> variant, dispatch</td></tr>
+    <tr><td>crates/sf-os/src/lib.rs</td><td><code>pub mod memory;</code> declaration</td></tr>
+  </tbody>
+</table>
+
+<!-- ── RELATED ── -->
+<h2>Related Commands</h2>
+
+<table class="flags-table">
+  <thead><tr><th>Command</th><th>What it shows</th></tr></thead>
+  <tbody>
+    <tr><td>sfr os info</td><td>Hostname, OS, CPU model, total memory, uptime</td></tr>
+    <tr><td>sfr os disk</td><td>Disk usage per mount point with visual bars</td></tr>
+    <tr><td>sfr os procs</td><td>Top processes by CPU or memory usage</td></tr>
+    <tr><td>sfr os battery</td><td>Battery level, charge status, time remaining</td></tr>
+    <tr><td>sfr os network</td><td>Network interfaces, IP addresses</td></tr>
+    <tr><td>sfr os servers</td><td>Listening TCP ports with page titles</td></tr>
+  </tbody>
+</table>
+
+<div class="note tip"><strong>Quick health check:</strong>
+<pre style="background:none;border:none;padding:.3rem 0;margin:0;"><code>sfr os memory --json | jq '{ram_pct: .result.ram.used_pct, swap_pct: .result.swap.used_pct}'</code></pre>
+</div>
+
+</div><!-- .page -->
+
+<footer>
+  <p>sf-rust — Native Salesforce CLI in Rust &nbsp;·&nbsp;
+     <a href="sf-rust-portal.html">Portal</a> &nbsp;·&nbsp;
+     <a href="sf-rust-os.html">OS Commands</a> &nbsp;·&nbsp;
+     Author: Mohan Chinnappan</p>
+</footer>
+
+</body>
+</html>
