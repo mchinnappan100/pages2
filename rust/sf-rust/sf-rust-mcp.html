@@ -74,6 +74,8 @@ th{background:var(--bg3);font-weight:600;color:var(--muted);text-transform:upper
   <a href="#usage">Usage</a>
   <a href="#claude-desktop">Claude Desktop</a>
   <a href="#resources">Resources</a>
+  <a href="#subscriptions">Subscriptions</a>
+  <a href="#prompts">Prompts</a>
   <a href="#in-action">In Action</a>
   <a href="#demo">Demo</a>
   <div class="nav-right">
@@ -91,8 +93,10 @@ th{background:var(--bg3);font-weight:600;color:var(--muted);text-transform:upper
     <span class="chip chip-blue">stdio transport</span>
     <span class="chip chip-green">10 tools</span>
     <span class="chip chip-blue">resources</span>
+    <span class="chip chip-green">subscriptions</span>
+    <span class="chip chip-amber">5 prompts</span>
     <span class="chip chip-amber">no key required</span>
-    <span class="badge badge-new">V3</span>
+    <span class="badge badge-new">V5</span>
   </div>
 </div>
 
@@ -131,7 +135,10 @@ th{background:var(--bg3);font-weight:600;color:var(--muted);text-transform:upper
   <tr><td>Server name</td><td colspan="2"><code class="inline">sf-rust</code></td></tr>
   <tr><td>Tools</td><td colspan="2">10 tools (same set on both transports)</td></tr>
   <tr><td>Resources</td><td colspan="2">3 URI templates + dynamic listing for default org</td></tr>
-  <tr><td>Methods</td><td colspan="2"><code class="inline">initialize</code>, <code class="inline">ping</code>, <code class="inline">tools/list</code>, <code class="inline">tools/call</code>, <code class="inline">resources/list</code>, <code class="inline">resources/read</code>, <code class="inline">resources/templates/list</code></td></tr>
+  <tr><td>Subscriptions</td><td>✅ push notifications via <code class="inline">notifications/resources/updated</code></td><td>ACK only (no push)</td></tr>
+  <tr><td>Prompts</td><td colspan="2">5 canned analysis prompts</td></tr>
+  <tr><td>Methods</td><td colspan="2"><code class="inline">initialize</code>, <code class="inline">ping</code>, <code class="inline">tools/list</code>, <code class="inline">tools/call</code>, <code class="inline">resources/list</code>, <code class="inline">resources/read</code>, <code class="inline">resources/templates/list</code>, <code class="inline">resources/subscribe</code>, <code class="inline">resources/unsubscribe</code>, <code class="inline">prompts/list</code>, <code class="inline">prompts/get</code></td></tr>
+  <tr><td>Notifications</td><td><code class="inline">notifications/resources/updated</code> (server→client, no <code class="inline">id</code>)</td><td>—</td></tr>
   <tr><td>Keep-alive</td><td>—</td><td>SSE ping every 15 s</td></tr>
   <tr><td>Timing output</td><td colspan="2">Auto-suppressed</td></tr>
   <tr><td>Server logs</td><td colspan="2">stderr (<code class="inline">[sf-rust mcp] ...</code>)</td></tr>
@@ -324,6 +331,145 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"
   | sfr mcp server 2>/dev/null | sfr json
 </code></pre>
 
+<h2 id="prompts">MCP Prompts (V4)</h2>
+<p>Prompts are canned analysis workflows Claude can discover via <code class="inline">prompts/list</code> and invoke via <code class="inline">prompts/get</code>.
+Each prompt expands into a ready-to-run conversation that calls the right tools automatically.</p>
+
+<div class="tool-card">
+  <div class="tool-name">analyze_org_health</div>
+  <div class="tool-desc">Full health check — calls <code class="inline">org_limits</code>, <code class="inline">audit_log</code>, <code class="inline">org_display</code> and delivers a 🟢/🟡/🔴 rating.</div>
+  <div class="tool-params"><span class="param-name">org</span> <span class="badge badge-required">required</span></div>
+</div>
+
+<div class="tool-card">
+  <div class="tool-name">soql_advisor</div>
+  <div class="tool-desc">Generate a SOQL query from plain English. Optionally uses <code class="inline">schema_describe</code> for exact field names.</div>
+  <div class="tool-params">
+    <span class="param-name">description</span> <span class="badge badge-required">required</span> — e.g. "open Cases by priority created this month"<br>
+    <span class="param-name">org</span> <span class="param-type">optional</span>
+  </div>
+</div>
+
+<div class="tool-card">
+  <div class="tool-name">apex_code_review</div>
+  <div class="tool-desc">Review Apex code for governor limits, security (CRUD/FLS), bulkification, and error handling. Returns findings with severity.</div>
+  <div class="tool-params"><span class="param-name">code</span> <span class="badge badge-required">required</span></div>
+</div>
+
+<div class="tool-card">
+  <div class="tool-name">data_quality_check</div>
+  <div class="tool-desc">Analyze an SObject for null rates, duplicates, and completeness. Flags fields below 90% with ⚠️.</div>
+  <div class="tool-params">
+    <span class="param-name">sobject</span> <span class="badge badge-required">required</span><br>
+    <span class="param-name">org</span> <span class="param-type">optional</span>
+  </div>
+</div>
+
+<div class="tool-card">
+  <div class="tool-name">deploy_checklist</div>
+  <div class="tool-desc">Pre-deploy verification — confirms target org, checks limits headroom, reviews test coverage, and gives a Go / No-Go recommendation.</div>
+  <div class="tool-params">
+    <span class="param-name">directory</span> <span class="badge badge-required">required</span><br>
+    <span class="param-name">org</span> <span class="param-type">optional</span>
+  </div>
+</div>
+
+<h3>Claude Desktop — Prompt Examples</h3>
+
+<p>In Claude Desktop, type <code class="inline">/</code> to open the prompt menu, pick a prompt, fill in the arguments, and Claude runs the full workflow automatically.</p>
+
+<div class="terminal">
+  <div class="terminal-bar">
+    <span class="terminal-dot" style="background:#f85149"></span>
+    <span class="terminal-dot" style="background:#d29922"></span>
+    <span class="terminal-dot" style="background:#3fb950"></span>
+    <span>Prompt: analyze_org_health — org: sf-rust-1</span>
+  </div>
+  <div class="terminal-body">
+<span class="c-blue"><strong>You (via /analyze_org_health):</strong></span> <span class="c-muted">[org: sf-rust-1]</span><br><br>
+<span class="c-green"><strong>Claude:</strong></span> Running health check on <strong>sf-rust-1</strong>…<br><br>
+<span class="c-muted">  [tool: org_limits → sf-rust-1]</span><br>
+<span class="c-muted">  [tool: audit_log  → sf-rust-1, limit: 25]</span><br>
+<span class="c-muted">  [tool: org_display → sf-rust-1]</span><br><br>
+<span class="c-green"><strong>Limits</strong></span><br>
+<span class="c-teal">  DailyApiRequests         12,450 / 15,000  (83%) ⚠️</span><br>
+<span class="c-green">  DataStorageMB            142 / 1,024      (14%) ✓</span><br>
+<span class="c-green">  DailyAsyncApexExecutions 0 / 250,000      (0%)  ✓</span><br><br>
+<span class="c-green"><strong>Recent Setup Changes</strong></span><br>
+<span class="c-yellow">  2026-11-15  mchinnappan@salesforce.com  Changed Profile — System Administrator</span><br>
+<span class="c-muted">  2026-11-14  mchinnappan@salesforce.com  Created Apex Class — AccountTrigger</span><br><br>
+<span class="c-green"><strong>Connection</strong></span><br>
+<span class="c-teal">  Instance URL: https://sf-rust-1.my.salesforce.com  |  API v62.0  |  Token valid</span><br><br>
+<span class="c-yellow"><strong>Overall: 🟡 Warning</strong></span> — DailyApiRequests at 83%. Consider caching repeated queries or batching API calls.
+  </div>
+</div>
+
+<div class="terminal">
+  <div class="terminal-bar">
+    <span class="terminal-dot" style="background:#f85149"></span>
+    <span class="terminal-dot" style="background:#d29922"></span>
+    <span class="terminal-dot" style="background:#3fb950"></span>
+    <span>Prompt: soql_advisor — description: "open Cases by priority created this month"</span>
+  </div>
+  <div class="terminal-body">
+<span class="c-blue"><strong>You (via /soql_advisor):</strong></span> <span class="c-muted">[description: open Cases by priority created this month, org: sf-rust-1]</span><br><br>
+<span class="c-green"><strong>Claude:</strong></span> <br>
+<span class="c-muted">  [tool: schema_describe → Case, sf-rust-1]</span><br><br>
+<span class="c-green">Here is the query:</span><br><br>
+<span class="c-purple">SELECT Priority, COUNT(Id) TotalCases</span><br>
+<span class="c-purple">FROM   Case</span><br>
+<span class="c-purple">WHERE  IsClosed = false</span><br>
+<span class="c-purple">  AND  CreatedDate = THIS_MONTH</span><br>
+<span class="c-purple">GROUP BY Priority</span><br>
+<span class="c-purple">ORDER BY COUNT(Id) DESC</span><br><br>
+<span class="c-muted">  Priority    — groups results by Case.Priority (Critical / High / Medium / Low)</span><br>
+<span class="c-muted">  IsClosed    — filters to open cases only</span><br>
+<span class="c-muted">  THIS_MONTH  — dynamic date literal; no hard-coded dates needed</span><br>
+<span class="c-muted">  GROUP BY    — one row per priority level</span><br>
+<span class="c-muted">  ORDER BY    — highest-volume priority first</span>
+  </div>
+</div>
+
+<div class="terminal">
+  <div class="terminal-bar">
+    <span class="terminal-dot" style="background:#f85149"></span>
+    <span class="terminal-dot" style="background:#d29922"></span>
+    <span class="terminal-dot" style="background:#3fb950"></span>
+    <span>Prompt: deploy_checklist — directory: force-app, org: sf-rust-1</span>
+  </div>
+  <div class="terminal-body">
+<span class="c-blue"><strong>You (via /deploy_checklist):</strong></span> <span class="c-muted">[directory: force-app, org: sf-rust-1]</span><br><br>
+<span class="c-green"><strong>Claude:</strong></span> Pre-deploy check for <code>force-app</code> → <strong>sf-rust-1</strong><br><br>
+<span class="c-muted">  [tool: org_display → sf-rust-1]</span><br>
+<span class="c-muted">  [tool: org_limits  → sf-rust-1]</span><br><br>
+<span class="c-green">✅ Target org confirmed:</span> sf-rust-1 (trailsignup.2cd6e3b4cbaa49@salesforce.com) — not a production org.<br>
+<span class="c-green">✅ Deploy limits OK:</span> ActiveScratchOrgs 0/6, AsyncApexExecutions 0/250,000.<br>
+<span class="c-yellow">⚠️  DailyApiRequests 83% used</span> — deploy itself won't consume API requests, but post-deploy smoke tests might hit the ceiling.<br>
+<span class="c-yellow">⚠️  Test coverage:</span> Do you have <code>@isTest</code> classes covering every new Apex class in <code>force-app</code>? Deploy to production requires ≥75% coverage.<br><br>
+<span class="c-muted">  Rollback plan: metadata deploy failures auto-rollback. For partial successes use</span><br>
+<span class="c-muted">  <code>sfr metadata deploy -d force-app -o sf-rust-1</code> with <code>--check-only</code> first.</span><br><br>
+<span class="c-yellow"><strong>Verdict: 🟡 Conditional Go</strong></span> — confirm test coverage, then deploy.
+  </div>
+</div>
+
+<h3>Test prompts from the terminal</h3>
+<pre><code># List available prompts
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"prompts/list","params":{}}\n' \
+  | sfr mcp server 2>/dev/null | sfr json
+
+# Get the org health prompt for sf-rust-1
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"prompts/get","params":{"name":"analyze_org_health","arguments":{"org":"sf-rust-1"}}}\n' \
+  | sfr mcp server 2>/dev/null | sfr json -q ".result.messages[0].content.text" --raw
+
+# Get the SOQL advisor prompt
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"prompts/get","params":{"name":"soql_advisor","arguments":{"description":"open Cases by priority","org":"sf-rust-1"}}}\n' \
+  | sfr mcp server 2>/dev/null | sfr json
+</code></pre>
+
+<div class="tip">
+  In Claude Desktop, prompts appear in the <strong>/</strong> slash-command menu. Type <code class="inline">/</code> in the input box to see all available prompts from connected MCP servers.
+</div>
+
 <h2 id="in-action">Claude Desktop in Action</h2>
 <p>Real screenshots from Claude Desktop connected to <code class="inline">sfr mcp server</code> via the <code class="inline">sfr-salesforce</code> MCP server on a mac-mini.</p>
 
@@ -404,13 +550,17 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"
   <div class="terminal-body">
 <span class="c-muted">$ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' \</span><br>
 <span class="c-muted">    | sfr mcp server -o sf-rust-1 2>/dev/null | sfr json</span><br><br>
-<span class="c-purple">[sf-rust mcp] stdio server started (MCP 2024-11-05)</span><br>
+<span class="c-purple">[sf-rust mcp] stdio server started (MCP 2024-11-05, subscriptions enabled)</span><br>
 <span class="c-green">{</span><br>
 <span class="c-green">  "jsonrpc": "2.0",</span><br>
 <span class="c-green">  "id": 1,</span><br>
 <span class="c-green">  "result": {</span><br>
 <span class="c-green">    "protocolVersion": "2024-11-05",</span><br>
-<span class="c-green">    "capabilities": { "tools": {} },</span><br>
+<span class="c-green">    "capabilities": {</span><br>
+<span class="c-green">      "tools": {},</span><br>
+<span class="c-green">      "resources": { "subscribe": true },</span><br>
+<span class="c-green">      "prompts": {}</span><br>
+<span class="c-green">    },</span><br>
 <span class="c-green">    "serverInfo": {</span><br>
 <span class="c-green">      "name": "sf-rust",</span><br>
 <span class="c-green">      "version": "0.4.0"</span><br>
@@ -456,7 +606,7 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"
 <span class="c-green">  "id": 1,</span><br>
 <span class="c-green">  "result": {</span><br>
 <span class="c-green">    "protocolVersion": "2024-11-05",</span><br>
-<span class="c-green">    "capabilities": { "tools": {} },</span><br>
+<span class="c-green">    "capabilities": { "tools": {}, "resources": { "subscribe": true }, "prompts": {} },</span><br>
 <span class="c-green">    "serverInfo": { "name": "sf-rust", "version": "0.4.0" }</span><br>
 <span class="c-green">  }</span><br>
 <span class="c-green">}</span>
@@ -493,11 +643,67 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"
   The HTTP/SSE transport is ideal for shared servers (CI, staging) where you can't spawn a local process. The SSE transport protocol: Claude connects to <code class="inline">GET /sse</code>, receives an <code class="inline">endpoint</code> event, then POSTs each JSON-RPC request to <code class="inline">/message?sessionId=&lt;id&gt;</code>. Responses arrive as <code class="inline">message</code> SSE events on the same stream.
 </div>
 
-<h2>What's next — V4</h2>
-<p>V4 will add <strong>resource subscriptions</strong> (<code class="inline">resources/subscribe</code> + change notifications) and <strong>prompts</strong> — canned Salesforce analysis prompts Claude can discover and invoke.</p>
-<pre><code># V4 — prompts + subscriptions (planned)
-sfr mcp server -o dev1  # will expose prompts/list, prompts/get
+<h2 id="subscriptions">MCP Resource Subscriptions (V5)</h2>
+<p>V5 adds <strong>live change notifications</strong> to the stdio MCP server.
+Claude Desktop can subscribe to any resource URI — the server polls it every 30 seconds and pushes
+a <code class="inline">notifications/resources/updated</code> notification when the content changes.</p>
+
+<table>
+  <tr><th>Method</th><th>Direction</th><th>Description</th></tr>
+  <tr><td><code class="inline">resources/subscribe</code></td><td>client → server</td><td>Subscribe to a resource URI; server begins polling every 30 s</td></tr>
+  <tr><td><code class="inline">resources/unsubscribe</code></td><td>client → server</td><td>Cancel a subscription; polling task exits</td></tr>
+  <tr><td><code class="inline">notifications/resources/updated</code></td><td>server → client</td><td>Push notification when resource content changes (no <code class="inline">id</code> field)</td></tr>
+</table>
+
+<div class="tip">
+  <strong>How it works (stdio):</strong>
+  The <code class="inline">run_mcp_server()</code> loop uses <code class="inline">tokio::select!</code> between a dedicated stdin-reader task and an outbound notification channel.
+  On subscribe, an FNV-1a hash of the resource content is stored; a background tokio task sleeps 30 s, re-fetches,
+  compares hashes, and sends a notification if changed. Unsubscribe removes the URI from the hash map; the poller exits on its next tick.
+  <br>
+  <strong>HTTP/SSE transport</strong> acknowledges subscribe/unsubscribe with <code>{"result":{}}</code> but does not currently push notifications.
+</div>
+
+<div class="warn">
+  <strong>Capability declaration:</strong> <code class="inline">initialize</code> now returns
+  <code class="inline">"resources": { "subscribe": true }</code> so MCP clients know subscriptions are supported.
+</div>
+
+<h3>Test subscriptions from the terminal</h3>
+<pre><code># Subscribe to org limits, wait for a notification (simulate by changing org activity)
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"resources/subscribe","params":{"uri":"salesforce://org/dev1/limits"}}\n' \
+  | sfr mcp server -o dev1 2>/dev/null | sfr json
+
+# The notification the server pushes when limits change:
+# {"jsonrpc":"2.0","method":"notifications/resources/updated","params":{"uri":"salesforce://org/dev1/limits"}}
+# Note: no "id" field — it is a notification, not a request.
+
+# Unsubscribe
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"resources/subscribe","params":{"uri":"salesforce://orgs"}}\n{"jsonrpc":"2.0","id":3,"method":"resources/unsubscribe","params":{"uri":"salesforce://orgs"}}\n' \
+  | sfr mcp server 2>/dev/null | sfr json
 </code></pre>
+
+<div class="terminal">
+  <div class="terminal-bar">
+    <span class="terminal-dot" style="background:#f85149"></span>
+    <span class="terminal-dot" style="background:#d29922"></span>
+    <span class="terminal-dot" style="background:#3fb950"></span>
+    <span>Claude Desktop — resource subscription flow</span>
+  </div>
+  <div class="terminal-body">
+<span class="c-blue"><strong>You:</strong></span> Watch my org limits and let me know if anything critical changes.<br><br>
+<span class="c-green"><strong>Claude:</strong></span> I'll subscribe to your org limits resource and notify you if anything changes.<br><br>
+<span class="c-muted">  [MCP: resources/subscribe → salesforce://org/dev1/limits]</span><br>
+<span class="c-green">  ✅ Subscribed. Watching <strong>salesforce://org/dev1/limits</strong> for changes (checked every 30 s).</span><br><br>
+<span class="c-muted">  ... 2 minutes later: org runs a large data load, DailyApiRequests jumps to 94% ...</span><br><br>
+<span class="c-purple">  [server → notifications/resources/updated]</span><br>
+<span class="c-muted">  → {"jsonrpc":"2.0","method":"notifications/resources/updated","params":{"uri":"salesforce://org/dev1/limits"}}</span><br><br>
+<span class="c-green"><strong>Claude:</strong></span> ⚠️ Org limits have changed on <strong>dev1</strong>.<br>
+<span class="c-muted">  [MCP: resources/read → salesforce://org/dev1/limits]</span><br><br>
+<span class="c-red"><strong>DailyApiRequests: 94% 🔴</strong></span> — was 83%, now critical. Immediate attention recommended.<br>
+Consider pausing background integrations or contacting Salesforce to increase the limit.
+  </div>
+</div>
 
 </div><!-- .page -->
 <script>
