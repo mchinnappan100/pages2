@@ -88,9 +88,9 @@ th{background:var(--bg3);font-weight:600;color:var(--muted);text-transform:upper
   <div style="margin-top:1rem">
     <span class="chip chip-purple">MCP 2024-11-05</span>
     <span class="chip chip-blue">stdio transport</span>
-    <span class="chip chip-green">7 tools</span>
+    <span class="chip chip-green">10 tools</span>
     <span class="chip chip-amber">no key required</span>
-    <span class="badge badge-new">V1</span>
+    <span class="badge badge-new">V2</span>
   </div>
 </div>
 
@@ -120,14 +120,18 @@ th{background:var(--bg3);font-weight:600;color:var(--muted);text-transform:upper
 
 <h2 id="protocol">Protocol Details</h2>
 <table>
-  <tr><th>Property</th><th>Value</th></tr>
-  <tr><td>Transport</td><td>stdio (stdin/stdout, line-delimited JSON)</td></tr>
-  <tr><td>Protocol</td><td>MCP 2024-11-05 / JSON-RPC 2.0</td></tr>
-  <tr><td>Server name</td><td><code class="inline">sf-rust</code></td></tr>
-  <tr><td>Capabilities</td><td><code class="inline">tools</code></td></tr>
-  <tr><td>Methods supported</td><td><code class="inline">initialize</code>, <code class="inline">ping</code>, <code class="inline">tools/list</code>, <code class="inline">tools/call</code></td></tr>
-  <tr><td>Timing output</td><td>Suppressed automatically (stdout is the wire)</td></tr>
-  <tr><td>Server logs</td><td>stderr (<code class="inline">[sf-rust mcp] ...</code> prefix)</td></tr>
+  <tr><th>Property</th><th>stdio (V1+)</th><th>HTTP/SSE (V2)</th></tr>
+  <tr><td>Command</td><td><code class="inline">sfr mcp server -o dev1</code></td><td><code class="inline">sfr mcp serve-http --port 3100 -o dev1</code></td></tr>
+  <tr><td>Transport</td><td>stdin/stdout, line-delimited JSON</td><td>HTTP POST + Server-Sent Events</td></tr>
+  <tr><td>Protocol</td><td colspan="2">MCP 2024-11-05 / JSON-RPC 2.0</td></tr>
+  <tr><td>SSE endpoint</td><td>—</td><td><code class="inline">GET /sse</code> → sends <code class="inline">endpoint</code> event</td></tr>
+  <tr><td>Message endpoint</td><td>—</td><td><code class="inline">POST /message?sessionId=&lt;id&gt;</code> → 202</td></tr>
+  <tr><td>Server name</td><td colspan="2"><code class="inline">sf-rust</code></td></tr>
+  <tr><td>Tools</td><td colspan="2">10 tools (same set on both transports)</td></tr>
+  <tr><td>Methods</td><td colspan="2"><code class="inline">initialize</code>, <code class="inline">ping</code>, <code class="inline">tools/list</code>, <code class="inline">tools/call</code></td></tr>
+  <tr><td>Keep-alive</td><td>—</td><td>SSE ping every 15 s</td></tr>
+  <tr><td>Timing output</td><td colspan="2">Auto-suppressed</td></tr>
+  <tr><td>Server logs</td><td colspan="2">stderr (<code class="inline">[sf-rust mcp] ...</code>)</td></tr>
 </table>
 
 <h2 id="tools">Available Tools</h2>
@@ -190,14 +194,46 @@ th{background:var(--bg3);font-weight:600;color:var(--muted);text-transform:upper
   </div>
 </div>
 
+<div class="tool-card">
+  <div class="tool-name">schema_describe</div>
+  <div class="tool-desc">List all fields on a Salesforce SObject — QualifiedApiName, Label, DataType, Length.</div>
+  <div class="tool-params">
+    <span class="param-name">sobject</span> <span class="badge badge-required">required</span> <span class="param-type">string</span> — SObject API name, e.g. <code class="inline">Account</code><br>
+    <span class="param-name">org</span> <span class="param-type">string, optional</span>
+  </div>
+</div>
+
+<div class="tool-card">
+  <div class="tool-name">audit_log</div>
+  <div class="tool-desc">Retrieve recent Salesforce Setup Audit Trail entries — who changed what in Setup.</div>
+  <div class="tool-params">
+    <span class="param-name">limit</span> <span class="param-type">integer, optional</span> — max entries (default 25, max 2000)<br>
+    <span class="param-name">org</span> <span class="param-type">string, optional</span>
+  </div>
+</div>
+
+<div class="tool-card">
+  <div class="tool-name">org_limits</div>
+  <div class="tool-desc">Show Salesforce org API limits and current usage — API calls, storage, batch jobs, and more.</div>
+  <div class="tool-params">
+    <span class="param-name">org</span> <span class="param-type">string, optional</span>
+  </div>
+</div>
+
 <h2 id="usage">Usage</h2>
 
 <h3>Start the server (manual test)</h3>
-<pre><code># default org is dev1 for all tool calls
+<pre><code># stdio server — default org for all tool calls
 sfr mcp server -o dev1
 
 # no default org — each tool call must pass org explicitly
 sfr mcp server
+
+# HTTP/SSE server — remote access on port 3100
+sfr mcp serve-http --port 3100 -o dev1
+
+# HTTP/SSE server — custom port, no default org
+sfr mcp serve-http --port 8080
 </code></pre>
 
 <h3>Test with raw JSON-RPC from the terminal</h3>
@@ -394,18 +430,40 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"
 </div>
 
 <h2>Flags</h2>
+<h3>sfr mcp server</h3>
 <table>
   <tr><th>Flag</th><th>Short</th><th>Default</th><th>Description</th></tr>
   <tr><td><code class="inline">--target-org</code></td><td><code class="inline">-o</code></td><td>—</td><td>Default org alias for all tool calls; tool <code class="inline">org</code> argument overrides this</td></tr>
   <tr><td><code class="inline">--help</code></td><td><code class="inline">-h</code></td><td>—</td><td>Print help</td></tr>
 </table>
+<h3>sfr mcp serve-http</h3>
+<table>
+  <tr><th>Flag</th><th>Short</th><th>Default</th><th>Description</th></tr>
+  <tr><td><code class="inline">--port</code></td><td><code class="inline">-p</code></td><td>3100</td><td>TCP port to listen on</td></tr>
+  <tr><td><code class="inline">--target-org</code></td><td><code class="inline">-o</code></td><td>—</td><td>Default org alias for all tool calls</td></tr>
+  <tr><td><code class="inline">--help</code></td><td><code class="inline">-h</code></td><td>—</td><td>Print help</td></tr>
+</table>
 
-<h2>What's next — V2 (HTTP/SSE)</h2>
-<p>V2 will add an <strong>HTTP + Server-Sent Events transport</strong> for use cases where spawning a process is not possible (remote servers, cloud deployments):</p>
-<pre><code># V2 — HTTP transport (planned)
-sfr mcp serve-http --port 3100 -o dev1
+<h3>HTTP/SSE config for Claude Desktop</h3>
+<p>When running <code class="inline">sfr mcp serve-http</code> on a remote host you can point Claude Desktop at it over HTTP:</p>
+<pre><code>{
+  "mcpServers": {
+    "sfr-salesforce": {
+      "url": "http://your-host:3100/sse"
+    }
+  }
+}
 </code></pre>
-<p>V2 will also add <strong>resource support</strong> (org schema, metadata list) and additional tools (sysone classify, schema describe, audit log).</p>
+
+<div class="tip">
+  The HTTP/SSE transport is ideal for shared servers (CI, staging) where you can't spawn a local process. The SSE transport protocol: Claude connects to <code class="inline">GET /sse</code>, receives an <code class="inline">endpoint</code> event, then POSTs each JSON-RPC request to <code class="inline">/message?sessionId=&lt;id&gt;</code>. Responses arrive as <code class="inline">message</code> SSE events on the same stream.
+</div>
+
+<h2>What's next — V3</h2>
+<p>V3 will add <strong>MCP resources</strong> (org schema, metadata list exposed as browsable resources) and streaming tool results for long-running operations like deploys.</p>
+<pre><code># V3 — resource support (planned)
+sfr mcp server -o dev1  # will expose resources/list, resources/read
+</code></pre>
 
 </div><!-- .page -->
 <script>
