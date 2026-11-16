@@ -200,18 +200,23 @@ sfr mcp server
 </code></pre>
 
 <h3>Test with raw JSON-RPC from the terminal</h3>
-<pre><code># Initialize handshake
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
-  | sfr mcp server 2>/dev/null
-
-# List tools
+<pre><code># sfr json auto-detects NDJSON — works for single or multiple responses
 printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' \
-  | sfr mcp server 2>/dev/null
+  | sfr mcp server -o sf-rust-1 2>/dev/null | sfr json
 
-# Call query_soql tool
+# Query across all responses — extract .result.protocolVersion from each object
+printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' \
+  | sfr mcp server 2>/dev/null | sfr json -q ".result.protocolVersion"
+
+# Or use jq — both work identically for NDJSON
 printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"query_soql","arguments":{"soql":"SELECT Id, Name FROM Account LIMIT 5","org":"dev1"}}}\n' \
-  | sfr mcp server 2>/dev/null
+  | sfr mcp server -o dev1 2>/dev/null | jq
 </code></pre>
+
+<div class="tip">
+  <strong>sfr json handles NDJSON:</strong> <code class="inline">sfr json</code> auto-detects NDJSON — it tries single-JSON first; if that fails it processes each line as a separate object, exactly like <code class="inline">jq</code>.
+  Queries (<code class="inline">-q</code>), <code class="inline">--minify</code>, <code class="inline">--keys</code>, and <code class="inline">--raw</code> all apply per-object across the full stream.
+</div>
 
 <h2 id="claude-desktop">Claude Desktop Integration</h2>
 <p>Add this to your <code class="inline">claude_desktop_config.json</code> (macOS: <code class="inline">~/Library/Application Support/Claude/claude_desktop_config.json</code>):</p>
@@ -273,55 +278,72 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"
   </div>
 </div>
 
-<h2 id="demo">Protocol Demo</h2>
-<h3>initialize response</h3>
+<h2 id="demo">Live Demo</h2>
+<h3>initialize + tools/list (real output with jq)</h3>
 <div class="terminal">
   <div class="terminal-bar">
     <span class="terminal-dot" style="background:#f85149"></span>
     <span class="terminal-dot" style="background:#d29922"></span>
     <span class="terminal-dot" style="background:#3fb950"></span>
-    <span>MCP wire — initialize</span>
+    <span>sfr mcp server -o sf-rust-1 | jq</span>
   </div>
   <div class="terminal-body">
-<span class="c-muted">→ stdin:</span>  <span class="c-blue">{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}</span><br><br>
-<span class="c-muted">← stdout:</span> <span class="c-green">{</span><br>
+<span class="c-muted">$ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' \</span><br>
+<span class="c-muted">    | sfr mcp server -o sf-rust-1 | jq</span><br><br>
+<span class="c-purple">[sf-rust mcp] stdio server started (MCP 2024-11-05)</span><br>
+<span class="c-green">{</span><br>
+<span class="c-green">  "jsonrpc": "2.0",</span><br>
+<span class="c-green">  "id": 1,</span><br>
+<span class="c-green">  "result": {</span><br>
+<span class="c-green">    "protocolVersion": "2024-11-05",</span><br>
+<span class="c-green">    "capabilities": { "tools": {} },</span><br>
+<span class="c-green">    "serverInfo": {</span><br>
+<span class="c-green">      "name": "sf-rust",</span><br>
+<span class="c-green">      "version": "0.4.0"</span><br>
+<span class="c-green">    }</span><br>
+<span class="c-green">  }</span><br>
+<span class="c-green">}</span><br>
+<span class="c-purple">[sf-rust mcp] stdin closed — server exiting</span><br>
+<span class="c-green">{</span><br>
+<span class="c-green">  "jsonrpc": "2.0",</span><br>
+<span class="c-green">  "id": 2,</span><br>
+<span class="c-green">  "result": {</span><br>
+<span class="c-green">    "tools": [</span><br>
+<span class="c-green">      { "name": <span class="c-yellow">"query_soql"</span>, "description": "Run a SOQL query against Salesforce and return all matching records as JSON.", ... },</span><br>
+<span class="c-green">      { "name": <span class="c-yellow">"org_display"</span>, "description": "Show details for a connected Salesforce org: instance URL, username, API version, expiry.", ... },</span><br>
+<span class="c-green">      { "name": <span class="c-yellow">"org_list"</span>, "description": "List all locally authenticated Salesforce orgs.", ... },</span><br>
+<span class="c-green">      { "name": <span class="c-yellow">"apex_execute"</span>, "description": "Execute an anonymous Apex script in a Salesforce org and return the debug log.", ... },</span><br>
+<span class="c-green">      { "name": <span class="c-yellow">"apex_get_log"</span>, "description": "Retrieve the most recent Apex debug log from a Salesforce org.", ... },</span><br>
+<span class="c-green">      { "name": <span class="c-yellow">"deploy_metadata"</span>, "description": "Deploy a local Salesforce metadata directory to an org using the Metadata API.", ... },</span><br>
+<span class="c-green">      { "name": <span class="c-yellow">"sysone_parse_email"</span>, "description": "Classify an email using System-One structured inference: category, urgency, requires_action, is_automated.", ... }</span><br>
+<span class="c-green">    ]</span><br>
+<span class="c-green">  }</span><br>
+<span class="c-green">}</span>
+  </div>
+</div>
+
+<div class="tip">
+  <strong>stderr vs stdout:</strong> <code class="inline">[sf-rust mcp]</code> log lines go to <strong>stderr</strong> — they appear in the terminal but are never on the MCP wire. Claude Desktop captures only stdout (JSON-RPC). To suppress them: <code class="inline">2&gt;/dev/null</code>.
+</div>
+
+<h3>sfr json — NDJSON auto-detect (no jq needed)</h3>
+<div class="terminal">
+  <div class="terminal-bar">
+    <span class="terminal-dot" style="background:#f85149"></span>
+    <span class="terminal-dot" style="background:#d29922"></span>
+    <span class="terminal-dot" style="background:#3fb950"></span>
+    <span>sfr json handles both single JSON and NDJSON</span>
+  </div>
+  <div class="terminal-body">
+<span class="c-muted">$ printf '...initialize...\n...tools/list...\n' \</span><br>
+<span class="c-muted">    | sfr mcp server 2&gt;/dev/null | sfr json   # ✓ NDJSON auto-detected</span><br><br>
+<span class="c-green">{</span><br>
 <span class="c-green">  "jsonrpc": "2.0",</span><br>
 <span class="c-green">  "id": 1,</span><br>
 <span class="c-green">  "result": {</span><br>
 <span class="c-green">    "protocolVersion": "2024-11-05",</span><br>
 <span class="c-green">    "capabilities": { "tools": {} },</span><br>
 <span class="c-green">    "serverInfo": { "name": "sf-rust", "version": "0.4.0" }</span><br>
-<span class="c-green">  }</span><br>
-<span class="c-green">}</span>
-  </div>
-</div>
-
-<h3>tools/call — query_soql</h3>
-<div class="terminal">
-  <div class="terminal-bar">
-    <span class="terminal-dot" style="background:#f85149"></span>
-    <span class="terminal-dot" style="background:#d29922"></span>
-    <span class="terminal-dot" style="background:#3fb950"></span>
-    <span>MCP wire — tools/call</span>
-  </div>
-  <div class="terminal-body">
-<span class="c-muted">→ stdin:</span><br>
-<span class="c-blue">{</span><br>
-<span class="c-blue">  "jsonrpc": "2.0", "id": 3, "method": "tools/call",</span><br>
-<span class="c-blue">  "params": {</span><br>
-<span class="c-blue">    "name": "query_soql",</span><br>
-<span class="c-blue">    "arguments": {</span><br>
-<span class="c-blue">      "soql": "SELECT Id, Name FROM Account LIMIT 3",</span><br>
-<span class="c-blue">      "org": "dev1"</span><br>
-<span class="c-blue">    }</span><br>
-<span class="c-blue">  }</span><br>
-<span class="c-blue">}</span><br><br>
-<span class="c-muted">← stdout:</span><br>
-<span class="c-green">{</span><br>
-<span class="c-green">  "jsonrpc": "2.0", "id": 3,</span><br>
-<span class="c-green">  "result": {</span><br>
-<span class="c-green">    "content": [{"type":"text","text":"{\"status\":0,\"result\":{\"records\":[...]}}"}],</span><br>
-<span class="c-green">    "isError": false</span><br>
 <span class="c-green">  }</span><br>
 <span class="c-green">}</span>
   </div>
