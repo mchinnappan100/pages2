@@ -75,6 +75,7 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   <a href="#export">export</a>
   <a href="#translate">translate</a>
   <a href="#ai-translate">ai-translate</a>
+  <a href="#deploy">deploy</a>
   <a href="#workflow">Workflow</a>
   <div class="nav-right">
     <button class="theme-btn" onclick="toggleTheme()">☀ / 🌙</button>
@@ -92,6 +93,7 @@ footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--border);tex
   <div class="hero-stat"><div class="num">📤</div><div class="lbl">export</div></div>
   <div class="hero-stat"><div class="num">🌐</div><div class="lbl">translate</div></div>
   <div class="hero-stat"><div class="num">🤖</div><div class="lbl">ai-translate</div></div>
+  <div class="hero-stat"><div class="num">🚀</div><div class="lbl">deploy</div></div>
 </div>
 
 <p>Custom Labels live in the <code>ExternalString</code> SOQL object and can be queried over the standard REST API — no Tooling API, no SOAP. sf-rust fetches them all via <code>query_all()</code> (pagination-safe) and renders them in table, CSV, JSON, or interactive datatable form.</p>
@@ -268,6 +270,38 @@ Custom Label: Action_already_inprogress_for_x_on_y
 
 <div class="warn"><strong>Prerequisite:</strong> Ollama must be running locally (<code>ollama serve</code>) and the chosen model must be pulled (<code>ollama pull llama3.2</code>).</div>
 
+<!-- ═══════════════════════════════════════════ DEPLOY ════════════════════════ -->
+<a id="deploy" class="section-anchor"></a>
+<h2>🚀 sfr custom-label deploy</h2>
+<p>Package translated labels as a <code>CustomLabels</code> metadata ZIP and deploy (or validate) via the SOAP Metadata API. Accepts the CSV output of <code>ai-translate</code> directly.</p>
+
+<h3>Usage</h3>
+<div class="code-block"><span class="cmd">sfr custom-label deploy</span> <span class="f">-o</span> <span class="v">dev1</span> <span class="f">--csv</span> <span class="v">fr_labels.csv</span>
+<span class="cmd">sfr custom-label deploy</span> <span class="f">-o</span> <span class="v">dev1</span> <span class="f">--csv</span> <span class="v">fr_labels.csv</span> <span class="f">--check-only</span>  <span class="c"># validate only</span>
+<span class="cmd">sfr custom-label deploy</span> <span class="f">-o</span> <span class="v">dev1</span> <span class="f">--json-file</span> <span class="v">labels.json</span>
+<span class="cmd">sfr custom-label deploy</span> <span class="f">-o</span> <span class="v">dev1</span> <span class="f">--csv</span> <span class="v">fr_labels.csv</span> <span class="f">--json</span>       <span class="c"># JSON result</span></div>
+
+<div class="term">
+  <div class="term-bar"><div class="term-dot r"></div><div class="term-dot y"></div><div class="term-dot g"></div></div>
+  <div class="term-body"><span class="t-p">$</span> sfr custom-label deploy -o dev1 --csv fr_labels.csv
+<span class="t-m">⠴ Deploying 42 custom label(s)…</span>
+<span class="t-m">⠴ Deploy ID: 0Af5g00000xxxxxx — polling…</span>
+<span class="t-m">⠴ Status: InProgress (20/42)</span>
+<span class="t-m">⠴ Status: InProgress (42/42)</span>
+  Deployed 42 label(s) successfully. (Job: 0Af5g00000xxxxxx)</span></div>
+</div>
+
+<h3>Options</h3>
+<table>
+  <tr><th>Flag</th><th>Description</th></tr>
+  <tr><td><code>--csv &lt;FILE&gt;</code></td><td>CSV file — columns: Name, MasterLabel, Value, Language, Category, IsProtected</td></tr>
+  <tr><td><code>--json-file &lt;FILE&gt;</code></td><td>JSON file — array of label objects or <code>{"records": [...]}</code></td></tr>
+  <tr><td><code>--check-only</code></td><td>Validate deploy without saving to the org</td></tr>
+  <tr><td><code>--json</code></td><td>Output the deploy result as JSON</td></tr>
+</table>
+
+<div class="tip"><strong>What gets deployed:</strong> sf-rust builds a standard Salesforce deployment ZIP containing <code>package.xml</code> (CustomLabel type, members: *) and <code>labels/CustomLabels.labels-meta.xml</code>, then submits it via the SOAP Metadata API and polls until completion.</div>
+
 <!-- ═══════════════════════════════════════════ WORKFLOW ════════════════════════ -->
 <a id="workflow" class="section-anchor"></a>
 <h2>🔄 End-to-end Translation Workflow</h2>
@@ -277,11 +311,13 @@ Custom Label: Action_already_inprogress_for_x_on_y
     <li><span class="step">Export source labels</span> — export all <code>en_US</code> labels to a CSV baseline:<br>
       <code>sfr custom-label export -o dev1 --lang en_US --csv labels_en.csv</code></li>
     <li><span class="step">AI-translate</span> — generate a translated CSV using Ollama:<br>
-      <code>sfr custom-label ai-translate -o dev1 --to fr --model llama3.2 --csv labels_fr.csv</code></li>
-    <li><span class="step">Review</span> — open in a datatable to spot-check the translations:<br>
-      <code>sfr file view labels_fr.csv</code></li>
-    <li><span class="step">Deploy</span> — package the translated labels into your metadata and deploy:<br>
-      <code>sfr metadata deploy -d force-app -o dev1</code></li>
+      <code>sfr custom-label ai-translate -o dev1 --to fr-CA --model llama3.2:latest --csv labels_fr.csv</code></li>
+    <li><span class="step">Spot-check</span> — review translations in a browser datatable:<br>
+      <code>sfr custom-label ai-translate -o dev1 --to fr-CA --limit 5 --datatable</code></li>
+    <li><span class="step">Validate</span> — dry-run the deploy without saving:<br>
+      <code>sfr custom-label deploy -o dev1 --csv labels_fr.csv --check-only</code></li>
+    <li><span class="step">Deploy</span> — push translated labels to the org via Metadata API:<br>
+      <code>sfr custom-label deploy -o dev1 --csv labels_fr.csv</code></li>
   </ol>
 </div>
 
