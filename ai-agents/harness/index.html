@@ -1,0 +1,818 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="A practical guide to AI Agent Harness architecture, agent loops, tools, memory, safety, observability and Rust implementation.">
+<link rel="icon" type="image/x-icon" href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico" />
+<title>AI Agent Harness | From LLM to Autonomous Agent</title>
+
+<style>
+:root {
+  --bg: #f4f7fc;
+  --surface: #ffffff;
+  --ink: #172b4d;
+  --muted: #61718a;
+  --blue: #1455a3;
+  --navy: #102d50;
+  --cyan: #dceeff;
+  --green: #16865c;
+  --border: #dce4ef;
+  --shadow: 0 8px 30px rgba(20,50,90,.07);
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  line-height: 1.7;
+}
+a { color: var(--blue); }
+header {
+  background: linear-gradient(130deg,#102b4b,#1455a3);
+  color: white;
+  padding: 58px 20px 48px;
+  text-align: center;
+}
+header h1 {
+  font-size: clamp(2.3rem,6vw,4rem);
+  line-height: 1.15;
+  margin: 0;
+}
+header p {
+  max-width: 780px;
+  margin: 18px auto;
+  color: #d9eaff;
+  font-size: 1.15rem;
+}
+.tag {
+  display: inline-block;
+  background: #ffffff20;
+  border: 1px solid #ffffff50;
+  padding: 5px 13px;
+  border-radius: 30px;
+  font-size: .8rem;
+  margin: 4px;
+}
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #fff;
+  border-bottom: 1px solid var(--border);
+  padding: 12px;
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+nav a {
+  text-decoration: none;
+  font-size: .88rem;
+  font-weight: 650;
+}
+main {
+  max-width: 1120px;
+  margin: 35px auto;
+  padding: 0 20px;
+}
+section { margin: 48px 0; scroll-margin-top: 80px; }
+h2 {
+  font-size: 1.85rem;
+  color: var(--navy);
+  margin-bottom: 12px;
+}
+h3 { color: var(--blue); }
+.lead { color: var(--muted); font-size: 1.1rem; }
+.hero-image {
+  background: white;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+.hero-image img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 10px;
+}
+.caption {
+  text-align: center;
+  color: var(--muted);
+  font-size: .85rem;
+  margin: 10px;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 23px;
+  box-shadow: var(--shadow);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(230px,1fr));
+  gap: 17px;
+}
+.icon { font-size: 1.8rem; }
+.callout {
+  background: #e4f2ff;
+  border-left: 5px solid var(--blue);
+  border-radius: 8px;
+  padding: 18px 22px;
+  margin: 22px 0;
+}
+.green {
+  background: #e6f7ee;
+  border-left-color: var(--green);
+}
+.diagram {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 22px 10px;
+}
+.node {
+  width: min(100%,620px);
+  text-align: center;
+  background: #e4efff;
+  border: 2px solid #a9cafa;
+  padding: 14px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+.node.dark {
+  color: white;
+  background: var(--navy);
+  border-color: var(--navy);
+}
+.node.green-node {
+  background: #e1f6e9;
+  border-color: #8bd0a4;
+}
+.arrow { color: var(--blue); font-size: 1.5rem; }
+.loop {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  max-width: 650px;
+  width: 100%;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  font-size: .94rem;
+}
+th,td {
+  padding: 13px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+th { background: var(--navy); color: white; }
+tr:last-child td { border: 0; }
+pre {
+  background: #101e32;
+  color: #d7eaff;
+  padding: 20px;
+  border-radius: 12px;
+  overflow-x: auto;
+  font-size: .87rem;
+  line-height: 1.6;
+}
+code { font-family: "SFMono-Regular",Consolas,monospace; }
+.framework {
+  border-top: 4px solid var(--blue);
+}
+.framework a { font-weight: 700; }
+footer {
+  background: var(--navy);
+  color: #d9eaff;
+  text-align: center;
+  padding: 35px 20px;
+}
+footer a { color: #9bcaff; }
+.small { font-size: .87rem; color: var(--muted); }
+@media(max-width:600px) {
+  nav { gap: 9px; }
+  nav a { font-size: .76rem; }
+  .loop { grid-template-columns: 1fr; }
+  th,td { padding: 9px; font-size: .83rem; }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <span class="tag">AI ENGINEERING</span>
+  <span class="tag">AGENTIC AI</span>
+  <span class="tag">SYSTEM ARCHITECTURE</span>
+
+  <h1>AI Agent Harness</h1>
+  <p>Turning an LLM into a useful, reliable and autonomous agent.</p>
+  <p>
+    The LLM provides intelligence. The harness provides the
+    infrastructure, tools, memory, execution environment and
+    controls that make intelligence actionable.
+  </p>
+</header>
+
+<nav>
+  <a href="#overview">Overview</a>
+  <a href="#architecture">Architecture</a>
+  <a href="#loop">Agent Loop</a>
+  <a href="#components">Components</a>
+  <a href="#security">Safety</a>
+  <a href="#rust">Rust</a>
+  <a href="#mcp">MCP</a>
+  <a href="#frameworks">Frameworks</a>
+</nav>
+
+<main>
+
+<section id="overview">
+  <h2>1. What is an AI Agent Harness?</h2>
+  <p class="lead">
+    An AI Agent Harness is the runtime and control infrastructure
+    surrounding a Large Language Model (LLM), enabling it to
+    perform multi-step tasks using external tools and information.
+  </p>
+
+  <div class="hero-image">
+    <img
+      src="https://raw.githubusercontent.com/mchinnappan100/npmjs-images/main/ai-agent-harness/harness.png"
+      alt="AI Agent Harness architecture infographic"
+      loading="eager">
+    <p class="caption">
+      AI Agent Harness — Architecture and execution overview
+    </p>
+  </div>
+
+  <div class="callout">
+    <strong>The central idea:</strong><br>
+    Think of the LLM as the brain and the harness as the body,
+    nervous system, tools and operating environment.
+    A brain can think, but an agent needs a system to act.
+  </div>
+
+  <h3>Why do we need a harness?</h3>
+  <p>
+    A traditional LLM interaction typically follows a simple
+    request-response pattern. The model receives text and
+    generates text.
+  </p>
+  <p>
+    Real-world tasks are different. An agent may need to search
+    the web, read files, execute code, query databases, remember
+    earlier decisions, recover from errors and request human
+    approval before taking important actions.
+  </p>
+  <p>
+    The harness coordinates these activities and determines
+    how the model interacts with the external world.
+  </p>
+</section>
+
+<section id="architecture">
+  <h2>2. Architecture of an AI Agent Harness</h2>
+  <p>
+    A typical architecture separates the model from the runtime
+    infrastructure and external execution environment.
+  </p>
+
+  <div class="card diagram">
+    <div class="node dark">USER / GOAL<br>
+      <small>Research customers and prepare a report</small>
+    </div>
+    <div class="arrow">↓</div>
+
+    <div class="node">
+      AI AGENT HARNESS
+      <div class="grid" style="margin-top:15px;text-align:center">
+        <div class="card">🔄<br>Agent Loop</div>
+        <div class="card">🔧<br>Tool Execution</div>
+        <div class="card">🧠<br>Memory & Context</div>
+        <div class="card">🛡️<br>Safety & Policies</div>
+        <div class="card">📊<br>Observability</div>
+        <div class="card">♻️<br>Retries & Recovery</div>
+      </div>
+    </div>
+
+    <div class="arrow">↓</div>
+    <div class="node green-node">
+      LLM / MODEL<br>
+      <small>GPT · Claude · Gemini · Llama · Qwen</small>
+    </div>
+
+    <div class="arrow">↓</div>
+    <div class="node">
+      EXTERNAL WORLD<br>
+      <small>APIs · Files · Databases · Browser · Terminal · Salesforce</small>
+    </div>
+  </div>
+
+  <p class="small">
+    Conceptual architecture: actual implementations may combine
+    or distribute these components differently.
+  </p>
+</section>
+
+<section id="loop">
+  <h2>3. The Agent Execution Loop</h2>
+  <p>
+    The most important responsibility of a harness is managing
+    the continuous interaction between the model and its tools.
+  </p>
+
+  <div class="card diagram">
+    <div class="node dark">1. Receive User Goal</div>
+    <div class="arrow">↓</div>
+    <div class="node">2. Build Context and Call LLM</div>
+    <div class="arrow">↓</div>
+    <div class="node">3. LLM Selects Next Action</div>
+    <div class="arrow">↓</div>
+    <div class="node">4. Is a Tool Required?</div>
+    <div class="loop">
+      <div class="node green-node">
+        YES<br>Execute Tool<br>↓<br>Observe Result
+      </div>
+      <div class="node">
+        NO<br>Validate and Return Final Answer
+      </div>
+    </div>
+    <div class="arrow">↺</div>
+    <div class="node dark">
+      Return Tool Results to LLM<br>
+      Repeat Until Completion or a Stop Condition
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Important:</strong>
+    The harness must enforce a maximum number of iterations,
+    execution timeouts and other stopping conditions.
+    Otherwise, an agent can enter an endless loop.
+  </div>
+</section>
+
+<section id="components">
+  <h2>4. Core Components</h2>
+
+  <div class="grid">
+    <div class="card">
+      <div class="icon">🔄</div>
+      <h3>Agent Controller</h3>
+      Coordinates model calls, actions, state transitions
+      and completion conditions.
+    </div>
+    <div class="card">
+      <div class="icon">🔧</div>
+      <h3>Tool Registry</h3>
+      Defines available tools, their input schemas,
+      permissions and output formats.
+    </div>
+    <div class="card">
+      <div class="icon">⚙️</div>
+      <h3>Tool Executor</h3>
+      Executes API calls, browser actions, shell commands
+      and database queries.
+    </div>
+    <div class="card">
+      <div class="icon">🧠</div>
+      <h3>Context Manager</h3>
+      Manages prompts, conversation history, token limits
+      and relevant information.
+    </div>
+    <div class="card">
+      <div class="icon">💾</div>
+      <h3>Memory</h3>
+      Stores task progress, previous results, user
+      preferences and useful knowledge.
+    </div>
+    <div class="card">
+      <div class="icon">📋</div>
+      <h3>Planning</h3>
+      Breaks complex goals into smaller tasks and
+      tracks their completion.
+    </div>
+    <div class="card">
+      <div class="icon">🛡️</div>
+      <h3>Policy Engine</h3>
+      Controls access, validates actions and requests
+      approval for sensitive operations.
+    </div>
+    <div class="card">
+      <div class="icon">📈</div>
+      <h3>Observability</h3>
+      Records model calls, tool executions, latency,
+      errors, token usage and cost.
+    </div>
+    <div class="card">
+      <div class="icon">♻️</div>
+      <h3>Recovery</h3>
+      Handles retries, timeouts, failed tools,
+      checkpoints and interrupted tasks.
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>5. A Practical Example</h2>
+  <p class="lead">
+    Goal: Research five potential customers and prepare
+    a Salesforce sales intelligence report.
+  </p>
+
+  <div class="card">
+    <ol>
+      <li><strong>Planning:</strong> Break the goal into research,
+      validation and reporting tasks.</li>
+      <li><strong>Web search:</strong> Identify potential companies.</li>
+      <li><strong>Research:</strong> Collect company profiles
+      and relevant business information.</li>
+      <li><strong>Salesforce:</strong> Query existing accounts
+      to avoid duplicate prospects.</li>
+      <li><strong>Analysis:</strong> Rank prospects using
+      defined business criteria.</li>
+      <li><strong>Report:</strong> Generate a structured report.</li>
+      <li><strong>Approval:</strong> Ask a human before creating
+      or modifying Salesforce records.</li>
+    </ol>
+  </div>
+
+  <div class="callout green">
+    <strong>Notice the distinction:</strong>
+    The LLM determines what action might be useful.
+    The harness validates, authorizes, executes and records
+    that action.
+  </div>
+</section>
+
+<section id="security">
+  <h2>6. Safety, Security and Governance</h2>
+  <p>
+    Giving an AI agent access to tools also gives it the potential
+    to affect real systems. The harness must establish boundaries.
+  </p>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Least Privilege</h3>
+      Give agents only the permissions needed for their tasks.
+    </div>
+    <div class="card">
+      <h3>Sandboxing</h3>
+      Isolate code execution and file operations.
+    </div>
+    <div class="card">
+      <h3>Human Approval</h3>
+      Require approval for destructive or high-impact actions.
+    </div>
+    <div class="card">
+      <h3>Input Validation</h3>
+      Validate tool arguments and treat external content
+      as untrusted data.
+    </div>
+    <div class="card">
+      <h3>Audit Trails</h3>
+      Record actions, decisions, approvals and results.
+    </div>
+    <div class="card">
+      <h3>Resource Limits</h3>
+      Enforce token, time, cost and iteration limits.
+    </div>
+    <div class="card">
+      <h3>Prompt Injection Defense</h3>
+      Treat web pages, files and tool results as untrusted
+      data. Sanitize before including them in the model's
+      context. External content can attempt to hijack the
+      agent's next action.
+    </div>
+  </div>
+
+  <div class="callout">
+    <strong>Remember:</strong>
+    A prompt saying "do not delete files" is not a security
+    boundary. Permissions and execution controls must be
+    enforced by the harness itself.
+  </div>
+</section>
+
+<section>
+  <h2>7. LLM vs Agent vs Harness</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Concept</th>
+        <th>Responsibility</th>
+        <th>Example</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>LLM</strong></td>
+        <td>Reasoning and language generation</td>
+        <td>Claude Fable 5.1 · Claude Opus 5.5 · GPT-4o · o3 · Gemini 2.5 Pro · Llama 3</td>
+      </tr>
+      <tr>
+        <td><strong>Agent</strong></td>
+        <td>LLM operating with a goal, tools and an action loop</td>
+        <td>Research agent</td>
+      </tr>
+      <tr>
+        <td><strong>Harness</strong></td>
+        <td>Runtime, execution, memory, policies and control</td>
+        <td>Agent runtime</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Model independence</h3>
+  <p>
+    A well-designed harness should be able to work with multiple
+    models through a common model adapter.
+  </p>
+  <p>
+    For example, the same agent architecture could use a local
+    Qwen model through Ollama, a Candle-based model, or a
+    cloud-hosted GPT or Claude model.
+  </p>
+  <div class="callout green">
+    The model may change. The tools, business rules, security
+    policies and execution architecture can remain.
+  </div>
+</section>
+
+<section id="mcp">
+  <h2>9b. Model Context Protocol (MCP)</h2>
+  <p class="lead">
+    MCP is an open standard from Anthropic that defines how a
+    harness connects an LLM to external tools and data sources
+    through a uniform client–server interface.
+  </p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="icon">🔌</div>
+      <h3>MCP Server</h3>
+      Exposes tools, resources and prompts over a standard
+      JSON-RPC transport (stdio, HTTP/SSE). Any application
+      can become an MCP server.
+    </div>
+    <div class="card">
+      <div class="icon">🤝</div>
+      <h3>MCP Client</h3>
+      The harness acts as an MCP client. It discovers
+      available tools at runtime by calling
+      <code>tools/list</code> and invokes them with
+      <code>tools/call</code>.
+    </div>
+    <div class="card">
+      <div class="icon">📦</div>
+      <h3>Resources &amp; Prompts</h3>
+      Servers can also expose file-like resources and
+      prompt templates the harness can inject into
+      model context.
+    </div>
+    <div class="card">
+      <div class="icon">🧩</div>
+      <h3>Ecosystem</h3>
+      Ready-made MCP servers exist for GitHub, Slack,
+      Google Workspace, browsers, databases and many
+      more — usable without custom integration code.
+    </div>
+  </div>
+
+  <div class="callout green">
+    <strong>Why it matters:</strong>
+    MCP decouples tool providers from harness implementations.
+    You can plug any MCP-compatible server into any
+    MCP-aware harness, reducing integration work significantly.
+  </div>
+
+  <div class="card" style="margin-top:20px">
+    <h3>MCP in a Rust harness</h3>
+    <pre><code>// MCP over stdio transport
+let (transport_rx, transport_tx) = stdio_transport();
+let client = McpClient::new(transport_rx, transport_tx).await?;
+
+// Discover tools at runtime
+let tools = client.list_tools().await?;
+
+// Execute a tool by name
+let result = client
+    .call_tool("read_file", json!({ "path": "/tmp/data.csv" }))
+    .await?;</code></pre>
+  </div>
+
+  <p>
+    See the <a href="https://modelcontextprotocol.io/introduction"
+    target="_blank" rel="noopener">MCP specification</a> and
+    the <a href="https://github.com/modelcontextprotocol/rust-sdk"
+    target="_blank" rel="noopener">official Rust SDK</a>.
+  </p>
+</section>
+
+<section id="frameworks">
+  <h2>8. Popular Agent Frameworks and Tools</h2>
+  <p>
+    These projects provide different building blocks and
+    approaches to agent execution.
+  </p>
+
+  <div class="grid">
+    <div class="card framework">
+      <h3>Claude Code</h3>
+      Coding-agent experience with terminal, file operations,
+      tools and permission controls.
+      <p><a href="https://docs.claude.com/en/docs/claude-code/overview"
+      target="_blank" rel="noopener">Documentation →</a></p>
+    </div>
+    <div class="card framework">
+      <h3>OpenAI Agents SDK</h3>
+      Agent orchestration, tools, handoffs, guardrails
+      and tracing.
+      <p><a href="https://openai.github.io/openai-agents-python/"
+      target="_blank" rel="noopener">Documentation →</a></p>
+    </div>
+    <div class="card framework">
+      <h3>LangGraph</h3>
+      Stateful, graph-based agent workflows and
+      multi-step orchestration.
+      <p><a href="https://langchain-ai.github.io/langgraph/"
+      target="_blank" rel="noopener">Documentation →</a></p>
+    </div>
+    <div class="card framework">
+      <h3>AutoGen (Microsoft)</h3>
+      Multi-agent conversations, group chat, tool use
+      and human-in-the-loop workflows.
+      <p><a href="https://microsoft.github.io/autogen/"
+      target="_blank" rel="noopener">Documentation →</a></p>
+    </div>
+  </div>
+</section>
+
+<section id="rust">
+  <h2>9. Building an AI Agent Harness in Rust</h2>
+  <p class="lead">
+    An interesting systems-engineering project:
+    build a lightweight, model-independent agent harness
+    using Rust.
+  </p>
+
+  <div class="card diagram">
+    <div class="node dark">Rust Agent Controller</div>
+    <div class="arrow">↓</div>
+    <div class="grid" style="width:100%">
+      <div class="card">Model Adapter<br><small>Candle / Ollama / API</small></div>
+      <div class="card">Tool Registry<br><small>Typed interfaces</small></div>
+      <div class="card">Memory Store<br><small>SQLite / Vector DB</small></div>
+      <div class="card">Policy Engine<br><small>Permissions / Sandbox</small></div>
+    </div>
+    <div class="arrow">↓</div>
+    <div class="node green-node">
+      Execution Runtime<br>
+      <small>Tokio · Async · Tracing · Error Handling</small>
+    </div>
+  </div>
+
+  <h3>A simple Rust design</h3>
+  <pre><code>trait Tool {
+    fn name(&amp;self) -> &amp;str;
+
+    async fn execute(
+        &amp;self,
+        input: serde_json::Value,
+    ) -> anyhow::Result&lt;serde_json::Value&gt;;
+}
+
+struct AgentHarness {
+    model: Box&lt;dyn Model&gt;,
+    tools: Vec&lt;Box&lt;dyn Tool&gt;&gt;,
+    memory: MemoryStore,
+    policy: PolicyEngine,
+}
+
+impl AgentHarness {
+    async fn run(
+        &amp;self,
+        goal: &amp;str
+    ) -&gt; anyhow::Result&lt;String&gt; {
+        // 1. Build context
+        // 2. Call the model
+        // 3. Validate requested action
+        // 4. Execute approved tool
+        // 5. Feed result back to model
+        // 6. Repeat until completion
+        todo!()
+    }
+}</code></pre>
+
+  <h3>Suggested technology stack</h3>
+  <table>
+    <tr><th>Area</th><th>Technology</th></tr>
+    <tr><td>Language</td><td>Rust</td></tr>
+    <tr><td>LLM inference</td><td>Hugging Face Candle</td></tr>
+    <tr><td>Local model serving</td><td>Ollama</td></tr>
+    <tr><td>Async runtime</td><td>Tokio</td></tr>
+    <tr><td>Persistent memory</td><td>SQLite</td></tr>
+    <tr><td>Serialization</td><td>Serde / JSON</td></tr>
+    <tr><td>Observability</td><td>Tracing</td></tr>
+    <tr><td>Tool integration</td><td>HTTP APIs / MCP</td></tr>
+  </table>
+
+  <div class="callout green">
+    <strong>Design principle:</strong>
+    Keep the model adapter separate from the agent controller.
+    This allows you to replace the underlying model without
+    redesigning the entire agent system.
+  </div>
+</section>
+
+<section>
+  <h2>10. Where Is Agent Harness Engineering Heading?</h2>
+  <p>
+    As agents become more capable, the quality of their
+    execution infrastructure becomes increasingly important.
+  </p>
+  <div class="grid">
+    <div class="card">
+      <h3>Multi-Agent Systems</h3>
+      Specialized agents collaborating on complex tasks.
+    </div>
+    <div class="card">
+      <h3>Long-Running Agents</h3>
+      Persistent sessions, checkpoints and recovery.
+    </div>
+    <div class="card">
+      <h3>Agent Evaluation</h3>
+      Testing entire execution trajectories rather
+      than just final answers.
+    </div>
+    <div class="card">
+      <h3>Human-Agent Collaboration</h3>
+      Approval workflows and transparent decision-making.
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Conclusion</h2>
+  <div class="card">
+    <p class="lead">
+      An LLM is a powerful reasoning engine, but reasoning
+      alone is not enough to accomplish real-world work.
+    </p>
+    <p>
+      The AI Agent Harness provides the execution loop,
+      tools, memory, context, permissions, observability
+      and recovery mechanisms that turn a model into
+      a useful agent.
+    </p>
+    <p>
+      The most important architectural insight is that
+      the model and the harness should be treated as
+      separate engineering layers.
+    </p>
+    <h3>Build the harness well. The model can evolve.</h3>
+  </div>
+</section>
+
+<section>
+  <h2>Further Reading & References</h2>
+  <ul>
+    <li><a href="https://microsoft.github.io/autogen/"
+      target="_blank" rel="noopener">Microsoft AutoGen — Multi-Agent Framework</a></li>
+    <li><a href="https://www.cyber.gov.au/publication/agentic-ai-harnesses"
+      target="_blank" rel="noopener">Australian Cyber Security Centre — Agentic AI Harnesses</a></li>
+    <li><a href="https://openai.github.io/openai-agents-python/"
+      target="_blank" rel="noopener">OpenAI Agents SDK</a></li>
+    <li><a href="https://langchain-ai.github.io/langgraph/"
+      target="_blank" rel="noopener">LangGraph Documentation</a></li>
+    <li><a href="https://modelcontextprotocol.io/introduction"
+      target="_blank" rel="noopener">Model Context Protocol (MCP) — Specification</a></li>
+    <li><a href="https://github.com/huggingface/candle"
+      target="_blank" rel="noopener">Hugging Face Candle</a></li>
+  </ul>
+</section>
+
+</main>
+
+<footer>
+  <h2 style="color:white">AI Agent Harness</h2>
+  <p>From LLM Inference to Autonomous Tool Execution</p>
+  <p>Understanding the architecture behind intelligent agents.</p>
+  <p class="small" style="color:#b8cce5">
+  </p>
+</footer>
+
+</body>
+</html>
