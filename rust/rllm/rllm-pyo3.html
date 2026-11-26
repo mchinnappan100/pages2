@@ -76,7 +76,7 @@
     </div>
   </div>
   <div class="header-right">
-    <span class="pill"><span class="dot"></span>v0.1.0 · Phase 5 ✓</span>
+    <span class="pill"><span class="dot"></span>v0.1.0 · Phase 6 ✓</span>
     <button class="theme-toggle" onclick="toggleTheme()">☀ / ☾</button>
   </div>
 </header>
@@ -86,11 +86,11 @@
   <h1>🐍 <span class="hl">rllm</span> from <span class="hl2">Python</span></h1>
   <p class="hero-tagline">PyO3-powered bindings — use rllm's Rust inference engine directly from Python scripts, Jupyter notebooks, or any Python 3 environment.</p>
   <div class="hero-badges">
-    <span class="badge b-orange">Phase 5 ✓</span>
+    <span class="badge b-orange">Phase 6 ✓</span>
     <span class="badge b-blue">PyO3 0.22</span>
-    <span class="badge b-green">maturin build</span>
-    <span class="badge b-yellow">cdylib</span>
-    <span class="badge b-orange">Python 3.9+</span>
+    <span class="badge b-green">RllmSession</span>
+    <span class="badge b-yellow">abi3 · Python 3.9+</span>
+    <span class="badge b-green">Real Inference</span>
   </div>
 </div>
 
@@ -118,21 +118,21 @@ pip install maturin</pre>
       <div class="step-body">
         <h4>Build the wheel</h4>
         <pre><span class="k">cd</span> /path/to/rllm/crates/rllm-pyo3
-<span class="c"># Python 3.14: set forward-compat flag (pyo3 0.22 supports up to 3.13)</span>
-<span class="k">PYO3_USE_ABI3_FORWARD_COMPATIBILITY</span>=1 maturin build --release</pre>
-        <p style="font-size:.82rem;color:var(--muted);margin-top:.5rem">The wheel lands in <code>target/wheels/rllm_pyo3-0.1.0-cp3xx-…whl</code></p>
+maturin build --release
+<span class="c"># → target/wheels/rllm_pyo3-0.1.0-cp39-abi3-macosx_11_0_arm64.whl</span></pre>
+        <p style="font-size:.82rem;color:var(--muted);margin-top:.5rem">Uses <code>abi3-py39</code> feature — one wheel runs on Python 3.9 through 3.14+. No env-var flags needed.</p>
       </div>
     </div>
     <div class="step">
       <div class="step-num">3</div>
       <div class="step-body">
         <h4>Install the wheel</h4>
-        <pre><span class="c"># virtualenv (recommended)</span>
-python3 -m venv .venv &amp;&amp; source .venv/bin/activate
-pip install target/wheels/rllm_pyo3-*.whl
+        <pre><span class="c"># Install into all Python versions found on the machine (3.9–3.14)</span>
+<span class="k">make install-pyo3</span>   <span class="c"># from the rllm workspace root</span>
 
-<span class="c"># system Python (macOS Homebrew / PEP 668)</span>
-pip3.14 install --break-system-packages target/wheels/rllm_pyo3-*.whl</pre>
+<span class="c"># Or manually into one interpreter</span>
+python3.11 -m pip install --break-system-packages target/wheels/rllm_pyo3-*.whl
+python3.14 -m pip install --break-system-packages target/wheels/rllm_pyo3-*.whl</pre>
       </div>
     </div>
     <div class="step">
@@ -148,28 +148,60 @@ pip3.14 install --break-system-packages target/wheels/rllm_pyo3-*.whl</pre>
   <!-- API -->
   <p class="section-label">Python API</p>
 
+  <p style="font-size:.82rem;color:var(--muted);margin-bottom:.75rem"><strong style="color:var(--accent2)">Phase 6:</strong> <code>RllmSession</code> loads the model once and keeps it in memory — use it for repeated generation and embedding instead of the module-level convenience functions.</p>
+
   <table class="cmd-table">
     <thead>
-      <tr><th>Function</th><th>Signature</th><th>Returns</th><th>Description</th></tr>
+      <tr><th>Name</th><th>Signature</th><th>Returns</th><th>Notes</th></tr>
     </thead>
     <tbody>
+      <tr style="background:rgba(88,166,255,.05)">
+        <td><code>rllm.load()</code></td>
+        <td><code>(model_path: str) → RllmSession</code></td>
+        <td><code>RllmSession</code></td>
+        <td>Load model from a local directory (CPU). Returns a session you reuse.</td>
+      </tr>
+      <tr style="background:rgba(88,166,255,.05)">
+        <td><code>rllm.load_metal()</code></td>
+        <td><code>(model_path: str) → RllmSession</code></td>
+        <td><code>RllmSession</code></td>
+        <td>Same as <code>load()</code> but uses Metal GPU; falls back to CPU if unavailable.</td>
+      </tr>
+      <tr style="background:rgba(88,166,255,.05)">
+        <td><code>session.generate()</code></td>
+        <td><code>(prompt, max_tokens=20, temperature=0.8, top_k=None, top_p=None, seed=None) → str</code></td>
+        <td>Generated text</td>
+        <td>Real GPT-2 inference using the loaded model. Supports greedy (<code>temperature=0.0</code>) and reproducible (<code>seed=42</code>) modes.</td>
+      </tr>
+      <tr style="background:rgba(88,166,255,.05)">
+        <td><code>session.embed()</code></td>
+        <td><code>(text: str) → list[float]</code></td>
+        <td>768-dim vector</td>
+        <td>Mean-pool wte embeddings using the already-loaded model — no extra disk I/O.</td>
+      </tr>
+      <tr style="background:rgba(88,166,255,.05)">
+        <td><code>session.model_id</code></td>
+        <td><code>str</code> (property)</td>
+        <td><code>"gpt2"</code></td>
+        <td>The model directory name this session was loaded from.</td>
+      </tr>
+      <tr>
+        <td><code>rllm.generate()</code></td>
+        <td><code>(prompt, model="gpt2", max_tokens=20) → str</code></td>
+        <td>str</td>
+        <td>Convenience wrapper — echoes the call. For real inference use <code>rllm.load()</code>.</td>
+      </tr>
+      <tr>
+        <td><code>rllm.embed()</code></td>
+        <td><code>(text: str) → list[float]</code></td>
+        <td>768-dim vector</td>
+        <td>Loads <code>~/.rllm/models/gpt2</code> on each call. For repeated calls use <code>session.embed()</code>.</td>
+      </tr>
       <tr>
         <td><code>rllm.version()</code></td>
         <td><code>() → str</code></td>
         <td><code>"0.1.0"</code></td>
         <td>Return the rllm crate version string.</td>
-      </tr>
-      <tr>
-        <td><code>rllm.generate()</code></td>
-        <td><code>(prompt, model="gpt2", max_tokens=20) → str</code></td>
-        <td>Generated text</td>
-        <td>Generate text from a prompt using the specified model. Delegates to <code>rllm-infer</code>.</td>
-      </tr>
-      <tr>
-        <td><code>rllm.embed()</code></td>
-        <td><code>(text) → list[float]</code></td>
-        <td>768-dim vector</td>
-        <td>Return a mean-pool embedding for the input text. Delegates to <code>rllm-embed</code>.</td>
       </tr>
     </tbody>
   </table>
@@ -178,54 +210,65 @@ pip3.14 install --break-system-packages target/wheels/rllm_pyo3-*.whl</pre>
   <p class="section-label">Usage Examples</p>
 
   <div class="quick-start">
-    <h3>Text generation</h3>
+    <h3>Session — load once, generate many (recommended)</h3>
     <pre><span class="k">import</span> rllm
 
-<span class="c"># Generate with default GPT-2</span>
-text = rllm.generate(<span class="s">"The quick brown fox"</span>, max_tokens=<span class="o">30</span>)
-<span class="k">print</span>(text)
+<span class="c"># Load model once — stays in memory for the life of `session`</span>
+session = rllm.load(<span class="s">"/Users/mchinnappan/.rllm/models/gpt2"</span>)
+<span class="k">print</span>(session.model_id)   <span class="c"># gpt2</span>
 
-<span class="c"># Specify model and length</span>
-text = rllm.generate(<span class="s">"Once upon a time"</span>, model=<span class="s">"gpt2"</span>, max_tokens=<span class="o">50</span>)
-<span class="k">print</span>(text)</pre>
+<span class="c"># Generate (greedy — deterministic)</span>
+out = session.generate(<span class="s">"The quick brown fox"</span>, max_tokens=<span class="o">30</span>, temperature=<span class="o">0.0</span>)
+<span class="k">print</span>(out)
+
+<span class="c"># Generate (sampling with seed — reproducible)</span>
+out = session.generate(<span class="s">"Once upon a time"</span>, max_tokens=<span class="o">40</span>, temperature=<span class="o">0.8</span>, seed=<span class="o">42</span>)
+<span class="k">print</span>(out)
+
+<span class="c"># Metal GPU (Apple Silicon) — falls back to CPU if Metal unavailable</span>
+session_gpu = rllm.load_metal(<span class="s">"/Users/mchinnappan/.rllm/models/gpt2"</span>)</pre>
   </div>
 
   <div class="quick-start">
-    <h3>Embeddings</h3>
-    <pre><span class="k">import</span> rllm
-<span class="k">import</span> numpy <span class="k">as</span> np
+    <h3>Embeddings + cosine similarity (verified output)</h3>
+    <pre><span class="k">import</span> rllm, math
 
-<span class="c"># Get a 768-dim embedding vector</span>
-vec = rllm.embed(<span class="s">"Rust is fast and safe"</span>)
-arr = np.array(vec, dtype=np.float32)
-<span class="k">print</span>(f<span class="s">"shape: {arr.shape}, norm: {np.linalg.norm(arr):.4f}"</span>)
+<span class="k">def</span> <span class="t">cosine</span>(a, b):
+    dot = sum(x*y <span class="k">for</span> x,y <span class="k">in</span> zip(a,b))
+    <span class="k">return</span> dot / (math.sqrt(sum(x*x <span class="k">for</span> x <span class="k">in</span> a)) * math.sqrt(sum(x*x <span class="k">for</span> x <span class="k">in</span> b)) + <span class="o">1e-9</span>)
 
-<span class="c"># Cosine similarity between two texts</span>
-<span class="k">def</span> <span class="t">cosine_sim</span>(a, b):
-    a, b = np.array(a), np.array(b)
-    <span class="k">return</span> np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-
-sim = cosine_sim(rllm.embed(<span class="s">"hello world"</span>), rllm.embed(<span class="s">"hi there"</span>))
-<span class="k">print</span>(f<span class="s">"similarity: {sim:.4f}"</span>)</pre>
+session = rllm.load(<span class="s">"/Users/mchinnappan/.rllm/models/gpt2"</span>)
+vec     = session.embed(<span class="s">"neural network"</span>)
+sim     = cosine(vec, session.embed(<span class="s">"deep learning"</span>))
+<span class="k">print</span>(f<span class="s">"similarity: {sim:.4f}"</span>)
+<span class="c"># similarity: 0.4348  ← verified on Python 3.14.2, GPT-2, macOS arm64</span></pre>
   </div>
 
   <div class="quick-start">
     <h3>Jupyter notebook</h3>
-    <pre><span class="c"># In a Jupyter cell</span>
-<span class="o">!</span>pip install /path/to/rllm_pyo3-0.1.0-*.whl
+    <pre><span class="c"># Cell 1 — install (run once)</span>
+<span class="o">!</span>make install-pyo3  <span class="c"># or: pip install rllm_pyo3-*.whl</span>
 
-<span class="k">import</span> rllm
+<span class="c"># Cell 2 — import and verify</span>
+<span class="k">import</span> rllm, numpy <span class="k">as</span> np
 <span class="k">print</span>(<span class="s">"rllm"</span>, rllm.version())
 
-result = rllm.generate(<span class="s">"LLMs are"</span>, max_tokens=<span class="o">20</span>)
-<span class="k">print</span>(result)</pre>
+<span class="c"># Cell 3 — load session</span>
+session = rllm.load(<span class="s">"~/.rllm/models/gpt2"</span>)
+
+<span class="c"># Cell 4 — generate</span>
+<span class="k">print</span>(session.generate(<span class="s">"LLMs are powerful because"</span>, max_tokens=<span class="o">30</span>))
+
+<span class="c"># Cell 5 — embed and inspect</span>
+vec = np.array(session.embed(<span class="s">"neural network"</span>), dtype=np.float32)
+<span class="k">print</span>(f<span class="s">"shape={vec.shape}  norm={np.linalg.norm(vec):.4f}"</span>)</pre>
   </div>
 
   <!-- BUILD NOTES -->
   <p class="section-label">Build Notes</p>
 
-  <div class="warn-box">
-    <strong>Python 3.14 / PEP 668:</strong> Python 3.14 is newer than PyO3 0.22's supported maximum (3.13). Set <code>PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1</code> before <code>maturin build</code>. On Homebrew macOS, install to system Python with <code>--break-system-packages</code>; using a virtualenv avoids this flag.
+  <div class="info-box">
+    <strong>abi3-py39:</strong> The <code>Cargo.toml</code> uses <code>pyo3 = { features = ["abi3-py39"] }</code>. This generates a single <code>cp39-abi3</code> wheel that runs on any Python 3.9–3.14+ — no <code>PYO3_USE_ABI3_FORWARD_COMPATIBILITY</code> flag needed. Use <code>make install-pyo3</code> to build once and install into every Python interpreter found on the machine.
   </div>
 
   <div class="info-box">
@@ -238,28 +281,24 @@ result = rllm.generate(<span class="s">"LLMs are"</span>, max_tokens=<span class
     </thead>
     <tbody>
       <tr>
-        <td>Build wheel (Python ≤ 3.13)</td>
+        <td>Build wheel (all Python versions)</td>
         <td><code>maturin build --release</code></td>
       </tr>
       <tr>
-        <td>Build wheel (Python 3.14)</td>
-        <td><code>PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 maturin build --release</code></td>
+        <td>Install into all local Pythons</td>
+        <td><code>make install-pyo3</code> <span style="color:var(--accent3);font-size:.8em">— iterates python3.9…3.14</span></td>
       </tr>
       <tr>
-        <td>Install into virtualenv</td>
-        <td><code>pip install target/wheels/rllm_pyo3-*.whl</code></td>
+        <td>Install into one interpreter</td>
+        <td><code>python3.11 -m pip install --break-system-packages target/wheels/rllm_pyo3-*.whl</code></td>
       </tr>
       <tr>
-        <td>Install to system Python (Homebrew)</td>
-        <td><code>pip3.14 install --break-system-packages target/wheels/rllm_pyo3-*.whl</code></td>
+        <td>Deploy to mac-mini</td>
+        <td><code>make deploy-pyo3-to-mini</code></td>
       </tr>
       <tr>
         <td>Dev mode (requires virtualenv)</td>
         <td><code>maturin develop</code></td>
-      </tr>
-      <tr>
-        <td>Upgrade PyO3 for Python 3.14 native</td>
-        <td>Bump <code>pyo3</code> to <code>0.23+</code> in <code>Cargo.toml</code></td>
       </tr>
     </tbody>
   </table>
@@ -269,29 +308,37 @@ result = rllm.generate(<span class="s">"LLMs are"</span>, max_tokens=<span class
 
   <div class="quick-start">
     <h3>How it works</h3>
-    <pre><span class="c">┌─────────────────────────────────────────────┐
-│  Python process                             │
-│                                             │
-│  import rllm           ← loads .so / .dylib │
-│                                             │
-│  rllm.generate(...)    ─────────────────┐   │
-│  rllm.embed(...)       ─────────────┐   │   │
-│  rllm.version()        ─────────┐   │   │   │
-└────────────────────────────────-│───│───│───┘
-                                  │   │   │
-                    ┌─────────────▼───▼───▼────┐
-                    │  rllm-pyo3 (cdylib)       │
-                    │  PyO3 #[pymodule]         │
-                    │  #[pyfunction] wrappers   │
-                    └───────────────────────────┘
+    <pre><span class="c">┌──────────────────────────────────────────────────┐
+│  Python process                                  │
+│                                                  │
+│  import rllm              ← loads .dylib / .so   │
+│                                                  │
+│  session = rllm.load(path)   ──────────────┐     │
+│  session = rllm.load_metal(path)  ─────────┤     │
+│  session.generate(prompt, ...)    ─────────┤     │
+│  session.embed(text)              ─────────┤     │
+│  session.model_id                 ─────────┤     │
+│                                            │     │
+│  rllm.version()           ─────────────┐  │     │
+│  rllm.embed(text)         ─────────────┤  │     │
+│  rllm.generate(prompt)    ─────────────┤  │     │
+└───────────────────────────────────────-│──│─────┘
+                                         │  │
+                    ┌────────────────────▼──▼──────┐
+                    │  rllm-pyo3 (cdylib, Phase 6)  │
+                    │  RllmSession #[pyclass]        │
+                    │  load() / load_metal()         │
+                    │  #[pyfunction] wrappers        │
+                    └───────────────────────────────┘
                                   │
               ┌───────────────────┴──────────────┐
               │                                  │
     ┌─────────▼──────────┐          ┌────────────▼──────┐
     │  rllm-infer        │          │  rllm-core         │
-    │  GPT-2 candle      │          │  Context, config   │
-    │  sampling, chat    │          │  DeviceSpec        │
-    └────────────────────┘          └───────────────────┘
+    │  InferSession      │          │  Context, config   │
+    │  GPT-2, sampling   │          │  DeviceSpec        │
+    │  wte mean-pool     │          └───────────────────┘
+    └────────────────────┘
               │
     ┌─────────▼──────────┐
     │  candle-core 0.8   │
@@ -303,31 +350,55 @@ result = rllm.generate(<span class="s">"LLMs are"</span>, max_tokens=<span class
   <p class="section-label">Crate Source (<code>crates/rllm-pyo3/src/lib.rs</code>)</p>
 
   <div class="quick-start">
-    <h3>Current implementation</h3>
+    <h3>Phase 6 implementation (key parts)</h3>
     <pre><span class="k">use</span> pyo3::prelude::*;
+<span class="k">use</span> pyo3::exceptions::PyRuntimeError;
+<span class="k">use</span> std::sync::{Arc, Mutex};
 
-<span class="c">/// Generate text from a prompt using GPT-2.</span>
-<span class="o">#[pyfunction]</span>
-<span class="o">#[pyo3(signature = (prompt, model="gpt2", max_tokens=20))]</span>
-<span class="k">fn</span> <span class="t">generate</span>(prompt: &amp;<span class="k">str</span>, model: &amp;<span class="k">str</span>, max_tokens: <span class="k">usize</span>) -&gt; PyResult&lt;String&gt; {
-    <span class="k">Ok</span>(format!(<span class="s">"[rllm] generate: {prompt:?} model={model} max={max_tokens}"</span>))
+<span class="c">// Thread-safety wrapper (CPython GIL serialises all calls)</span>
+<span class="k">struct</span> <span class="t">SessionBox</span>(rllm_infer::session::InferSession);
+<span class="k">unsafe impl</span> Send <span class="k">for</span> SessionBox {}
+<span class="k">unsafe impl</span> Sync <span class="k">for</span> SessionBox {}
+
+<span class="c">/// Python-visible session class — load once, call many times.</span>
+<span class="o">#[pyclass]</span>
+<span class="k">pub struct</span> <span class="t">RllmSession</span> {
+    inner: Arc&lt;Mutex&lt;SessionBox&gt;&gt;,
+    path:  String,
 }
 
-<span class="c">/// Return a 768-dim embedding vector.</span>
-<span class="o">#[pyfunction]</span>
-<span class="k">fn</span> <span class="t">embed</span>(text: &amp;<span class="k">str</span>) -&gt; PyResult&lt;Vec&lt;f32&gt;&gt; {
-    <span class="k">let</span> _ = text;
-    <span class="k">Ok</span>(vec![<span class="o">0.0f32</span>; <span class="o">768</span>])
+<span class="o">#[pymethods]</span>
+<span class="k">impl</span> <span class="t">RllmSession</span> {
+    <span class="o">#[getter]</span>
+    <span class="k">fn</span> <span class="t">model_id</span>(&amp;self) -&gt; PyResult&lt;String&gt; { <span class="c">/* … */</span> }
+
+    <span class="o">#[pyo3(signature = (prompt, max_tokens=20, temperature=0.8,
+                        top_k=None, top_p=None, seed=None))]</span>
+    <span class="k">fn</span> <span class="t">generate</span>(&amp;self, prompt: &amp;<span class="k">str</span>, <span class="c">/* … */</span>) -&gt; PyResult&lt;String&gt; {
+        <span class="c">// Calls InferSession::generate → candle GPT-2 forward pass</span>
+    }
+
+    <span class="k">fn</span> <span class="t">embed</span>(&amp;self, text: &amp;<span class="k">str</span>) -&gt; PyResult&lt;Vec&lt;f32&gt;&gt; {
+        <span class="c">// Calls InferSession::embed → wte mean-pool (no model reload)</span>
+    }
 }
 
-<span class="c">/// Return the rllm crate version.</span>
 <span class="o">#[pyfunction]</span>
-<span class="k">fn</span> <span class="t">version</span>() -&gt; PyResult&lt;String&gt; {
-    <span class="k">Ok</span>(env!(<span class="s">"CARGO_PKG_VERSION"</span>).to_string())
+<span class="k">fn</span> <span class="t">load</span>(model_path: &amp;<span class="k">str</span>) -&gt; PyResult&lt;RllmSession&gt; {
+    <span class="k">let</span> session = rllm_infer::session::InferSession::load(path, model_id)?;
+    <span class="k">Ok</span>(RllmSession { inner: Arc::new(Mutex::new(SessionBox(session))), <span class="c">/* … */</span> })
+}
+
+<span class="o">#[pyfunction]</span>
+<span class="k">fn</span> <span class="t">load_metal</span>(model_path: &amp;<span class="k">str</span>) -&gt; PyResult&lt;RllmSession&gt; {
+    <span class="c">// Uses InferSession::load_metal → candle Metal backend</span>
 }
 
 <span class="o">#[pymodule]</span>
 <span class="k">fn</span> <span class="t">rllm</span>(m: &amp;Bound&lt;'_, PyModule&gt;) -&gt; PyResult&lt;()&gt; {
+    m.add_class::&lt;RllmSession&gt;()?;
+    m.add_function(wrap_pyfunction!(load, m)?)?;
+    m.add_function(wrap_pyfunction!(load_metal, m)?)?;
     m.add_function(wrap_pyfunction!(generate, m)?)?;
     m.add_function(wrap_pyfunction!(embed, m)?)?;
     m.add_function(wrap_pyfunction!(version, m)?)?;
@@ -340,7 +411,7 @@ result = rllm.generate(<span class="s">"LLMs are"</span>, max_tokens=<span class
 
 <footer>
   <p>rllm · Pure Rust LLM CLI · <a href="rllm-portal.html">Documentation Portal</a> · <a href="rllm-install.html">Install</a> · <a href="rllm-arch.html">Architecture</a></p>
-  <p style="margin-top:.4rem">Phase 5 · 25 crates · 112 man pages · Metal GPU · PyO3 Python bindings</p>
+  <p style="margin-top:.4rem">Phase 6 · 25 crates · 112 man pages · Metal GPU · RllmSession · abi3 wheel</p>
 </footer>
 
 <script>
