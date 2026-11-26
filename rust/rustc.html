@@ -1,0 +1,522 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link
+    rel="icon"
+    type="image/x-icon"
+    href="https://mohan-chinnappan-n5.github.io/dfv/img/mc_favIcon.ico"
+  />
+<title>rustc — More Than a Compiler</title>
+<style>
+:root {
+  --bg:#0b1020;
+  --panel:#131c30;
+  --panel2:#18243a;
+  --text:#e8eef8;
+  --muted:#a5b3c9;
+  --orange:#f28b54;
+  --cyan:#55d6d2;
+  --green:#8ed6a2;
+  --border:#2b3a52;
+}
+* {box-sizing:border-box}
+body {
+  margin:0;
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  line-height:1.75;
+}
+header {
+  padding:85px 22px 75px;
+  text-align:center;
+  background:radial-gradient(ellipse at top,#273b5b 0%,#10192c 48%,#0b1020 100%);
+}
+.eyebrow {
+  color:var(--cyan);
+  text-transform:uppercase;
+  letter-spacing:4px;
+  font-size:12px;
+  font-weight:800;
+}
+h1 {
+  font-size:clamp(38px,7vw,76px);
+  line-height:1.1;
+  margin:22px 0;
+}
+h1 span {color:var(--orange)}
+.subtitle {
+  max-width:760px;
+  margin:auto;
+  color:var(--muted);
+  font-size:19px;
+}
+.container {max-width:1080px;margin:auto;padding:30px 22px 80px}
+h2 {
+  color:var(--cyan);
+  font-size:29px;
+  margin-top:65px;
+}
+h3 {color:var(--orange)}
+p {color:#c4cede}
+strong {color:#fff}
+code {
+  color:#ffc18e;
+  background:#202b40;
+  padding:3px 7px;
+  border-radius:5px;
+}
+pre {
+  background:#080e1a;
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:22px;
+  overflow-x:auto;
+  color:#b9e8d0;
+  line-height:1.6;
+}
+.card-grid {
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+  gap:17px;
+  margin:25px 0;
+}
+.card {
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:22px;
+}
+.card h3 {margin-top:0}
+.card p {font-size:14px;margin-bottom:0}
+.highlight {
+  border-left:4px solid var(--orange);
+  background:#1b2538;
+  padding:22px 25px;
+  border-radius:0 12px 12px 0;
+  margin:25px 0;
+}
+.diagram {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:center;
+  gap:12px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:15px;
+  padding:25px;
+  margin:25px 0;
+}
+.node {
+  background:#22344b;
+  border:1px solid #46617c;
+  border-radius:9px;
+  padding:14px 18px;
+  text-align:center;
+  font-weight:700;
+}
+.arrow {color:var(--orange);font-size:24px}
+table {width:100%;border-collapse:collapse;margin:22px 0}
+th,td {padding:14px;text-align:left;border-bottom:1px solid var(--border)}
+th {color:var(--cyan);background:var(--panel)}
+td {color:#c4cede}
+.badge {
+  display:inline-block;
+  padding:4px 10px;
+  border-radius:20px;
+  background:#243c36;
+  color:var(--green);
+  font-size:12px;
+  font-weight:bold;
+}
+footer {
+  text-align:center;
+  padding:40px 20px;
+  color:var(--muted);
+  border-top:1px solid var(--border);
+}
+a {color:var(--cyan)}
+@media(max-width:600px) {
+  header {padding:60px 18px}
+  h2 {font-size:25px}
+  pre {font-size:12px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Systems Programming · Rust · Compiler Engineering</div>
+  <h1><span>rustc</span> is More Than a Compiler</h1>
+  <p class="subtitle">
+    What if your compiler could catch entire categories of software defects
+    before your program ever gets a chance to run?
+  </p>
+  <p><span class="badge">Compile-Time Correctness</span></p>
+</header>
+
+<main class="container">
+
+<section>
+<h2>1. The Traditional Compiler Mental Model</h2>
+<p>
+Traditionally, we think of a compiler as a translator. It takes source code,
+checks its syntax, performs some semantic analysis, optimizes the program,
+and produces machine code.
+</p>
+
+<div class="diagram">
+  <div class="node">Source Code</div>
+  <div class="arrow">→</div>
+  <div class="node">Compiler</div>
+  <div class="arrow">→</div>
+  <div class="node">Machine Code</div>
+  <div class="arrow">→</div>
+  <div class="node">Execution</div>
+</div>
+
+<p>
+This model works well for understanding C, C++, and many other compiled
+languages. But Rust introduces a fundamentally stronger responsibility
+into the compilation process.
+</p>
+
+<div class="highlight">
+<strong>The central idea:</strong><br>
+The Rust compiler does not merely ask whether your code can be translated
+into machine instructions. It also asks whether your code obeys a collection
+of strict memory-safety, ownership, borrowing, and concurrency rules.
+</div>
+</section>
+
+<section>
+<h2>2. Meet rustc</h2>
+<p>
+<code>rustc</code> is the official Rust compiler. It is responsible for
+transforming Rust source code into executable code while enforcing the
+language's safety guarantees.
+</p>
+
+<div class="card-grid">
+  <div class="card">
+    <h3>Ownership</h3>
+    <p>Every value has a clearly defined owner. Ownership transfers and destruction follow defined rules.</p>
+  </div>
+  <div class="card">
+    <h3>Borrowing</h3>
+    <p>References are checked to prevent invalid access and conflicting mutable access.</p>
+  </div>
+  <div class="card">
+    <h3>Lifetime Analysis</h3>
+    <p>References must not outlive the data they refer to.</p>
+  </div>
+  <div class="card">
+    <h3>Thread Safety</h3>
+    <p>Send and Sync traits help enforce safe sharing and transfer across threads.</p>
+  </div>
+  <div class="card">
+    <h3>Type Safety</h3>
+    <p>Strong type checking catches invalid operations and incompatible values.</p>
+  </div>
+  <div class="card">
+    <h3>Pattern Exhaustiveness</h3>
+    <p>Pattern matching can detect missing cases before execution.</p>
+  </div>
+</div>
+</section>
+
+<section>
+<h2>3. Ownership: Memory Management Without a Garbage Collector</h2>
+<p>
+In languages with garbage collection, a runtime system identifies memory
+that is no longer reachable. In C and C++, developers often manage memory
+manually or use library abstractions.
+</p>
+<p>
+Rust takes another approach: ownership rules are enforced during compilation.
+When an owner goes out of scope, its value is normally dropped.
+</p>
+
+<pre><code>fn main() {
+    let first = String::from("Hello Rust");
+
+    let second = first;
+
+    // This would fail to compile:
+    // println!("{}", first);
+
+    println!("{}", second);
+}</code></pre>
+
+<p>
+The value has moved from <code>first</code> to <code>second</code>.
+Rust prevents accidental use of the moved value.
+</p>
+<div class="highlight">
+The important distinction: ownership is not a runtime garbage collector.
+It is a language-level resource-management discipline enforced at compile time.
+</div>
+</section>
+
+<section>
+<h2>4. Borrow Checker: A Different Kind of Gatekeeper</h2>
+<p>
+One of Rust's most distinctive features is its borrow checker.
+It ensures that references obey ownership and aliasing rules.
+</p>
+
+<pre><code>fn main() {
+    let mut balance = 100;
+
+    let reference = &balance;
+
+    // Not allowed while immutable borrow is active:
+    // balance += 50;
+
+    println!("Balance: {}", reference);
+}</code></pre>
+
+<p>
+The compiler prevents mutable access while an incompatible immutable
+borrow is active.
+</p>
+
+<div class="diagram">
+  <div class="node">Source Code</div>
+  <div class="arrow">→</div>
+  <div class="node">Borrow Checker</div>
+  <div class="arrow">→</div>
+  <div class="node">Safe References</div>
+</div>
+</section>
+
+<section>
+<h2>5. Concurrency: Fearless, But Not Careless</h2>
+<p>
+Concurrent programming introduces difficult problems: data races,
+conflicting writes, and unsafe shared state.
+Rust's type system and trait system help prevent many of these problems
+at compile time.
+</p>
+
+<pre><code>use std::thread;
+
+fn main() {
+    let message = String::from("Hello from Rust");
+
+    let handle = thread::spawn(move || {
+        println!("{}", message);
+    });
+
+    handle.join().unwrap();
+}</code></pre>
+
+<p>
+The <code>move</code> keyword transfers ownership into the spawned thread.
+Rust ensures the captured value is valid for that thread's execution.
+</p>
+
+<div class="highlight">
+Rust does not eliminate every concurrency bug. It prevents data races
+in safe Rust, but logical races, deadlocks, and incorrect synchronization
+remain possible.
+</div>
+</section>
+
+<section>
+<h2>6. What Happens Inside rustc?</h2>
+<p>
+The Rust compilation pipeline is much richer than simple source-to-machine-code
+translation.
+</p>
+
+<div class="diagram">
+  <div class="node">Rust Source</div>
+  <div class="arrow">→</div>
+  <div class="node">Parsing</div>
+  <div class="arrow">→</div>
+  <div class="node">HIR</div>
+  <div class="arrow">→</div>
+  <div class="node">Type Checking</div>
+</div>
+<div class="diagram">
+  <div class="node">MIR</div>
+  <div class="arrow">→</div>
+  <div class="node">Borrow Checking</div>
+  <div class="arrow">→</div>
+  <div class="node">Optimization</div>
+  <div class="arrow">→</div>
+  <div class="node">Code Generation</div>
+</div>
+
+<div class="card-grid">
+  <div class="card">
+    <h3>AST</h3>
+    <p>Abstract Syntax Tree: represents the parsed source program.</p>
+  </div>
+  <div class="card">
+    <h3>HIR</h3>
+    <p>High-level Intermediate Representation: simplifies language constructs for later compiler stages.</p>
+  </div>
+  <div class="card">
+    <h3>MIR</h3>
+    <p>Mid-level Intermediate Representation: a control-flow-oriented representation used for borrow checking and optimization.</p>
+  </div>
+  <div class="card">
+    <h3>LLVM</h3>
+    <p>Rust commonly uses LLVM as a backend to optimize and generate machine code for supported targets.</p>
+  </div>
+</div>
+<p>
+This architecture makes Rust compiler engineering particularly interesting:
+the compiler has multiple representations and analysis stages, each
+contributing to correctness or performance.
+</p>
+</section>
+
+<section>
+<h2>7. The Compiler as a Development Partner</h2>
+<p>
+Consider two programming workflows.
+</p>
+<table>
+<tr><th>Traditional workflow</th><th>Rust workflow</th></tr>
+<tr><td>Write code</td><td>Write code</td></tr>
+<tr><td>Compile</td><td>Compile</td></tr>
+<tr><td>Run tests</td><td>Address compiler feedback</td></tr>
+<tr><td>Discover memory bugs</td><td>Run tests and validate behavior</td></tr>
+<tr><td>Debug runtime failures</td><td>Debug remaining runtime failures</td></tr>
+</table>
+<p>
+This is a simplified comparison, not a claim that other compilers lack
+static analysis or safety checks. C++, Java, Swift, and other ecosystems
+have powerful type systems, analyzers, and safety mechanisms too.
+</p>
+<p>
+What makes Rust distinctive is how deeply ownership, borrowing, and
+lifetime constraints are integrated into ordinary programming.
+</p>
+</section>
+
+<section>
+<h2>8. Why This Matters for AI Coding Agents</h2>
+<p>
+This is where Rust becomes particularly interesting in the age of AI-assisted
+software development.
+</p>
+<p>
+An AI coding agent can generate code quickly. But generated code is not
+necessarily correct. It may contain invalid references, resource-management
+mistakes, or unsafe concurrency patterns.
+</p>
+<p>
+Rust adds a strict verification checkpoint to that workflow.
+</p>
+
+<div class="diagram">
+  <div class="node">AI Agent</div>
+  <div class="arrow">→</div>
+  <div class="node">Generate Rust</div>
+  <div class="arrow">→</div>
+  <div class="node">rustc</div>
+  <div class="arrow">→</div>
+  <div class="node">Compiler Feedback</div>
+</div>
+<div class="diagram">
+  <div class="node">Agent Fixes Errors</div>
+  <div class="arrow">→</div>
+  <div class="node">Compile Again</div>
+  <div class="arrow">→</div>
+  <div class="node">Tests</div>
+  <div class="arrow">→</div>
+  <div class="node">Review</div>
+</div>
+
+<div class="highlight">
+<strong>A powerful combination:</strong><br>
+AI provides speed of implementation. Rust provides compile-time enforcement
+of important correctness constraints. Tests, reviews, and runtime monitoring
+remain essential.
+</div>
+<p>
+The compiler becomes part of the feedback loop of an autonomous coding agent.
+Instead of trusting generated code blindly, the agent can iteratively
+respond to precise compiler diagnostics.
+</p>
+</section>
+
+<section>
+<h2>9. Does Rust Eliminate All Bugs?</h2>
+<p>No. This distinction is important.</p>
+<table>
+<tr><th>Problem</th><th>What Rust provides</th></tr>
+<tr><td>Use-after-free in safe Rust</td><td><span class="badge">Prevented</span></td></tr>
+<tr><td>Double free in safe Rust</td><td><span class="badge">Prevented</span></td></tr>
+<tr><td>Data races in safe Rust</td><td><span class="badge">Prevented</span></td></tr>
+<tr><td>Integer overflow</td><td>Depends on operation and build mode</td></tr>
+<tr><td>Deadlocks</td><td>Not generally prevented</td></tr>
+<tr><td>Incorrect business logic</td><td>Not prevented</td></tr>
+<tr><td>Security vulnerabilities</td><td>Many risks reduced, not eliminated</td></tr>
+<tr><td>Unsafe code defects</td><td>Require additional care and verification</td></tr>
+</table>
+</section>
+
+<section>
+<h2>10. The Bigger Picture</h2>
+<p>
+The most interesting thing about Rust is not simply that it is fast.
+It is that the language makes developers express important resource and
+concurrency constraints explicitly.
+</p>
+<p>
+The compiler checks those constraints before the program runs.
+That changes how we think about software engineering.
+</p>
+
+<div class="highlight">
+<h3>My takeaway</h3>
+A conventional compiler is often introduced as a translator from source
+code to machine code.
+
+<strong>rustc is also a compile-time correctness enforcement system.</strong>
+
+It makes the compiler an active participant in the engineering process,
+not merely the final step before execution.
+</div>
+</section>
+
+<section>
+<h2>11. Explore Further</h2>
+<div class="card-grid">
+  <div class="card">
+    <h3>Rust Language</h3>
+    <p><a href="https://www.rust-lang.org/" target="_blank">Official Rust website ↗</a></p>
+  </div>
+  <div class="card">
+    <h3>The Rust Book</h3>
+    <p><a href="https://doc.rust-lang.org/book/" target="_blank">Ownership and borrowing ↗</a></p>
+  </div>
+  <div class="card">
+    <h3>Rust Compiler</h3>
+    <p><a href="https://github.com/rust-lang/rust" target="_blank">rustc source code on GitHub ↗</a></p>
+  </div>
+  <div class="card">
+    <h3>Compiler Development</h3>
+    <p><a href="https://rustc-dev-guide.rust-lang.org/" target="_blank">Rust Compiler Development Guide ↗</a></p>
+  </div>
+</div>
+</section>
+
+</main>
+
+<footer>
+  <p>RUST · SAFETY · PERFORMANCE · CORRECTNESS</p>
+  <p>Build software that is not just fast, but engineered to be trustworthy.</p>
+</footer>
+
+</body>
+</html>
