@@ -1,0 +1,741 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dot Products & Matrix Multiplication — The Engine of LLMs</title>
+<style>
+:root {
+  --bg: #0b1020;
+  --panel: #141d32;
+  --panel2: #192641;
+  --text: #edf3ff;
+  --muted: #a6b5d0;
+  --blue: #55b5ff;
+  --cyan: #43e0d0;
+  --purple: #b69aff;
+  --orange: #ffb45e;
+  --green: #72df9b;
+  --border: #2b3a56;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, sans-serif;
+  line-height: 1.7;
+}
+header {
+  padding: 80px 22px 65px;
+  text-align: center;
+  background:
+    radial-gradient(ellipse at 50% 0%, #244d79 0%, transparent 65%),
+    linear-gradient(145deg,#111c35,#0b1020);
+  border-bottom: 1px solid var(--border);
+}
+header .eyebrow {
+  color: var(--cyan);
+  letter-spacing: 4px;
+  font-size: 12px;
+  font-weight: 800;
+}
+h1 {
+  font-size: clamp(34px,6vw,64px);
+  line-height: 1.12;
+  max-width: 1000px;
+  margin: 22px auto;
+}
+header p {
+  max-width: 780px;
+  margin: auto;
+  color: var(--muted);
+  font-size: 18px;
+}
+.hero-equation {
+  display: inline-block;
+  margin-top: 32px;
+  padding: 15px 30px;
+  border: 1px solid #42618a;
+  background: #132644;
+  border-radius: 14px;
+  color: var(--cyan);
+  font-size: 25px;
+  font-weight: 800;
+}
+main {
+  max-width: 1120px;
+  margin: auto;
+  padding: 30px 22px 90px;
+}
+section { margin: 65px 0; }
+h2 {
+  font-size: 30px;
+  margin-bottom: 12px;
+  line-height: 1.25;
+}
+h3 { color: var(--cyan); margin-top: 25px; }
+p { color: var(--muted); }
+.lead { font-size: 18px; color: #d0ddf1; }
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 25px;
+  margin: 20px 0;
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit,minmax(230px,1fr));
+  gap: 16px;
+}
+.metric {
+  background: var(--panel2);
+  padding: 22px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+}
+.metric strong {
+  display: block;
+  font-size: 30px;
+  color: var(--cyan);
+}
+.metric span { color: var(--muted); font-size: 14px; }
+.tag {
+  display: inline-block;
+  border-radius: 30px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: bold;
+  background: #213b5b;
+  color: var(--blue);
+  margin-bottom: 10px;
+}
+.diagram {
+  background: #101a2e;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 15px;
+  margin: 25px 0;
+  overflow-x: auto;
+}
+svg { display: block; width: 100%; height: auto; min-width: 300px; }
+.eq {
+  background: #101a2e;
+  border-left: 4px solid var(--cyan);
+  padding: 18px 22px;
+  border-radius: 8px;
+  margin: 20px 0;
+  font-family: Georgia,serif;
+  font-size: 22px;
+  color: #fff;
+  overflow-x: auto;
+}
+.note {
+  border: 1px solid #4b6390;
+  background: #162541;
+  border-radius: 12px;
+  padding: 20px;
+  color: #dce9ff;
+  margin: 22px 0;
+}
+.note strong { color: var(--orange); }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 20px 0;
+}
+td,th {
+  border-bottom: 1px solid var(--border);
+  padding: 13px;
+  text-align: left;
+}
+th { color: var(--cyan); }
+td { color: var(--muted); }
+footer {
+  text-align: center;
+  padding: 45px 20px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+}
+.pill {
+  display: inline-block;
+  padding: 5px 10px;
+  border-radius: 8px;
+  background: #263753;
+  margin: 4px;
+  font-size: 13px;
+}
+.highlight { color: var(--orange); font-weight: bold; }
+.small { font-size: 13px; }
+@media(max-width:600px) {
+  header { padding-top: 55px; }
+  .card { padding: 17px; }
+  h2 { font-size: 25px; }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+  <div class="eyebrow">UNDERSTANDING THE MATHEMATICS OF AI</div>
+  <h1>Dot Products & Matrix Multiplication</h1>
+  <p>
+    The mathematical machinery behind Transformers, attention,
+    embeddings, neural networks and Large Language Models.
+  </p>
+  <div class="hero-equation">
+    Y = XW
+  </div>
+  <p style="margin-top:16px;font-size:14px">
+    Simple mathematical operations. Extraordinary computational possibilities.
+  </p>
+</header>
+
+<main>
+
+<section>
+  <span class="tag">01 · THE BIG PICTURE</span>
+  <h2>Why should we care about matrix multiplication?</h2>
+  <p class="lead">
+    An LLM may contain billions of parameters, process thousands of
+    tokens, and learn complicated language relationships.
+    Yet a surprisingly large portion of its computational work
+    comes down to multiplying matrices and calculating dot products.
+  </p>
+
+  <div class="grid">
+    <div class="metric">
+      <strong>Dot Product</strong>
+      <span>Combines corresponding dimensions using multiplication and addition.</span>
+    </div>
+    <div class="metric">
+      <strong>Matrix Multiply</strong>
+      <span>Performs many dot products efficiently in parallel.</span>
+    </div>
+    <div class="metric">
+      <strong>Tensor</strong>
+      <span>Organizes numerical information across multiple dimensions.</span>
+    </div>
+    <div class="metric">
+      <strong>Transformer</strong>
+      <span>Uses these operations repeatedly to build contextual representations.</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <span class="tag">02 · THE FUNDAMENTAL OPERATION</span>
+  <h2>What exactly is a dot product?</h2>
+  <p>
+    Consider two vectors. Multiply corresponding elements and add
+    the results. That is a dot product.
+  </p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 850 280">
+      <text x="425" y="30" text-anchor="middle" fill="#edf3ff" font-size="20" font-weight="bold">A dot product combines two vectors</text>
+
+      <g font-size="20" text-anchor="middle">
+        <text x="90" y="95" fill="#55b5ff">Vector A</text>
+        <text x="90" y="165" fill="#b69aff">Vector B</text>
+        <text x="90" y="235" fill="#43e0d0">Result</text>
+      </g>
+
+      <g>
+        <rect x="175" y="62" width="80" height="48" rx="8" fill="#194d78"/>
+        <rect x="265" y="62" width="80" height="48" rx="8" fill="#194d78"/>
+        <rect x="355" y="62" width="80" height="48" rx="8" fill="#194d78"/>
+        <rect x="445" y="62" width="80" height="48" rx="8" fill="#194d78"/>
+        <rect x="175" y="132" width="80" height="48" rx="8" fill="#493a79"/>
+        <rect x="265" y="132" width="80" height="48" rx="8" fill="#493a79"/>
+        <rect x="355" y="132" width="80" height="48" rx="8" fill="#493a79"/>
+        <rect x="445" y="132" width="80" height="48" rx="8" fill="#493a79"/>
+        <g fill="white" font-size="19" text-anchor="middle">
+          <text x="215" y="94">2</text><text x="305" y="94">3</text>
+          <text x="395" y="94">1</text><text x="485" y="94">4</text>
+          <text x="215" y="164">5</text><text x="305" y="164">2</text>
+          <text x="395" y="164">6</text><text x="485" y="164">3</text>
+        </g>
+      </g>
+
+      <text x="575" y="103" fill="#a6b5d0" font-size="23">×</text>
+      <text x="575" y="174" fill="#a6b5d0" font-size="23">×</text>
+      <path d="M550 190 L550 210 L650 210" stroke="#43e0d0" fill="none" stroke-width="2"/>
+      <rect x="650" y="185" width="155" height="52" rx="10" fill="#155b59"/>
+      <text x="727" y="218" text-anchor="middle" fill="white" font-size="21" font-weight="bold">37</text>
+      <text x="425" y="270" text-anchor="middle" fill="#a6b5d0" font-size="16">2×5 + 3×2 + 1×6 + 4×3 = 37</text>
+    </svg>
+  </div>
+
+  <div class="eq">
+    A · B = Σ (Aᵢ × Bᵢ) = 37
+  </div>
+
+  <p>
+    The two vectors contain four dimensions each. The dot product
+    combines those four pairs into one scalar value.
+  </p>
+
+  <div class="note">
+    <strong>Important intuition:</strong>
+    A dot product is a weighted combination of dimensions.
+    It can measure alignment, similarity or compatibility,
+    depending on what the vectors represent.
+  </div>
+</section>
+
+<section>
+  <span class="tag">03 · MANY DOT PRODUCTS AT ONCE</span>
+  <h2>Matrix multiplication: dot products at scale</h2>
+  <p>
+    A matrix multiplication is essentially a systematic collection
+    of dot products. Every row of the first matrix is combined
+    with every column of the second matrix.
+  </p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 850 340">
+      <text x="170" y="30" fill="#55b5ff" text-anchor="middle" font-size="21" font-weight="bold">Matrix A</text>
+      <text x="425" y="30" fill="#b69aff" text-anchor="middle" font-size="21" font-weight="bold">Matrix B</text>
+      <text x="690" y="30" fill="#43e0d0" text-anchor="middle" font-size="21" font-weight="bold">Output C</text>
+
+      <g fill="#194d78" stroke="#55b5ff" stroke-width="1">
+        <rect x="80" y="55" width="65" height="48" rx="5"/>
+        <rect x="150" y="55" width="65" height="48" rx="5"/>
+        <rect x="220" y="55" width="65" height="48" rx="5"/>
+        <rect x="80" y="108" width="65" height="48" rx="5"/>
+        <rect x="150" y="108" width="65" height="48" rx="5"/>
+        <rect x="220" y="108" width="65" height="48" rx="5"/>
+      </g>
+      <g fill="white" text-anchor="middle" font-size="17">
+        <text x="112" y="85">1</text><text x="182" y="85">2</text><text x="252" y="85">3</text>
+        <text x="112" y="138">4</text><text x="182" y="138">5</text><text x="252" y="138">6</text>
+      </g>
+
+      <text x="325" y="112" fill="#a6b5d0" font-size="28">×</text>
+
+      <g fill="#493a79" stroke="#b69aff" stroke-width="1">
+        <rect x="380" y="55" width="65" height="48" rx="5"/>
+        <rect x="450" y="55" width="65" height="48" rx="5"/>
+        <rect x="380" y="108" width="65" height="48" rx="5"/>
+        <rect x="450" y="108" width="65" height="48" rx="5"/>
+        <rect x="380" y="161" width="65" height="48" rx="5"/>
+        <rect x="450" y="161" width="65" height="48" rx="5"/>
+      </g>
+      <g fill="white" text-anchor="middle" font-size="17">
+        <text x="412" y="85">7</text><text x="482" y="85">8</text>
+        <text x="412" y="138">9</text><text x="482" y="138">10</text>
+        <text x="412" y="191">11</text><text x="482" y="191">12</text>
+      </g>
+
+      <path d="M535 110 L600 110" stroke="#43e0d0" stroke-width="3"/>
+      <path d="M590 100 L602 110 L590 120" stroke="#43e0d0" fill="none" stroke-width="3"/>
+
+      <g fill="#155b59" stroke="#43e0d0" stroke-width="1">
+        <rect x="625" y="55" width="85" height="48" rx="5"/>
+        <rect x="720" y="55" width="85" height="48" rx="5"/>
+        <rect x="625" y="108" width="85" height="48" rx="5"/>
+        <rect x="720" y="108" width="85" height="48" rx="5"/>
+      </g>
+      <g fill="white" text-anchor="middle" font-size="18">
+        <text x="667" y="85">58</text><text x="762" y="85">64</text>
+        <text x="667" y="138">139</text><text x="762" y="138">154</text>
+      </g>
+      <text x="425" y="280" fill="#a6b5d0" font-size="17" text-anchor="middle">2 × 3  multiplied by  3 × 2  produces  2 × 2</text>
+      <text x="425" y="310" fill="#43e0d0" font-size="15" text-anchor="middle">Each output cell is one dot product.</text>
+    </svg>
+  </div>
+
+  <div class="eq">
+    C = A × B
+  </div>
+
+  <p>
+    Instead of calculating each result individually, GPUs can
+    execute enormous numbers of these multiply-and-accumulate
+    operations in parallel.
+  </p>
+
+  <div class="note">
+    <strong>Why GPUs matter:</strong>
+    Neural networks perform huge amounts of regular numerical work.
+    GPUs are designed to process many such operations concurrently.
+    Matrix multiplication is one of their most important workloads.
+  </div>
+</section>
+
+<section>
+  <span class="tag">04 · YOUR DIMENSION IDEA</span>
+  <h2>Can dot products add dimensions or attributes?</h2>
+
+  <p class="lead">
+    My intuition touches on one of the most powerful concepts
+    in neural networks: transforming a representation into a
+    richer set of learned features.
+  </p>
+
+  <div class="card">
+    <h3>Start with an existing representation</h3>
+    <div class="diagram">
+      <svg viewBox="0 0 800 160">
+        <text x="20" y="25" fill="#a6b5d0" font-size="16">Input vector X</text>
+        <g>
+          <rect x="25" y="45" width="100" height="65" rx="9" fill="#194d78"/>
+          <rect x="132" y="45" width="100" height="65" rx="9" fill="#194d78"/>
+          <rect x="239" y="45" width="100" height="65" rx="9" fill="#194d78"/>
+          <rect x="346" y="45" width="100" height="65" rx="9" fill="#194d78"/>
+          <g fill="white" font-size="19" text-anchor="middle">
+            <text x="75" y="85">0.2</text>
+            <text x="182" y="85">0.7</text>
+            <text x="289" y="85">0.4</text>
+            <text x="396" y="85">0.9</text>
+          </g>
+        </g>
+        <text x="490" y="85" fill="#43e0d0" font-size="25">→</text>
+        <text x="550" y="65" fill="#43e0d0" font-size="19" font-weight="bold">4 dimensions</text>
+        <text x="550" y="95" fill="#a6b5d0" font-size="14">Existing features</text>
+      </svg>
+    </div>
+    <p>
+      Imagine these four numbers encode aspects of a word,
+      a token, an image or some other input.
+    </p>
+  </div>
+
+  <div class="card">
+    <h3>Apply a learned projection</h3>
+    <div class="diagram">
+      <svg viewBox="0 0 800 230">
+        <rect x="15" y="70" width="135" height="90" rx="12" fill="#194d78"/>
+        <text x="82" y="107" text-anchor="middle" fill="white" font-size="19">X</text>
+        <text x="82" y="133" text-anchor="middle" fill="#a6d9ff" font-size="14">4 features</text>
+
+        <text x="175" y="120" fill="#43e0d0" font-size="30">×</text>
+
+        <rect x="225" y="30" width="190" height="165" rx="12" fill="#493a79"/>
+        <text x="320" y="55" fill="white" text-anchor="middle" font-size="16">Weight matrix W</text>
+        <g fill="#e4d8ff" font-size="13" text-anchor="middle">
+          <text x="270" y="88">w₁₁</text><text x="320" y="88">w₁₂</text><text x="370" y="88">...</text>
+          <text x="270" y="120">w₂₁</text><text x="320" y="120">w₂₂</text><text x="370" y="120">...</text>
+          <text x="270" y="152">w₃₁</text><text x="320" y="152">w₃₂</text><text x="370" y="152">...</text>
+        </g>
+        <text x="445" y="120" fill="#43e0d0" font-size="28">→</text>
+        <rect x="495" y="55" width="270" height="120" rx="12" fill="#155b59"/>
+        <text x="630" y="91" fill="white" text-anchor="middle" font-size="20">New representation</text>
+        <text x="630" y="125" fill="#9bfff0" text-anchor="middle" font-size="17">8 learned features</text>
+        <text x="630" y="149" fill="#9bfff0" text-anchor="middle" font-size="13">Different feature space</text>
+      </svg>
+    </div>
+    <div class="eq">
+      [1 × 4] × [4 × 8] = [1 × 8]
+    </div>
+    <p>
+      Here, each of the eight output dimensions is a dot product
+      between the input vector and one column of the weight matrix.
+      The network has learned eight new feature combinations.
+    </p>
+  </div>
+
+  <div class="note">
+    <strong>A useful distinction:</strong>
+    Dot products do not inherently increase dimensionality.
+    They produce scalar combinations. The weight matrix determines
+    the number of output dimensions. In this example, four input
+    dimensions become eight output dimensions through a learned
+    linear projection.
+  </div>
+
+  <h3>Three ways neural networks handle dimensions</h3>
+  <div class="grid">
+    <div class="metric">
+      <strong>Projection</strong>
+      <span>Matrix multiplication transforms features into a new dimensional space.</span>
+    </div>
+    <div class="metric">
+      <strong>Concatenation</strong>
+      <span>Joins representations along a dimension, explicitly increasing its size.</span>
+    </div>
+    <div class="metric">
+      <strong>Elementwise</strong>
+      <span>Combines corresponding values without changing the tensor shape.</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <span class="tag">05 · THE TRANSFORMER CONNECTION</span>
+  <h2>Dot products make attention possible</h2>
+  <p class="lead">
+    Transformers use dot products to decide which tokens should
+    pay attention to which other tokens.
+  </p>
+
+  <div class="card">
+    <h3>Consider this sentence</h3>
+    <div style="font-size:23px;text-align:center;line-height:2">
+      The <span style="color:#55b5ff">cat</span> sat on the
+      <span style="color:#ffb45e">mat</span> because
+      <span style="color:#b69aff">it</span> was comfortable.
+    </div>
+    <p>
+      When processing the word "it", the model needs to establish
+      relationships with other words in the sentence.
+      Attention helps it construct contextual representations.
+    </p>
+  </div>
+
+  <h3>Queries, Keys and Values</h3>
+  <div class="diagram">
+    <svg viewBox="0 0 850 390">
+      <text x="425" y="30" text-anchor="middle" fill="#edf3ff" font-size="20" font-weight="bold">The attention mechanism</text>
+
+      <rect x="30" y="65" width="220" height="65" rx="12" fill="#194d78"/>
+      <rect x="315" y="65" width="220" height="65" rx="12" fill="#493a79"/>
+      <rect x="600" y="65" width="220" height="65" rx="12" fill="#155b59"/>
+      <g fill="white" font-size="19" text-anchor="middle">
+        <text x="140" y="105">Query (Q)</text>
+        <text x="425" y="105">Key (K)</text>
+        <text x="710" y="105">Value (V)</text>
+      </g>
+
+      <path d="M140 130 L140 175 L425 175 L425 200" stroke="#55b5ff" stroke-width="3" fill="none"/>
+      <path d="M425 130 L425 200" stroke="#b69aff" stroke-width="3" fill="none"/>
+
+      <rect x="270" y="200" width="310" height="60" rx="12" fill="#273b5b" stroke="#43e0d0"/>
+      <text x="425" y="237" text-anchor="middle" fill="white" font-size="19">Q × Kᵀ</text>
+
+      <path d="M425 260 L425 295" stroke="#43e0d0" stroke-width="3"/>
+      <rect x="270" y="295" width="310" height="48" rx="10" fill="#493a79"/>
+      <text x="425" y="325" text-anchor="middle" fill="white" font-size="17">Softmax → Attention weights</text>
+      <path d="M710 130 L710 319 L590 319" stroke="#43e0d0" stroke-width="3" fill="none"/>
+
+      <text x="425" y="375" text-anchor="middle" fill="#a6b5d0" font-size="15">Attention weights determine how values are combined.</text>
+    </svg>
+  </div>
+
+  <div class="eq">
+    Attention(Q,K,V) = softmax(QKᵀ / √dₖ)V
+  </div>
+
+  <h3>What is happening?</h3>
+  <ol style="color:#a6b5d0">
+    <li><b style="color:#55b5ff">Query:</b> What information is this token looking for?</li>
+    <li><b style="color:#b69aff">Key:</b> What information does another token offer?</li>
+    <li><b style="color:#43e0d0">Dot product:</b> How compatible are this query and key?</li>
+    <li><b style="color:#ffb45e">Softmax:</b> Convert scores into attention weights.</li>
+    <li><b style="color:#72df9b">Values:</b> Combine information using those weights.</li>
+  </ol>
+
+  <div class="note">
+    <strong>The key insight:</strong>
+    Dot products help calculate relationships between tokens.
+    Attention uses those relationships to mix information from
+    across the sequence.
+  </div>
+</section>
+
+<section>
+  <span class="tag">06 · FROM TOKENS TO TENSORS</span>
+  <h2>Where do all these matrices come from?</h2>
+  <p>
+    A transformer converts token IDs into numerical embeddings.
+    Those embeddings are organized into tensors and repeatedly
+    transformed by learned matrices.
+  </p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 850 400">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="8" refX="5" refY="3" orient="auto">
+          <path d="M0 0 L6 3 L0 6" fill="none" stroke="#43e0d0" stroke-width="1.5"/>
+        </marker>
+      </defs>
+      <g text-anchor="middle">
+        <rect x="280" y="12" width="290" height="47" rx="9" fill="#263753"/>
+        <text x="425" y="42" fill="white" font-size="17">Input tokens</text>
+        <path d="M425 59 L425 86" stroke="#43e0d0" stroke-width="2" marker-end="url(#arrow)"/>
+        <rect x="280" y="91" width="290" height="47" rx="9" fill="#194d78"/>
+        <text x="425" y="121" fill="white" font-size="17">Token embeddings</text>
+        <path d="M425 138 L425 165" stroke="#43e0d0" stroke-width="2" marker-end="url(#arrow)"/>
+        <rect x="280" y="170" width="290" height="47" rx="9" fill="#493a79"/>
+        <text x="425" y="200" fill="white" font-size="17">Self-attention</text>
+        <path d="M425 217 L425 244" stroke="#43e0d0" stroke-width="2" marker-end="url(#arrow)"/>
+        <rect x="280" y="249" width="290" height="47" rx="9" fill="#155b59"/>
+        <text x="425" y="279" fill="white" font-size="17">Feed-forward network</text>
+        <path d="M425 296 L425 323" stroke="#43e0d0" stroke-width="2" marker-end="url(#arrow)"/>
+        <rect x="280" y="328" width="290" height="47" rx="9" fill="#68452a"/>
+        <text x="425" y="358" fill="white" font-size="17">Next-token probabilities</text>
+      </g>
+      <text x="590" y="190" fill="#a6b5d0" font-size="14">Q, K, V projections</text>
+      <text x="590" y="270" fill="#a6b5d0" font-size="14">Learned linear layers</text>
+    </svg>
+  </div>
+
+  <p>
+    Every transformer block repeats a combination of projections,
+    attention calculations, feed-forward transformations,
+    normalization and residual connections.
+  </p>
+</section>
+
+<section>
+  <span class="tag">07 · THE SHAPE OF THE COMPUTATION</span>
+  <h2>Understanding tensor dimensions</h2>
+  <p>
+    Imagine a batch of 32 sequences, each containing 128 tokens,
+    with an embedding size of 768.
+  </p>
+
+  <div class="eq">
+    X = [32, 128, 768]
+  </div>
+
+  <table>
+    <tr><th>Dimension</th><th>Meaning</th></tr>
+    <tr><td>32</td><td>Number of sequences in a batch</td></tr>
+    <tr><td>128</td><td>Tokens per sequence</td></tr>
+    <tr><td>768</td><td>Features representing each token</td></tr>
+  </table>
+
+  <p>
+    A projection matrix can transform each 768-dimensional
+    token representation into a different feature space.
+  </p>
+
+  <div class="eq">
+    [32, 128, 768] × [768, 2304]
+    = [32, 128, 2304]
+  </div>
+
+  <p>
+    This is one reason matrix multiplication is so fundamental:
+    the same learned transformation is applied across every token
+    and every sequence in the batch.
+  </p>
+</section>
+
+<section>
+  <span class="tag">08 · WHY COMPUTE MATTERS</span>
+  <h2>Why modern AI depends on GPUs and specialized hardware</h2>
+
+  <div class="grid">
+    <div class="card">
+      <h3>CPU</h3>
+      <p>
+        Excellent for general-purpose logic, branching, operating
+        systems and sequential workloads.
+      </p>
+    </div>
+    <div class="card">
+      <h3>GPU</h3>
+      <p>
+        Designed for massive parallel computation, particularly
+        matrix operations and tensor workloads.
+      </p>
+    </div>
+    <div class="card">
+      <h3>TPU / Accelerators</h3>
+      <p>
+        Specialized architectures designed to accelerate
+        machine-learning workloads.
+      </p>
+    </div>
+  </div>
+
+  <p>
+    Modern accelerators also use specialized low-precision
+    arithmetic, high-bandwidth memory and optimized matrix
+    multiplication kernels.
+  </p>
+
+  <div class="note">
+    <strong>Important engineering connection:</strong>
+    FlashAttention optimizes attention computation by reducing
+    expensive data movement between memory levels while preserving
+    the mathematical attention operation. It demonstrates that
+    efficient LLMs require both mathematical insight and hardware-aware
+    engineering.
+  </div>
+</section>
+
+<section>
+  <span class="tag">09 · PUTTING IT ALL TOGETHER</span>
+  <h2>One mathematical idea, many AI capabilities</h2>
+
+  <div class="grid">
+    <div class="metric">
+      <strong>Embeddings</strong>
+      <span>Represent tokens as numerical vectors.</span>
+    </div>
+    <div class="metric">
+      <strong>Projection</strong>
+      <span>Learn new feature combinations and representations.</span>
+    </div>
+    <div class="metric">
+      <strong>Attention</strong>
+      <span>Calculate token-to-token compatibility using dot products.</span>
+    </div>
+    <div class="metric">
+      <strong>Feed-forward</strong>
+      <span>Transform representations through learned weight matrices and nonlinearities.</span>
+    </div>
+    <div class="metric">
+      <strong>Training</strong>
+      <span>Update millions or billions of parameters using gradients.</span>
+    </div>
+    <div class="metric">
+      <strong>Inference</strong>
+      <span>Execute learned transformations to predict the next token.</span>
+    </div>
+  </div>
+</section>
+
+<section>
+  <span class="tag">10 · FINAL THOUGHT</span>
+  <h2>My perspective: simple operations, extraordinary intelligence</h2>
+
+  <div class="card" style="padding:32px">
+    <p style="font-size:21px;color:#edf3ff;line-height:1.8">
+      A dot product is a remarkably simple mathematical operation.
+      It combines dimensions, calculates compatibility and produces
+      weighted results.
+    </p>
+    <p style="font-size:21px;color:#edf3ff;line-height:1.8">
+      Matrix multiplication scales this idea into thousands or
+      millions of simultaneous transformations.
+    </p>
+    <p style="font-size:21px;color:#43e0d0;line-height:1.8;font-weight:bold">
+      LLMs are built by repeatedly transforming numerical
+      representations, learning relationships and combining
+      information across dimensions.
+    </p>
+    <p style="text-align:center;font-size:23px;color:#ffb45e;font-weight:bold">
+      Simple mathematics. Massive parallelism. Powerful intelligence.
+    </p>
+  </div>
+</section>
+
+<section>
+  <h2>Further reading</h2>
+  <ul style="color:#a6b5d0;line-height:2.2">
+    <li>Attention Is All You Need — Vaswani et al.</li>
+    <li>Efficiently Scaling Transformer Inference — FlashAttention</li>
+    <li>PyTorch — Tensor and Matrix Operations</li>
+    <li>Deep Learning — Goodfellow, Bengio and Courville</li>
+  </ul>
+</section>
+
+</main>
+
+<footer>
+  <div style="color:#43e0d0;font-weight:bold;font-size:18px">
+    THE MATHEMATICS OF LARGE LANGUAGE MODELS
+  </div>
+  <p>Understand the operations. Understand the architecture. Understand the intelligence.</p>
+</footer>
+
+</body>
+</html>

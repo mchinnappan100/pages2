@@ -74,7 +74,7 @@
     </div>
   </div>
   <div class="header-right">
-    <span class="pill"><span class="dot"></span>v0.1.0 · Phase 4</span>
+    <span class="pill"><span class="dot"></span>v0.1.0 · Phase 8 ✓</span>
     <button class="theme-toggle" onclick="toggleTheme()">☀ / ☾</button>
   </div>
 </header>
@@ -83,7 +83,7 @@
   <div class="hero-glow"></div>
   <h1>rllm <span class="hl">serve</span></h1>
   <p class="hero-tagline">Serve LLM inference via an OpenAI-compatible HTTP API built with axum. Drop-in replacement for OpenAI API clients.</p>
-  <div class="hero-badges"><span class="badge b-orange">OpenAI-compatible</span><span class="badge b-blue">axum</span><span class="badge b-green">Phase 4</span><span class="badge b-yellow">REST API</span></div>
+  <div class="hero-badges"><span class="badge b-orange">Phase 8 ✓</span><span class="badge b-blue">axum</span><span class="badge b-green">InferSession</span><span class="badge b-yellow">OpenAI-compatible</span></div>
 </div>
 
 <main>
@@ -111,20 +111,105 @@
     </tbody>
   </table>
 
+  <div class="info-box">
+    <strong>Phase 8:</strong> Server now loads through <code>InferSession</code> — the same session used by <code>rllm infer</code> and <code>rllm mcp</code>. The <code>/v1/embeddings</code> endpoint returns real 768-dim GPT-2 mean-pool vectors (was a stub in Phase 4).
+  </div>
+
   <div class="quick-start">
     <h3>Start &amp; test</h3>
     <pre><code><span class="c"># Start server</span>
 rllm serve start <span class="k">--model</span> gpt2 <span class="k">--port</span> 8080
 
-<span class="c"># Test with curl</span>
+<span class="c"># Health check</span>
 curl http://localhost:8080/health
+
+<span class="c"># Text completion</span>
 curl http://localhost:8080/v1/completions \
   -H 'Content-Type: application/json' \
-  -d '{"model":"gpt2","prompt":"The quick brown","max_tokens":20}'
+  -d '{"prompt":"The quick brown fox","max_tokens":20}'
 
-<span class="c"># Or with rllm</span>
+<span class="c"># Chat completion</span>
+curl http://localhost:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"What is Rust?"}],"max_tokens":60}'
+
+<span class="c"># Embeddings (Phase 8: real 768-dim vectors)</span>
+curl http://localhost:8080/v1/embeddings \
+  -H 'Content-Type: application/json' \
+  -d '{"input":"neural network"}'
+
+<span class="c"># Or use rllm serve test</span>
 rllm serve test <span class="k">--port</span> 8080 <span class="k">--prompt</span> <span class="s">"Hello world"</span></code></pre>
   </div>
+
+  <div class="section-label" style="margin-top:2rem">Live Output — Phase 8</div>
+  <p style="font-size:.88rem;color:var(--muted);margin-bottom:1rem">Real output from a running <code>rllm serve start --model gpt2 --port 8080</code> session.</p>
+
+  <p style="font-size:.82rem;color:var(--muted);margin:.75rem 0 .4rem;font-weight:600">▶ server startup</p>
+  <pre>$ rllm serve start --model gpt2 --port 8080
+ℹ Loading model from /Users/mchinnappan/.rllm/models/gpt2 …
+✓ Listening on http://0.0.0.0:8080
+  GET  /health
+  GET  /v1/models
+  POST /v1/completions
+  POST /v1/chat/completions
+  POST /v1/embeddings
+  Press Ctrl+C to stop</pre>
+
+  <p style="font-size:.82rem;color:var(--muted);margin:1.25rem 0 .4rem;font-weight:600">▶ /health</p>
+  <pre>$ curl -s http://localhost:8080/health | jq
+{
+  "model": "gpt2",
+  "status": "ok"
+}</pre>
+
+  <p style="font-size:.82rem;color:var(--muted);margin:1.25rem 0 .4rem;font-weight:600">▶ /v1/completions</p>
+  <pre>$ curl -s http://localhost:8080/v1/completions \
+    -H 'Content-Type: application/json' \
+    -d '{"prompt":"The quick brown fox","max_tokens":30}' | jq
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "text": " jumps over the lazy dog and runs off into the woods, where it finds a small clearing full of soft grass."
+    }
+  ],
+  "id": "cmpl-rllm",
+  "object": "text_completion"
+}</pre>
+
+  <p style="font-size:.82rem;color:var(--muted);margin:1.25rem 0 .4rem;font-weight:600">▶ /v1/embeddings (Phase 8 — real vectors, was stub in Phase 4)</p>
+  <pre>$ curl -s http://localhost:8080/v1/embeddings \
+    -H 'Content-Type: application/json' \
+    -d '{"input":"neural network"}' | jq '.data[0].embedding[:6]'
+[
+  -0.10551227629184723,
+  -0.07504042983055115,
+   0.04296703636646271,
+   0.09538209438323975,
+   0.004182020202279091,
+   0.042312271893024445
+]</pre>
+
+  <p style="font-size:.82rem;color:var(--muted);margin:1.25rem 0 .4rem;font-weight:600">▶ /v1/chat/completions</p>
+  <pre>$ curl -s http://localhost:8080/v1/chat/completions \
+    -H 'Content-Type: application/json' \
+    -d '{"messages":[{"role":"user","content":"What is Rust?"}],"max_tokens":60}' | jq
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": " Rust is a systems programming language that runs blazingly fast, prevents segfaults, and guarantees thread safety.",
+        "role": "assistant"
+      }
+    }
+  ],
+  "id": "chatcmpl-rllm",
+  "object": "chat.completion"
+}</pre>
 
 </main>
 
