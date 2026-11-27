@@ -74,7 +74,7 @@
     </div>
   </div>
   <div class="header-right">
-    <span class="pill"><span class="dot"></span>v0.1.0 · Phase 8 ✓</span>
+    <span class="pill"><span class="dot"></span>v0.1.0 · Phase 14 ✓</span>
     <button class="theme-toggle" onclick="toggleTheme()">☀ / ☾</button>
   </div>
 </header>
@@ -83,7 +83,7 @@
   <div class="hero-glow"></div>
   <h1>rllm <span class="hl">serve</span></h1>
   <p class="hero-tagline">Serve LLM inference via an OpenAI-compatible HTTP API built with axum. Drop-in replacement for OpenAI API clients.</p>
-  <div class="hero-badges"><span class="badge b-orange">Phase 8 ✓</span><span class="badge b-blue">axum</span><span class="badge b-green">InferSession</span><span class="badge b-yellow">OpenAI-compatible</span></div>
+  <div class="hero-badges"><span class="badge b-orange">Phase 14 ✓</span><span class="badge b-blue">SSE Streaming</span><span class="badge b-green">OpenAI-compat</span><span class="badge b-yellow">axum · InferSession</span></div>
 </div>
 
 <main>
@@ -112,7 +112,7 @@
   </table>
 
   <div class="info-box">
-    <strong>Phase 8:</strong> Server now loads through <code>InferSession</code> — the same session used by <code>rllm infer</code> and <code>rllm mcp</code>. The <code>/v1/embeddings</code> endpoint returns real 768-dim GPT-2 mean-pool vectors (was a stub in Phase 4).
+    <strong>Phase 14:</strong> SSE streaming added to <code>/v1/completions</code> and <code>/v1/chat/completions</code>. Send <code>"stream": true</code> to receive <code>text/event-stream</code> chunks (one word per <code>data:</code> event, terminated with <code>data: [DONE]</code>). Drop-in compatible with the OpenAI Python SDK and <code>openai</code> npm package. 12 unit tests (request parsing, stream defaults, SSE chunk counts).
   </div>
 
   <div class="quick-start">
@@ -142,8 +142,29 @@ curl http://localhost:8080/v1/embeddings \
 rllm serve test <span class="k">--port</span> 8080 <span class="k">--prompt</span> <span class="s">"Hello world"</span></code></pre>
   </div>
 
-  <div class="section-label" style="margin-top:2rem">Live Output — Phase 8</div>
-  <p style="font-size:.88rem;color:var(--muted);margin-bottom:1rem">Real output from a running <code>rllm serve start --model gpt2 --port 8080</code> session.</p>
+  <div class="quick-start" style="margin-top:1.5rem">
+    <h3>Streaming (Phase 14)</h3>
+    <pre><code><span class="c"># SSE streaming — completions</span>
+curl http://localhost:8080/v1/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"prompt":"The quick brown fox","max_tokens":30,"stream":true}'
+
+<span class="c"># SSE streaming — chat</span>
+curl http://localhost:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"What is Rust?"}],"stream":true}'
+
+<span class="c"># OpenAI Python SDK (stream=True)</span>
+<span class="k">from</span> openai <span class="k">import</span> OpenAI
+client = OpenAI(base_url=<span class="s">"http://localhost:8080/v1"</span>, api_key=<span class="s">"rllm"</span>)
+<span class="k">for</span> chunk <span class="k">in</span> client.chat.completions.create(
+    model=<span class="s">"gpt2"</span>, stream=<span class="o">True</span>,
+    messages=[{<span class="s">"role"</span>:<span class="s">"user"</span>,<span class="s">"content"</span>:<span class="s">"What is Rust?"</span>}]):
+    print(chunk.choices[0].delta.content, end=<span class="s">""</span>, flush=<span class="o">True</span>)</code></pre>
+  </div>
+
+  <div class="section-label" style="margin-top:2rem">Live Output — Phase 14</div>
+  <p style="font-size:.88rem;color:var(--muted);margin-bottom:1rem">Output from <code>rllm serve start --model gpt2 --port 8080</code>.</p>
 
   <p style="font-size:.82rem;color:var(--muted);margin:.75rem 0 .4rem;font-weight:600">▶ server startup</p>
   <pre>$ rllm serve start --model gpt2 --port 8080
@@ -179,7 +200,33 @@ rllm serve test <span class="k">--port</span> 8080 <span class="k">--prompt</spa
   "object": "text_completion"
 }</pre>
 
-  <p style="font-size:.82rem;color:var(--muted);margin:1.25rem 0 .4rem;font-weight:600">▶ /v1/embeddings (Phase 8 — real vectors, was stub in Phase 4)</p>
+  <p style="font-size:.82rem;color:var(--muted);margin:1.25rem 0 .4rem;font-weight:600">▶ /v1/completions?stream=true (Phase 14 SSE)</p>
+  <pre>$ curl -s http://localhost:8080/v1/completions \
+    -H 'Content-Type: application/json' \
+    -d '{"prompt":"The quick brown fox","max_tokens":10,"stream":true}'
+
+data: {"id":"cmpl-rllm","object":"text_completion","model":"gpt2","choices":[{"text":"jumps ","finish_reason":null,"index":0}]}
+
+data: {"id":"cmpl-rllm","object":"text_completion","model":"gpt2","choices":[{"text":"over ","finish_reason":null,"index":0}]}
+
+data: {"id":"cmpl-rllm","object":"text_completion","model":"gpt2","choices":[{"text":"the ","finish_reason":null,"index":0}]}
+
+data: [DONE]</pre>
+
+  <p style="font-size:.82rem;color:var(--muted);margin:1.25rem 0 .4rem;font-weight:600">▶ /v1/chat/completions?stream=true (Phase 14 SSE)</p>
+  <pre>$ curl -s http://localhost:8080/v1/chat/completions \
+    -H 'Content-Type: application/json' \
+    -d '{"messages":[{"role":"user","content":"What is Rust?"}],"stream":true}'
+
+data: {"id":"chatcmpl-rllm","object":"chat.completion.chunk","model":"gpt2","choices":[{"delta":{"content":"Rust "},"finish_reason":null,"index":0}]}
+
+data: {"id":"chatcmpl-rllm","object":"chat.completion.chunk","model":"gpt2","choices":[{"delta":{"content":"is "},"finish_reason":null,"index":0}]}
+
+data: {"id":"chatcmpl-rllm","object":"chat.completion.chunk","model":"gpt2","choices":[{"delta":{"content":"a "},"finish_reason":null,"index":0}]}
+
+data: [DONE]</pre>
+
+  <p style="font-size:.82rem;color:var(--muted);margin:1.25rem 0 .4rem;font-weight:600">▶ /v1/embeddings (real 768-dim vectors)</p>
   <pre>$ curl -s http://localhost:8080/v1/embeddings \
     -H 'Content-Type: application/json' \
     -d '{"input":"neural network"}' | jq '.data[0].embedding[:6]'
