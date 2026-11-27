@@ -69,7 +69,7 @@
     </div>
   </div>
   <div class="header-right">
-    <span class="pill"><span class="dot"></span>v0.1.0 · Phase 25 ✓</span>
+    <span class="pill"><span class="dot"></span>v0.1.0 · Phase 26 ✓</span>
     <button class="theme-toggle" onclick="toggleTheme()">☀ / ☾</button>
   </div>
 </header>
@@ -77,14 +77,14 @@
 <div class="hero">
   <div class="hero-glow"></div>
   <h1>rllm <span class="hl">llama3</span></h1>
-  <p class="hero-tagline">Llama 3 / Llama 3.1 model info, GQA configuration, RoPE-500k, and generation — the 26th rllm crate.</p>
-  <div class="hero-badges"><span class="badge b-orange">Phase 25 ✓</span><span class="badge b-blue">Llama 3 / 3.1</span><span class="badge b-green">GQA · rope_theta=500k</span><span class="badge b-yellow">8B · 70B configs</span><span class="badge b-green">Real Candle Inference</span><span class="badge b-orange">13 Tests</span></div>
+  <p class="hero-tagline">Llama 3 / Llama 3.1 model info, GQA configuration, RoPE-500k, and O(n) generation with KV cache — the 26th rllm crate.</p>
+  <div class="hero-badges"><span class="badge b-orange">Phase 26 ✓</span><span class="badge b-blue">Llama 3 / 3.1</span><span class="badge b-green">GQA · rope_theta=500k</span><span class="badge b-yellow">8B · 70B configs</span><span class="badge b-green">KV Cache · O(n)</span><span class="badge b-orange">17 Tests</span></div>
 </div>
 
 <main>
   <a class="back-link" href="rllm-portal.html">← Back to Portal</a>
 
-  <div class="info-box"><strong>Phase 25 ✓</strong> — Real Candle inference wired. <code>model.rs</code> implements the full Llama 3 architecture: <code>RmsNorm</code>, <code>RopeCache</code> (theta=500k, split-half layout), <code>GqaAttention</code> (KV head expansion), <code>SwiGluMlp</code>, and <code>Llama3Model</code> with multi-shard safetensors loading. <code>rllm llama3 generate</code> now runs real autoregressive inference with temperature/top-k/top-p sampling and EOS detection. 13 unit tests (8 original + 5 model: rope shape, rotate_half, causal mask, config parse).</div>
+  <div class="info-box"><strong>Phase 26 ✓</strong> — KV cache wired into <code>rllm llama3 generate</code>. Generation is now <strong>O(n)</strong>: the full prompt is processed once (prefill), then each new token does a single forward pass over one token only (decode), attending over all past keys and values stored in the <code>KvCache</code>. Without the cache, every step re-processed the entire growing sequence — O(n²) total compute. 17 unit tests (8 lib + 5 model + 4 KvCache: empty, first-update, concatenation, layer independence).</div>
 
   <div class="section-label">Commands</div>
   <table class="cmd-table">
@@ -92,7 +92,7 @@
     <tbody>
       <tr><td><code>rllm llama3 info [MODEL]</code></td><td><code>--json</code></td><td>Show architecture config: d_model, n_heads, n_kv_heads, rope_theta, GQA groups, parameter count</td></tr>
       <tr><td><code>rllm llama3 load &lt;MODEL&gt;</code></td><td><code>--json</code></td><td>Check local cache for a Llama 3 model directory</td></tr>
-      <tr><td><code>rllm llama3 generate --prompt "…"</code></td><td><code>--max-tokens --temperature --model</code></td><td>Real autoregressive inference via Candle. Temperature/top-k/top-p sampling. Stops on EOS token 128001 or 128009.</td></tr>
+      <tr><td><code>rllm llama3 generate --prompt "…"</code></td><td><code>--max-tokens --temperature --model</code></td><td>O(n) autoregressive inference via Candle + KV cache. Prefill processes the full prompt once; each decode step processes one token. Temperature/top-k/top-p sampling, EOS 128001/128009.</td></tr>
     </tbody>
   </table>
 
@@ -117,6 +117,19 @@
       <tr><td><code>GqaAttention</code></td><td><code>model.rs</code></td><td>q/k/v/o projections (no bias); RoPE applied; KV heads expanded via reshape for GQA; causal mask</td></tr>
       <tr><td><code>SwiGluMlp</code></td><td><code>model.rs</code></td><td><code>down_proj(silu(gate_proj(x)) * up_proj(x))</code></td></tr>
       <tr><td><code>load_model_from_dir</code></td><td><code>model.rs</code></td><td>Auto-discovers sharded <code>.safetensors</code> files, memory-maps them, builds <code>VarBuilder</code></td></tr>
+    </tbody>
+  </table>
+
+  <div class="section-label">Phase 26 — KV Cache</div>
+  <table class="cmd-table">
+    <thead><tr><th>Component</th><th>File</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>KvCache</code></td><td><code>model.rs</code></td><td>Per-layer storage of past K/V tensors: <code>Vec&lt;Option&lt;(Tensor, Tensor)&gt;&gt;</code>. Each entry grows by concatenation along the seq dim on every decode step.</td></tr>
+      <tr><td><code>KvCache::update</code></td><td><code>model.rs</code></td><td>Appends new K/V for a layer; returns the full accumulated (past + current) tensors for attention.</td></tr>
+      <tr><td><code>KvCache::seq_len</code></td><td><code>model.rs</code></td><td>Current cached sequence length — used as the <code>offset</code> for RoPE on each decode step.</td></tr>
+      <tr><td>Prefill stage</td><td><code>lib.rs</code></td><td>All prompt tokens processed in a single forward pass (offset=0). KV cache filled for [0..n_prompt) in one shot.</td></tr>
+      <tr><td>Decode stage</td><td><code>lib.rs</code></td><td>Each new token: input=[1 token], offset=cache.seq_len(). Attends over full cached K/V. O(1) compute per step.</td></tr>
+      <tr><td>Complexity</td><td>—</td><td>Phase 25: O(n²) — full sequence re-processed every step. Phase 26: O(n) — prefill once, decode in O(1) steps.</td></tr>
     </tbody>
   </table>
 
@@ -171,7 +184,7 @@ rllm llama3 generate <span class="k">--prompt</span> <span class="s">"The key di
 
 <footer>
   <a href="rllm-portal.html">← rllm docs portal</a> &nbsp;·&nbsp;
-  rllm v0.1.0 · Phase 25 ✓ · 26 crates · Pure Rust LLM CLI · Real Candle Inference
+  rllm v0.1.0 · Phase 26 ✓ · 26 crates · Pure Rust LLM CLI · KV Cache · O(n) Generation
 </footer>
 
 <script>
