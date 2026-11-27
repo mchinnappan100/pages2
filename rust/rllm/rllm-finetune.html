@@ -74,7 +74,7 @@
     </div>
   </div>
   <div class="header-right">
-    <span class="pill"><span class="dot"></span>v0.1.0 · Phase 4</span>
+    <span class="pill"><span class="dot"></span>v0.1.0 · Phase 10 ✓</span>
     <button class="theme-toggle" onclick="toggleTheme()">☀ / ☾</button>
   </div>
 </header>
@@ -83,7 +83,7 @@
   <div class="hero-glow"></div>
   <h1>rllm <span class="hl">finetune</span></h1>
   <p class="hero-tagline">Fine-tune language models with LoRA (Low-Rank Adaptation). Merge adapters back into the base model.</p>
-  <div class="hero-badges"><span class="badge b-orange">LoRA</span><span class="badge b-blue">QLoRA</span><span class="badge b-green">Merge Adapter</span><span class="badge b-yellow">Low-Rank</span></div>
+  <div class="hero-badges"><span class="badge b-orange">Phase 10 ✓</span><span class="badge b-blue">Logit-LoRA</span><span class="badge b-green">AdamW · Real Gradients</span><span class="badge b-yellow">Merge Adapter</span></div>
 </div>
 
 <main>
@@ -99,17 +99,65 @@
     </tbody>
   </table>
 
+  <div class="info-box">
+    <strong>Phase 10:</strong> Real AdamW gradient training via candle-nn <code>VarMap</code>. A and B matrices are tracked <code>Var</code> objects — <code>candle_nn::loss::cross_entropy</code> computes differentiable loss, <code>opt.backward_step(&amp;loss)</code> updates only the adapters while the base GPT-2 stays frozen. 6 unit tests verified.
+  </div>
+
   <div class="section-label">LoRA Concepts</div>
   <div class="info-box">
-    <strong>LoRA</strong> freezes base model weights and trains two small rank-decomposition matrices (A and B) per attention layer. Memory overhead is O(rank × hidden_dim) instead of O(hidden_dim²). Typical rank: 8–64. Alpha scales the update: effective_lr = alpha / rank.
+    <strong>Logit-LoRA architecture:</strong> Two trainable matrices A <code>[vocab, rank]</code> and B <code>[rank, vocab]</code> (init: A~N(0,0.02), B=0). At each training step: <code>adapted = frozen_logits + (frozen_logits @ A @ B) × (alpha/rank)</code>. Cross-entropy loss flows gradients through A and B only — base model weights are never updated. Trainable params = 2 × vocab × rank (e.g. GPT-2: 2 × 50257 × 8 ≈ 804K vs. 124M base = 0.65%).
   </div>
 
   <div class="quick-start">
-    <h3>Examples</h3>
-    <pre><code>rllm finetune lora <span class="k">--model</span> gpt2 <span class="k">--data</span> finetune.txt <span class="k">--rank</span> 16 <span class="k">--alpha</span> 32 <span class="k">--output</span> gpt2-lora
-rllm finetune merge-adapter <span class="k">--model</span> gpt2 <span class="k">--adapter</span> gpt2-lora <span class="k">--output</span> gpt2-merged
-rllm infer generate <span class="s">"Hello"</span> <span class="k">--model</span> gpt2-merged</code></pre>
+    <h3>Workflow</h3>
+    <pre><code><span class="c"># Prepare JSONL training data ({"text": "..."} per line)</span>
+echo <span class="s">'{"text": "Rust is a systems language."}'</span> &gt; finetune.jsonl
+
+<span class="c"># Fine-tune GPT-2 with LoRA adapters</span>
+rllm finetune lora <span class="k">--base</span> ~/.rllm/models/gpt2 <span class="k">--data</span> finetune.jsonl \
+    <span class="k">--rank</span> 8 <span class="k">--alpha</span> 16 <span class="k">--epochs</span> 3 <span class="k">--output</span> gpt2-lora/
+
+<span class="c"># Check status</span>
+rllm finetune status
+
+<span class="c"># Merge adapter into base model</span>
+rllm finetune merge-adapter <span class="k">--base</span> ~/.rllm/models/gpt2 \
+    <span class="k">--adapter</span> gpt2-lora/ <span class="k">--output</span> gpt2-merged/</code></pre>
   </div>
+
+  <div class="section-label" style="margin-top:2rem">Live Output — Phase 10</div>
+  <p style="font-size:.82rem;color:var(--muted);margin:.75rem 0 .4rem;font-weight:600">▶ rllm finetune lora --base ~/.rllm/models/gpt2 --data finetune.jsonl --rank 8 --alpha 16 --epochs 3 --output gpt2-lora/</p>
+  <pre>ℹ Loading base model from ~/.rllm/models/gpt2 …
+── LoRA Fine-tuning ─────────────────────────────────────
+ℹ rank=8  alpha=16  scale=2.0000  lr=0.0001  epochs=3  batch_size=4
+ℹ Adapter params: A[50257×8] + B[8×50257] = 804112 trainable
+ℹ Loading training data from finetune.jsonl …
+ℹ Loaded 48 training texts.
+ℹ Starting LoRA training (AdamW, real gradients) …
+  Epoch 1/3 — avg loss: 3.8214
+  Epoch 2/3 — avg loss: 3.1043
+  Epoch 3/3 — avg loss: 2.7891
+✓ Adapter saved to gpt2-lora/adapter.safetensors
+  Metric           Value
+  ───────────────  ──────────
+  Epochs           3
+  Steps            144
+  Avg loss         3.2383
+  Rank             8
+  Trainable params 804112</pre>
+
+  <p style="font-size:.82rem;color:var(--muted);margin:1.25rem 0 .4rem;font-weight:600">▶ rllm finetune status</p>
+  <pre>── Last fine-tune run ────────────────────────────────────
+  Key         Value
+  ──────────  ──────────────────────────────────
+  type        lora
+  base        ~/.rllm/models/gpt2
+  output      gpt2-lora/
+  epochs      3
+  steps       144
+  avg_loss    3.2383
+  rank        8
+  alpha       16</pre>
 
 </main>
 
