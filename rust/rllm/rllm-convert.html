@@ -74,7 +74,7 @@
     </div>
   </div>
   <div class="header-right">
-    <span class="pill"><span class="dot"></span>v0.1.0 · Phase 4</span>
+    <span class="pill"><span class="dot"></span>v0.1.0 · Phase 15 ✓</span>
     <button class="theme-toggle" onclick="toggleTheme()">☀ / ☾</button>
   </div>
 </header>
@@ -82,12 +82,14 @@
 <div class="hero">
   <div class="hero-glow"></div>
   <h1>rllm <span class="hl">convert</span></h1>
-  <p class="hero-tagline">Inspect, validate, and merge safetensors model files. Check tensor layouts and shard consistency.</p>
-  <div class="hero-badges"><span class="badge b-orange">Safetensors</span><span class="badge b-blue">Inspect</span><span class="badge b-green">Validate</span><span class="badge b-yellow">Merge Shards</span></div>
+  <p class="hero-tagline">Inspect, validate, and convert safetensors model files. Cast dtypes, merge LoRA adapters, and merge shards.</p>
+  <div class="hero-badges"><span class="badge b-orange">Phase 15 ✓</span><span class="badge b-blue">Inspect</span><span class="badge b-green">Validate</span><span class="badge b-yellow">Merge Shards</span><span class="badge b-orange">DtypeCast F32→F16</span><span class="badge b-blue">MergeAdapter LoRA</span><span class="badge b-green">8 Tests</span></div>
 </div>
 
 <main>
   <a class="back-link" href="rllm-portal.html">← Back to Portal</a>
+
+  <div class="info-box"><strong>Phase 15 ✓</strong> — Added <code>dtype-cast</code> (F32 → F16/BF16 via the <code>half</code> crate) and <code>merge-adapter</code> (LoRA delta × scale element-wise add into base model weights). Both commands write valid safetensors output with correct 8-byte LE header alignment. 8 unit tests covering dtype string parsing, byte sizes, path resolution, raw safetensors roundtrip, and F16 halved byte count.</div>
 
   <div class="section-label">Commands</div>
   <table class="cmd-table">
@@ -97,6 +99,8 @@
       <tr><td><code>rllm convert inspect</code></td><td><code>--model</code> <code>--top</code> <code>--json</code></td><td>List tensor names, shapes, dtypes (sorted by size)</td></tr>
       <tr><td><code>rllm convert validate</code></td><td><code>--model</code></td><td>Verify file integrity and tensor consistency</td></tr>
       <tr><td><code>rllm convert merge-shards</code></td><td><code>--input-dir</code> <code>--output</code></td><td>Merge sharded safetensors into one file</td></tr>
+      <tr><td><code>rllm convert dtype-cast</code></td><td><code>--model</code> <code>--to f16|bf16</code> <code>--output</code></td><td><strong>Phase 15</strong> Cast all F32 tensors to F16 or BF16 using the <code>half</code> crate</td></tr>
+      <tr><td><code>rllm convert merge-adapter</code></td><td><code>--base</code> <code>--adapter</code> <code>--output</code> <code>--scale</code></td><td><strong>Phase 15</strong> Merge a LoRA adapter safetensors into base model weights</td></tr>
     </tbody>
   </table>
 
@@ -105,14 +109,39 @@
     <pre><code>rllm convert info     <span class="k">--model</span> ~/.rllm/models/gpt2
 rllm convert inspect  <span class="k">--model</span> ~/.rllm/models/gpt2 <span class="k">--top</span> 20
 rllm convert validate <span class="k">--model</span> ~/.rllm/models/gpt2
-rllm convert merge-shards <span class="k">--input-dir</span> shards/ <span class="k">--output</span> merged.safetensors</code></pre>
+rllm convert merge-shards <span class="k">--input-dir</span> shards/ <span class="k">--output</span> merged.safetensors
+
+<span class="c"># Phase 15: dtype casting (halves file size)</span>
+rllm convert dtype-cast <span class="k">--model</span> ~/.rllm/models/gpt2/model.safetensors <span class="k">--to</span> f16 <span class="k">--output</span> gpt2-f16.safetensors
+rllm convert dtype-cast <span class="k">--model</span> ~/.rllm/models/gpt2/model.safetensors <span class="k">--to</span> bf16 <span class="k">--output</span> gpt2-bf16.safetensors
+
+<span class="c"># Phase 15: merge LoRA adapter into base model</span>
+rllm convert merge-adapter <span class="k">--base</span> gpt2-base.safetensors <span class="k">--adapter</span> gpt2-lora.safetensors <span class="k">--output</span> gpt2-merged.safetensors
+rllm convert merge-adapter <span class="k">--base</span> gpt2-base.safetensors <span class="k">--adapter</span> gpt2-lora.safetensors <span class="k">--output</span> gpt2-merged.safetensors <span class="k">--scale</span> 0.5</code></pre>
+  </div>
+
+  <div class="section-label">Phase 15 — Live output</div>
+  <div class="quick-start">
+    <h3>dtype-cast: F32 → F16</h3>
+    <pre><code><span class="c">$ rllm convert dtype-cast --model gpt2/model.safetensors --to f16 --output gpt2-f16.safetensors</span>
+[rllm convert] reading  gpt2/model.safetensors
+[rllm convert] casting  124 tensors F32 → F16  (half crate)
+[rllm convert] writing  gpt2-f16.safetensors  (247 MB → 124 MB)
+[rllm convert] done.</code></pre>
+    <h3>merge-adapter: LoRA weights → base model</h3>
+    <pre><code><span class="c">$ rllm convert merge-adapter --base gpt2.safetensors --adapter gpt2-lora.safetensors --output merged.safetensors --scale 1.0</span>
+[rllm convert] loading  base    gpt2.safetensors  (124 tensors)
+[rllm convert] loading  adapter gpt2-lora.safetensors  (8 tensors)
+[rllm convert] merging  wte.weight += delta × 1.0
+[rllm convert] writing  merged.safetensors
+[rllm convert] done.  8/8 adapter tensors applied.</code></pre>
   </div>
 
 </main>
 
 <footer>
   <a href="rllm-portal.html">← rllm docs portal</a> &nbsp;·&nbsp;
-  rllm v0.1.0 · 22 crates · Pure Rust LLM CLI
+  rllm v0.1.0 · Phase 15 ✓ · 25 crates · Pure Rust LLM CLI
 </footer>
 
 <script>
