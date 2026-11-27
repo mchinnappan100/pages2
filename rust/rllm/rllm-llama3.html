@@ -69,7 +69,7 @@
     </div>
   </div>
   <div class="header-right">
-    <span class="pill"><span class="dot"></span>v0.1.0 · Phase 26 ✓</span>
+    <span class="pill"><span class="dot"></span>v0.1.0 · Phase 30 ✓</span>
     <button class="theme-toggle" onclick="toggleTheme()">☀ / ☾</button>
   </div>
 </header>
@@ -77,14 +77,15 @@
 <div class="hero">
   <div class="hero-glow"></div>
   <h1>rllm <span class="hl">llama3</span></h1>
-  <p class="hero-tagline">Llama 3 / Llama 3.1 model info, GQA configuration, RoPE-500k, and O(n) generation with KV cache — the 26th rllm crate.</p>
-  <div class="hero-badges"><span class="badge b-orange">Phase 26 ✓</span><span class="badge b-blue">Llama 3 / 3.1</span><span class="badge b-green">GQA · rope_theta=500k</span><span class="badge b-yellow">8B · 70B configs</span><span class="badge b-green">KV Cache · O(n)</span><span class="badge b-orange">17 Tests</span></div>
+  <p class="hero-tagline">Llama 3 / Llama 3.1 — info, generate (streaming, BF16, KV cache), bench, chat REPL, and OpenAI-compatible HTTP server — the 26th rllm crate.</p>
+  <div class="hero-badges"><span class="badge b-orange">Phase 30 ✓</span><span class="badge b-blue">Llama 3 / 3.1</span><span class="badge b-green">KV Cache · BF16 · Streaming</span><span class="badge b-blue">Chat REPL</span><span class="badge b-yellow">Bench · Serve</span><span class="badge b-orange">17 Tests · 121 Man Pages</span></div>
 </div>
 
 <main>
   <a class="back-link" href="rllm-portal.html">← Back to Portal</a>
 
-  <div class="info-box"><strong>Phase 26 ✓</strong> — KV cache wired into <code>rllm llama3 generate</code>. Generation is now <strong>O(n)</strong>: the full prompt is processed once (prefill), then each new token does a single forward pass over one token only (decode), attending over all past keys and values stored in the <code>KvCache</code>. Without the cache, every step re-processed the entire growing sequence — O(n²) total compute. 17 unit tests (8 lib + 5 model + 4 KvCache: empty, first-update, concatenation, layer independence).</div>
+  <div class="info-box"><strong>Phase 30 ✓</strong> — Bench, BF16, and HTTP serve added. <code>rllm llama3 bench</code> measures TTFT, prefill speed (ms/token), and decode throughput (tokens/sec). All model commands now accept <code>--bf16</code> to load weights in BF16, halving memory (~16 GB vs 32 GB for 8B). <code>rllm llama3 serve --port 8080</code> starts an OpenAI-compatible HTTP server (<code>POST /v1/completions</code>, <code>POST /v1/chat/completions</code>, SSE streaming). 121 man pages total.</div>
+  <div class="info-box"><strong>Phase 27 ✓</strong> — Streaming output and multi-turn chat REPL. <code>rllm llama3 generate --stream</code> prints each token to stdout as it is sampled. <code>rllm llama3 chat</code> is an interactive REPL using the Llama 3 chat template (<code>&lt;|start_header_id|&gt;</code>/<code>&lt;|eot_id|&gt;</code>); the KV cache is kept live across turns so each new turn only processes the new tokens — O(1) per turn after the first. 119 man pages (new: <code>rllm-llama3-chat.1</code>).</div>
 
   <div class="section-label">Commands</div>
   <table class="cmd-table">
@@ -92,7 +93,10 @@
     <tbody>
       <tr><td><code>rllm llama3 info [MODEL]</code></td><td><code>--json</code></td><td>Show architecture config: d_model, n_heads, n_kv_heads, rope_theta, GQA groups, parameter count</td></tr>
       <tr><td><code>rllm llama3 load &lt;MODEL&gt;</code></td><td><code>--json</code></td><td>Check local cache for a Llama 3 model directory</td></tr>
-      <tr><td><code>rllm llama3 generate --prompt "…"</code></td><td><code>--max-tokens --temperature --model</code></td><td>O(n) autoregressive inference via Candle + KV cache. Prefill processes the full prompt once; each decode step processes one token. Temperature/top-k/top-p sampling, EOS 128001/128009.</td></tr>
+      <tr><td><code>rllm llama3 generate --prompt "…"</code></td><td><code>--max-tokens --temperature --model --stream</code></td><td>O(n) autoregressive inference via Candle + KV cache. <code>--stream</code> prints each token to stdout as it is sampled. EOS 128001/128009.</td></tr>
+      <tr><td><code>rllm llama3 chat</code></td><td><code>--model --system --max-tokens --temperature --bf16</code></td><td>Interactive multi-turn chat REPL using the Llama 3 chat template. KV cache kept live across turns. Type <code>/quit</code> to exit.</td></tr>
+      <tr><td><code>rllm llama3 bench</code></td><td><code>--prompt --max-tokens --model --runs --bf16</code></td><td>Measure TTFT, prefill speed (ms/token), decode throughput (tokens/sec), model load time. <code>--runs N</code> reports mean across N runs.</td></tr>
+      <tr><td><code>rllm llama3 serve</code></td><td><code>--port --model --bf16</code></td><td>OpenAI-compatible HTTP server. <code>POST /v1/completions</code>, <code>POST /v1/chat/completions</code> (with <code>"stream":true</code> for SSE), <code>GET /v1/models</code>, <code>GET /health</code>.</td></tr>
     </tbody>
   </table>
 
@@ -133,6 +137,17 @@
     </tbody>
   </table>
 
+  <div class="section-label">Phase 27 — Streaming &amp; Chat REPL</div>
+  <table class="cmd-table">
+    <thead><tr><th>Feature</th><th>Flag / Command</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>Token streaming</td><td><code>generate --stream</code></td><td>Each token is decoded and printed to stdout immediately after sampling. Flush-safe; trailing newline added after all tokens.</td></tr>
+      <tr><td>Chat template</td><td><code>chat</code></td><td>Llama 3 format: <code>&lt;|begin_of_text|&gt;…system…&lt;|eot_id|&gt;&lt;|start_header_id|&gt;user&lt;|end_header_id|&gt;…&lt;|eot_id|&gt;&lt;|start_header_id|&gt;assistant&lt;|end_header_id|&gt;</code></td></tr>
+      <tr><td>KV cache across turns</td><td><code>chat</code></td><td>Cache is kept live; each new user turn only prefills tokens not yet seen. <code>&lt;|eot_id|&gt;</code> forwarded into cache after each assistant response so context is properly terminated.</td></tr>
+      <tr><td>Man page</td><td><code>man rllm-llama3-chat</code></td><td>Auto-generated by clap; now 119 man pages total.</td></tr>
+    </tbody>
+  </table>
+
   <div class="section-label">Examples</div>
   <div class="quick-start">
     <h3>Llama 3 operations</h3>
@@ -143,10 +158,18 @@ rllm llama3 info meta-llama/Meta-Llama-3-8B <span class="k">--json</span>
 <span class="c"># Check local model cache</span>
 rllm llama3 load meta-llama/Meta-Llama-3-8B
 
-<span class="c"># Generate (requires model cached via rllm model download)</span>
+<span class="c"># Generate — buffered (waits for all tokens, then prints)</span>
 rllm model download meta-llama/Meta-Llama-3-8B
 rllm llama3 generate <span class="k">--prompt</span> <span class="s">"The key difference between Llama 3 and GPT-2 is"</span> \
-  <span class="k">--max-tokens</span> 100 <span class="k">--model</span> meta-llama/Meta-Llama-3-8B</code></pre>
+  <span class="k">--max-tokens</span> 100 <span class="k">--model</span> meta-llama/Meta-Llama-3-8B
+
+<span class="c"># Generate — streamed (tokens appear immediately)</span>
+rllm llama3 generate <span class="k">--prompt</span> <span class="s">"Rust is memory-safe because"</span> \
+  <span class="k">--max-tokens</span> 200 <span class="k">--stream</span>
+
+<span class="c"># Multi-turn chat REPL (type /quit to exit)</span>
+rllm llama3 chat
+rllm llama3 chat <span class="k">--system</span> <span class="s">"You are a Rust expert."</span> <span class="k">--max-tokens</span> 512</code></pre>
   </div>
 
   <div class="section-label">Live Output</div>
@@ -184,7 +207,7 @@ rllm llama3 generate <span class="k">--prompt</span> <span class="s">"The key di
 
 <footer>
   <a href="rllm-portal.html">← rllm docs portal</a> &nbsp;·&nbsp;
-  rllm v0.1.0 · Phase 26 ✓ · 26 crates · Pure Rust LLM CLI · KV Cache · O(n) Generation
+  rllm v0.1.0 · Phase 30 ✓ · 26 crates · Pure Rust LLM CLI · KV Cache · BF16 · Streaming · Chat · Bench · Serve
 </footer>
 
 <script>
